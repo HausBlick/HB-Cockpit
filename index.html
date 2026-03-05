@@ -29,61 +29,52 @@
 </head>
 <body class="bg-hb-ultralight font-sans h-screen flex items-center justify-center text-hb-offblack">
 
-    <div class="bg-white p-10 rounded-none shadow-sm w-full max-w-md border-t-4 border-hb-olive">
-        <div class="mb-8 flex justify-center">
-            <div class="text-2xl font-bold tracking-tight">HB <span class="font-light text-hb-olive">Verwaltung</span></div>
-        </div>
+    <div class="bg-white p-10 rounded-none shadow-sm w-full max-w-md border-t-4 border-hb-olive text-center">
+        <img src="HB_icon_olive_RGB.svg" alt="HB Verwaltung Logo" class="h-20 w-auto mx-auto mb-6">
         
-        <h1 class="text-xl font-semibold mb-6 text-center">Mieter-Portal Login</h1>
+        <h1 class="text-xl font-semibold mb-8 uppercase tracking-widest text-hb-offblack">Mieter-Portal</h1>
         
-        <form id="login-form" class="space-y-5">
+        <form id="login-form" class="space-y-5 text-left">
             <div>
-                <label class="block text-xs uppercase tracking-wider font-semibold text-hb-olive mb-1">E-Mail</label>
-                <input type="email" id="email" class="w-full border border-gray-200 rounded-none p-3 focus:outline-none focus:border-hb-olive transition-colors" placeholder="ihre@email.de" required>
+                <label class="block text-xs uppercase tracking-wider font-bold text-hb-olive mb-2">E-Mail Adresse</label>
+                <input type="email" id="email" class="w-full border border-gray-200 rounded-none p-3 focus:outline-none focus:border-hb-olive transition-colors" placeholder="beispiel@email.de" required>
             </div>
             <div>
-                <label class="block text-xs uppercase tracking-wider font-semibold text-hb-olive mb-1">Passwort</label>
+                <label class="block text-xs uppercase tracking-wider font-bold text-hb-olive mb-2">Persönliches Passwort</label>
                 <input type="password" id="password" class="w-full border border-gray-200 rounded-none p-3 focus:outline-none focus:border-hb-olive transition-colors" placeholder="••••••••" required>
             </div>
-            <button type="submit" class="w-full bg-hb-olive text-white font-medium py-3 px-4 rounded-none hover:bg-opacity-90 transition duration-200 uppercase text-sm tracking-widest">
+            <button type="submit" class="w-full bg-hb-olive text-white font-medium py-4 px-4 rounded-none hover:bg-opacity-90 transition duration-200 uppercase text-xs tracking-[0.2em]">
                 Anmelden
             </button>
         </form>
-        <p id="error-msg" class="text-hb-orange text-sm mt-4 hidden text-center font-medium"></p>
+        <p id="error-msg" class="text-hb-orange text-sm mt-6 hidden font-medium"></p>
     </div>
 
-<script>
-    // Hier DEINE Daten einfügen
-    const supabaseUrl = 'https://unprrlbvylmzxxhpfisr.supabase.co';
-    const supabaseKey = 'sb_publishable_nWYozmRQq8E17z_ljZ2SHA_LUulwUV1';
-    
-    // KORREKTUR: Der Aufruf muss "supabase.createClient" lauten
-    const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
-
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
+    <script>
+        // Deine fest hinterlegten Supabase-Daten
+        const supabaseUrl = 'https://unprrlbvylmzxxhpfisr.supabase.co';
+        const supabaseKey = 'sb_publishable_nWYozmRQq8E17z_ljZ2SHA_LUulwUV1';
         
-        console.log("Anmeldeversuch für:", email);
+        const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-        const { data, error } = await _supabase.auth.signInWithPassword({
-            email: email,
-            password: password,
-        });
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            const { data, error } = await _supabase.auth.signInWithPassword({
+                email: email,
+                password: password,
+            });
 
-        if (error) {
-            console.error("Fehler gefunden:", error.message);
-            const errorEl = document.getElementById('error-msg');
-            errorEl.textContent = "Fehler: " + error.message;
-            errorEl.classList.remove('hidden');
-        } else {
-            console.log("Login erfolgreich!", data);
-            // Wir warten kurz, damit die Session sicher gespeichert ist
-            setTimeout(() => {
+            if (error) {
+                const errorEl = document.getElementById('error-msg');
+                errorEl.textContent = "Anmeldung fehlgeschlagen: " + error.message;
+                errorEl.classList.remove('hidden');
+            } else {
                 window.location.href = 'dashboard.html';
-            }, 500);
-        }
-    });
-</script>
+            }
+        });
+    </script>
+</body>
 </html>
