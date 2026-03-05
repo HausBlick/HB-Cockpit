@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hausblick - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-50 min-h-screen flex">
+
+    <nav class="w-64 bg-slate-800 text-white flex-shrink-0 min-h-screen p-6">
+        <h2 class="text-xl font-bold mb-8 border-b border-slate-700 pb-4">Hausblick Portal</h2>
+        <ul class="space-y-4" id="nav-links">
+            </ul>
+        <button onclick="logout()" class="mt-12 text-slate-400 hover:text-white text-sm">Abmelden</button>
+    </nav>
+
+    <main class="flex-grow p-10">
+        <header class="mb-10 flex justify-between items-center">
+            <h1 id="welcome-title" class="text-3xl font-bold text-gray-800">Lade Dashboard...</h1>
+            <div id="user-badge" class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium"></div>
+        </header>
+
+        <div id="content-area" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            </div>
+    </main>
+
+    <script>
+        const supabaseUrl = 'DEINE_PROJECT_URL';
+        const supabaseKey = 'DEIN_PUBLISHABLE_KEY';
+        const supabase = supabaseCreateClient.createClient(supabaseUrl, supabaseKey);
+
+        async function initDashboard() {
+            // 1. Prüfen, ob User eingeloggt ist
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // 2. Profil & Rolle laden
+            const { data: profile, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .single();
+
+            if (error || !profile) {
+                console.error("Profilfehler:", error);
+                return;
+            }
+
+            // 3. UI anpassen je nach Rolle
+            document.getElementById('welcome-title').textContent = `Willkommen, ${profile.full_name}`;
+            document.getElementById('user-badge').textContent = profile.role === 'admin' ? 'Vermieter' : 'Mieter';
+
+            renderNavigation(profile.role);
+        }
+
+        function renderNavigation(role) {
+            const nav = document.getElementById('nav-links');
+            const commonLinks = `
+                <li><a href="#" class="hover:text-blue-400">Schwarzes Brett</a></li>
+                <li><a href="#" class="hover:text-blue-400">Kontaktbuch</a></li>
+                <li><a href="#" class="hover:text-blue-400">Meine Tickets</a></li>
+                <li><a href="#" class="hover:text-blue-400">Dokumente</a></li>
+            `;
+            
+            const adminLinks = `
+                <li class="pt-4 text-xs font-bold text-slate-500 uppercase">Verwaltung</li>
+                <li><a href="#" class="hover:text-blue-400">Mieter-Stammdaten</a></li>
+                <li><a href="#" class="hover:text-blue-400">Alle Tickets</a></li>
+                <li><a href="#" class="hover:text-blue-400">Dokumente hochladen</a></li>
+            `;
+
+            nav.innerHTML = role === 'admin' ? commonLinks + adminLinks : commonLinks;
+        }
+
+        async function logout() {
+            await supabase.auth.signOut();
+            window.location.href = 'index.html';
+        }
+
+        initDashboard();
+    </script>
+</body>
+</html>
