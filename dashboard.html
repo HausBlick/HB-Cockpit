@@ -124,12 +124,15 @@
             `;
         }
 
-        async function loadTenants() {
-            const container = document.getElementById('content-area');
-            container.className = "space-y-6 col-span-full";
-            
-            const { data: buildings } = await _supabase.from('buildings').select('*');
-            const buildingOptions = buildings?.map(b => `<option value="${b.id}">${b.name}</option>`).join('') || '';
+       async function loadTenants() {
+    const container = document.getElementById('content-area');
+    container.className = "space-y-6 col-span-full";
+    
+    // Geänderte Zeile mit Fehlerprüfung:
+    const { data: buildings, error } = await _supabase.from('buildings').select('*');
+    if (error) console.error("Gebäude-Ladefehler:", error.message); // Das hilft beim Debuggen!
+
+    const buildingOptions = buildings?.map(b => `<option value="${b.id}">${b.name}</option>`).join('') || '';
 
             container.innerHTML = `
                 <div class="bg-white p-6 md:p-8 shadow-sm border-t-2 border-hb-olive">
