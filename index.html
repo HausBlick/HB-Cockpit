@@ -52,27 +52,38 @@
         <p id="error-msg" class="text-hb-orange text-sm mt-4 hidden text-center font-medium"></p>
     </div>
 
-    <script>
-        // Deine Supabase Daten hier wieder einfügen:
-        const supabaseUrl = 'https://unprrlbvylmzxxhpfisr.supabase.co';
-        const supabaseKey = 'sb_publishable_nWYozmRQq8E17z_ljZ2SHA_LUulwUV1';
-        const supabase = supabaseCreateClient.createClient(supabaseUrl, supabaseKey);
+<script>
+    // Hier DEINE Daten einfügen
+    const supabaseUrl = 'https://unprrlbvylmzxxhpfisr.supabase.co';
+    const supabaseKey = 'sb_publishable_nWYozmRQq8E17z_ljZ2SHA_LUulwUV1';
+    
+    // KORREKTUR: Der Aufruf muss "supabase.createClient" lauten
+    const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-        document.getElementById('login-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            
-            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        
+        console.log("Anmeldeversuch für:", email);
 
-            if (error) {
-                const errorEl = document.getElementById('error-msg');
-                errorEl.textContent = "Login fehlgeschlagen. Bitte prüfen Sie Ihre Daten.";
-                errorEl.classList.remove('hidden');
-            } else {
-                window.location.href = 'dashboard.html';
-            }
+        const { data, error } = await _supabase.auth.signInWithPassword({
+            email: email,
+            password: password,
         });
-    </script>
-</body>
+
+        if (error) {
+            console.error("Fehler gefunden:", error.message);
+            const errorEl = document.getElementById('error-msg');
+            errorEl.textContent = "Fehler: " + error.message;
+            errorEl.classList.remove('hidden');
+        } else {
+            console.log("Login erfolgreich!", data);
+            // Wir warten kurz, damit die Session sicher gespeichert ist
+            setTimeout(() => {
+                window.location.href = 'dashboard.html';
+            }, 500);
+        }
+    });
+</script>
 </html>
