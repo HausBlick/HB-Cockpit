@@ -79,22 +79,13 @@
         const nav = document.getElementById('nav-links');
         const linkClass = "block p-3 text-sm font-medium hover:bg-hb-ultralight transition-all border-l-2 border-transparent hover:border-hb-olive cursor-pointer";
         
-        // Navigation für Admin/Vermieter
         if (role === 'admin') {
             nav.innerHTML = `
                 <li><a onclick="location.reload()" class="${linkClass}">Übersicht</a></li>
-                <li><a onclick="loadTenants()" class="${linkClass}">Mieter-Stammdaten</a></li>
+                <li><a onclick="loadTenants()" class="${linkClass}">Einheiten & Zähler</a></li>
                 <li class="mt-8 mb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-400">Verwaltung</li>
-                <li><a href="#" class="${linkClass}">Zählerübersicht</a></li>
-                <li><a href="#" class="${linkClass}">Alle Tickets</a></li>
-            `;
-        } else {
-            // Navigation für Mieter
-            nav.innerHTML = `
-                <li><a onclick="location.reload()" class="${linkClass}">Übersicht</a></li>
-                <li><a href="#" class="${linkClass}">Meine Tickets</a></li>
-                <li><a href="#" class="${linkClass}">Dokumente</a></li>
-                <li><a href="#" class="${linkClass}">Schwarzes Brett</a></li>
+                <li><a href="#" class="${linkClass}">Dokumenten-Cloud</a></li>
+                <li><a href="#" class="${linkClass}">Ticketsystem</a></li>
             `;
         }
     }
@@ -105,11 +96,11 @@
         
         container.innerHTML = `
             <div class="bg-white p-8 shadow-sm border-t-2 border-hb-olive">
-                <h2 class="text-xl font-bold mb-6 uppercase tracking-wider">Neue Einheit anlegen</h2>
+                <h2 class="text-xl font-bold mb-6 uppercase tracking-wider">Einheit & Zähler erfassen</h2>
                 <form id="apartment-form" class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
                         <label class="block text-[10px] font-bold uppercase text-hb-olive mb-2">Wohnungsnummer</label>
-                        <input type="text" id="apt_no" class="w-full border-b border-gray-200 p-2 focus:outline-none focus:border-hb-olive" placeholder="z.B. EG Links" required>
+                        <input type="text" id="apt_no" class="w-full border-b border-gray-200 p-2 focus:outline-none focus:border-hb-olive" placeholder="z.B. OG Rechts" required>
                     </div>
                     <div>
                         <label class="block text-[10px] font-bold uppercase text-hb-olive mb-2">Kaltmiete (€)</label>
@@ -119,61 +110,95 @@
                         <label class="block text-[10px] font-bold uppercase text-hb-olive mb-2">Nebenkosten (€)</label>
                         <input type="number" id="utils" class="w-full border-b border-gray-200 p-2 focus:outline-none focus:border-hb-olive" placeholder="0.00">
                     </div>
-                    <div class="md:col-span-3">
-                        <button type="submit" class="bg-hb-offblack text-white px-8 py-3 text-xs uppercase tracking-[0.2em] hover:bg-hb-olive transition-colors">Einheit Speichern</button>
+                    
+                    <div class="md:col-span-3 pt-4 border-t border-gray-50">
+                        <p class="text-[10px] font-bold uppercase text-gray-400 mb-4 tracking-widest text-center">Zählernummern</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-hb-olive mb-2">Stromzähler</label>
+                        <input type="text" id="m_elec" class="w-full border-b border-gray-200 p-2 focus:outline-none focus:border-hb-olive" placeholder="Nr. eingeben">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-hb-olive mb-2">Wasserzähler</label>
+                        <input type="text" id="m_water" class="w-full border-b border-gray-200 p-2 focus:outline-none focus:border-hb-olive" placeholder="Nr. eingeben">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-hb-olive mb-2">Wärmezähler</label>
+                        <input type="text" id="m_heat" class="w-full border-b border-gray-200 p-2 focus:outline-none focus:border-hb-olive" placeholder="Nr. eingeben">
+                    </div>
+
+                    <div class="md:col-span-3 pt-4 text-center">
+                        <button type="submit" class="bg-hb-offblack text-white px-12 py-4 text-xs uppercase tracking-[0.2em] hover:bg-hb-olive transition-colors">
+                            Einheit final speichern
+                        </button>
                     </div>
                 </form>
             </div>
 
             <div class="bg-white p-8 shadow-sm border-t-2 border-hb-olive">
-                <h2 class="text-xl font-bold mb-6 uppercase tracking-wider">Bestands-Einheiten</h2>
+                <h2 class="text-xl font-bold mb-6 uppercase tracking-wider">Bestands-Liste</h2>
                 <div id="tenants-list" class="divide-y divide-gray-100">
-                    <p class="text-gray-400 italic text-sm">Lade Einheiten...</p>
+                    <p class="text-gray-400 italic text-sm">Lade Daten...</p>
                 </div>
             </div>
         `;
 
-        // Event Listener für das Formular (Speichern-Logik bauen wir gleich ein)
         document.getElementById('apartment-form').addEventListener('submit', handleAddApartment);
-        
         fetchApartments();
     }
 
     async function fetchApartments() {
-        const { data, error } = await _supabase.from('apartments').select('*');
+        const { data } = await _supabase.from('apartments').select('*').order('apartment_number');
         const list = document.getElementById('tenants-list');
         
         if (data && data.length > 0) {
             list.innerHTML = data.map(apt => `
-                <div class="py-4 flex justify-between items-center">
-                    <div>
-                        <p class="font-bold text-lg text-hb-offblack">${apt.apartment_number}</p>
-                        <p class="text-[10px] text-gray-500 uppercase tracking-widest">Miete: ${apt.rent_amount}€ | NK: ${apt.utilities_amount}€</p>
+                <div class="py-6 flex flex-wrap justify-between items-start">
+                    <div class="w-full md:w-1/3">
+                        <p class="font-bold text-xl text-hb-offblack">${apt.apartment_number}</p>
+                        <p class="text-[10px] text-gray-400 uppercase tracking-widest font-medium mt-1">Miete gesamt: ${(parseFloat(apt.rent_amount) + parseFloat(apt.utilities_amount)).toFixed(2)} €</p>
                     </div>
-                    <div class="text-right">
-                        <span class="text-[10px] px-2 py-1 bg-hb-ultralight text-hb-olive font-bold uppercase">Aktiv</span>
+                    <div class="w-full md:w-2/3 grid grid-cols-3 gap-4 mt-4 md:mt-0 bg-hb-ultralight p-3">
+                        <div>
+                            <p class="text-[9px] uppercase text-gray-500 font-bold">Strom</p>
+                            <p class="text-xs font-semibold">${apt.meter_electricity || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-[9px] uppercase text-gray-500 font-bold">Wasser</p>
+                            <p class="text-xs font-semibold">${apt.meter_water || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-[9px] uppercase text-gray-500 font-bold">Wärme</p>
+                            <p class="text-xs font-semibold">${apt.meter_heating || '-'}</p>
+                        </div>
                     </div>
                 </div>
             `).join('');
         } else {
-            list.innerHTML = '<p class="text-gray-400 text-sm">Noch keine Einheiten angelegt.</p>';
+            list.innerHTML = '<p class="text-gray-400 text-sm">Keine Einheiten gefunden.</p>';
         }
     }
 
     async function handleAddApartment(e) {
         e.preventDefault();
-        const apt_no = document.getElementById('apt_no').value;
-        const rent = document.getElementById('rent').value;
-        const utils = document.getElementById('utils').value;
+        const { data: { user } } = await _supabase.auth.getUser();
+        
+        const payload = {
+            apartment_number: document.getElementById('apt_no').value,
+            rent_amount: document.getElementById('rent').value,
+            utilities_amount: document.getElementById('utils').value,
+            meter_electricity: document.getElementById('m_elec').value,
+            meter_water: document.getElementById('m_water').value,
+            meter_heating: document.getElementById('m_heat').value
+        };
 
-        const { error } = await _supabase.from('apartments').insert([
-            { apartment_number: apt_no, rent_amount: rent, utilities_amount: utils }
-        ]);
+        const { error } = await _supabase.from('apartments').insert([payload]);
 
         if (error) {
-            alert("Fehler beim Speichern: " + error.message);
+            alert("Speichern fehlgeschlagen. Hast du die Spalten in Supabase schon angelegt?");
         } else {
-            loadTenants(); // Liste neu laden
+            loadTenants();
         }
     }
 
