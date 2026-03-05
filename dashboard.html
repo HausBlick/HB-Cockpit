@@ -24,25 +24,29 @@
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        /* Sanfter Übergang für das mobile Menü */
+        #sidebar { transition: transform 0.3s ease-in-out; }
+    </style>
 </head>
 <body class="bg-hb-ultralight font-sans text-hb-offblack min-h-screen flex flex-col md:flex-row">
 
     <div class="md:hidden bg-white border-b border-gray-200 p-4 flex justify-between items-center sticky top-0 z-50">
         <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-8 w-auto">
-        <button onclick="toggleMenu()" class="text-hb-olive focus:outline-none">
+        <button onclick="toggleMenu()" class="text-hb-olive focus:outline-none p-2">
             <svg id="menu-icon" xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
             </svg>
         </button>
     </div>
 
-    <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-40 w-72 bg-white border-r border-gray-200 flex-shrink-0 min-h-screen flex flex-col shadow-sm">
+    <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-40 w-72 bg-white border-r border-gray-200 flex-shrink-0 min-h-screen flex flex-col shadow-sm">
         <div class="p-8 border-b border-gray-100 hidden md:block">
             <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-12 w-auto mb-4">
             <p class="text-[10px] uppercase tracking-[0.2em] font-bold text-hb-olive">Portal Management</p>
         </div>
         
-        <div class="flex-grow p-6 pt-12 md:pt-6">
+        <div class="flex-grow p-6 pt-16 md:pt-6">
             <ul class="space-y-2" id="nav-links">
                 </ul>
         </div>
@@ -54,14 +58,12 @@
         </div>
     </nav>
 
-    <div id="overlay" onclick="toggleMenu()" class="fixed inset-0 bg-black opacity-50 z-30 hidden"></div>
+    <div id="overlay" onclick="toggleMenu()" class="fixed inset-0 bg-black/50 z-30 hidden"></div>
 
     <main class="flex-grow p-6 md:p-12">
-        <header class="mb-8 md:mb-12 flex justify-between items-end">
-            <div>
-                <p id="role-label" class="text-[10px] uppercase tracking-[0.2em] font-bold text-hb-olive mb-2"></p>
-                <h1 id="welcome-title" class="text-2xl md:text-4xl font-bold tracking-tight text-hb-offblack">Lade...</h1>
-            </div>
+        <header class="mb-8 md:mb-12">
+            <p id="role-label" class="text-[10px] uppercase tracking-[0.2em] font-bold text-hb-olive mb-2"></p>
+            <h1 id="welcome-title" class="text-2xl md:text-4xl font-bold tracking-tight text-hb-offblack italic">Lade...</h1>
         </header>
 
         <div id="content-area" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
@@ -73,7 +75,6 @@
         const supabaseKey = 'sb_publishable_nWYozmRQq8E17z_ljZ2SHA_LUulwUV1';
         const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-        // Mobile Menu Logik
         function toggleMenu() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('overlay');
@@ -89,16 +90,128 @@
             if (!profile) return;
 
             document.getElementById('welcome-title').textContent = profile.full_name;
+            document.getElementById('welcome-title').classList.remove('italic');
             document.getElementById('role-label').textContent = profile.role === 'admin' ? 'Vermieter Cockpit' : 'Mieter Portal';
 
             renderNav(profile.role);
+            // Start-Ansicht laden
+            if (profile.role === 'admin') loadDashboardHome();
         }
 
         function renderNav(role) {
             const nav = document.getElementById('nav-links');
             const linkClass = "block p-3 text-sm font-medium hover:bg-hb-ultralight transition-all border-l-2 border-transparent hover:border-hb-olive cursor-pointer";
             
-            let html = `
-                <li><a onclick="location.reload()" class="${linkClass}">Übersicht</a></li>
-                <li><a onclick="loadTenants(); if(window.innerWidth < 768) toggleMenu();" class="${linkClass}">Einheiten & Zähler</a></li>
-                <li class="mt-8 mb-2 px-3 text
+            if (role === 'admin') {
+                nav.innerHTML = `
+                    <li><a onclick="loadDashboardHome(); if(window.innerWidth < 768) toggleMenu();" class="${linkClass}">Übersicht</a></li>
+                    <li><a onclick="loadTenants(); if(window.innerWidth < 768) toggleMenu();" class="${linkClass}">Einheiten & Zähler</a></li>
+                    <li class="mt-8 mb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-400">Verwaltung</li>
+                    <li><a href="#" class="${linkClass}">Dokumenten-Cloud</a></li>
+                `;
+            }
+        }
+
+        function loadDashboardHome() {
+            const container = document.getElementById('content-area');
+            container.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8";
+            container.innerHTML = `
+                <div class="bg-white p-6 shadow-sm border-t-2 border-hb-olive">
+                    <p class="text-[10px] font-bold uppercase text-gray-400 mb-2">Status</p>
+                    <p class="text-lg font-bold">Alles im Blick</p>
+                    <p class="text-xs text-gray-500 mt-2 text-balance">Nutzen Sie das Menü, um Ihre Immobilien und Mieter zu verwalten.</p>
+                </div>
+            `;
+        }
+
+        async function loadTenants() {
+            const container = document.getElementById('content-area');
+            container.className = "space-y-6 col-span-full";
+            
+            const { data: buildings } = await _supabase.from('buildings').select('*');
+            const buildingOptions = buildings?.map(b => `<option value="${b.id}">${b.name}</option>`).join('') || '';
+
+            container.innerHTML = `
+                <div class="bg-white p-6 md:p-8 shadow-sm border-t-2 border-hb-olive">
+                    <h2 class="text-xl font-bold mb-6 uppercase tracking-wider text-hb-offblack">Einheit erfassen</h2>
+                    <form id="apartment-form" class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                        <div class="md:col-span-3">
+                            <label class="block text-[10px] font-bold uppercase text-hb-olive mb-2">Objekt auswählen</label>
+                            <select id="b_id" class="w-full border-b border-gray-200 p-2 focus:outline-none focus:border-hb-olive bg-white" required>
+                                <option value="" disabled selected>Bitte wählen...</option>
+                                ${buildingOptions}
+                            </select>
+                        </div>
+                        <input type="text" id="apt_no" class="border-b border-gray-200 p-2 focus:border-hb-olive outline-none" placeholder="Wohnung (z.B. EG Links)" required>
+                        <input type="number" id="rent" class="border-b border-gray-200 p-2 focus:border-hb-olive outline-none" placeholder="Kaltmiete (€)" step="0.01">
+                        <input type="number" id="utils" class="border-b border-gray-200 p-2 focus:border-hb-olive outline-none" placeholder="NK (€)" step="0.01">
+                        <div class="md:col-span-3 pt-4">
+                            <button type="submit" class="w-full md:w-auto bg-hb-offblack text-white px-12 py-4 text-xs uppercase tracking-widest hover:bg-hb-olive transition-all">Einheit speichern</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="bg-white p-6 md:p-8 shadow-sm border-t-2 border-hb-olive">
+                    <h2 class="text-xl font-bold mb-6 uppercase tracking-wider text-hb-offblack text-balance">Bestands-Liste</h2>
+                    <div id="tenants-list" class="divide-y divide-gray-100 italic text-sm text-gray-400">Lade Daten...</div>
+                </div>
+            `;
+            document.getElementById('apartment-form').addEventListener('submit', handleAddApartment);
+            fetchApartments();
+        }
+
+        async function fetchApartments() {
+            const { data } = await _supabase
+                .from('apartments')
+                .select('*, buildings (*), profiles:tenant_id (full_name)')
+                .order('building_id');
+
+            const list = document.getElementById('tenants-list');
+            if (data && data.length > 0) {
+                let currentB = "";
+                list.innerHTML = data.map(apt => {
+                    let header = "";
+                    if (currentB !== apt.buildings?.name) {
+                        currentB = apt.buildings?.name || "Nicht zugeordnet";
+                        header = `
+                            <div class="bg-hb-ultralight px-4 py-3 mt-8 mb-2 border-l-4 border-hb-olive">
+                                <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-hb-olive">${currentB}</p>
+                                <p class="text-[9px] text-gray-400 uppercase tracking-widest">${apt.buildings?.address || ''}, ${apt.buildings?.zip_code || ''} ${apt.buildings?.city || ''}</p>
+                            </div>`;
+                    }
+                    return header + `
+                        <div class="py-6 flex flex-wrap justify-between items-center border-b border-gray-50 last:border-0">
+                            <div class="w-full md:w-1/3 mb-2 md:mb-0">
+                                <p class="font-bold text-lg text-hb-offblack">${apt.apartment_number}</p>
+                                <p class="text-[10px] text-gray-400 uppercase tracking-widest mt-1">
+                                    Mieter: <span class="font-semibold text-hb-offblack">${apt.profiles?.full_name || 'LEERSTEHEND'}</span>
+                                </p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[10px] text-gray-400 uppercase">Miete inkl. NK</p>
+                                <p class="font-bold text-hb-olive">${(parseFloat(apt.rent_amount) + parseFloat(apt.utilities_amount)).toFixed(2)} €</p>
+                            </div>
+                        </div>`;
+                }).join('');
+            } else {
+                list.innerHTML = '<p class="p-4 text-center">Keine Einheiten vorhanden.</p>';
+            }
+        }
+
+        async function handleAddApartment(e) {
+            e.preventDefault();
+            const payload = {
+                building_id: document.getElementById('b_id').value,
+                apartment_number: document.getElementById('apt_no').value,
+                rent_amount: document.getElementById('rent').value || 0,
+                utilities_amount: document.getElementById('utils').value || 0
+            };
+            const { error } = await _supabase.from('apartments').insert([payload]);
+            if (error) alert("Fehler: " + error.message); else loadTenants();
+        }
+
+        async function logout() { await _supabase.auth.signOut(); window.location.href = 'index.html'; }
+        
+        init();
+    </script>
+</body>
+</html>
