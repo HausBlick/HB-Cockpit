@@ -3,86 +3,105 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hausblick - Dashboard</title>
+    <title>HB Verwaltung | Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'hb-olive': '#687451',
+                        'hb-offblack': '#373737',
+                        'hb-ultralight': '#F5F5F5',
+                        'hb-orange': '#EB762D'
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body class="bg-gray-50 min-h-screen flex">
+<body class="bg-hb-ultralight font-sans text-hb-offblack min-h-screen flex">
 
-    <nav class="w-64 bg-slate-800 text-white flex-shrink-0 min-h-screen p-6">
-        <h2 class="text-xl font-bold mb-8 border-b border-slate-700 pb-4">Hausblick Portal</h2>
-        <ul class="space-y-4" id="nav-links">
-            </ul>
-        <button onclick="logout()" class="mt-12 text-slate-400 hover:text-white text-sm">Abmelden</button>
+    <nav class="w-72 bg-white border-r border-gray-200 flex-shrink-0 min-h-screen flex flex-col shadow-sm">
+        <div class="p-8 border-b border-gray-100">
+            <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-12 w-auto mb-4">
+            <p class="text-[10px] uppercase tracking-[0.2em] font-bold text-hb-olive">Portal Management</p>
+        </div>
+        
+        <div class="flex-grow p-6">
+            <ul class="space-y-2" id="nav-links">
+                </ul>
+        </div>
+
+        <div class="p-8 border-t border-gray-100">
+            <button onclick="logout()" class="text-xs uppercase tracking-widest font-semibold text-gray-400 hover:text-hb-orange transition-colors">
+                Abmelden
+            </button>
+        </div>
     </nav>
 
-    <main class="flex-grow p-10">
-        <header class="mb-10 flex justify-between items-center">
-            <h1 id="welcome-title" class="text-3xl font-bold text-gray-800">Lade Dashboard...</h1>
-            <div id="user-badge" class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium"></div>
+    <main class="flex-grow p-12">
+        <header class="mb-12 flex justify-between items-end">
+            <div>
+                <p id="role-label" class="text-xs uppercase tracking-[0.2em] font-bold text-hb-olive mb-2"></p>
+                <h1 id="welcome-title" class="text-4xl font-bold tracking-tight text-hb-offblack">Lade...</h1>
+            </div>
         </header>
 
-        <div id="content-area" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div id="content-area" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             </div>
     </main>
 
     <script>
-        const supabaseUrl = 'DEINE_PROJECT_URL';
-        const supabaseKey = 'DEIN_PUBLISHABLE_KEY';
-        const supabase = supabaseCreateClient.createClient(supabaseUrl, supabaseKey);
+        const supabaseUrl = 'https://unprrlbvylmzxxhpfisr.supabase.co';
+        const supabaseKey = 'sb_publishable_nWYozmRQq8E17z_ljZ2SHA_LUulwUV1';
+        const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-        async function initDashboard() {
-            // 1. Prüfen, ob User eingeloggt ist
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                window.location.href = 'index.html';
-                return;
-            }
+        async function init() {
+            const { data: { user } } = await _supabase.auth.getUser();
+            if (!user) { window.location.href = 'index.html'; return; }
 
-            // 2. Profil & Rolle laden
-            const { data: profile, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', user.id)
-                .single();
+            const { data: profile } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
+            if (!profile) return;
 
-            if (error || !profile) {
-                console.error("Profilfehler:", error);
-                return;
-            }
+            document.getElementById('welcome-title').textContent = profile.full_name;
+            document.getElementById('role-label').textContent = profile.role === 'admin' ? 'Vermieter Cockpit' : 'Mieter Portal';
 
-            // 3. UI anpassen je nach Rolle
-            document.getElementById('welcome-title').textContent = `Willkommen, ${profile.full_name}`;
-            document.getElementById('user-badge').textContent = profile.role === 'admin' ? 'Vermieter' : 'Mieter';
-
-            renderNavigation(profile.role);
+            renderNav(profile.role);
         }
 
-        function renderNavigation(role) {
+        function renderNav(role) {
             const nav = document.getElementById('nav-links');
-            const commonLinks = `
-                <li><a href="#" class="hover:text-blue-400">Schwarzes Brett</a></li>
-                <li><a href="#" class="hover:text-blue-400">Kontaktbuch</a></li>
-                <li><a href="#" class="hover:text-blue-400">Meine Tickets</a></li>
-                <li><a href="#" class="hover:text-blue-400">Dokumente</a></li>
+            const linkClass = "block p-3 text-sm font-medium hover:bg-hb-ultralight transition-all border-l-2 border-transparent hover:border-hb-olive";
+            
+            let html = `
+                <li><a href="#" class="${linkClass}">Schwarzes Brett</a></li>
+                <li><a href="#" class="${linkClass}">Dokumente</a></li>
+                <li><a href="#" class="${linkClass}">Ticketsystem</a></li>
+                <li><a href="#" class="${linkClass}">Kontaktbuch</a></li>
             `;
             
-            const adminLinks = `
-                <li class="pt-4 text-xs font-bold text-slate-500 uppercase">Verwaltung</li>
-                <li><a href="#" class="hover:text-blue-400">Mieter-Stammdaten</a></li>
-                <li><a href="#" class="hover:text-blue-400">Alle Tickets</a></li>
-                <li><a href="#" class="hover:text-blue-400">Dokumente hochladen</a></li>
-            `;
-
-            nav.innerHTML = role === 'admin' ? commonLinks + adminLinks : commonLinks;
+            if (role === 'admin') {
+                html += `
+                    <li class="mt-8 mb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-400">Verwaltung</li>
+                    <li><a href="#" class="${linkClass}">Mieter-Stammdaten</a></li>
+                    <li><a href="#" class="${linkClass}">Zählerübersicht</a></li>
+                `;
+            }
+            nav.innerHTML = html;
         }
 
         async function logout() {
-            await supabase.auth.signOut();
+            await _supabase.auth.signOut();
             window.location.href = 'index.html';
         }
 
-        initDashboard();
+        init();
     </script>
 </body>
 </html>
