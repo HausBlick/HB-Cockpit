@@ -30,7 +30,6 @@
         input::placeholder, textarea::placeholder { color: #d1d5db; }
         .feed-card { transition: all 0.2s ease; }
         .feed-card:hover { transform: translateY(-2px); }
-        /* News Text Styling */
         .news-content ul { list-style-type: disc; padding-left: 1.25rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
         .news-content strong { font-weight: 700; color: #373737; }
         .news-content em { font-style: italic; }
@@ -137,6 +136,7 @@
                 nav.innerHTML = `
                     <li><a onclick="location.reload()" class="${linkClass}">Übersicht</a></li>
                     <li><a id="nav-apartments" onclick="loadTenants(); setActiveNav('nav-apartments')" class="${linkClass}">Einheiten & Zähler</a></li>
+                    <li><a id="nav-users" onclick="loadUserManagement(); setActiveNav('nav-users')" class="${linkClass}">Mieter-Verwaltung</a></li>
                     <li class="pt-8 pb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-300 text-balance">Verwaltung</li>
                     <li><a id="nav-docs" onclick="loadDocuments(); setActiveNav('nav-docs')" class="${linkClass}">Dokumenten-Cloud</a></li>
                     <li><a id="nav-news" onclick="loadNews(); setActiveNav('nav-news')" class="${linkClass}">Schwarzes Brett</a></li>
@@ -161,25 +161,17 @@
         function formatText(text) {
             if (!text) return "";
             let formatted = text
-                // Trennlinien: --- in eigener Zeile
                 .replace(/^---$/gm, '<hr class="my-6 border-gray-100">')
-                // Fett: **text**
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                // Kursiv: *text*
                 .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                // Links: [Titel](URL)
                 .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="text-hb-olive underline font-bold hover:text-hb-orange transition-colors">$1</a>')
-                // Farbe Olive: [olive]text[/olive]
                 .replace(/\[olive\](.*?)\[\/olive\]/g, '<span class="text-hb-olive font-bold">$1</span>')
-                // Farbe Orange: [orange]text[/orange]
                 .replace(/\[orange\](.*?)\[\/orange\]/g, '<span class="text-hb-orange font-bold">$1</span>')
-                // Listen: Zeilen die mit "- " beginnen
                 .replace(/^- (.*$)/gim, '<li>$1</li>');
 
             if (formatted.includes('<li>')) {
                 formatted = formatted.replace(/(<li>.*<\/li>)/gms, '<ul>$1</ul>');
             }
-
             return formatted.split('\n').join('<br>');
         }
 
@@ -195,15 +187,15 @@
                     <h2 id="form-title" class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Einheit erfassen</h2>
                     <form id="apartment-form" class="space-y-8">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div class="space-y-2">
-                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest text-left">Objekt auswählen</label>
+                            <div class="space-y-2 text-left">
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Objekt auswählen</label>
                                 <select id="b_id" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm" required>
                                     <option value="" disabled selected>Bitte wählen...</option>
                                     ${buildingOptions}
                                 </select>
                             </div>
-                            <div class="space-y-2">
-                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest text-left">Wohnungsnummer</label>
+                            <div class="space-y-2 text-left">
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Wohnungsnummer</label>
                                 <input type="text" id="apt_no" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" placeholder="z.B. 1.OG Links" required>
                             </div>
                         </div>
@@ -212,7 +204,7 @@
                             <input type="number" id="utils" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Nebenkosten (€)" step="0.01">
                             <input type="number" id="sq_m" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Fläche (m²)" step="0.1">
                         </div>
-                        <div class="pt-8 border-t border-gray-50 grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="pt-8 border-t border-gray-50 grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
                             <input type="text" id="m_elec" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Stromzähler-Nr.">
                             <input type="text" id="m_water" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Wasserzähler-Nr.">
                             <input type="text" id="m_heat" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Wärmezähler-Nr.">
@@ -233,7 +225,12 @@
         }
 
         async function fetchApartments() {
-            const { data, error } = await _supabase.from('apartments').select('*, buildings (*), profiles:tenant_id (full_name)').order('apartment_number');
+            // Wir joinen die Profile, die dieser Wohnung (via apartment_id in profiles) zugeordnet sind
+            const { data, error } = await _supabase
+                .from('apartments')
+                .select('*, buildings (*), profiles!profiles_apartment_id_fkey(full_name)')
+                .order('apartment_number');
+                
             const list = document.getElementById('tenants-list');
             if (error) { list.innerHTML = `<p class="text-red-500">Fehler: ${error.message}</p>`; return; }
             if (data && data.length > 0) {
@@ -241,11 +238,17 @@
                 list.innerHTML = data.map(apt => {
                     let header = (currentB !== apt.buildings?.name) ? `<div class="bg-hb-ultralight px-6 py-4 mt-8 mb-4 border-l-4 border-hb-olive text-[10px] font-bold uppercase tracking-widest text-hb-olive text-left">${apt.buildings?.name || "Nicht zugeordnet"}</div>` : "";
                     currentB = apt.buildings?.name;
+                    
+                    // Alle Namen der zugeordneten Profile sammeln
+                    const names = apt.profiles && apt.profiles.length > 0 
+                        ? apt.profiles.map(p => p.full_name).join(', ') 
+                        : 'LEERSTEHEND';
+
                     return header + `
                         <div class="flex flex-wrap justify-between items-start py-6 border-b border-gray-50 last:border-0 gap-4 group text-left">
                             <div class="flex-1 min-w-[200px]">
                                 <h3 class="font-bold text-xl text-hb-offblack uppercase tracking-tight">${apt.apartment_number}</h3>
-                                <p class="text-[10px] text-gray-500 uppercase tracking-widest mt-1">${apt.sq_meters || '0'} m² | Mieter: <span class="font-semibold text-hb-offblack">${apt.profiles?.full_name || 'LEERSTEHEND'}</span></p>
+                                <p class="text-[10px] text-gray-500 uppercase tracking-widest mt-1">${apt.sq_meters || '0'} m² | Mieter: <span class="font-semibold text-hb-offblack">${names}</span></p>
                             </div>
                             <div class="w-full lg:w-auto grid grid-cols-3 gap-3 md:gap-6 bg-gray-50 p-4 border border-gray-100 min-w-[280px]">
                                 <div><p class="text-[8px] uppercase text-gray-400 font-bold text-center">Strom</p><p class="text-xs font-bold text-center">${apt.meter_electricity || '-'}</p></div>
@@ -297,12 +300,96 @@
             }
         }
 
-        function resetForm() {
-            currentEditingId = null;
-            if (document.getElementById('apartment-form')) document.getElementById('apartment-form').reset();
-            if (document.getElementById('form-title')) document.getElementById('form-title').textContent = "Einheit erfassen";
-            if (document.getElementById('submit-btn')) document.getElementById('submit-btn').textContent = "Einheit speichern";
-            if (document.getElementById('cancel-btn')) document.getElementById('cancel-btn').classList.add('hidden');
+        /* --- MIETER VERWALTUNG --- */
+
+        async function loadUserManagement() {
+            const container = document.getElementById('content-area');
+            const { data: apartments } = await _supabase.from('apartments').select('id, apartment_number, buildings(name)').order('apartment_number');
+            const aptOptions = apartments?.map(a => `<option value="${a.id}">${a.buildings.name}: ${a.apartment_number}</option>`).join('') || '';
+
+            container.innerHTML = `
+                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
+                    <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Mieter-Account anlegen</h2>
+                    <form id="tenant-user-form" class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
+                            <div class="space-y-2">
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Vollständiger Name</label>
+                                <input type="text" id="tenant_name" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" placeholder="Vorname Nachname" required>
+                            </div>
+                            <div class="space-y-2">
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">E-Mail Adresse</label>
+                                <input type="email" id="tenant_email" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" placeholder="mail@beispiel.de" required>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
+                            <div class="space-y-2">
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Einheit zuweisen</label>
+                                <select id="tenant_apt_id" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm" required>
+                                    <option value="" disabled selected>Bitte wählen...</option>
+                                    ${aptOptions}
+                                </select>
+                            </div>
+                            <div class="flex items-end">
+                                <button type="submit" class="bg-hb-offblack text-white px-10 py-4 text-xs uppercase tracking-widest font-bold hover:bg-hb-olive transition-all w-full">Account vorbereiten</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
+                    <h2 class="text-xl font-bold mb-10 uppercase tracking-widest text-hb-offblack">Registrierte Mieter</h2>
+                    <div id="user-list" class="divide-y divide-gray-50 text-sm italic text-gray-400">Lade...</div>
+                </div>
+            `;
+            document.getElementById('tenant-user-form').addEventListener('submit', handleSaveTenantUser);
+            fetchTenantUsers();
+        }
+
+        async function handleSaveTenantUser(e) {
+            e.preventDefault();
+            const payload = {
+                full_name: document.getElementById('tenant_name').value,
+                email: document.getElementById('tenant_email').value,
+                apartment_id: parseInt(document.getElementById('tenant_apt_id').value),
+                role: 'tenant'
+                // Hinweis: Echte Auth-User werden über invite-Funktion in Supabase erstellt.
+                // Hier legen wir erst einmal nur den Profil-Eintrag an.
+            };
+            const { error } = await _supabase.from('profiles').insert([payload]);
+            if (error) alert("Fehler: " + error.message);
+            else { alert("Mieter erfolgreich angelegt!"); loadUserManagement(); }
+        }
+
+        async function fetchTenantUsers() {
+            const { data } = await _supabase
+                .from('profiles')
+                .select('*, apartments(apartment_number, buildings(name))')
+                .eq('role', 'tenant')
+                .order('full_name');
+            
+            const list = document.getElementById('user-list');
+            if (data && data.length > 0) {
+                list.className = "divide-y divide-gray-50 not-italic";
+                list.innerHTML = data.map(u => `
+                    <div class="py-6 flex justify-between items-center group">
+                        <div class="text-left">
+                            <p class="font-bold text-hb-offblack uppercase tracking-tight">${u.full_name}</p>
+                            <p class="text-[10px] uppercase text-gray-400 font-bold tracking-widest">
+                                ${u.email} • Wohnung: ${u.apartments?.buildings?.name || ''} ${u.apartments?.apartment_number || 'Keine'}
+                            </p>
+                        </div>
+                        <div class="flex gap-4">
+                            <button onclick="alert('Einladungs-Funktion folgt')" class="text-[10px] font-bold uppercase text-hb-olive border border-hb-olive px-3 py-1 hover:bg-hb-olive hover:text-white transition-all">Einladen</button>
+                            <button onclick="deleteProfile('${u.id}')" class="text-[9px] font-bold uppercase text-hb-orange opacity-0 group-hover:opacity-100 transition-opacity">Entfernen</button>
+                        </div>
+                    </div>`).join('');
+            } else { list.innerHTML = '<p class="py-8">Keine Mieter-Accounts angelegt.</p>'; }
+        }
+
+        async function deleteProfile(id) {
+            if (confirm("Mieter-Account wirklich entfernen?")) {
+                await _supabase.from('profiles').delete().eq('id', id);
+                fetchTenantUsers();
+            }
         }
 
         /* --- DOKUMENTEN CLOUD --- */
@@ -339,7 +426,7 @@
                     </form>
                 </div>
                 <div id="docs-list" class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
-                    <h2 class="text-xl font-bold mb-10 uppercase tracking-widest text-hb-offblack">Ihre Dokumente</h2>
+                    <h2 class="text-xl font-bold mb-10 uppercase tracking-widest text-hb-offblack">Dokumente</h2>
                     <div id="docs-content" class="divide-y divide-gray-100 italic text-sm text-gray-400">Lade...</div>
                 </div>
             `;
@@ -400,14 +487,13 @@
 
         async function loadNews() {
             const container = document.getElementById('content-area');
-            container.className = "space-y-8 col-span-full";
+            container.className = "space-y-8 col-span-full text-left";
             
             const isAdmin = userProfile.role === 'admin';
             const { data: buildings } = await _supabase.from('buildings').select('*').order('name');
             const buildingOptions = buildings?.map(b => `<option value="${b.id}">${b.name}</option>`).join('') || '';
 
             let html = "";
-            
             if (isAdmin) {
                 html += `
                     <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
@@ -421,8 +507,8 @@
                                         ${buildingOptions}
                                     </select>
                                 </div>
-                                <div class="space-y-2">
-                                    <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest text-left">Kategorie</label>
+                                <div class="space-y-2 text-left">
+                                    <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Kategorie</label>
                                     <select id="news_category" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm transition-colors" required>
                                         <option value="Information">Information</option>
                                         <option value="Ankündigung">Ankündigung</option>
@@ -431,29 +517,25 @@
                                         <option value="Dringend">Dringend</option>
                                     </select>
                                 </div>
-                                <div class="space-y-2">
-                                    <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest text-left">Titel</label>
+                                <div class="space-y-2 text-left">
+                                    <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Titel</label>
                                     <input type="text" id="news_title" class="w-full border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm transition-colors" placeholder="Kurze Überschrift" required>
                                 </div>
                             </div>
-                            <div class="space-y-2 text-left">
+                            <div class="space-y-2 text-left text-balance">
                                 <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Inhalt (Nutze **fett**, *kursiv*, [Titel](URL), --- für Linie, - Liste oder [olive]Farbe[/olive])</label>
                                 <textarea id="news_content" rows="6" class="w-full border-2 border-gray-50 p-4 focus:outline-none focus:border-hb-olive text-sm bg-hb-ultralight transition-all" placeholder="Schreiben Sie hier Ihre Nachricht..." required></textarea>
                             </div>
                             <div class="flex justify-center gap-4 pt-4">
-                                <button type="submit" id="news-submit-btn" class="bg-hb-offblack text-white px-16 py-5 text-xs uppercase tracking-[0.3em] font-bold hover:bg-hb-olive transition-all">
-                                    Aushang veröffentlichen
-                                </button>
-                                <button type="button" id="news-cancel-btn" onclick="resetNewsForm()" class="hidden bg-gray-200 text-gray-500 px-8 py-5 text-xs uppercase tracking-widest font-bold hover:bg-gray-300 transition-all">
-                                    Abbrechen
-                                </button>
+                                <button type="submit" id="news-submit-btn" class="bg-hb-offblack text-white px-16 py-5 text-xs uppercase tracking-[0.3em] font-bold hover:bg-hb-olive transition-all text-balance">Aushang veröffentlichen</button>
+                                <button type="button" id="news-cancel-btn" onclick="resetNewsForm()" class="hidden bg-gray-200 text-gray-500 px-8 py-5 text-xs uppercase tracking-widest font-bold hover:bg-gray-300 transition-all">Abbrechen</button>
                             </div>
                         </form>
                     </div>`;
             }
 
             html += `
-                <div class="flex flex-col md:flex-row justify-between items-center gap-6 mb-8 px-2">
+                <div class="flex flex-col md:flex-row justify-between items-center gap-6 mb-8 px-2 text-left">
                     <h2 class="text-2xl font-bold uppercase tracking-[0.2em]">Blackboard Feed</h2>
                     <div class="flex flex-wrap gap-4 w-full md:w-auto">
                         <input type="text" id="news-search" oninput="handleNewsSearch(this.value)" placeholder="Suchen..." class="flex-grow md:w-64 border-b-2 border-gray-200 p-2 text-sm focus:outline-none focus:border-hb-olive bg-transparent transition-all">
@@ -467,9 +549,7 @@
                         </select>
                     </div>
                 </div>
-                <div id="news-list" class="space-y-6">
-                    <!-- Feed Items -->
-                </div>`;
+                <div id="news-list" class="space-y-6 text-left"></div>`;
 
             container.innerHTML = html;
             if (isAdmin) document.getElementById('news-form').addEventListener('submit', handleSaveNews);
@@ -477,21 +557,13 @@
         }
 
         async function fetchNews() {
-            const { data, error } = await _supabase
-                .from('news')
-                .select('*, profiles:author_id(full_name), buildings(name)')
-                .order('created_at', { ascending: false });
-
-            if (data) {
-                allNews = data;
-                renderNewsFeed();
-            }
+            const { data } = await _supabase.from('news').select('*, profiles:author_id(full_name), buildings(name)').order('created_at', { ascending: false });
+            if (data) { allNews = data; renderNewsFeed(); }
         }
 
         function renderNewsFeed() {
             const list = document.getElementById('news-list');
             const isAdmin = userProfile.role === 'admin';
-            
             let filtered = allNews.filter(n => {
                 const matchesSearch = n.title.toLowerCase().includes(newsSearchQuery.toLowerCase()) || n.content.toLowerCase().includes(newsSearchQuery.toLowerCase());
                 const matchesCat = newsCategoryFilter === "" || n.category === newsCategoryFilter;
@@ -502,73 +574,30 @@
                 list.innerHTML = filtered.map(n => `
                     <div class="bg-white p-8 shadow-sm border-l-4 border-hb-olive feed-card text-left">
                         <div class="flex justify-between items-start mb-6">
-                            <div class="flex items-center gap-4">
-                                <div class="w-10 h-10 bg-hb-ultralight flex items-center justify-center rounded-full text-hb-olive font-bold text-sm border border-gray-100 uppercase">
-                                    ${(n.profiles?.full_name || 'HB').charAt(0)}
-                                </div>
+                            <div class="flex items-center gap-4 text-left">
+                                <div class="w-10 h-10 bg-hb-ultralight flex items-center justify-center rounded-full text-hb-olive font-bold text-sm border border-gray-100 uppercase">${(n.profiles?.full_name || 'HB').charAt(0)}</div>
                                 <div class="text-left">
-                                    <p class="text-[10px] font-bold uppercase tracking-widest text-hb-offblack">
-                                        ${n.profiles?.full_name || 'System Administrator'}
-                                    </p>
-                                    <p class="text-[9px] text-gray-400 uppercase tracking-widest font-medium">
-                                        ${new Date(n.created_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                        ${isAdmin ? ` • <span class="text-hb-olive font-bold">${n.buildings?.name || 'ALL BUILDINGS'}</span>` : ''}
-                                    </p>
+                                    <p class="text-[10px] font-bold uppercase tracking-widest text-hb-offblack">${n.profiles?.full_name || 'System Administrator'}</p>
+                                    <p class="text-[9px] text-gray-400 uppercase tracking-widest font-medium">${new Date(n.created_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}${isAdmin ? ` • <span class="text-hb-olive font-bold">${n.buildings?.name || 'ALL BUILDINGS'}</span>` : ''}</p>
                                 </div>
                             </div>
-                            <div class="flex flex-col items-end gap-3">
-                                <span class="px-3 py-1 bg-hb-ultralight text-hb-olive text-[8px] font-bold uppercase tracking-widest rounded-full border border-gray-100">
-                                    ${n.category}
-                                </span>
-                                ${isAdmin ? `
-                                    <div class="flex gap-4">
-                                        <button onclick="editNews('${n.id}')" class="text-[9px] font-bold uppercase text-hb-olive hover:text-hb-offblack transition-colors">Bearbeiten</button>
-                                        <button onclick="deleteNews('${n.id}')" class="text-[9px] font-bold uppercase text-hb-orange hover:text-red-700 transition-colors">Löschen</button>
-                                    </div>
-                                ` : ''}
+                            <div class="flex flex-col items-end gap-3 text-left">
+                                <span class="px-3 py-1 bg-hb-ultralight text-hb-olive text-[8px] font-bold uppercase tracking-widest rounded-full border border-gray-100">${n.category}</span>
+                                ${isAdmin ? `<div class="flex gap-4"><button onclick="editNews('${n.id}')" class="text-[9px] font-bold uppercase text-hb-olive">Bearbeiten</button><button onclick="deleteNews('${n.id}')" class="text-[9px] font-bold uppercase text-hb-orange">Löschen</button></div>` : ''}
                             </div>
                         </div>
-                        
-                        <div class="mb-8 text-left">
-                            <h3 class="text-xl font-bold text-hb-offblack mb-4 tracking-tight uppercase">${n.title}</h3>
-                            <div class="news-content text-sm text-gray-600 leading-relaxed text-left text-balance">
-                                ${formatText(n.content)}
-                            </div>
-                        </div>
-
-                        <div class="pt-6 border-t border-gray-50 flex items-center gap-6">
-                            <button onclick="handleLike('${n.id}', ${n.likes || 0})" class="flex items-center gap-2 group transition-all">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-300 group-hover:text-hb-orange transition-colors fill-current" viewBox="0 0 20 20">
-                                    <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
-                                </svg>
-                                <span class="text-xs font-bold text-gray-400 group-hover:text-hb-offblack">${n.likes || 0} Likes</span>
-                            </button>
-                        </div>
-                    </div>
-                `).join('');
-            } else {
-                list.innerHTML = '<p class="py-12 text-center text-gray-400 italic text-sm">Keine Einträge unter diesem Filter gefunden.</p>';
-            }
+                        <div class="mb-8 text-left text-balance"><h3 class="text-xl font-bold text-hb-offblack mb-4 tracking-tight uppercase">${n.title}</h3><div class="news-content text-sm text-gray-600 leading-relaxed text-left">${formatText(n.content)}</div></div>
+                        <div class="pt-6 border-t border-gray-50 flex items-center gap-6 text-left"><button onclick="handleLike('${n.id}', ${n.likes || 0})" class="flex items-center gap-2 transition-all"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-300 fill-current" viewBox="0 0 20 20"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" /></svg><span class="text-xs font-bold text-gray-400">${n.likes || 0} Likes</span></button></div>
+                    </div>`).join('');
+            } else { list.innerHTML = '<p class="py-12 text-center text-gray-400 italic text-sm">Keine Einträge gefunden.</p>'; }
         }
 
         async function handleSaveNews(e) {
             e.preventDefault();
-            const payload = {
-                title: document.getElementById('news_title').value,
-                category: document.getElementById('news_category').value,
-                content: document.getElementById('news_content').value,
-                building_id: document.getElementById('news_b_id').value || null,
-                author_id: currentUser.id
-            };
-            
-            if (currentEditingNewsId) {
-                await _supabase.from('news').update(payload).eq('id', currentEditingNewsId);
-            } else {
-                await _supabase.from('news').insert([payload]);
-            }
-            
-            resetNewsForm();
-            fetchNews();
+            const payload = { title: document.getElementById('news_title').value, category: document.getElementById('news_category').value, content: document.getElementById('news_content').value, building_id: document.getElementById('news_b_id').value || null, author_id: currentUser.id };
+            if (currentEditingNewsId) await _supabase.from('news').update(payload).eq('id', currentEditingNewsId);
+            else await _supabase.from('news').insert([payload]);
+            resetNewsForm(); fetchNews();
         }
 
         async function handleLike(id, currentLikes) {
@@ -576,15 +605,8 @@
             if (!error) fetchNews();
         }
 
-        function handleNewsSearch(val) {
-            newsSearchQuery = val;
-            renderNewsFeed();
-        }
-
-        function handleNewsFilter(val) {
-            newsCategoryFilter = val;
-            renderNewsFeed();
-        }
+        function handleNewsSearch(val) { newsSearchQuery = val; renderNewsFeed(); }
+        function handleNewsFilter(val) { newsCategoryFilter = val; renderNewsFeed(); }
 
         async function editNews(id) {
             const { data: n } = await _supabase.from('news').select('*').eq('id', id).single();
@@ -609,9 +631,7 @@
             if (document.getElementById('news-cancel-btn')) document.getElementById('news-cancel-btn').classList.add('hidden');
         }
 
-        async function deleteNews(id) {
-            if (confirm("Wirklich löschen?")) { await _supabase.from('news').delete().eq('id', id); fetchNews(); }
-        }
+        async function deleteNews(id) { if (confirm("Löschen?")) { await _supabase.from('news').delete().eq('id', id); fetchNews(); } }
 
         async function logout() { await _supabase.auth.signOut(); window.location.href = 'index.html'; }
         init();
