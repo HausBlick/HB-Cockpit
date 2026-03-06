@@ -94,17 +94,10 @@
                 const { data: { user } } = await _supabase.auth.getUser();
                 if (!user) { window.location.href = 'index.html'; return; }
 
-                // Profil laden
                 const { data: profile, error: profileError } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
                 
                 if (profileError || !profile) {
-                    document.getElementById('welcome-title').innerHTML = `
-                        Profil nicht gefunden
-                        <span class="block text-xs font-normal mt-4 text-gray-400 italic">
-                            Bitte ID in Supabase/profiles einfügen:<br>
-                            <code class="bg-gray-100 p-1 rounded text-hb-offblack select-all">${user.id}</code>
-                        </span>
-                    `;
+                    document.getElementById('welcome-title').textContent = "Profil nicht gefunden";
                     return;
                 }
 
@@ -162,16 +155,16 @@
                                 </select>
                             </div>
                             <div class="space-y-2">
-                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest text-balance">Wohnungsnummer</label>
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Wohnungsnummer</label>
                                 <input type="text" id="apt_no" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" placeholder="z.B. 1.OG Links" required>
                             </div>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
                             <input type="number" id="rent" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Kaltmiete (€)" step="0.01">
                             <input type="number" id="utils" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Nebenkosten (€)" step="0.01">
                             <input type="number" id="sq_m" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Fläche (m²)" step="0.1">
                         </div>
-                        <div class="pt-8 border-t border-gray-50 grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="pt-8 border-t border-gray-50 grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
                             <input type="text" id="m_elec" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Stromzähler-Nr.">
                             <input type="text" id="m_water" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Wasserzähler-Nr.">
                             <input type="text" id="m_heat" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Wärmezähler-Nr.">
@@ -196,19 +189,19 @@
             const list = document.getElementById('tenants-list');
             
             if (error) {
-                list.innerHTML = `<p class="text-red-500">Fehler beim Laden: ${error.message}</p>`;
+                list.innerHTML = `<p class="text-red-500 text-left">Fehler beim Laden: ${error.message}</p>`;
                 return;
             }
 
             if (data && data.length > 0) {
                 let currentB = "";
                 list.innerHTML = data.map(apt => {
-                    let header = (currentB !== apt.buildings?.name) ? `<div class="bg-hb-ultralight px-6 py-4 mt-8 mb-4 border-l-4 border-hb-olive text-[10px] font-bold uppercase tracking-widest text-hb-olive">${apt.buildings?.name || "Nicht zugeordnet"}</div>` : "";
+                    let header = (currentB !== apt.buildings?.name) ? `<div class="bg-hb-ultralight px-6 py-4 mt-8 mb-4 border-l-4 border-hb-olive text-[10px] font-bold uppercase tracking-widest text-hb-olive text-left">${apt.buildings?.name || "Nicht zugeordnet"}</div>` : "";
                     currentB = apt.buildings?.name;
                     return header + `
                         <div class="flex flex-wrap justify-between items-start py-6 border-b border-gray-50 last:border-0 gap-4 group text-left">
                             <div class="flex-1 min-w-[200px]">
-                                <h3 class="font-bold text-xl text-hb-offblack text-balance uppercase tracking-tight">${apt.apartment_number}</h3>
+                                <h3 class="font-bold text-xl text-hb-offblack uppercase tracking-tight">${apt.apartment_number}</h3>
                                 <p class="text-[10px] text-gray-500 uppercase tracking-widest mt-1">${apt.sq_meters || '0'} m² | Mieter: <span class="font-semibold text-hb-offblack">${apt.profiles?.full_name || 'LEERSTEHEND'}</span></p>
                             </div>
                             <div class="w-full lg:w-auto grid grid-cols-3 gap-3 md:gap-6 bg-gray-50 p-4 border border-gray-100 min-w-[280px]">
@@ -247,12 +240,8 @@
                 result = await _supabase.from('apartments').insert([payload]);
             }
 
-            if (result.error) {
-                alert("Fehler beim Speichern: " + result.error.message);
-            } else {
-                resetForm();
-                fetchApartments();
-            }
+            if (result.error) alert("Fehler beim Speichern: " + result.error.message);
+            else { resetForm(); fetchApartments(); }
         }
 
         async function editApartment(id) {
@@ -307,7 +296,7 @@
                                     <option value="Sonstiges">Sonstiges</option>
                                 </select>
                             </div>
-                            <div class="space-y-2">
+                            <div class="space-y-2 text-left">
                                 <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Anzeigetitel</label>
                                 <input type="text" id="doc_title" class="w-full border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="z.B. Abrechnung 2025" required>
                             </div>
@@ -334,12 +323,9 @@
                         </div>
                     </form>
                 </div>
-
                 <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
                     <h2 class="text-xl font-bold mb-10 uppercase tracking-widest text-hb-offblack">Bestands-Dokumente</h2>
-                    <div id="docs-list" class="divide-y divide-gray-100 italic text-sm text-gray-400">
-                        Lade Dokumente...
-                    </div>
+                    <div id="docs-list" class="divide-y divide-gray-100 italic text-sm text-gray-400">Lade Dokumente...</div>
                 </div>
             `;
 
@@ -357,47 +343,32 @@
             const btn = document.getElementById('upload-btn');
 
             if (!file) return alert("Bitte eine Datei auswählen");
-
-            btn.disabled = true;
-            btn.textContent = "Lade hoch...";
+            btn.disabled = true; btn.textContent = "Lade hoch...";
 
             const fileName = `${Date.now()}_${file.name}`;
-            const { data: uploadData, error: uploadError } = await _supabase.storage
-                .from('documents')
-                .upload(fileName, file);
+            const { data: uploadData, error: uploadError } = await _supabase.storage.from('documents').upload(fileName, file);
 
             if (uploadError) {
                 alert("Upload-Fehler: " + uploadError.message);
-                btn.disabled = false;
-                btn.textContent = "Upload starten";
+                btn.disabled = false; btn.textContent = "Upload starten";
                 return;
             }
 
             const { error: dbError } = await _supabase.from('documents').insert([{
-                title: title,
-                category: category,
-                file_path: uploadData.path,
-                tenant_id: tenantId
+                title: title, category: category, file_path: uploadData.path, tenant_id: tenantId
             }]);
 
             if (dbError) alert("DB-Fehler: " + dbError.message);
-            else {
-                alert("Erfolgreich gespeichert!");
-                loadDocuments();
-            }
+            else { alert("Erfolgreich gespeichert!"); loadDocuments(); }
         }
 
         async function fetchDocuments() {
-            const { data, error } = await _supabase
-                .from('documents')
-                .select('*, profiles:tenant_id (full_name)')
-                .order('created_at', { ascending: false });
-
+            const { data } = await _supabase.from('documents').select('*, profiles:tenant_id (full_name)').order('created_at', { ascending: false });
             const list = document.getElementById('docs-list');
             if (data && data.length > 0) {
                 list.className = "divide-y divide-gray-100 not-italic";
                 list.innerHTML = data.map(doc => `
-                    <div class="py-6 flex flex-wrap justify-between items-center group">
+                    <div class="py-6 flex flex-wrap justify-between items-center group text-left">
                         <div class="flex items-center gap-4 text-left">
                             <div class="bg-hb-ultralight p-3 text-hb-olive">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -406,9 +377,7 @@
                             </div>
                             <div>
                                 <p class="font-bold text-hb-offblack uppercase tracking-tight">${doc.title}</p>
-                                <p class="text-[9px] uppercase tracking-widest text-gray-400 font-bold">
-                                    ${doc.category} • ${doc.profiles?.full_name ? 'Mieter: ' + doc.profiles.full_name : 'Allgemein'}
-                                </p>
+                                <p class="text-[9px] uppercase tracking-widest text-gray-400 font-bold">${doc.category} • ${doc.profiles?.full_name ? 'Mieter: ' + doc.profiles.full_name : 'Allgemein'}</p>
                             </div>
                         </div>
                         <div class="flex gap-6">
@@ -417,9 +386,7 @@
                         </div>
                     </div>
                 `).join('');
-            } else {
-                list.innerHTML = '<p class="py-8 text-center text-gray-400 italic">Keine Dokumente gefunden.</p>';
-            }
+            } else { list.innerHTML = '<p class="py-8 text-center">Keine Dokumente gefunden.</p>'; }
         }
 
         async function viewDoc(path) {
@@ -435,7 +402,6 @@
         }
 
         async function logout() { await _supabase.auth.signOut(); window.location.href = 'index.html'; }
-        
         init();
     </script>
 </body>
