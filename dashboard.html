@@ -369,7 +369,7 @@
             const { error } = await _supabase.from('profiles').insert([payload]);
             
             if (error) {
-                alert("Fehler beim Speichern: " + error.message);
+                alert("Fehler beim Speichern: " + error.message + "\n\nWichtig: Entfernen Sie in Supabase den Foreign Key Constraint für 'profiles.id'!");
                 btn.disabled = false;
                 btn.textContent = "Account vorbereiten";
             } else {
