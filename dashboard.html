@@ -90,18 +90,27 @@
         }
 
         async function init() {
-            const { data: { user } } = await _supabase.auth.getUser();
-            if (!user) { window.location.href = 'index.html'; return; }
+            try {
+                const { data: { user } } = await _supabase.auth.getUser();
+                if (!user) { window.location.href = 'index.html'; return; }
 
-            const { data: profile } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
-            if (!profile) return;
+                const { data: profile, error: profileError } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
+                
+                if (profileError || !profile) {
+                    document.getElementById('welcome-title').textContent = "Profil nicht gefunden";
+                    return;
+                }
 
-            document.getElementById('welcome-title').textContent = profile.full_name;
-            document.getElementById('welcome-title').classList.remove('italic');
-            document.getElementById('role-label').textContent = profile.role === 'admin' ? 'Vermieter Cockpit' : 'Mieter Portal';
+                document.getElementById('welcome-title').textContent = profile.full_name;
+                document.getElementById('welcome-title').classList.remove('italic');
+                document.getElementById('role-label').textContent = profile.role === 'admin' ? 'Vermieter Cockpit' : 'Mieter Portal';
 
-            renderNav(profile.role);
-            if (profile.role === 'admin') loadTenants();
+                renderNav(profile.role);
+                if (profile.role === 'admin') loadTenants();
+            } catch (err) {
+                console.error("Initialisierungsfehler:", err);
+                document.getElementById('welcome-title').textContent = "Fehler beim Laden";
+            }
         }
 
         function renderNav(role) {
@@ -121,7 +130,8 @@
 
         function setActiveNav(id) {
             document.querySelectorAll('#nav-links a').forEach(el => el.classList.remove('active-link'));
-            document.getElementById(id).classList.add('active-link');
+            const activeEl = document.getElementById(id);
+            if (activeEl) activeEl.classList.add('active-link');
             if(window.innerWidth < 768) toggleMenu();
         }
 
@@ -133,7 +143,7 @@
             const buildingOptions = buildings?.map(b => `<option value="${b.id}">${b.name}</option>`).join('') || '';
 
             container.innerHTML = `
-                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive">
+                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
                     <h2 id="form-title" class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Einheit erfassen</h2>
                     <form id="apartment-form" class="space-y-8">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -154,13 +164,18 @@
                             <input type="number" id="utils" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Nebenkosten (€)" step="0.01">
                             <input type="number" id="sq_m" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Fläche (m²)" step="0.1">
                         </div>
+                        <div class="pt-8 border-t border-gray-50 grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <input type="text" id="m_elec" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Stromzähler-Nr.">
+                            <input type="text" id="m_water" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Wasserzähler-Nr.">
+                            <input type="text" id="m_heat" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Wärmezähler-Nr.">
+                        </div>
                         <div class="pt-10 flex flex-col md:flex-row justify-center gap-4">
                             <button type="submit" id="submit-btn" class="bg-hb-offblack text-white px-16 py-5 text-xs uppercase tracking-[0.3em] font-bold hover:bg-hb-olive transition-all">Einheit Speichern</button>
                             <button type="button" id="cancel-btn" onclick="resetForm()" class="hidden bg-gray-200 text-gray-500 px-8 py-5 text-xs uppercase tracking-widest font-bold hover:bg-gray-300">Abbrechen</button>
                         </div>
                     </form>
                 </div>
-                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive">
+                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
                     <h2 class="text-xl font-bold mb-10 uppercase tracking-widest text-hb-offblack">Bestands-Liste</h2>
                     <div id="tenants-list" class="space-y-12">Lade Daten...</div>
                 </div>
@@ -170,25 +185,38 @@
         }
 
         async function fetchApartments() {
-            const { data } = await _supabase.from('apartments').select('*, buildings (*), profiles:tenant_id (full_name)').order('apartment_number');
+            const { data, error } = await _supabase.from('apartments').select('*, buildings (*), profiles:tenant_id (full_name)').order('apartment_number');
             const list = document.getElementById('tenants-list');
+            
+            if (error) {
+                list.innerHTML = `<p class="text-red-500">Fehler beim Laden: ${error.message}</p>`;
+                return;
+            }
+
             if (data && data.length > 0) {
                 let currentB = "";
                 list.innerHTML = data.map(apt => {
-                    let header = (currentB !== apt.buildings?.name) ? `<div class="bg-hb-ultralight px-6 py-4 mt-8 mb-4 border-l-4 border-hb-olive text-[10px] font-bold uppercase tracking-widest text-hb-olive">${apt.buildings?.name}</div>` : "";
+                    let header = (currentB !== apt.buildings?.name) ? `<div class="bg-hb-ultralight px-6 py-4 mt-8 mb-4 border-l-4 border-hb-olive text-[10px] font-bold uppercase tracking-widest text-hb-olive">${apt.buildings?.name || "Nicht zugeordnet"}</div>` : "";
                     currentB = apt.buildings?.name;
                     return header + `
-                        <div class="flex flex-wrap justify-between items-start py-6 border-b border-gray-50 last:border-0 gap-4 group">
+                        <div class="flex flex-wrap justify-between items-start py-6 border-b border-gray-50 last:border-0 gap-4 group text-left">
                             <div class="flex-1 min-w-[200px]">
-                                <h3 class="font-bold text-xl text-hb-offblack">${apt.apartment_number}</h3>
-                                <p class="text-[10px] text-gray-500 uppercase tracking-widest mt-1">${apt.sq_meters || '0'} m² | Mieter: <span class="font-semibold text-hb-offblack text-balance">${apt.profiles?.full_name || 'LEERSTEHEND'}</span></p>
+                                <h3 class="font-bold text-xl text-hb-offblack text-balance uppercase">${apt.apartment_number}</h3>
+                                <p class="text-[10px] text-gray-500 uppercase tracking-widest mt-1">${apt.sq_meters || '0'} m² | Mieter: <span class="font-semibold text-hb-offblack">${apt.profiles?.full_name || 'LEERSTEHEND'}</span></p>
                             </div>
-                            <div class="text-right">
+                            <div class="w-full lg:w-auto grid grid-cols-3 gap-3 md:gap-6 bg-gray-50 p-4 border border-gray-100 min-w-[280px]">
+                                <div><p class="text-[8px] uppercase text-gray-400 font-bold">Strom</p><p class="text-xs font-bold">${apt.meter_electricity || '-'}</p></div>
+                                <div><p class="text-[8px] uppercase text-gray-400 font-bold">Wasser</p><p class="text-xs font-bold">${apt.meter_water || '-'}</p></div>
+                                <div><p class="text-[8px] uppercase text-gray-400 font-bold">Heizung</p><p class="text-xs font-bold">${apt.meter_heating || '-'}</p></div>
+                            </div>
+                            <div class="text-right min-w-[120px]">
                                 <p class="text-[10px] font-bold text-hb-olive">${(parseFloat(apt.rent_amount || 0) + parseFloat(apt.utilities_amount || 0)).toFixed(2)} €</p>
                                 <button onclick="editApartment('${apt.id}')" class="text-[9px] uppercase font-bold text-hb-olive opacity-0 group-hover:opacity-100 transition-opacity">Bearbeiten</button>
                             </div>
                         </div>`;
                 }).join('');
+            } else {
+                list.innerHTML = `<p class="text-gray-400 italic">Keine Einheiten vorhanden.</p>`;
             }
         }
 
@@ -199,12 +227,25 @@
                 apartment_number: document.getElementById('apt_no').value,
                 rent_amount: parseFloat(document.getElementById('rent').value) || 0,
                 utilities_amount: parseFloat(document.getElementById('utils').value) || 0,
-                sq_meters: parseFloat(document.getElementById('sq_m').value) || 0
+                sq_meters: parseFloat(document.getElementById('sq_m').value) || 0,
+                meter_electricity: document.getElementById('m_elec').value,
+                meter_water: document.getElementById('m_water').value,
+                meter_heating: document.getElementById('m_heat').value
             };
-            if (currentEditingId) await _supabase.from('apartments').update(payload).eq('id', currentEditingId);
-            else await _supabase.from('apartments').insert([payload]);
-            resetForm();
-            fetchApartments();
+            
+            let result;
+            if (currentEditingId) {
+                result = await _supabase.from('apartments').update(payload).eq('id', currentEditingId);
+            } else {
+                result = await _supabase.from('apartments').insert([payload]);
+            }
+
+            if (result.error) {
+                alert("Fehler beim Speichern: " + result.error.message);
+            } else {
+                resetForm();
+                fetchApartments();
+            }
         }
 
         async function editApartment(id) {
@@ -216,6 +257,12 @@
                 document.getElementById('rent').value = apt.rent_amount;
                 document.getElementById('utils').value = apt.utilities_amount;
                 document.getElementById('sq_m').value = apt.sq_meters;
+                
+                // Zählerfelder sicher befüllen (falls vorhanden)
+                if(document.getElementById('m_elec')) document.getElementById('m_elec').value = apt.meter_electricity || '';
+                if(document.getElementById('m_water')) document.getElementById('m_water').value = apt.meter_water || '';
+                if(document.getElementById('m_heat')) document.getElementById('m_heat').value = apt.meter_heating || '';
+
                 document.getElementById('form-title').textContent = "Einheit bearbeiten";
                 document.getElementById('submit-btn').textContent = "Änderungen speichern";
                 document.getElementById('cancel-btn').classList.remove('hidden');
@@ -237,17 +284,16 @@
             const container = document.getElementById('content-area');
             container.className = "space-y-12 col-span-full";
             
-            // Mieter laden für die Zuordnung (tenant_id in deiner Tabelle)
             const { data: tenants } = await _supabase.from('profiles').select('id, full_name').eq('role', 'tenant').order('full_name');
             const tenantOptions = tenants?.map(t => `<option value="${t.id}">${t.full_name}</option>`).join('') || '';
 
             container.innerHTML = `
-                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive">
+                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
                     <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Dokument hochladen</h2>
                     <form id="upload-form" class="space-y-6">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
                             <div class="space-y-2">
-                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest text-balance">Kategorie</label>
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Kategorie</label>
                                 <select id="doc_category" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm">
                                     <option value="Mietvertrag">Mietvertrag</option>
                                     <option value="Nebenkostenabrechnung">Nebenkostenabrechnung</option>
@@ -260,9 +306,9 @@
                                 <input type="text" id="doc_title" class="w-full border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="z.B. Abrechnung 2025" required>
                             </div>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
                             <div class="space-y-2">
-                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Mieter zuordnen (optional)</label>
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Mieter zuordnen</label>
                                 <select id="doc_tenant_id" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm">
                                     <option value="">Keinem Mieter zugeordnet</option>
                                     ${tenantOptions}
@@ -283,7 +329,7 @@
                     </form>
                 </div>
 
-                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive">
+                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
                     <h2 class="text-xl font-bold mb-10 uppercase tracking-widest text-hb-offblack text-balance">Bestands-Dokumente</h2>
                     <div id="docs-list" class="divide-y divide-gray-100 italic text-sm text-gray-400">
                         Lade Dokumente...
@@ -309,7 +355,6 @@
             btn.disabled = true;
             btn.textContent = "Lade hoch...";
 
-            // 1. Datei in Storage
             const fileName = `${Date.now()}_${file.name}`;
             const { data: uploadData, error: uploadError } = await _supabase.storage
                 .from('documents')
@@ -322,7 +367,6 @@
                 return;
             }
 
-            // 2. Metadaten in DB (Abgestimmt auf deinen Screenshot)
             const { error: dbError } = await _supabase.from('documents').insert([{
                 title: title,
                 category: category,
@@ -338,7 +382,6 @@
         }
 
         async function fetchDocuments() {
-            // Wir joinen profiles für den Namen des Mieters (tenant_id)
             const { data, error } = await _supabase
                 .from('documents')
                 .select('*, profiles:tenant_id (full_name)')
@@ -349,14 +392,14 @@
                 list.className = "divide-y divide-gray-100 not-italic";
                 list.innerHTML = data.map(doc => `
                     <div class="py-6 flex flex-wrap justify-between items-center group">
-                        <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-4 text-left">
                             <div class="bg-hb-ultralight p-3 text-hb-olive">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
                             </div>
                             <div>
-                                <p class="font-bold text-hb-offblack">${doc.title}</p>
+                                <p class="font-bold text-hb-offblack uppercase tracking-tight">${doc.title}</p>
                                 <p class="text-[9px] uppercase tracking-widest text-gray-400 font-bold">
                                     ${doc.category} • ${doc.profiles?.full_name ? 'Mieter: ' + doc.profiles.full_name : 'Allgemein'}
                                 </p>
@@ -369,7 +412,7 @@
                     </div>
                 `).join('');
             } else {
-                list.innerHTML = '<p class="py-8 text-center">Keine Dokumente gefunden.</p>';
+                list.innerHTML = '<p class="py-8 text-center text-gray-400">Keine Dokumente gefunden.</p>';
             }
         }
 
