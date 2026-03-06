@@ -26,7 +26,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         #sidebar { transition: transform 0.3s ease-in-out; }
-        input::placeholder { color: #d1d5db; }
+        .active-link { background-color: #F5F5F5; border-left-color: #687451 !important; }
     </style>
 </head>
 <body class="bg-hb-ultralight font-sans text-hb-offblack min-h-screen flex flex-col md:flex-row">
@@ -63,10 +63,10 @@
     <main class="flex-grow p-6 md:p-12 lg:p-16">
         <header class="mb-10 md:mb-16">
             <p id="role-label" class="text-[10px] uppercase tracking-[0.2em] font-bold text-hb-olive mb-2"></p>
-            <h1 id="welcome-title" class="text-3xl md:text-5xl font-bold tracking-tight text-hb-offblack">Lade...</h1>
+            <h1 id="welcome-title" class="text-3xl md:text-5xl font-bold tracking-tight text-hb-offblack">Lade Dashboard...</h1>
         </header>
 
-        <div id="content-area" class="w-full">
+        <div id="content-area" class="w-full space-y-12">
             </div>
     </main>
 
@@ -101,10 +101,9 @@
             if (role === 'admin') {
                 nav.innerHTML = `
                     <li><a onclick="location.reload()" class="${linkClass}">Übersicht</a></li>
-                    <li><a onclick="loadTenants(); if(window.innerWidth < 768) toggleMenu();" class="${linkClass} border-hb-olive bg-hb-ultralight">Einheiten & Zähler</a></li>
+                    <li><a onclick="loadTenants(); if(window.innerWidth < 768) toggleMenu();" class="${linkClass} active-link">Einheiten & Zähler</a></li>
                     <li class="pt-8 pb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-300">Verwaltung</li>
                     <li><a href="#" class="${linkClass}">Dokumenten-Cloud</a></li>
-                    <li><a href="#" class="${linkClass}">Schwarzes Brett</a></li>
                 `;
             }
         }
@@ -112,4 +111,102 @@
         async function loadTenants() {
             const container = document.getElementById('content-area');
             const { data: buildings } = await _supabase.from('buildings').select('*');
-            const buildingOptions = buildings?.map(b => `<option value="${b
+            const buildingOptions = buildings?.map(b => `<option value="${b.id}">${b.name}</option>`).join('') || '';
+
+            container.innerHTML = `
+                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive">
+                    <h2 class="text-xl font-bold mb-8 uppercase tracking-widest">Einheit & Zähler erfassen</h2>
+                    <form id="apartment-form" class="space-y-8">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div class="space-y-2">
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Objekt auswählen</label>
+                                <select id="b_id" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm" required>
+                                    <option value="" disabled selected>Bitte wählen...</option>
+                                    ${buildingOptions}
+                                </select>
+                            </div>
+                            <div class="space-y-2">
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Wohnungsnummer</label>
+                                <input type="text" id="apt_no" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" placeholder="z.B. EG Links" required>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <input type="number" id="rent" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Kaltmiete (€)" step="0.01">
+                            <input type="number" id="utils" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Nebenkosten (€)" step="0.01">
+                        </div>
+                        <div class="pt-4 border-t border-gray-50 grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <input type="text" id="m_elec" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Stromzähler-Nr.">
+                            <input type="text" id="m_water" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Wasserzähler-Nr.">
+                            <input type="text" id="m_heat" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Wärmezähler-Nr.">
+                        </div>
+                        <div class="pt-6">
+                            <button type="submit" class="bg-hb-offblack text-white px-12 py-4 text-xs uppercase tracking-[0.3em] font-bold hover:bg-hb-olive transition-all">Einheit Speichern</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive">
+                    <h2 class="text-xl font-bold mb-10 uppercase tracking-widest">Bestands-Liste</h2>
+                    <div id="tenants-list" class="space-y-12 text-sm text-gray-400">Lade Einheiten...</div>
+                </div>
+            `;
+            document.getElementById('apartment-form').addEventListener('submit', handleAddApartment);
+            fetchApartments();
+        }
+
+        async function fetchApartments() {
+            const { data } = await _supabase.from('apartments').select('*, buildings (*), profiles:tenant_id (full_name)').order('building_id');
+            const list = document.getElementById('tenants-list');
+            if (data && data.length > 0) {
+                let currentB = "";
+                list.innerHTML = data.map(apt => {
+                    let header = "";
+                    if (currentB !== apt.buildings?.name) {
+                        currentB = apt.buildings?.name || "Nicht zugeordnet";
+                        header = `
+                            <div class="bg-hb-ultralight px-6 py-4 mt-8 mb-4 border-l-4 border-hb-olive">
+                                <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-hb-olive">${currentB}</p>
+                                <p class="text-[9px] text-gray-400 uppercase tracking-widest">${apt.buildings?.address || ''}, ${apt.buildings?.zip_code || ''} ${apt.buildings?.city || ''}</p>
+                            </div>`;
+                    }
+                    return header + `
+                        <div class="flex flex-wrap justify-between items-start py-6 border-b border-gray-50 last:border-0 gap-4">
+                            <div class="flex-1 min-w-[200px]">
+                                <h3 class="font-bold text-xl text-hb-offblack">${apt.apartment_number}</h3>
+                                <p class="text-[10px] text-gray-500 uppercase tracking-widest mt-1">Mieter: <span class="font-semibold text-hb-offblack">${apt.profiles?.full_name || 'LEERSTEHEND'}</span></p>
+                            </div>
+                            <div class="grid grid-cols-3 gap-4 bg-gray-50 p-4 border border-gray-100 text-center min-w-[250px]">
+                                <div><p class="text-[8px] uppercase font-bold text-gray-400">Strom</p><p class="text-xs font-bold">${apt.meter_electricity || '-'}</p></div>
+                                <div><p class="text-[8px] uppercase font-bold text-gray-400">Wasser</p><p class="text-xs font-bold">${apt.meter_water || '-'}</p></div>
+                                <div><p class="text-[8px] uppercase font-bold text-gray-400">Wärme</p><p class="text-xs font-bold">${apt.meter_heating || '-'}</p></div>
+                            </div>
+                            <div class="text-right min-w-[100px]">
+                                <p class="text-[10px] font-bold text-hb-olive">${(parseFloat(apt.rent_amount || 0) + parseFloat(apt.utilities_amount || 0)).toFixed(2)} €</p>
+                                <p class="text-[8px] uppercase text-gray-400">Gesamt/Monat</p>
+                            </div>
+                        </div>`;
+                }).join('');
+            } else {
+                list.innerHTML = '<p class="text-center italic">Keine Einheiten angelegt.</p>';
+            }
+        }
+
+        async function handleAddApartment(e) {
+            e.preventDefault();
+            const payload = {
+                building_id: document.getElementById('b_id').value,
+                apartment_number: document.getElementById('apt_no').value,
+                rent_amount: document.getElementById('rent').value || 0,
+                utilities_amount: document.getElementById('utils').value || 0,
+                meter_electricity: document.getElementById('m_elec').value,
+                meter_water: document.getElementById('m_water').value,
+                meter_heating: document.getElementById('m_heat').value
+            };
+            const { error } = await _supabase.from('apartments').insert([payload]);
+            if (error) alert("Fehler: " + error.message); else loadTenants();
+        }
+
+        async function logout() { await _supabase.auth.signOut(); window.location.href = 'index.html'; }
+        init();
+    </script>
+</body>
+</html>
