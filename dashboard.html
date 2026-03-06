@@ -27,19 +27,22 @@
     <style>
         #sidebar { transition: transform 0.3s ease-in-out; }
         .active-link { background-color: #F5F5F5; border-left-color: #687451 !important; }
+        input::placeholder { color: #d1d5db; }
     </style>
 </head>
 <body class="bg-hb-ultralight font-sans text-hb-offblack min-h-screen flex flex-col md:flex-row">
 
+    <!-- MOBILE HEADER -->
     <div class="md:hidden bg-white border-b border-gray-200 p-4 flex justify-between items-center sticky top-0 z-50">
         <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-8 w-auto">
-        <button onclick="toggleMenu()" class="text-hb-olive p-2">
+        <button onclick="toggleMenu()" class="text-hb-olive p-2 focus:outline-none">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
             </svg>
         </button>
     </div>
 
+    <!-- SIDEBAR -->
     <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-40 w-72 bg-white border-r border-gray-200 flex-shrink-0 min-h-screen flex flex-col shadow-sm">
         <div class="p-8 border-b border-gray-100 hidden md:block text-center">
             <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-16 w-auto mx-auto mb-4">
@@ -48,7 +51,8 @@
         
         <div class="flex-grow p-6 pt-16 md:pt-6">
             <ul class="space-y-1" id="nav-links">
-                </ul>
+                <!-- Navigation wird via JS geladen -->
+            </ul>
         </div>
 
         <div class="p-8 border-t border-gray-100">
@@ -58,8 +62,10 @@
         </div>
     </nav>
 
+    <!-- OVERLAY (Mobil) -->
     <div id="overlay" onclick="toggleMenu()" class="fixed inset-0 bg-black/50 z-30 hidden"></div>
 
+    <!-- MAIN CONTENT -->
     <main class="flex-grow p-6 md:p-12 lg:p-16">
         <header class="mb-10 md:mb-16">
             <p id="role-label" class="text-[10px] uppercase tracking-[0.2em] font-bold text-hb-olive mb-2"></p>
@@ -67,13 +73,16 @@
         </header>
 
         <div id="content-area" class="w-full space-y-12">
-            </div>
+            <!-- Dynamischer Content landet hier -->
+        </div>
     </main>
 
     <script>
         const supabaseUrl = 'https://unprrlbvylmzxxhpfisr.supabase.co';
         const supabaseKey = 'sb_publishable_nWYozmRQq8E17z_ljZ2SHA_LUulwUV1';
         const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+        let currentEditingId = null;
 
         function toggleMenu() {
             document.getElementById('sidebar').classList.toggle('-translate-x-full');
@@ -102,8 +111,9 @@
                 nav.innerHTML = `
                     <li><a onclick="location.reload()" class="${linkClass}">Übersicht</a></li>
                     <li><a onclick="loadTenants(); if(window.innerWidth < 768) toggleMenu();" class="${linkClass} active-link">Einheiten & Zähler</a></li>
-                    <li class="pt-8 pb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-300">Verwaltung</li>
+                    <li class="pt-8 pb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-300 text-balance">Verwaltung</li>
                     <li><a href="#" class="${linkClass}">Dokumenten-Cloud</a></li>
+                    <li><a href="#" class="${linkClass}">Schwarzes Brett</a></li>
                 `;
             }
         }
@@ -115,46 +125,81 @@
 
             container.innerHTML = `
                 <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive">
-                    <h2 class="text-xl font-bold mb-8 uppercase tracking-widest">Einheit & Zähler erfassen</h2>
+                    <h2 id="form-title" class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Einheit erfassen</h2>
                     <form id="apartment-form" class="space-y-8">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div class="space-y-2">
                                 <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Objekt auswählen</label>
-                                <select id="b_id" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm" required>
+                                <select id="b_id" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm transition-colors" required>
                                     <option value="" disabled selected>Bitte wählen...</option>
                                     ${buildingOptions}
                                 </select>
                             </div>
                             <div class="space-y-2">
                                 <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Wohnungsnummer</label>
-                                <input type="text" id="apt_no" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" placeholder="z.B. EG Links" required>
+                                <input type="text" id="apt_no" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm transition-colors" placeholder="z.B. 1.OG Links" required>
                             </div>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <input type="number" id="rent" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Kaltmiete (€)" step="0.01">
-                            <input type="number" id="utils" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Nebenkosten (€)" step="0.01">
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 pt-4">
+                            <div class="space-y-2">
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Kaltmiete (€)</label>
+                                <input type="number" id="rent" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm transition-colors" placeholder="0.00" step="0.01">
+                            </div>
+                            <div class="space-y-2">
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Nebenkosten (€)</label>
+                                <input type="number" id="utils" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm transition-colors" placeholder="0.00" step="0.01">
+                            </div>
+                            <div class="space-y-2">
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Wohnfläche (m²)</label>
+                                <input type="number" id="sq_m" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm transition-colors" placeholder="0.0" step="0.1">
+                            </div>
                         </div>
-                        <div class="pt-4 border-t border-gray-50 grid grid-cols-1 md:grid-cols-3 gap-8">
-                            <input type="text" id="m_elec" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Stromzähler-Nr.">
-                            <input type="text" id="m_water" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Wasserzähler-Nr.">
-                            <input type="text" id="m_heat" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Wärmezähler-Nr.">
+
+                        <div class="pt-8 border-t border-gray-50">
+                            <p class="text-[10px] font-bold uppercase text-gray-300 mb-8 tracking-[0.3em] text-center italic">Zählernummern-Zuordnung</p>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                <div class="space-y-2">
+                                    <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest">Stromzähler</label>
+                                    <input type="text" id="m_elec" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm transition-colors" placeholder="Nr.">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest">Wasserzähler</label>
+                                    <input type="text" id="m_water" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm transition-colors" placeholder="Nr.">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest">Wärmezähler</label>
+                                    <input type="text" id="m_heat" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm transition-colors" placeholder="Nr.">
+                                </div>
+                            </div>
                         </div>
-                        <div class="pt-6">
-                            <button type="submit" class="bg-hb-offblack text-white px-12 py-4 text-xs uppercase tracking-[0.3em] font-bold hover:bg-hb-olive transition-all">Einheit Speichern</button>
+
+                        <div class="pt-10 flex flex-col md:flex-row justify-center gap-4">
+                            <button type="submit" id="submit-btn" class="w-full md:w-auto bg-hb-offblack text-white px-16 py-5 text-xs uppercase tracking-[0.3em] font-bold hover:bg-hb-olive transition-all">
+                                Einheit speichern
+                            </button>
+                            <button type="button" id="cancel-btn" onclick="resetForm()" class="hidden w-full md:w-auto bg-gray-200 text-gray-500 px-8 py-5 text-xs uppercase tracking-widest font-bold hover:bg-gray-300 transition-all">
+                                Abbrechen
+                            </button>
                         </div>
                     </form>
                 </div>
+
                 <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive">
-                    <h2 class="text-xl font-bold mb-10 uppercase tracking-widest">Bestands-Liste</h2>
-                    <div id="tenants-list" class="space-y-12 text-sm text-gray-400">Lade Einheiten...</div>
+                    <h2 class="text-xl font-bold mb-10 uppercase tracking-widest text-hb-offblack">Bestands-Liste</h2>
+                    <div id="tenants-list" class="space-y-12">Lade Einheiten...</div>
                 </div>
             `;
-            document.getElementById('apartment-form').addEventListener('submit', handleAddApartment);
+            document.getElementById('apartment-form').addEventListener('submit', handleSave);
             fetchApartments();
         }
 
         async function fetchApartments() {
-            const { data } = await _supabase.from('apartments').select('*, buildings (*), profiles:tenant_id (full_name)').order('building_id');
+            const { data, error } = await _supabase
+                .from('apartments')
+                .select('*, buildings (*), profiles:tenant_id (full_name)')
+                .order('building_id');
+
             const list = document.getElementById('tenants-list');
             if (data && data.length > 0) {
                 let currentB = "";
@@ -163,49 +208,107 @@
                     if (currentB !== apt.buildings?.name) {
                         currentB = apt.buildings?.name || "Nicht zugeordnet";
                         header = `
-                            <div class="bg-hb-ultralight px-6 py-4 mt-8 mb-4 border-l-4 border-hb-olive">
-                                <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-hb-olive">${currentB}</p>
-                                <p class="text-[9px] text-gray-400 uppercase tracking-widest">${apt.buildings?.address || ''}, ${apt.buildings?.zip_code || ''} ${apt.buildings?.city || ''}</p>
+                            <div class="bg-hb-ultralight px-6 py-4 mt-12 mb-6 border-l-4 border-hb-olive">
+                                <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-hb-olive mb-1">${currentB}</p>
+                                <p class="text-[9px] text-gray-400 uppercase tracking-widest font-medium">${apt.buildings?.address || ''}, ${apt.buildings?.zip_code || ''} ${apt.buildings?.city || ''}</p>
                             </div>`;
                     }
                     return header + `
-                        <div class="flex flex-wrap justify-between items-start py-6 border-b border-gray-50 last:border-0 gap-4">
+                        <div class="flex flex-wrap justify-between items-start py-8 border-b border-gray-50 last:border-0 gap-6 group">
                             <div class="flex-1 min-w-[200px]">
-                                <h3 class="font-bold text-xl text-hb-offblack">${apt.apartment_number}</h3>
-                                <p class="text-[10px] text-gray-500 uppercase tracking-widest mt-1">Mieter: <span class="font-semibold text-hb-offblack">${apt.profiles?.full_name || 'LEERSTEHEND'}</span></p>
+                                <h3 class="font-bold text-2xl text-hb-offblack tracking-tight mb-2">${apt.apartment_number}</h3>
+                                <div class="flex flex-col gap-1">
+                                    <p class="text-[10px] text-gray-500 uppercase tracking-[0.1em] font-semibold">
+                                        Fläche: <span class="text-hb-offblack">${apt.sq_meters || '0'} m²</span>
+                                    </p>
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-1.5 h-1.5 rounded-full ${apt.profiles?.full_name ? 'bg-hb-olive' : 'bg-gray-200'}"></div>
+                                        <p class="text-[10px] text-gray-500 uppercase tracking-[0.1em] font-semibold">
+                                            Mieter: <span class="text-hb-offblack">${apt.profiles?.full_name || 'LEERSTEHEND'}</span>
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="grid grid-cols-3 gap-4 bg-gray-50 p-4 border border-gray-100 text-center min-w-[250px]">
-                                <div><p class="text-[8px] uppercase font-bold text-gray-400">Strom</p><p class="text-xs font-bold">${apt.meter_electricity || '-'}</p></div>
-                                <div><p class="text-[8px] uppercase font-bold text-gray-400">Wasser</p><p class="text-xs font-bold">${apt.meter_water || '-'}</p></div>
-                                <div><p class="text-[8px] uppercase font-bold text-gray-400">Wärme</p><p class="text-xs font-bold">${apt.meter_heating || '-'}</p></div>
+                            <div class="w-full lg:w-auto grid grid-cols-3 gap-3 md:gap-6 bg-gray-50 p-5 border border-gray-100 min-w-[300px]">
+                                <div><p class="text-[9px] uppercase text-gray-400 font-bold mb-1">Strom</p><p class="text-xs font-bold text-hb-offblack">${apt.meter_electricity || '-'}</p></div>
+                                <div><p class="text-[9px] uppercase text-gray-400 font-bold mb-1">Wasser</p><p class="text-xs font-bold text-hb-offblack">${apt.meter_water || '-'}</p></div>
+                                <div><p class="text-[9px] uppercase text-gray-400 font-bold mb-1">Wärme</p><p class="text-xs font-bold text-hb-offblack">${apt.meter_heating || '-'}</p></div>
                             </div>
-                            <div class="text-right min-w-[100px]">
-                                <p class="text-[10px] font-bold text-hb-olive">${(parseFloat(apt.rent_amount || 0) + parseFloat(apt.utilities_amount || 0)).toFixed(2)} €</p>
-                                <p class="text-[8px] uppercase text-gray-400">Gesamt/Monat</p>
+                            <div class="text-right min-w-[120px] flex flex-col justify-between items-end h-full">
+                                <div>
+                                    <p class="text-[9px] text-gray-400 uppercase font-bold mb-1">Gesamtmiete</p>
+                                    <p class="text-xl font-bold text-hb-olive">${(parseFloat(apt.rent_amount || 0) + parseFloat(apt.utilities_amount || 0)).toFixed(2)} €</p>
+                                </div>
+                                <button onclick="editApartment('${apt.id}')" class="mt-4 text-[10px] uppercase font-bold text-hb-olive hover:text-hb-offblack transition-colors opacity-0 group-hover:opacity-100">
+                                    Bearbeiten
+                                </button>
                             </div>
                         </div>`;
                 }).join('');
             } else {
-                list.innerHTML = '<p class="text-center italic">Keine Einheiten angelegt.</p>';
+                list.innerHTML = '<p class="py-12 text-center text-gray-400 italic text-sm">Keine Einheiten vorhanden.</p>';
             }
         }
 
-        async function handleAddApartment(e) {
+        async function handleSave(e) {
             e.preventDefault();
             const payload = {
                 building_id: document.getElementById('b_id').value,
                 apartment_number: document.getElementById('apt_no').value,
                 rent_amount: document.getElementById('rent').value || 0,
                 utilities_amount: document.getElementById('utils').value || 0,
+                sq_meters: document.getElementById('sq_m').value || 0,
                 meter_electricity: document.getElementById('m_elec').value,
                 meter_water: document.getElementById('m_water').value,
                 meter_heating: document.getElementById('m_heat').value
             };
-            const { error } = await _supabase.from('apartments').insert([payload]);
-            if (error) alert("Fehler: " + error.message); else loadTenants();
+
+            if (currentEditingId) {
+                const { error } = await _supabase.from('apartments').update(payload).eq('id', currentEditingId);
+                if (error) alert("Fehler beim Aktualisieren: " + error.message);
+                else resetForm();
+            } else {
+                const { error } = await _supabase.from('apartments').insert([payload]);
+                if (error) alert("Fehler beim Speichern: " + error.message);
+                else resetForm();
+            }
+            fetchApartments();
         }
 
-        async function logout() { await _supabase.auth.signOut(); window.location.href = 'index.html'; }
+        async function editApartment(id) {
+            const { data: apt } = await _supabase.from('apartments').select('*').eq('id', id).single();
+            if (apt) {
+                currentEditingId = id;
+                document.getElementById('b_id').value = apt.building_id;
+                document.getElementById('apt_no').value = apt.apartment_number;
+                document.getElementById('rent').value = apt.rent_amount;
+                document.getElementById('utils').value = apt.utilities_amount;
+                document.getElementById('sq_m').value = apt.sq_meters;
+                document.getElementById('m_elec').value = apt.meter_electricity;
+                document.getElementById('m_water').value = apt.meter_water;
+                document.getElementById('m_heat').value = apt.meter_heating;
+                
+                document.getElementById('form-title').textContent = "Einheit bearbeiten";
+                document.getElementById('submit-btn').textContent = "Änderungen speichern";
+                document.getElementById('cancel-btn').classList.remove('hidden');
+                
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        function resetForm() {
+            currentEditingId = null;
+            document.getElementById('apartment-form').reset();
+            document.getElementById('form-title').textContent = "Einheit erfassen";
+            document.getElementById('submit-btn').textContent = "Einheit speichern";
+            document.getElementById('cancel-btn').classList.add('hidden');
+        }
+
+        async function logout() { 
+            await _supabase.auth.signOut(); 
+            window.location.href = 'index.html'; 
+        }
+        
         init();
     </script>
 </body>
