@@ -138,13 +138,16 @@
                     <li><a onclick="location.reload()" class="${linkClass}">Übersicht</a></li>
                     <li><a id="nav-apartments" onclick="loadTenants(); setActiveNav('nav-apartments')" class="${linkClass}">Einheiten & Zähler</a></li>
                     <li><a id="nav-users" onclick="loadUserManagement(); setActiveNav('nav-users')" class="${linkClass}">Mieter-Verwaltung</a></li>
-                    <li class="pt-8 pb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-300 text-balance">Verwaltung</li>
-                    <li><a id="nav-docs" onclick="loadDocuments(); setActiveNav('nav-docs')" class="${linkClass}">Dokumenten-Cloud</a></li>
+                    <li class="pt-8 pb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-300 text-balance mt-4">Kommunikation</li>
+                    <li><a id="nav-tickets" onclick="loadTickets(); setActiveNav('nav-tickets')" class="${linkClass}">Meldungen & Tickets</a></li>
                     <li><a id="nav-news" onclick="loadNews(); setActiveNav('nav-news')" class="${linkClass}">Schwarzes Brett</a></li>
+                    <li class="pt-8 pb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-300 text-balance">Dateien</li>
+                    <li><a id="nav-docs" onclick="loadDocuments(); setActiveNav('nav-docs')" class="${linkClass}">Dokumenten-Cloud</a></li>
                 `;
             } else {
                 nav.innerHTML = `
                     <li><a id="nav-news" onclick="loadNews(); setActiveNav('nav-news')" class="${linkClass}">Schwarzes Brett</a></li>
+                    <li><a id="nav-tickets" onclick="loadTickets(); setActiveNav('nav-tickets')" class="${linkClass}">Meine Meldungen</a></li>
                     <li><a id="nav-docs" onclick="loadDocuments(); setActiveNav('nav-docs')" class="${linkClass}">Meine Dokumente</a></li>
                 `;
             }
@@ -266,7 +269,7 @@
         async function handleSaveApartment(e) {
             e.preventDefault();
             const payload = {
-                building_id: document.getElementById('b_id').value, // Kein parseInt für Flexibilität
+                building_id: document.getElementById('b_id').value, 
                 apartment_number: document.getElementById('apt_no').value,
                 rent_amount: parseFloat(document.getElementById('rent').value) || 0,
                 utilities_amount: parseFloat(document.getElementById('utils').value) || 0,
@@ -363,7 +366,7 @@
                 id: crypto.randomUUID(), 
                 full_name: document.getElementById('tenant_name').value,
                 email: document.getElementById('tenant_email').value,
-                apartment_id: aptId, // Kein parseInt mehr, um Buchstaben/UUIDs zu unterstützen
+                apartment_id: aptId, 
                 role: 'tenant'
             };
 
@@ -652,6 +655,140 @@
         }
 
         async function deleteNews(id) { if (confirm("Löschen?")) { await _supabase.from('news').delete().eq('id', id); fetchNews(); } }
+
+        /* --- TICKETS (MELDUNGEN) --- */
+
+        async function loadTickets() {
+            const container = document.getElementById('content-area');
+            container.className = "space-y-8 col-span-full text-left";
+            const isAdmin = userProfile.role === 'admin';
+
+            let html = "";
+
+            if (!isAdmin) {
+                html += `
+                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
+                    <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Neue Meldung erstellen</h2>
+                    <form id="ticket-form" class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                            <div class="space-y-2 text-left">
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest text-left">Kategorie</label>
+                                <select id="ticket_category" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm" required>
+                                    <option value="Reparatur">Reparatur / Mangel</option>
+                                    <option value="Allgemein">Allgemeine Anfrage</option>
+                                    <option value="Beschwerde">Beschwerde</option>
+                                </select>
+                            </div>
+                            <div class="space-y-2 text-left">
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest text-left">Betreff</label>
+                                <input type="text" id="ticket_title" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" placeholder="Kurze Beschreibung (z.B. Heizung defekt)" required>
+                            </div>
+                        </div>
+                        <div class="space-y-2 text-left">
+                            <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest text-left">Beschreibung</label>
+                            <textarea id="ticket_desc" rows="4" class="w-full border-2 border-gray-50 p-4 focus:outline-none focus:border-hb-olive text-sm bg-hb-ultralight" placeholder="Details zur Meldung..." required></textarea>
+                        </div>
+                        <div class="pt-4 text-left">
+                            <button type="submit" id="ticket-submit-btn" class="bg-hb-offblack text-white px-10 py-4 text-xs uppercase tracking-widest font-bold hover:bg-hb-olive transition-all">Meldung absenden</button>
+                        </div>
+                    </form>
+                </div>`;
+            }
+
+            html += `
+                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
+                    <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">${isAdmin ? 'Mieter-Meldungen & Tickets' : 'Ihre Meldungen'}</h2>
+                    <div id="tickets-list" class="space-y-6 text-left">Lade...</div>
+                </div>`;
+
+            container.innerHTML = html;
+            if (!isAdmin) document.getElementById('ticket-form').addEventListener('submit', handleSaveTicket);
+            fetchTickets();
+        }
+
+        async function handleSaveTicket(e) {
+            e.preventDefault();
+            const btn = document.getElementById('ticket-submit-btn');
+            btn.disabled = true; btn.textContent = "Sende...";
+
+            const payload = {
+                tenant_id: currentUser.id,
+                apartment_id: userProfile.apartment_id,
+                category: document.getElementById('ticket_category').value,
+                title: document.getElementById('ticket_title').value,
+                description: document.getElementById('ticket_desc').value,
+                status: 'Offen'
+            };
+
+            const { error } = await _supabase.from('tickets').insert([payload]);
+            if (error) {
+                alert("Fehler: " + error.message);
+                btn.disabled = false; btn.textContent = "Meldung absenden";
+            } else {
+                alert("Meldung erfolgreich gesendet!");
+                loadTickets();
+            }
+        }
+
+        async function fetchTickets() {
+            const isAdmin = userProfile.role === 'admin';
+            let query = _supabase.from('tickets').select('*, profiles!tenant_id(full_name, email), apartments!apartment_id(apartment_number, buildings(name))').order('created_at', { ascending: false });
+
+            if (!isAdmin) {
+                query = query.eq('tenant_id', currentUser.id);
+            }
+
+            const { data, error } = await query;
+            const list = document.getElementById('tickets-list');
+
+            if (error) { list.innerHTML = `<p class="text-red-500 text-left">Fehler: ${error.message}</p>`; return; }
+
+            if (data && data.length > 0) {
+                list.innerHTML = data.map(t => {
+                    let statusColor = t.status === 'Offen' ? 'text-red-500' : (t.status === 'In Bearbeitung' ? 'text-hb-orange' : 'text-green-600');
+                    let statusBg = t.status === 'Offen' ? 'bg-red-50' : (t.status === 'In Bearbeitung' ? 'bg-orange-50' : 'bg-green-50');
+
+                    let adminControls = isAdmin ? `
+                        <div class="mt-6 pt-4 border-t border-gray-50 flex items-center justify-between text-left">
+                            <div class="flex items-center gap-4 text-left">
+                                <label class="text-[9px] uppercase tracking-widest font-bold text-gray-400">Status ändern:</label>
+                                <select onchange="updateTicketStatus('${t.id}', this.value)" class="border-b-2 border-gray-100 p-2 text-xs uppercase tracking-widest font-bold focus:outline-none focus:border-hb-olive bg-transparent cursor-pointer">
+                                    <option value="Offen" ${t.status === 'Offen' ? 'selected' : ''}>Offen</option>
+                                    <option value="In Bearbeitung" ${t.status === 'In Bearbeitung' ? 'selected' : ''}>In Bearbeitung</option>
+                                    <option value="Erledigt" ${t.status === 'Erledigt' ? 'selected' : ''}>Erledigt</option>
+                                </select>
+                            </div>
+                        </div>
+                    ` : '';
+
+                    return `
+                    <div class="p-6 bg-hb-ultralight border border-gray-100 group text-left">
+                        <div class="flex justify-between items-start mb-3 text-left">
+                            <div class="text-left">
+                                <span class="px-3 py-1 ${statusBg} ${statusColor} text-[8px] font-bold uppercase tracking-widest rounded-sm mb-3 inline-block">
+                                    Status: ${t.status}
+                                </span>
+                                <h3 class="text-lg font-bold text-hb-offblack tracking-tight text-left uppercase">${t.title}</h3>
+                                <p class="text-[9px] uppercase tracking-widest text-gray-400 font-bold mt-2 text-left">
+                                    ${new Date(t.created_at).toLocaleDateString()} • ${t.category}
+                                    ${isAdmin ? `<br><span class="text-hb-olive mt-1 inline-block">Gemeldet von: ${t.profiles?.full_name || 'Unbekannt'} (${t.apartments?.buildings?.name || ''} ${t.apartments?.apartment_number || ''})</span>` : ''}
+                                </p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-600 mt-4 whitespace-pre-wrap leading-relaxed text-left">${t.description}</p>
+                        ${adminControls}
+                    </div>`;
+                }).join('');
+            } else {
+                list.innerHTML = '<p class="text-sm italic text-gray-400 text-left">Keine Meldungen vorhanden.</p>';
+            }
+        }
+
+        async function updateTicketStatus(id, newStatus) {
+            const { error } = await _supabase.from('tickets').update({ status: newStatus }).eq('id', id);
+            if (error) alert("Fehler beim Aktualisieren: " + error.message);
+            else fetchTickets();
+        }
 
         async function logout() { await _supabase.auth.signOut(); window.location.href = 'index.html'; }
         init();
