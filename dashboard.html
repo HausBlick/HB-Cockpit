@@ -67,9 +67,9 @@
 
     <!-- MAIN CONTENT -->
     <main class="flex-grow p-6 md:p-12 lg:p-16">
-        <header class="mb-10 md:mb-16">
+        <header class="mb-10 md:mb-16 text-left">
             <p id="role-label" class="text-[10px] uppercase tracking-[0.2em] font-bold text-hb-olive mb-2"></p>
-            <h1 id="welcome-title" class="text-3xl md:text-5xl font-bold tracking-tight text-hb-offblack italic text-balance">Lade...</h1>
+            <h1 id="welcome-title" class="text-3xl md:text-5xl font-bold tracking-tight text-hb-offblack italic text-balance text-left">Lade...</h1>
         </header>
 
         <div id="content-area" class="w-full space-y-12">
@@ -83,6 +83,7 @@
         const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
         let currentEditingId = null;
+        let currentEditingNewsId = null;
 
         function toggleMenu() {
             document.getElementById('sidebar').classList.toggle('-translate-x-full');
@@ -115,15 +116,15 @@
 
         function renderNav(role) {
             const nav = document.getElementById('nav-links');
-            const linkClass = "block p-3 text-sm font-medium hover:bg-hb-ultralight transition-all border-l-4 border-transparent hover:border-hb-olive cursor-pointer mb-1";
+            const linkClass = "block p-3 text-sm font-medium hover:bg-hb-ultralight transition-all border-l-4 border-transparent hover:border-hb-olive cursor-pointer mb-1 text-left";
             
             if (role === 'admin') {
                 nav.innerHTML = `
                     <li><a onclick="location.reload()" class="${linkClass}">Übersicht</a></li>
                     <li><a id="nav-apartments" onclick="loadTenants(); setActiveNav('nav-apartments')" class="${linkClass}">Einheiten & Zähler</a></li>
-                    <li class="pt-8 pb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-300">Verwaltung</li>
+                    <li class="pt-8 pb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-300 text-balance">Verwaltung</li>
                     <li><a id="nav-docs" onclick="loadDocuments(); setActiveNav('nav-docs')" class="${linkClass}">Dokumenten-Cloud</a></li>
-                    <li><a id="nav-news" onclick="alert('In Kürze verfügbar'); setActiveNav('nav-news')" class="${linkClass}">Schwarzes Brett</a></li>
+                    <li><a id="nav-news" onclick="loadNews(); setActiveNav('nav-news')" class="${linkClass}">Schwarzes Brett</a></li>
                 `;
             }
         }
@@ -146,7 +147,7 @@
                 <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
                     <h2 id="form-title" class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Einheit erfassen</h2>
                     <form id="apartment-form" class="space-y-8">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
                             <div class="space-y-2">
                                 <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Objekt auswählen</label>
                                 <select id="b_id" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm" required>
@@ -159,7 +160,7 @@
                                 <input type="text" id="apt_no" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" placeholder="z.B. 1.OG Links" required>
                             </div>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                             <input type="number" id="rent" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Kaltmiete (€)" step="0.01">
                             <input type="number" id="utils" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Nebenkosten (€)" step="0.01">
                             <input type="number" id="sq_m" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Fläche (m²)" step="0.1">
@@ -187,12 +188,7 @@
         async function fetchApartments() {
             const { data, error } = await _supabase.from('apartments').select('*, buildings (*), profiles:tenant_id (full_name)').order('apartment_number');
             const list = document.getElementById('tenants-list');
-            
-            if (error) {
-                list.innerHTML = `<p class="text-red-500 text-left">Fehler beim Laden: ${error.message}</p>`;
-                return;
-            }
-
+            if (error) { list.innerHTML = `<p class="text-red-500">Fehler: ${error.message}</p>`; return; }
             if (data && data.length > 0) {
                 let currentB = "";
                 list.innerHTML = data.map(apt => {
@@ -215,9 +211,7 @@
                             </div>
                         </div>`;
                 }).join('');
-            } else {
-                list.innerHTML = `<p class="text-gray-400 italic">Keine Einheiten vorhanden.</p>`;
-            }
+            } else { list.innerHTML = `<p class="text-gray-400 italic">Keine Einheiten vorhanden.</p>`; }
         }
 
         async function handleSaveApartment(e) {
@@ -232,16 +226,9 @@
                 meter_water: document.getElementById('m_water').value,
                 meter_heating: document.getElementById('m_heat').value
             };
-            
-            let result;
-            if (currentEditingId) {
-                result = await _supabase.from('apartments').update(payload).eq('id', currentEditingId);
-            } else {
-                result = await _supabase.from('apartments').insert([payload]);
-            }
-
-            if (result.error) alert("Fehler beim Speichern: " + result.error.message);
-            else { resetForm(); fetchApartments(); }
+            if (currentEditingId) await _supabase.from('apartments').update(payload).eq('id', currentEditingId);
+            else await _supabase.from('apartments').insert([payload]);
+            resetForm(); fetchApartments();
         }
 
         async function editApartment(id) {
@@ -253,11 +240,9 @@
                 document.getElementById('rent').value = apt.rent_amount;
                 document.getElementById('utils').value = apt.utilities_amount;
                 document.getElementById('sq_m').value = apt.sq_meters;
-                
                 if(document.getElementById('m_elec')) document.getElementById('m_elec').value = apt.meter_electricity || '';
                 if(document.getElementById('m_water')) document.getElementById('m_water').value = apt.meter_water || '';
                 if(document.getElementById('m_heat')) document.getElementById('m_heat').value = apt.meter_heating || '';
-
                 document.getElementById('form-title').textContent = "Einheit bearbeiten";
                 document.getElementById('submit-btn').textContent = "Änderungen speichern";
                 document.getElementById('cancel-btn').classList.remove('hidden');
@@ -278,115 +263,76 @@
         async function loadDocuments() {
             const container = document.getElementById('content-area');
             container.className = "space-y-12 col-span-full";
-            
             const { data: tenants } = await _supabase.from('profiles').select('id, full_name').eq('role', 'tenant').order('full_name');
             const tenantOptions = tenants?.map(t => `<option value="${t.id}">${t.full_name}</option>`).join('') || '';
-
             container.innerHTML = `
                 <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
                     <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Dokument hochladen</h2>
                     <form id="upload-form" class="space-y-6">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
-                            <div class="space-y-2">
-                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Kategorie</label>
-                                <select id="doc_category" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm">
-                                    <option value="Mietvertrag">Mietvertrag</option>
-                                    <option value="Nebenkostenabrechnung">Nebenkostenabrechnung</option>
-                                    <option value="Übergabeprotokoll">Übergabeprotokoll</option>
-                                    <option value="Sonstiges">Sonstiges</option>
-                                </select>
-                            </div>
-                            <div class="space-y-2 text-left">
-                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Anzeigetitel</label>
-                                <input type="text" id="doc_title" class="w-full border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="z.B. Abrechnung 2025" required>
-                            </div>
+                            <select id="doc_category" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm">
+                                <option value="Mietvertrag">Mietvertrag</option>
+                                <option value="Nebenkostenabrechnung">Nebenkostenabrechnung</option>
+                                <option value="Übergabeprotokoll">Übergabeprotokoll</option>
+                            </select>
+                            <input type="text" id="doc_title" class="w-full border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Anzeigetitel" required>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
-                            <div class="space-y-2">
-                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Mieter zuordnen</label>
-                                <select id="doc_tenant_id" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm">
-                                    <option value="">Keinem Mieter zugeordnet</option>
-                                    ${tenantOptions}
-                                </select>
-                            </div>
-                            <div class="space-y-2 flex items-end">
-                                <label class="flex items-center justify-center w-full h-12 border-2 border-gray-100 border-dashed cursor-pointer bg-hb-ultralight hover:bg-gray-50 transition-all">
-                                    <span class="text-[10px] font-bold uppercase tracking-widest text-gray-400" id="file-status">Datei auswählen</span>
-                                    <input id="file-input" type="file" class="hidden" accept=".pdf,.jpg,.png" onchange="document.getElementById('file-status').textContent = this.files[0].name" />
-                                </label>
-                            </div>
+                            <select id="doc_tenant_id" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm">
+                                <option value="">Allgemeines Dokument</option>
+                                ${tenantOptions}
+                            </select>
+                            <label class="flex items-center justify-center w-full h-12 border-2 border-gray-100 border-dashed cursor-pointer bg-hb-ultralight hover:bg-gray-50">
+                                <span class="text-[10px] font-bold uppercase text-gray-400" id="file-status">Datei auswählen</span>
+                                <input id="file-input" type="file" class="hidden" onchange="document.getElementById('file-status').textContent = this.files[0].name" />
+                            </label>
                         </div>
-                        <div class="flex justify-center pt-4">
-                            <button type="submit" id="upload-btn" class="bg-hb-offblack text-white px-16 py-5 text-xs uppercase tracking-[0.3em] font-bold hover:bg-hb-olive transition-all">
-                                Upload starten
-                            </button>
-                        </div>
+                        <button type="submit" id="upload-btn" class="w-full bg-hb-offblack text-white py-5 text-xs uppercase tracking-widest font-bold hover:bg-hb-olive">Upload starten</button>
                     </form>
                 </div>
-                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
-                    <h2 class="text-xl font-bold mb-10 uppercase tracking-widest text-hb-offblack">Bestands-Dokumente</h2>
-                    <div id="docs-list" class="divide-y divide-gray-100 italic text-sm text-gray-400">Lade Dokumente...</div>
+                <div id="docs-list" class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
+                    <h2 class="text-xl font-bold mb-10 uppercase tracking-widest text-hb-offblack">Ihre Dokumente</h2>
+                    <div id="docs-content" class="divide-y divide-gray-100 italic text-sm text-gray-400">Lade...</div>
                 </div>
             `;
-
             document.getElementById('upload-form').addEventListener('submit', handleUpload);
             fetchDocuments();
         }
 
         async function handleUpload(e) {
             e.preventDefault();
-            const fileInput = document.getElementById('file-input');
-            const file = fileInput.files[0];
-            const title = document.getElementById('doc_title').value;
-            const category = document.getElementById('doc_category').value;
-            const tenantId = document.getElementById('doc_tenant_id').value || null;
+            const file = document.getElementById('file-input').files[0];
             const btn = document.getElementById('upload-btn');
-
-            if (!file) return alert("Bitte eine Datei auswählen");
+            if (!file) return alert("Datei wählen");
             btn.disabled = true; btn.textContent = "Lade hoch...";
-
             const fileName = `${Date.now()}_${file.name}`;
             const { data: uploadData, error: uploadError } = await _supabase.storage.from('documents').upload(fileName, file);
-
-            if (uploadError) {
-                alert("Upload-Fehler: " + uploadError.message);
-                btn.disabled = false; btn.textContent = "Upload starten";
-                return;
-            }
-
-            const { error: dbError } = await _supabase.from('documents').insert([{
-                title: title, category: category, file_path: uploadData.path, tenant_id: tenantId
-            }]);
-
-            if (dbError) alert("DB-Fehler: " + dbError.message);
-            else { alert("Erfolgreich gespeichert!"); loadDocuments(); }
+            if (!uploadError) {
+                await _supabase.from('documents').insert([{
+                    title: document.getElementById('doc_title').value,
+                    category: document.getElementById('doc_category').value,
+                    file_path: uploadData.path,
+                    tenant_id: document.getElementById('doc_tenant_id').value || null
+                }]);
+                alert("Erfolgreich!"); loadDocuments();
+            } else { alert(uploadError.message); btn.disabled = false; }
         }
 
         async function fetchDocuments() {
             const { data } = await _supabase.from('documents').select('*, profiles:tenant_id (full_name)').order('created_at', { ascending: false });
-            const list = document.getElementById('docs-list');
+            const list = document.getElementById('docs-content');
             if (data && data.length > 0) {
                 list.className = "divide-y divide-gray-100 not-italic";
                 list.innerHTML = data.map(doc => `
-                    <div class="py-6 flex flex-wrap justify-between items-center group text-left">
-                        <div class="flex items-center gap-4 text-left">
-                            <div class="bg-hb-ultralight p-3 text-hb-olive">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <p class="font-bold text-hb-offblack uppercase tracking-tight">${doc.title}</p>
-                                <p class="text-[9px] uppercase tracking-widest text-gray-400 font-bold">${doc.category} • ${doc.profiles?.full_name ? 'Mieter: ' + doc.profiles.full_name : 'Allgemein'}</p>
-                            </div>
-                        </div>
+                    <div class="py-6 flex justify-between items-center group text-left">
+                        <div><p class="font-bold text-hb-offblack uppercase">${doc.title}</p>
+                        <p class="text-[9px] uppercase tracking-widest text-gray-400 font-bold">${doc.category} • ${doc.profiles?.full_name || 'Allgemein'}</p></div>
                         <div class="flex gap-6">
-                            <button onclick="viewDoc('${doc.file_path}')" class="text-[10px] font-bold uppercase tracking-widest text-hb-olive">Ansehen</button>
-                            <button onclick="deleteDoc('${doc.id}', '${doc.file_path}')" class="text-[10px] font-bold uppercase tracking-widest text-hb-orange opacity-0 group-hover:opacity-100 transition-opacity">Löschen</button>
+                            <button onclick="viewDoc('${doc.file_path}')" class="text-[10px] font-bold uppercase text-hb-olive">Ansehen</button>
+                            <button onclick="deleteDoc('${doc.id}', '${doc.file_path}')" class="text-[10px] font-bold uppercase text-hb-orange opacity-0 group-hover:opacity-100">Löschen</button>
                         </div>
-                    </div>
-                `).join('');
-            } else { list.innerHTML = '<p class="py-8 text-center">Keine Dokumente gefunden.</p>'; }
+                    </div>`).join('');
+            } else { list.innerHTML = '<p class="py-8">Keine Dokumente.</p>'; }
         }
 
         async function viewDoc(path) {
@@ -395,10 +341,163 @@
         }
 
         async function deleteDoc(id, path) {
-            if (!confirm("Soll dieses Dokument wirklich gelöscht werden?")) return;
-            await _supabase.storage.from('documents').remove([path]);
-            await _supabase.from('documents').delete().eq('id', id);
-            fetchDocuments();
+            if (confirm("Löschen?")) {
+                await _supabase.storage.from('documents').remove([path]);
+                await _supabase.from('documents').delete().eq('id', id);
+                fetchDocuments();
+            }
+        }
+
+        /* --- SCHWARZES BRETT --- */
+
+        async function loadNews() {
+            const container = document.getElementById('content-area');
+            container.className = "space-y-12 col-span-full";
+            const { data: buildings } = await _supabase.from('buildings').select('*').order('name');
+            const buildingOptions = buildings?.map(b => `<option value="${b.id}">${b.name}</option>`).join('') || '';
+
+            container.innerHTML = `
+                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left text-balance">
+                    <h2 id="news-form-title" class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Neuer Aushang</h2>
+                    <form id="news-form" class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+                            <div class="space-y-2">
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Gültig für</label>
+                                <select id="news_b_id" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm">
+                                    <option value="">Alle Gebäude</option>
+                                    ${buildingOptions}
+                                </select>
+                            </div>
+                            <div class="space-y-2">
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Kategorie</label>
+                                <select id="news_category" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm" required>
+                                    <option value="Information">Information</option>
+                                    <option value="Ankündigung">Ankündigung</option>
+                                    <option value="Wartung">Wartung</option>
+                                    <option value="Termin">Termin</option>
+                                    <option value="Dringend">Dringend</option>
+                                </select>
+                            </div>
+                            <div class="space-y-2">
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Titel</label>
+                                <input type="text" id="news_title" class="w-full border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Kurze Überschrift" required>
+                            </div>
+                        </div>
+                        <div class="space-y-2 text-left">
+                            <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Inhalt / Mitteilung</label>
+                            <textarea id="news_content" rows="4" class="w-full border-2 border-gray-50 p-4 focus:outline-none focus:border-hb-olive text-sm bg-hb-ultralight" placeholder="Schreiben Sie hier Ihre Nachricht an die Mieter..." required></textarea>
+                        </div>
+                        <div class="flex justify-center gap-4 pt-4">
+                            <button type="submit" id="news-submit-btn" class="bg-hb-offblack text-white px-16 py-5 text-xs uppercase tracking-[0.3em] font-bold hover:bg-hb-olive transition-all">
+                                Aushang veröffentlichen
+                            </button>
+                            <button type="button" id="news-cancel-btn" onclick="resetNewsForm()" class="hidden bg-gray-200 text-gray-500 px-8 py-5 text-xs uppercase tracking-widest font-bold hover:bg-gray-300">
+                                Abbrechen
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
+                    <h2 class="text-xl font-bold mb-10 uppercase tracking-widest text-hb-offblack">Aktive Aushänge</h2>
+                    <div id="news-list" class="space-y-8 italic text-sm text-gray-400 text-left">
+                        Lade Aushänge...
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('news-form').addEventListener('submit', handleSaveNews);
+            fetchNews();
+        }
+
+        async function handleSaveNews(e) {
+            e.preventDefault();
+            const payload = {
+                title: document.getElementById('news_title').value,
+                category: document.getElementById('news_category').value,
+                content: document.getElementById('news_content').value,
+                building_id: document.getElementById('news_b_id').value || null
+            };
+            
+            let result;
+            if (currentEditingNewsId) {
+                result = await _supabase.from('news').update(payload).eq('id', currentEditingNewsId);
+            } else {
+                result = await _supabase.from('news').insert([payload]);
+            }
+
+            if (result.error) alert(result.error.message);
+            else { 
+                resetNewsForm();
+                fetchNews(); 
+            }
+        }
+
+        async function fetchNews() {
+            const { data, error } = await _supabase
+                .from('news')
+                .select('*, buildings (name)')
+                .order('created_at', { ascending: false });
+
+            const list = document.getElementById('news-list');
+            if (data && data.length > 0) {
+                list.className = "space-y-8 not-italic";
+                list.innerHTML = data.map(n => `
+                    <div class="p-6 bg-hb-ultralight border-l-4 border-hb-olive group relative text-left">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="px-2 py-0.5 bg-hb-olive text-white text-[8px] font-bold uppercase tracking-widest rounded-sm">
+                                        ${n.category}
+                                    </span>
+                                    <p class="text-[9px] uppercase tracking-widest font-bold text-gray-400">
+                                        ${n.buildings?.name || 'ALLE GEBÄUDE'} • ${new Date(n.created_at).toLocaleDateString()}
+                                    </p>
+                                </div>
+                                <h3 class="text-lg font-bold text-hb-offblack uppercase tracking-tight">${n.title}</h3>
+                            </div>
+                            <div class="flex gap-4">
+                                <button onclick="editNews('${n.id}')" class="text-[9px] font-bold uppercase text-hb-olive opacity-0 group-hover:opacity-100 transition-opacity">Bearbeiten</button>
+                                <button onclick="deleteNews('${n.id}')" class="text-[9px] font-bold uppercase text-hb-orange opacity-0 group-hover:opacity-100 transition-opacity">Löschen</button>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">${n.content}</p>
+                    </div>
+                `).join('');
+            } else {
+                list.innerHTML = '<p class="py-8 text-center">Keine aktuellen Aushänge vorhanden.</p>';
+            }
+        }
+
+        async function editNews(id) {
+            const { data: n } = await _supabase.from('news').select('*').eq('id', id).single();
+            if (n) {
+                currentEditingNewsId = id;
+                document.getElementById('news_title').value = n.title;
+                document.getElementById('news_category').value = n.category;
+                document.getElementById('news_content').value = n.content;
+                document.getElementById('news_b_id').value = n.building_id || '';
+                
+                document.getElementById('news-form-title').textContent = "Aushang bearbeiten";
+                document.getElementById('news-submit-btn').textContent = "Änderungen speichern";
+                document.getElementById('news-cancel-btn').classList.remove('hidden');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        function resetNewsForm() {
+            currentEditingNewsId = null;
+            if (document.getElementById('news-form')) document.getElementById('news-form').reset();
+            if (document.getElementById('news-form-title')) document.getElementById('news-form-title').textContent = "Neuer Aushang";
+            if (document.getElementById('news-submit-btn')) document.getElementById('news-submit-btn').textContent = "Aushang veröffentlichen";
+            if (document.getElementById('news-cancel-btn')) document.getElementById('news-cancel-btn').classList.add('hidden');
+        }
+
+        async function deleteNews(id) {
+            if (confirm("Möchten Sie diesen Aushang entfernen?")) {
+                await _supabase.from('news').delete().eq('id', id);
+                fetchNews();
+            }
         }
 
         async function logout() { await _supabase.auth.signOut(); window.location.href = 'index.html'; }
