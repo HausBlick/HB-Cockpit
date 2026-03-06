@@ -185,7 +185,7 @@
 
             container.innerHTML = `
                 <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
-                    <h2 id="form-title" class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Einheit erfassen</h2>
+                    <h2 id="form-title" class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack text-balance">Einheit erfassen</h2>
                     <form id="apartment-form" class="space-y-8">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div class="space-y-2 text-left">
@@ -233,7 +233,7 @@
                 .order('apartment_number');
                 
             const list = document.getElementById('tenants-list');
-            if (error) { list.innerHTML = `<p class="text-red-500">Fehler: ${error.message}</p>`; return; }
+            if (error) { list.innerHTML = `<p class="text-red-500 text-left">Fehler: ${error.message}</p>`; return; }
             if (data && data.length > 0) {
                 let currentB = "";
                 list.innerHTML = data.map(apt => {
@@ -337,8 +337,8 @@
                                     ${aptOptions}
                                 </select>
                             </div>
-                            <div class="flex items-end">
-                                <button type="submit" id="create-tenant-btn" class="bg-hb-offblack text-white px-10 py-4 text-xs uppercase tracking-widest font-bold hover:bg-hb-olive transition-all w-full">Account vorbereiten</button>
+                            <div class="flex items-end text-left">
+                                <button type="submit" id="create-tenant-btn" class="bg-hb-offblack text-white px-10 py-4 text-xs uppercase tracking-widest font-bold hover:bg-hb-olive transition-all w-full text-balance">Account vorbereiten</button>
                             </div>
                         </div>
                     </form>
@@ -355,6 +355,13 @@
         async function handleSaveTenantUser(e) {
             e.preventDefault();
             const btn = document.getElementById('create-tenant-btn');
+            const aptSelect = document.getElementById('tenant_apt_id');
+            
+            if (!aptSelect.value) {
+                alert("Bitte wählen Sie eine Wohneinheit aus.");
+                return;
+            }
+
             btn.disabled = true;
             btn.textContent = "Speichere...";
 
@@ -362,18 +369,18 @@
                 id: crypto.randomUUID(), 
                 full_name: document.getElementById('tenant_name').value,
                 email: document.getElementById('tenant_email').value,
-                apartment_id: parseInt(document.getElementById('tenant_apt_id').value),
+                apartment_id: parseInt(aptSelect.value), // Sicherstellen, dass es als Nummer gesendet wird
                 role: 'tenant'
             };
 
             const { error } = await _supabase.from('profiles').insert([payload]);
             
             if (error) {
-                alert("Fehler beim Speichern: " + error.message + "\n\nWichtig: Entfernen Sie in Supabase den Foreign Key Constraint für 'profiles.id'!");
+                alert("Fehler beim Speichern: " + error.message);
                 btn.disabled = false;
                 btn.textContent = "Account vorbereiten";
             } else {
-                alert("Mieter erfolgreich angelegt!");
+                alert("Mieter erfolgreich angelegt und verknüpft!");
                 loadUserManagement();
             }
         }
@@ -389,19 +396,19 @@
             if (data && data.length > 0) {
                 list.className = "divide-y divide-gray-50 not-italic";
                 list.innerHTML = data.map(u => `
-                    <div class="py-6 flex justify-between items-center group">
+                    <div class="py-6 flex justify-between items-center group text-left">
                         <div class="text-left">
                             <p class="font-bold text-hb-offblack uppercase tracking-tight">${u.full_name}</p>
                             <p class="text-[10px] uppercase text-gray-400 font-bold tracking-widest">
                                 ${u.email} • Wohnung: ${u.apartments?.buildings?.name || ''} ${u.apartments?.apartment_number || 'Keine'}
                             </p>
                         </div>
-                        <div class="flex gap-4">
+                        <div class="flex gap-4 text-left">
                             <button onclick="alert('Einladungs-Funktion folgt')" class="text-[10px] font-bold uppercase text-hb-olive border border-hb-olive px-3 py-1 hover:bg-hb-olive hover:text-white transition-all">Einladen</button>
                             <button onclick="deleteProfile('${u.id}')" class="text-[9px] font-bold uppercase text-hb-orange opacity-0 group-hover:opacity-100 transition-opacity">Entfernen</button>
                         </div>
                     </div>`).join('');
-            } else { list.innerHTML = '<p class="py-8">Keine Mieter-Accounts angelegt.</p>'; }
+            } else { list.innerHTML = '<p class="py-8 text-left">Keine Mieter-Accounts angelegt.</p>'; }
         }
 
         async function deleteProfile(id) {
@@ -415,11 +422,11 @@
 
         async function loadDocuments() {
             const container = document.getElementById('content-area');
-            container.className = "space-y-12 col-span-full";
+            container.className = "space-y-12 col-span-full text-left";
             const { data: tenants } = await _supabase.from('profiles').select('id, full_name').eq('role', 'tenant').order('full_name');
             const tenantOptions = tenants?.map(t => `<option value="${t.id}">${t.full_name}</option>`).join('') || '';
             container.innerHTML = `
-                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left text-balance text-left">
+                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left text-balance">
                     <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Dokument hochladen</h2>
                     <form id="upload-form" class="space-y-6">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
@@ -481,7 +488,7 @@
                     <div class="py-6 flex justify-between items-center group text-left">
                         <div class="text-left"><p class="font-bold text-hb-offblack uppercase">${doc.title}</p>
                         <p class="text-[9px] uppercase tracking-widest text-gray-400 font-bold text-left">${doc.category} • ${doc.profiles?.full_name || 'Allgemein'}</p></div>
-                        <div class="flex gap-6">
+                        <div class="flex gap-6 text-left">
                             <button onclick="viewDoc('${doc.file_path}')" class="text-[10px] font-bold uppercase text-hb-olive">Ansehen</button>
                             <button onclick="deleteDoc('${doc.id}', '${doc.file_path}')" class="text-[10px] font-bold uppercase text-hb-orange opacity-0 group-hover:opacity-100">Löschen</button>
                         </div>
@@ -545,7 +552,7 @@
                                 <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Inhalt (Nutze **fett**, *kursiv*, [Titel](URL), --- für Linie, - Liste oder [olive]Farbe[/olive])</label>
                                 <textarea id="news_content" rows="6" class="w-full border-2 border-gray-50 p-4 focus:outline-none focus:border-hb-olive text-sm bg-hb-ultralight transition-all" placeholder="Schreiben Sie hier Ihre Nachricht..." required></textarea>
                             </div>
-                            <div class="flex justify-center gap-4 pt-4">
+                            <div class="flex justify-center gap-4 pt-4 text-left">
                                 <button type="submit" id="news-submit-btn" class="bg-hb-offblack text-white px-16 py-5 text-xs uppercase tracking-[0.3em] font-bold hover:bg-hb-olive transition-all text-balance">Aushang veröffentlichen</button>
                                 <button type="button" id="news-cancel-btn" onclick="resetNewsForm()" class="hidden bg-gray-200 text-gray-500 px-8 py-5 text-xs uppercase tracking-widest font-bold hover:bg-gray-300 transition-all">Abbrechen</button>
                             </div>
@@ -592,7 +599,7 @@
             if (filtered.length > 0) {
                 list.innerHTML = filtered.map(n => `
                     <div class="bg-white p-8 shadow-sm border-l-4 border-hb-olive feed-card text-left">
-                        <div class="flex justify-between items-start mb-6">
+                        <div class="flex justify-between items-start mb-6 text-left">
                             <div class="flex items-center gap-4 text-left">
                                 <div class="w-10 h-10 bg-hb-ultralight flex items-center justify-center rounded-full text-hb-olive font-bold text-sm border border-gray-100 uppercase">${(n.profiles?.full_name || 'HB').charAt(0)}</div>
                                 <div class="text-left">
@@ -602,13 +609,13 @@
                             </div>
                             <div class="flex flex-col items-end gap-3 text-left">
                                 <span class="px-3 py-1 bg-hb-ultralight text-hb-olive text-[8px] font-bold uppercase tracking-widest rounded-full border border-gray-100">${n.category}</span>
-                                ${isAdmin ? `<div class="flex gap-4"><button onclick="editNews('${n.id}')" class="text-[9px] font-bold uppercase text-hb-olive">Bearbeiten</button><button onclick="deleteNews('${n.id}')" class="text-[9px] font-bold uppercase text-hb-orange">Löschen</button></div>` : ''}
+                                ${isAdmin ? `<div class="flex gap-4 text-left"><button onclick="editNews('${n.id}')" class="text-[9px] font-bold uppercase text-hb-olive">Bearbeiten</button><button onclick="deleteNews('${n.id}')" class="text-[9px] font-bold uppercase text-hb-orange">Löschen</button></div>` : ''}
                             </div>
                         </div>
                         <div class="mb-8 text-left text-balance"><h3 class="text-xl font-bold text-hb-offblack mb-4 tracking-tight uppercase">${n.title}</h3><div class="news-content text-sm text-gray-600 leading-relaxed text-left">${formatText(n.content)}</div></div>
                         <div class="pt-6 border-t border-gray-50 flex items-center gap-6 text-left"><button onclick="handleLike('${n.id}', ${n.likes || 0})" class="flex items-center gap-2 transition-all"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-300 fill-current" viewBox="0 0 20 20"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" /></svg><span class="text-xs font-bold text-gray-400">${n.likes || 0} Likes</span></button></div>
                     </div>`).join('');
-            } else { list.innerHTML = '<p class="py-12 text-center text-gray-400 italic text-sm">Keine Einträge gefunden.</p>'; }
+            } else { list.innerHTML = '<p class="py-12 text-center text-gray-400 italic text-sm text-left">Keine Einträge gefunden.</p>'; }
         }
 
         async function handleSaveNews(e) {
