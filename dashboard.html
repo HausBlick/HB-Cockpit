@@ -51,7 +51,7 @@
         
         <div class="flex-grow p-6 pt-16 md:pt-6">
             <ul class="space-y-1" id="nav-links">
-                <!-- Navigation wird via JS geladen -->
+                <!-- Navigation -->
             </ul>
         </div>
 
@@ -69,11 +69,11 @@
     <main class="flex-grow p-6 md:p-12 lg:p-16">
         <header class="mb-10 md:mb-16">
             <p id="role-label" class="text-[10px] uppercase tracking-[0.2em] font-bold text-hb-olive mb-2"></p>
-            <h1 id="welcome-title" class="text-3xl md:text-5xl font-bold tracking-tight text-hb-offblack">Lade Dashboard...</h1>
+            <h1 id="welcome-title" class="text-3xl md:text-5xl font-bold tracking-tight text-hb-offblack italic">Lade...</h1>
         </header>
 
         <div id="content-area" class="w-full space-y-12">
-            <!-- Dynamischer Content landet hier -->
+            <!-- Content -->
         </div>
     </main>
 
@@ -97,6 +97,7 @@
             if (!profile) return;
 
             document.getElementById('welcome-title').textContent = profile.full_name;
+            document.getElementById('welcome-title').classList.remove('italic');
             document.getElementById('role-label').textContent = profile.role === 'admin' ? 'Vermieter Cockpit' : 'Mieter Portal';
 
             renderNav(profile.role);
@@ -111,7 +112,7 @@
                 nav.innerHTML = `
                     <li><a onclick="location.reload()" class="${linkClass}">Übersicht</a></li>
                     <li><a onclick="loadTenants(); if(window.innerWidth < 768) toggleMenu();" class="${linkClass} active-link">Einheiten & Zähler</a></li>
-                    <li class="pt-8 pb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-300 text-balance">Verwaltung</li>
+                    <li class="pt-8 pb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-300">Verwaltung</li>
                     <li><a href="#" class="${linkClass}">Dokumenten-Cloud</a></li>
                     <li><a href="#" class="${linkClass}">Schwarzes Brett</a></li>
                 `;
@@ -120,7 +121,7 @@
 
         async function loadTenants() {
             const container = document.getElementById('content-area');
-            const { data: buildings } = await _supabase.from('buildings').select('*');
+            const { data: buildings } = await _supabase.from('buildings').select('*').order('name');
             const buildingOptions = buildings?.map(b => `<option value="${b.id}">${b.name}</option>`).join('') || '';
 
             container.innerHTML = `
@@ -151,13 +152,13 @@
                                 <input type="number" id="utils" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm transition-colors" placeholder="0.00" step="0.01">
                             </div>
                             <div class="space-y-2">
-                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Wohnfläche (m²)</label>
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Fläche (m²)</label>
                                 <input type="number" id="sq_m" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm transition-colors" placeholder="0.0" step="0.1">
                             </div>
                         </div>
 
                         <div class="pt-8 border-t border-gray-50">
-                            <p class="text-[10px] font-bold uppercase text-gray-300 mb-8 tracking-[0.3em] text-center italic">Zählernummern-Zuordnung</p>
+                            <p class="text-[10px] font-bold uppercase text-gray-300 mb-8 tracking-[0.3em] text-center italic text-balance">Zählernummern-Zuordnung</p>
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                                 <div class="space-y-2">
                                     <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest">Stromzähler</label>
@@ -198,7 +199,7 @@
             const { data, error } = await _supabase
                 .from('apartments')
                 .select('*, buildings (*), profiles:tenant_id (full_name)')
-                .order('building_id');
+                .order('apartment_number');
 
             const list = document.getElementById('tenants-list');
             if (data && data.length > 0) {
@@ -223,16 +224,16 @@
                                     </p>
                                     <div class="flex items-center gap-2">
                                         <div class="w-1.5 h-1.5 rounded-full ${apt.profiles?.full_name ? 'bg-hb-olive' : 'bg-gray-200'}"></div>
-                                        <p class="text-[10px] text-gray-500 uppercase tracking-[0.1em] font-semibold">
+                                        <p class="text-[10px] text-gray-500 uppercase tracking-[0.1em] font-semibold text-balance">
                                             Mieter: <span class="text-hb-offblack">${apt.profiles?.full_name || 'LEERSTEHEND'}</span>
                                         </p>
                                     </div>
                                 </div>
                             </div>
                             <div class="w-full lg:w-auto grid grid-cols-3 gap-3 md:gap-6 bg-gray-50 p-5 border border-gray-100 min-w-[300px]">
-                                <div><p class="text-[9px] uppercase text-gray-400 font-bold mb-1">Strom</p><p class="text-xs font-bold text-hb-offblack">${apt.meter_electricity || '-'}</p></div>
-                                <div><p class="text-[9px] uppercase text-gray-400 font-bold mb-1">Wasser</p><p class="text-xs font-bold text-hb-offblack">${apt.meter_water || '-'}</p></div>
-                                <div><p class="text-[9px] uppercase text-gray-400 font-bold mb-1">Wärme</p><p class="text-xs font-bold text-hb-offblack">${apt.meter_heating || '-'}</p></div>
+                                <div><p class="text-[9px] uppercase text-gray-400 font-bold mb-1 text-balance text-center">Strom</p><p class="text-xs font-bold text-hb-offblack text-center">${apt.meter_electricity || '-'}</p></div>
+                                <div><p class="text-[9px] uppercase text-gray-400 font-bold mb-1 text-balance text-center">Wasser</p><p class="text-xs font-bold text-hb-offblack text-center">${apt.meter_water || '-'}</p></div>
+                                <div><p class="text-[9px] uppercase text-gray-400 font-bold mb-1 text-balance text-center">Wärme</p><p class="text-xs font-bold text-hb-offblack text-center">${apt.meter_heating || '-'}</p></div>
                             </div>
                             <div class="text-right min-w-[120px] flex flex-col justify-between items-end h-full">
                                 <div>
@@ -253,11 +254,11 @@
         async function handleSave(e) {
             e.preventDefault();
             const payload = {
-                building_id: document.getElementById('b_id').value,
+                building_id: parseInt(document.getElementById('b_id').value), // Als Zahl senden!
                 apartment_number: document.getElementById('apt_no').value,
-                rent_amount: document.getElementById('rent').value || 0,
-                utilities_amount: document.getElementById('utils').value || 0,
-                sq_meters: document.getElementById('sq_m').value || 0,
+                rent_amount: parseFloat(document.getElementById('rent').value) || 0,
+                utilities_amount: parseFloat(document.getElementById('utils').value) || 0,
+                sq_meters: parseFloat(document.getElementById('sq_m').value) || 0,
                 meter_electricity: document.getElementById('m_elec').value,
                 meter_water: document.getElementById('m_water').value,
                 meter_heating: document.getElementById('m_heat').value
@@ -269,8 +270,11 @@
                 else resetForm();
             } else {
                 const { error } = await _supabase.from('apartments').insert([payload]);
-                if (error) alert("Fehler beim Speichern: " + error.message);
-                else resetForm();
+                if (error) {
+                    alert("Fehler beim Speichern: " + error.message + "\n\nStellen Sie sicher, dass 'building_id' in Supabase als 'int8' angelegt ist.");
+                } else {
+                    resetForm();
+                }
             }
             fetchApartments();
         }
