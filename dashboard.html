@@ -30,6 +30,7 @@
         input::placeholder, textarea::placeholder { color: #d1d5db; }
         .feed-card { transition: all 0.2s ease; }
         .feed-card:hover { transform: translateY(-2px); }
+        /* News Text Styling */
         .news-content ul { list-style-type: disc; padding-left: 1.25rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
         .news-content strong { font-weight: 700; color: #373737; }
         .news-content em { font-style: italic; }
@@ -225,10 +226,10 @@
         }
 
         async function fetchApartments() {
-            // Wir joinen die Profile, die dieser Wohnung (via apartment_id in profiles) zugeordnet sind
+            // Join profile (die Mieter) basierend auf der apartment_id in profiles
             const { data, error } = await _supabase
                 .from('apartments')
-                .select('*, buildings (*), profiles!profiles_apartment_id_fkey(full_name)')
+                .select('*, buildings (*), profiles(full_name)')
                 .order('apartment_number');
                 
             const list = document.getElementById('tenants-list');
@@ -239,7 +240,6 @@
                     let header = (currentB !== apt.buildings?.name) ? `<div class="bg-hb-ultralight px-6 py-4 mt-8 mb-4 border-l-4 border-hb-olive text-[10px] font-bold uppercase tracking-widest text-hb-olive text-left">${apt.buildings?.name || "Nicht zugeordnet"}</div>` : "";
                     currentB = apt.buildings?.name;
                     
-                    // Alle Namen der zugeordneten Profile sammeln
                     const names = apt.profiles && apt.profiles.length > 0 
                         ? apt.profiles.map(p => p.full_name).join(', ') 
                         : 'LEERSTEHEND';
@@ -300,6 +300,14 @@
             }
         }
 
+        function resetForm() {
+            currentEditingId = null;
+            if (document.getElementById('apartment-form')) document.getElementById('apartment-form').reset();
+            if (document.getElementById('form-title')) document.getElementById('form-title').textContent = "Einheit erfassen";
+            if (document.getElementById('submit-btn')) document.getElementById('submit-btn').textContent = "Einheit speichern";
+            if (document.getElementById('cancel-btn')) document.getElementById('cancel-btn').classList.add('hidden');
+        }
+
         /* --- MIETER VERWALTUNG --- */
 
         async function loadUserManagement() {
@@ -330,7 +338,7 @@
                                 </select>
                             </div>
                             <div class="flex items-end">
-                                <button type="submit" class="bg-hb-offblack text-white px-10 py-4 text-xs uppercase tracking-widest font-bold hover:bg-hb-olive transition-all w-full">Account vorbereiten</button>
+                                <button type="submit" id="create-tenant-btn" class="bg-hb-offblack text-white px-10 py-4 text-xs uppercase tracking-widest font-bold hover:bg-hb-olive transition-all w-full">Account vorbereiten</button>
                             </div>
                         </div>
                     </form>
@@ -346,17 +354,28 @@
 
         async function handleSaveTenantUser(e) {
             e.preventDefault();
+            const btn = document.getElementById('create-tenant-btn');
+            btn.disabled = true;
+            btn.textContent = "Speichere...";
+
             const payload = {
+                id: crypto.randomUUID(), 
                 full_name: document.getElementById('tenant_name').value,
                 email: document.getElementById('tenant_email').value,
                 apartment_id: parseInt(document.getElementById('tenant_apt_id').value),
                 role: 'tenant'
-                // Hinweis: Echte Auth-User werden über invite-Funktion in Supabase erstellt.
-                // Hier legen wir erst einmal nur den Profil-Eintrag an.
             };
+
             const { error } = await _supabase.from('profiles').insert([payload]);
-            if (error) alert("Fehler: " + error.message);
-            else { alert("Mieter erfolgreich angelegt!"); loadUserManagement(); }
+            
+            if (error) {
+                alert("Fehler beim Speichern: " + error.message);
+                btn.disabled = false;
+                btn.textContent = "Account vorbereiten";
+            } else {
+                alert("Mieter erfolgreich angelegt!");
+                loadUserManagement();
+            }
         }
 
         async function fetchTenantUsers() {
@@ -400,7 +419,7 @@
             const { data: tenants } = await _supabase.from('profiles').select('id, full_name').eq('role', 'tenant').order('full_name');
             const tenantOptions = tenants?.map(t => `<option value="${t.id}">${t.full_name}</option>`).join('') || '';
             container.innerHTML = `
-                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left text-balance">
+                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left text-balance text-left">
                     <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Dokument hochladen</h2>
                     <form id="upload-form" class="space-y-6">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
@@ -460,14 +479,14 @@
                 list.className = "divide-y divide-gray-100 not-italic";
                 list.innerHTML = data.map(doc => `
                     <div class="py-6 flex justify-between items-center group text-left">
-                        <div><p class="font-bold text-hb-offblack uppercase">${doc.title}</p>
+                        <div class="text-left"><p class="font-bold text-hb-offblack uppercase">${doc.title}</p>
                         <p class="text-[9px] uppercase tracking-widest text-gray-400 font-bold text-left">${doc.category} • ${doc.profiles?.full_name || 'Allgemein'}</p></div>
                         <div class="flex gap-6">
                             <button onclick="viewDoc('${doc.file_path}')" class="text-[10px] font-bold uppercase text-hb-olive">Ansehen</button>
                             <button onclick="deleteDoc('${doc.id}', '${doc.file_path}')" class="text-[10px] font-bold uppercase text-hb-orange opacity-0 group-hover:opacity-100">Löschen</button>
                         </div>
                     </div>`).join('');
-            } else { list.innerHTML = '<p class="py-8">Keine Dokumente.</p>'; }
+            } else { list.innerHTML = '<p class="py-8 text-left">Keine Dokumente.</p>'; }
         }
 
         async function viewDoc(path) {
