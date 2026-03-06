@@ -46,7 +46,7 @@
     <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-40 w-72 bg-white border-r border-gray-200 flex-shrink-0 min-h-screen flex flex-col shadow-sm">
         <div class="p-8 border-b border-gray-100 hidden md:block text-center">
             <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-16 w-auto mx-auto mb-4">
-            <p class="text-[10px] uppercase tracking-[0.2em] font-bold text-hb-olive">Portal Management</p>
+            <p class="text-[10px] uppercase tracking-[0.2em] font-bold text-hb-olive text-balance">Portal Management</p>
         </div>
         
         <div class="flex-grow p-6 pt-16 md:pt-6">
@@ -94,10 +94,17 @@
                 const { data: { user } } = await _supabase.auth.getUser();
                 if (!user) { window.location.href = 'index.html'; return; }
 
+                // Profil laden
                 const { data: profile, error: profileError } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
                 
                 if (profileError || !profile) {
-                    document.getElementById('welcome-title').textContent = "Profil nicht gefunden";
+                    document.getElementById('welcome-title').innerHTML = `
+                        Profil nicht gefunden
+                        <span class="block text-xs font-normal mt-4 text-gray-400 italic">
+                            Bitte ID in Supabase/profiles einfügen:<br>
+                            <code class="bg-gray-100 p-1 rounded text-hb-offblack select-all">${user.id}</code>
+                        </span>
+                    `;
                     return;
                 }
 
@@ -155,7 +162,7 @@
                                 </select>
                             </div>
                             <div class="space-y-2">
-                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Wohnungsnummer</label>
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest text-balance">Wohnungsnummer</label>
                                 <input type="text" id="apt_no" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" placeholder="z.B. 1.OG Links" required>
                             </div>
                         </div>
@@ -201,13 +208,13 @@
                     return header + `
                         <div class="flex flex-wrap justify-between items-start py-6 border-b border-gray-50 last:border-0 gap-4 group text-left">
                             <div class="flex-1 min-w-[200px]">
-                                <h3 class="font-bold text-xl text-hb-offblack text-balance uppercase">${apt.apartment_number}</h3>
+                                <h3 class="font-bold text-xl text-hb-offblack text-balance uppercase tracking-tight">${apt.apartment_number}</h3>
                                 <p class="text-[10px] text-gray-500 uppercase tracking-widest mt-1">${apt.sq_meters || '0'} m² | Mieter: <span class="font-semibold text-hb-offblack">${apt.profiles?.full_name || 'LEERSTEHEND'}</span></p>
                             </div>
                             <div class="w-full lg:w-auto grid grid-cols-3 gap-3 md:gap-6 bg-gray-50 p-4 border border-gray-100 min-w-[280px]">
-                                <div><p class="text-[8px] uppercase text-gray-400 font-bold">Strom</p><p class="text-xs font-bold">${apt.meter_electricity || '-'}</p></div>
-                                <div><p class="text-[8px] uppercase text-gray-400 font-bold">Wasser</p><p class="text-xs font-bold">${apt.meter_water || '-'}</p></div>
-                                <div><p class="text-[8px] uppercase text-gray-400 font-bold">Heizung</p><p class="text-xs font-bold">${apt.meter_heating || '-'}</p></div>
+                                <div><p class="text-[8px] uppercase text-gray-400 font-bold text-center">Strom</p><p class="text-xs font-bold text-center">${apt.meter_electricity || '-'}</p></div>
+                                <div><p class="text-[8px] uppercase text-gray-400 font-bold text-center">Wasser</p><p class="text-xs font-bold text-center">${apt.meter_water || '-'}</p></div>
+                                <div><p class="text-[8px] uppercase text-gray-400 font-bold text-center">Heizung</p><p class="text-xs font-bold text-center">${apt.meter_heating || '-'}</p></div>
                             </div>
                             <div class="text-right min-w-[120px]">
                                 <p class="text-[10px] font-bold text-hb-olive">${(parseFloat(apt.rent_amount || 0) + parseFloat(apt.utilities_amount || 0)).toFixed(2)} €</p>
@@ -258,7 +265,6 @@
                 document.getElementById('utils').value = apt.utilities_amount;
                 document.getElementById('sq_m').value = apt.sq_meters;
                 
-                // Zählerfelder sicher befüllen (falls vorhanden)
                 if(document.getElementById('m_elec')) document.getElementById('m_elec').value = apt.meter_electricity || '';
                 if(document.getElementById('m_water')) document.getElementById('m_water').value = apt.meter_water || '';
                 if(document.getElementById('m_heat')) document.getElementById('m_heat').value = apt.meter_heating || '';
@@ -330,7 +336,7 @@
                 </div>
 
                 <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
-                    <h2 class="text-xl font-bold mb-10 uppercase tracking-widest text-hb-offblack text-balance">Bestands-Dokumente</h2>
+                    <h2 class="text-xl font-bold mb-10 uppercase tracking-widest text-hb-offblack">Bestands-Dokumente</h2>
                     <div id="docs-list" class="divide-y divide-gray-100 italic text-sm text-gray-400">
                         Lade Dokumente...
                     </div>
@@ -412,7 +418,7 @@
                     </div>
                 `).join('');
             } else {
-                list.innerHTML = '<p class="py-8 text-center text-gray-400">Keine Dokumente gefunden.</p>';
+                list.innerHTML = '<p class="py-8 text-center text-gray-400 italic">Keine Dokumente gefunden.</p>';
             }
         }
 
