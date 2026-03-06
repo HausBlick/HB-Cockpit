@@ -131,46 +131,46 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div class="space-y-2">
                                 <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Objekt auswählen</label>
-                                <select id="b_id" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm transition-colors" required>
+                                <select id="b_id" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm" required>
                                     <option value="" disabled selected>Bitte wählen...</option>
                                     ${buildingOptions}
                                 </select>
                             </div>
                             <div class="space-y-2">
                                 <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Wohnungsnummer</label>
-                                <input type="text" id="apt_no" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm transition-colors" placeholder="z.B. 1.OG Links" required>
+                                <input type="text" id="apt_no" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" placeholder="z.B. 1.OG Links" required>
                             </div>
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-8 pt-4">
                             <div class="space-y-2">
                                 <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Kaltmiete (€)</label>
-                                <input type="number" id="rent" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm transition-colors" placeholder="0.00" step="0.01">
+                                <input type="number" id="rent" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" placeholder="0.00" step="0.01">
                             </div>
                             <div class="space-y-2">
                                 <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Nebenkosten (€)</label>
-                                <input type="number" id="utils" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm transition-colors" placeholder="0.00" step="0.01">
+                                <input type="number" id="utils" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" placeholder="0.00" step="0.01">
                             </div>
                             <div class="space-y-2">
                                 <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Fläche (m²)</label>
-                                <input type="number" id="sq_m" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm transition-colors" placeholder="0.0" step="0.1">
+                                <input type="number" id="sq_m" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" placeholder="0.0" step="0.1">
                             </div>
                         </div>
 
-                        <div class="pt-8 border-t border-gray-50">
-                            <p class="text-[10px] font-bold uppercase text-gray-300 mb-8 tracking-[0.3em] text-center italic text-balance">Zählernummern-Zuordnung</p>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="pt-8 border-t border-gray-50 text-center italic">
+                             <p class="text-[10px] font-bold uppercase text-gray-300 mb-8 tracking-[0.3em]">Zählernummern-Zuordnung</p>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-left not-italic">
                                 <div class="space-y-2">
                                     <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest">Stromzähler</label>
-                                    <input type="text" id="m_elec" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm transition-colors" placeholder="Nr.">
+                                    <input type="text" id="m_elec" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" placeholder="Nr.">
                                 </div>
                                 <div class="space-y-2">
                                     <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest">Wasserzähler</label>
-                                    <input type="text" id="m_water" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm transition-colors" placeholder="Nr.">
+                                    <input type="text" id="m_water" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" placeholder="Nr.">
                                 </div>
                                 <div class="space-y-2">
                                     <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest">Wärmezähler</label>
-                                    <input type="text" id="m_heat" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm transition-colors" placeholder="Nr.">
+                                    <input type="text" id="m_heat" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" placeholder="Nr.">
                                 </div>
                             </div>
                         </div>
@@ -209,14 +209,14 @@
                     if (currentB !== apt.buildings?.name) {
                         currentB = apt.buildings?.name || "Nicht zugeordnet";
                         header = `
-                            <div class="bg-hb-ultralight px-6 py-4 mt-12 mb-6 border-l-4 border-hb-olive">
+                            <div class="bg-hb-ultralight px-6 py-4 mt-12 mb-6 border-l-4 border-hb-olive text-balance text-left">
                                 <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-hb-olive mb-1">${currentB}</p>
                                 <p class="text-[9px] text-gray-400 uppercase tracking-widest font-medium">${apt.buildings?.address || ''}, ${apt.buildings?.zip_code || ''} ${apt.buildings?.city || ''}</p>
                             </div>`;
                     }
                     return header + `
                         <div class="flex flex-wrap justify-between items-start py-8 border-b border-gray-50 last:border-0 gap-6 group">
-                            <div class="flex-1 min-w-[200px]">
+                            <div class="flex-1 min-w-[200px] text-left">
                                 <h3 class="font-bold text-2xl text-hb-offblack tracking-tight mb-2">${apt.apartment_number}</h3>
                                 <div class="flex flex-col gap-1">
                                     <p class="text-[10px] text-gray-500 uppercase tracking-[0.1em] font-semibold">
@@ -247,14 +247,14 @@
                         </div>`;
                 }).join('');
             } else {
-                list.innerHTML = '<p class="py-12 text-center text-gray-400 italic text-sm">Keine Einheiten vorhanden.</p>';
+                list.innerHTML = '<p class="py-12 text-center text-gray-400 italic text-sm text-balance">Keine Einheiten vorhanden.</p>';
             }
         }
 
         async function handleSave(e) {
             e.preventDefault();
             const payload = {
-                building_id: parseInt(document.getElementById('b_id').value), // Als Zahl senden!
+                building_id: parseInt(document.getElementById('b_id').value),
                 apartment_number: document.getElementById('apt_no').value,
                 rent_amount: parseFloat(document.getElementById('rent').value) || 0,
                 utilities_amount: parseFloat(document.getElementById('utils').value) || 0,
@@ -270,11 +270,8 @@
                 else resetForm();
             } else {
                 const { error } = await _supabase.from('apartments').insert([payload]);
-                if (error) {
-                    alert("Fehler beim Speichern: " + error.message + "\n\nStellen Sie sicher, dass 'building_id' in Supabase als 'int8' angelegt ist.");
-                } else {
-                    resetForm();
-                }
+                if (error) alert("Fehler beim Speichern: " + error.message);
+                else resetForm();
             }
             fetchApartments();
         }
