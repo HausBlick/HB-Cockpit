@@ -30,58 +30,51 @@
         input::placeholder, textarea::placeholder { color: #d1d5db; }
         .feed-card { transition: all 0.2s ease; }
         .feed-card:hover { transform: translateY(-2px); }
-        /* News Text Styling */
         .news-content ul { list-style-type: disc; padding-left: 1.25rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
         .news-content strong { font-weight: 700; color: #373737; }
         .news-content em { font-style: italic; }
         .news-content a { transition: color 0.2s ease; }
+        .chat-scroll::-webkit-scrollbar { width: 6px; }
+        .chat-scroll::-webkit-scrollbar-track { background: transparent; }
+        .chat-scroll::-webkit-scrollbar-thumb { background-color: #e5e7eb; border-radius: 10px; }
     </style>
 </head>
-<body class="bg-hb-ultralight font-sans text-hb-offblack min-h-screen flex flex-col md:flex-row text-left">
+<body class="bg-hb-ultralight font-sans text-hb-offblack min-h-screen flex flex-col md:flex-row text-left relative">
+
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none"></div>
 
     <!-- MOBILE HEADER -->
     <div class="md:hidden bg-white border-b border-gray-200 p-4 flex justify-between items-center sticky top-0 z-50">
         <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-8 w-auto">
         <button onclick="toggleMenu()" class="text-hb-olive p-2 focus:outline-none">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
-            </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" /></svg>
         </button>
     </div>
 
     <!-- SIDEBAR -->
-    <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-40 w-72 bg-white border-r border-gray-200 flex-shrink-0 min-h-screen flex flex-col shadow-sm text-left">
+    <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-40 w-72 bg-white border-r border-gray-200 flex-shrink-0 min-h-screen flex flex-col shadow-sm text-left overflow-y-auto">
         <div class="p-8 border-b border-gray-100 hidden md:block text-center">
             <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-16 w-auto mx-auto mb-4">
             <p class="text-[10px] uppercase tracking-[0.2em] font-bold text-hb-olive text-balance">Portal Management</p>
         </div>
-        
-        <div class="flex-grow p-6 pt-16 md:pt-6">
-            <ul class="space-y-1" id="nav-links">
-                <!-- Navigation -->
-            </ul>
-        </div>
-
+        <div class="flex-grow p-6 pt-16 md:pt-6"><ul class="space-y-1" id="nav-links"></ul></div>
         <div class="p-8 border-t border-gray-100">
-            <button onclick="logout()" class="text-[10px] uppercase tracking-widest font-bold text-gray-400 hover:text-hb-orange transition-colors">
-                Abmelden
-            </button>
+            <button onclick="logout()" class="text-[10px] uppercase tracking-widest font-bold text-gray-400 hover:text-hb-orange transition-colors">Abmelden</button>
         </div>
     </nav>
 
-    <!-- OVERLAY (Mobil) -->
     <div id="overlay" onclick="toggleMenu()" class="fixed inset-0 bg-black/50 z-30 hidden"></div>
 
     <!-- MAIN CONTENT -->
-    <main class="flex-grow p-6 md:p-12 lg:p-16">
-        <header class="mb-10 md:mb-16 text-left">
-            <p id="role-label" class="text-[10px] uppercase tracking-[0.2em] font-bold text-hb-olive mb-2"></p>
-            <h1 id="welcome-title" class="text-3xl md:text-5xl font-bold tracking-tight text-hb-offblack italic text-balance text-left">Lade...</h1>
+    <main class="flex-grow p-6 md:p-12 lg:p-16 h-screen overflow-y-auto">
+        <header class="mb-10 md:mb-12 text-left flex justify-between items-end">
+            <div>
+                <p id="role-label" class="text-[10px] uppercase tracking-[0.2em] font-bold text-hb-olive mb-2"></p>
+                <h1 id="welcome-title" class="text-3xl md:text-5xl font-bold tracking-tight text-hb-offblack italic text-balance text-left">Lade...</h1>
+            </div>
         </header>
 
-        <div id="content-area" class="w-full space-y-12">
-            <!-- Content -->
-        </div>
+        <div id="content-area" class="w-full space-y-12"></div>
     </main>
 
     <script>
@@ -97,6 +90,18 @@
         let allNews = [];
         let newsSearchQuery = "";
         let newsCategoryFilter = "";
+        let currentChatInterval = null;
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgColor = type === 'error' ? 'bg-hb-orange' : 'bg-hb-olive';
+            toast.className = `${bgColor} text-white px-6 py-4 shadow-lg flex items-center gap-3 transform transition-all duration-300 translate-y-10 opacity-0`;
+            toast.innerHTML = `<span class="text-xs font-bold uppercase tracking-widest">${message}</span>`;
+            container.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.remove('translate-y-10', 'opacity-0'));
+            setTimeout(() => { toast.classList.add('opacity-0'); setTimeout(() => toast.remove(), 300); }, 4000);
+        }
 
         function toggleMenu() {
             document.getElementById('sidebar').classList.toggle('-translate-x-full');
@@ -110,11 +115,7 @@
                 currentUser = user;
 
                 const { data: profile, error: profileError } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
-                
-                if (profileError || !profile) {
-                    document.getElementById('welcome-title').textContent = "Profil nicht gefunden";
-                    return;
-                }
+                if (profileError || !profile) { document.getElementById('welcome-title').textContent = "Profil nicht gefunden"; return; }
                 userProfile = profile;
 
                 document.getElementById('welcome-title').textContent = profile.full_name;
@@ -122,11 +123,9 @@
                 document.getElementById('role-label').textContent = profile.role === 'admin' ? 'Vermieter Cockpit' : 'Mieter Portal';
 
                 renderNav(profile.role);
-                if (profile.role === 'admin') loadTenants();
+                if (profile.role === 'admin') loadTickets();
                 else loadNews();
-            } catch (err) {
-                console.error("Initialisierungsfehler:", err);
-            }
+            } catch (err) { console.error(err); }
         }
 
         function renderNav(role) {
@@ -135,14 +134,14 @@
             
             if (role === 'admin') {
                 nav.innerHTML = `
-                    <li><a onclick="location.reload()" class="${linkClass}">Übersicht</a></li>
-                    <li><a id="nav-apartments" onclick="loadTenants(); setActiveNav('nav-apartments')" class="${linkClass}">Einheiten & Zähler</a></li>
-                    <li><a id="nav-users" onclick="loadUserManagement(); setActiveNav('nav-users')" class="${linkClass}">Mieter-Verwaltung</a></li>
-                    <li class="pt-8 pb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-300 text-balance mt-4">Kommunikation</li>
-                    <li><a id="nav-tickets" onclick="loadTickets(); setActiveNav('nav-tickets')" class="${linkClass}">Meldungen & Tickets</a></li>
-                    <li><a id="nav-news" onclick="loadNews(); setActiveNav('nav-news')" class="${linkClass}">Schwarzes Brett</a></li>
+                    <li class="pt-2 pb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-300 text-balance">Stammdaten</li>
+                    <li><a onclick="loadTenants(); setActiveNav('nav-apartments')" id="nav-apartments" class="${linkClass}">Einheiten & Zähler</a></li>
+                    <li><a onclick="loadUserManagement(); setActiveNav('nav-users')" id="nav-users" class="${linkClass}">Mieter-Verwaltung</a></li>
+                    <li class="pt-8 pb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-300 text-balance">Kommunikation</li>
+                    <li><a onclick="loadTickets(); setActiveNav('nav-tickets')" id="nav-tickets" class="${linkClass} active-link">Helpdesk & Meldungen</a></li>
+                    <li><a onclick="loadNews(); setActiveNav('nav-news')" id="nav-news" class="${linkClass}">Schwarzes Brett</a></li>
                     <li class="pt-8 pb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-300 text-balance">Dateien</li>
-                    <li><a id="nav-docs" onclick="loadDocuments(); setActiveNav('nav-docs')" class="${linkClass}">Dokumenten-Cloud</a></li>
+                    <li><a onclick="loadDocuments(); setActiveNav('nav-docs')" id="nav-docs" class="${linkClass}">Dokumenten-Cloud</a></li>
                 `;
             } else {
                 nav.innerHTML = `
@@ -154,14 +153,13 @@
         }
 
         function setActiveNav(id) {
+            if(currentChatInterval) clearInterval(currentChatInterval);
             document.querySelectorAll('#nav-links a').forEach(el => el.classList.remove('active-link'));
             const activeEl = document.getElementById(id);
             if (activeEl) activeEl.classList.add('active-link');
             if(window.innerWidth < 768) toggleMenu();
         }
 
-        /* --- FORMATIERUNG --- */
-        
         function formatText(text) {
             if (!text) return "";
             let formatted = text
@@ -172,15 +170,11 @@
                 .replace(/\[olive\](.*?)\[\/olive\]/g, '<span class="text-hb-olive font-bold">$1</span>')
                 .replace(/\[orange\](.*?)\[\/orange\]/g, '<span class="text-hb-orange font-bold">$1</span>')
                 .replace(/^- (.*$)/gim, '<li>$1</li>');
-
-            if (formatted.includes('<li>')) {
-                formatted = formatted.replace(/(<li>.*<\/li>)/gms, '<ul>$1</ul>');
-            }
+            if (formatted.includes('<li>')) formatted = formatted.replace(/(<li>.*<\/li>)/gms, '<ul>$1</ul>');
             return formatted.split('\n').join('<br>');
         }
 
-        /* --- EINHEITEN VERWALTUNG --- */
-
+        /* --- 1. EINHEITEN --- */
         async function loadTenants() {
             const container = document.getElementById('content-area');
             const { data: buildings } = await _supabase.from('buildings').select('*').order('name');
@@ -188,7 +182,7 @@
 
             container.innerHTML = `
                 <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
-                    <h2 id="form-title" class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack text-balance text-left">Einheit erfassen</h2>
+                    <h2 id="form-title" class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Einheit erfassen</h2>
                     <form id="apartment-form" class="space-y-8">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
                             <div class="space-y-2 text-left">
@@ -208,7 +202,7 @@
                             <input type="number" id="utils" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Nebenkosten (€)" step="0.01">
                             <input type="number" id="sq_m" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Fläche (m²)" step="0.1">
                         </div>
-                        <div class="pt-8 border-t border-gray-50 grid grid-cols-1 md:grid-cols-3 gap-8 text-left text-left">
+                        <div class="pt-8 border-t border-gray-50 grid grid-cols-1 md:grid-cols-3 gap-8">
                             <input type="text" id="m_elec" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Stromzähler-Nr.">
                             <input type="text" id="m_water" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Wasserzähler-Nr.">
                             <input type="text" id="m_heat" class="border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Wärmezähler-Nr.">
@@ -220,7 +214,7 @@
                     </form>
                 </div>
                 <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
-                    <h2 class="text-xl font-bold mb-10 uppercase tracking-widest text-hb-offblack text-left">Bestands-Liste</h2>
+                    <h2 class="text-xl font-bold mb-10 uppercase tracking-widest text-hb-offblack">Bestands-Liste</h2>
                     <div id="tenants-list" class="space-y-12">Lade Daten...</div>
                 </div>
             `;
@@ -229,11 +223,7 @@
         }
 
         async function fetchApartments() {
-            const { data, error } = await _supabase
-                .from('apartments')
-                .select('*, buildings (*), profiles!apartment_id(full_name)')
-                .order('apartment_number');
-                
+            const { data, error } = await _supabase.from('apartments').select('*, buildings (*), profiles!apartment_id(full_name)').order('apartment_number');
             const list = document.getElementById('tenants-list');
             if (error) { list.innerHTML = `<p class="text-red-500 text-left">Fehler: ${error.message}</p>`; return; }
             if (data && data.length > 0) {
@@ -241,11 +231,7 @@
                 list.innerHTML = data.map(apt => {
                     let header = (currentB !== apt.buildings?.name) ? `<div class="bg-hb-ultralight px-6 py-4 mt-8 mb-4 border-l-4 border-hb-olive text-[10px] font-bold uppercase tracking-widest text-hb-olive text-left">${apt.buildings?.name || "Nicht zugeordnet"}</div>` : "";
                     currentB = apt.buildings?.name;
-                    
-                    const names = apt.profiles && apt.profiles.length > 0 
-                        ? apt.profiles.map(p => p.full_name).join(', ') 
-                        : 'LEERSTEHEND';
-
+                    const names = apt.profiles && apt.profiles.length > 0 ? apt.profiles.map(p => p.full_name).join(', ') : 'LEERSTEHEND';
                     return header + `
                         <div class="flex flex-wrap justify-between items-start py-6 border-b border-gray-50 last:border-0 gap-4 group text-left">
                             <div class="flex-1 min-w-[200px] text-left">
@@ -280,7 +266,7 @@
             };
             if (currentEditingId) await _supabase.from('apartments').update(payload).eq('id', currentEditingId);
             else await _supabase.from('apartments').insert([payload]);
-            resetForm(); fetchApartments();
+            resetForm(); fetchApartments(); showToast("Einheit gespeichert");
         }
 
         async function editApartment(id) {
@@ -304,14 +290,13 @@
 
         function resetForm() {
             currentEditingId = null;
-            if (document.getElementById('apartment-form')) document.getElementById('apartment-form').reset();
-            if (document.getElementById('form-title')) document.getElementById('form-title').textContent = "Einheit erfassen";
-            if (document.getElementById('submit-btn')) document.getElementById('submit-btn').textContent = "Einheit speichern";
-            if (document.getElementById('cancel-btn')) document.getElementById('cancel-btn').classList.add('hidden');
+            document.getElementById('apartment-form').reset();
+            document.getElementById('form-title').textContent = "Einheit erfassen";
+            document.getElementById('submit-btn').textContent = "Einheit speichern";
+            document.getElementById('cancel-btn').classList.add('hidden');
         }
 
-        /* --- MIETER VERWALTUNG --- */
-
+        /* --- 2. MIETER VERWALTUNG --- */
         async function loadUserManagement() {
             const container = document.getElementById('content-area');
             const { data: apartments } = await _supabase.from('apartments').select('id, apartment_number, buildings(name)').order('apartment_number');
@@ -339,7 +324,7 @@
                                     ${aptOptions}
                                 </select>
                             </div>
-                            <div class="flex items-end text-left text-left">
+                            <div class="flex items-end text-left">
                                 <button type="submit" id="create-tenant-btn" class="bg-hb-offblack text-white px-10 py-4 text-xs uppercase tracking-widest font-bold hover:bg-hb-olive transition-all w-full text-balance">Account vorbereiten</button>
                             </div>
                         </div>
@@ -358,10 +343,7 @@
             e.preventDefault();
             const btn = document.getElementById('create-tenant-btn');
             const aptId = document.getElementById('tenant_apt_id').value;
-
-            btn.disabled = true;
-            btn.textContent = "Speichere...";
-
+            btn.disabled = true; btn.textContent = "Speichere...";
             const payload = {
                 id: crypto.randomUUID(), 
                 full_name: document.getElementById('tenant_name').value,
@@ -369,26 +351,18 @@
                 apartment_id: aptId, 
                 role: 'tenant'
             };
-
             const { error } = await _supabase.from('profiles').insert([payload]);
-            
             if (error) {
-                alert("Fehler beim Speichern: " + error.message);
-                btn.disabled = false;
-                btn.textContent = "Account vorbereiten";
+                showToast(error.message, "error");
+                btn.disabled = false; btn.textContent = "Account vorbereiten";
             } else {
-                alert("Mieter erfolgreich angelegt und verknüpft!");
+                showToast("Mieter angelegt!");
                 loadUserManagement();
             }
         }
 
         async function fetchTenantUsers() {
-            const { data } = await _supabase
-                .from('profiles')
-                .select('*, apartments!apartment_id(apartment_number, buildings(name))')
-                .eq('role', 'tenant')
-                .order('full_name');
-            
+            const { data } = await _supabase.from('profiles').select('*, apartments!apartment_id(apartment_number, buildings(name))').eq('role', 'tenant').order('full_name');
             const list = document.getElementById('user-list');
             if (data && data.length > 0) {
                 list.className = "divide-y divide-gray-50 not-italic";
@@ -401,7 +375,7 @@
                             </p>
                         </div>
                         <div class="flex gap-4 text-left">
-                            <button onclick="alert('Einladungs-Funktion folgt')" class="text-[10px] font-bold uppercase text-hb-olive border border-hb-olive px-3 py-1 hover:bg-hb-olive hover:text-white transition-all">Einladen</button>
+                            <button onclick="showToast('Einladungs-Funktion folgt in Kürze')" class="text-[10px] font-bold uppercase text-hb-olive border border-hb-olive px-3 py-1 hover:bg-hb-olive hover:text-white transition-all">Einladen</button>
                             <button onclick="deleteProfile('${u.id}')" class="text-[9px] font-bold uppercase text-hb-orange opacity-0 group-hover:opacity-100 transition-opacity">Entfernen</button>
                         </div>
                     </div>`).join('');
@@ -415,45 +389,57 @@
             }
         }
 
-        /* --- DOKUMENTEN CLOUD --- */
-
+        /* --- 3. DOKUMENTE --- */
         async function loadDocuments() {
             const container = document.getElementById('content-area');
             container.className = "space-y-12 col-span-full text-left";
-            const { data: tenants } = await _supabase.from('profiles').select('id, full_name').eq('role', 'tenant').order('full_name');
-            const tenantOptions = tenants?.map(t => `<option value="${t.id}">${t.full_name}</option>`).join('') || '';
-            container.innerHTML = `
-                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left text-balance">
-                    <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Dokument hochladen</h2>
-                    <form id="upload-form" class="space-y-6">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
-                            <select id="doc_category" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm">
-                                <option value="Mietvertrag">Mietvertrag</option>
-                                <option value="Nebenkostenabrechnung">Nebenkostenabrechnung</option>
-                                <option value="Übergabeprotokoll">Übergabeprotokoll</option>
-                                <option value="Sonstiges">Sonstiges</option>
-                            </select>
-                            <input type="text" id="doc_title" class="w-full border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Anzeigetitel" required>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
-                            <select id="doc_tenant_id" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm">
-                                <option value="">Allgemeines Dokument</option>
-                                ${tenantOptions}
-                            </select>
-                            <label class="flex items-center justify-center w-full h-12 border-2 border-gray-100 border-dashed cursor-pointer bg-hb-ultralight hover:bg-gray-50">
-                                <span class="text-[10px] font-bold uppercase text-gray-400" id="file-status">Datei auswählen</span>
-                                <input id="file-input" type="file" class="hidden" onchange="document.getElementById('file-status').textContent = this.files[0].name" />
-                            </label>
-                        </div>
-                        <button type="submit" id="upload-btn" class="w-full bg-hb-offblack text-white py-5 text-xs uppercase tracking-widest font-bold hover:bg-hb-olive">Upload starten</button>
-                    </form>
-                </div>
+            const isAdmin = userProfile.role === 'admin';
+            let tenantOptions = '';
+            
+            if (isAdmin) {
+                const { data: tenants } = await _supabase.from('profiles').select('id, full_name').eq('role', 'tenant').order('full_name');
+                tenantOptions = tenants?.map(t => `<option value="${t.id}">${t.full_name}</option>`).join('') || '';
+            }
+
+            let html = "";
+            if (isAdmin) {
+                html += `
+                    <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left text-balance">
+                        <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Dokument hochladen</h2>
+                        <form id="upload-form" class="space-y-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
+                                <select id="doc_category" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm">
+                                    <option value="Mietvertrag">Mietvertrag</option>
+                                    <option value="Nebenkostenabrechnung">Nebenkostenabrechnung</option>
+                                    <option value="Übergabeprotokoll">Übergabeprotokoll</option>
+                                    <option value="Sonstiges">Sonstiges</option>
+                                </select>
+                                <input type="text" id="doc_title" class="w-full border-b-2 border-gray-100 p-3 focus:border-hb-olive outline-none text-sm" placeholder="Anzeigetitel" required>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
+                                <select id="doc_tenant_id" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm">
+                                    <option value="">Allgemeines Dokument (Für alle sichtbar)</option>
+                                    ${tenantOptions}
+                                </select>
+                                <label class="flex items-center justify-center w-full h-12 border-2 border-gray-100 border-dashed cursor-pointer bg-hb-ultralight hover:bg-gray-50">
+                                    <span class="text-[10px] font-bold uppercase text-gray-400" id="file-status">Datei auswählen</span>
+                                    <input id="file-input" type="file" class="hidden" onchange="document.getElementById('file-status').textContent = this.files[0].name" />
+                                </label>
+                            </div>
+                            <button type="submit" id="upload-btn" class="w-full bg-hb-offblack text-white py-5 text-xs uppercase tracking-widest font-bold hover:bg-hb-olive transition-colors">Upload starten</button>
+                        </form>
+                    </div>
+                `;
+            }
+
+            html += `
                 <div id="docs-list" class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
-                    <h2 class="text-xl font-bold mb-10 uppercase tracking-widest text-hb-offblack">Dokumente</h2>
+                    <h2 class="text-xl font-bold mb-10 uppercase tracking-widest text-hb-offblack">${isAdmin ? 'Alle Dokumente' : 'Meine Dokumente'}</h2>
                     <div id="docs-content" class="divide-y divide-gray-100 italic text-sm text-gray-400">Lade...</div>
                 </div>
             `;
-            document.getElementById('upload-form').addEventListener('submit', handleUpload);
+            container.innerHTML = html;
+            if (isAdmin) document.getElementById('upload-form').addEventListener('submit', handleUpload);
             fetchDocuments();
         }
 
@@ -461,7 +447,7 @@
             e.preventDefault();
             const file = document.getElementById('file-input').files[0];
             const btn = document.getElementById('upload-btn');
-            if (!file) return alert("Datei wählen");
+            if (!file) return showToast("Bitte Datei wählen", "error");
             btn.disabled = true; btn.textContent = "Lade hoch...";
             const fileName = `${Date.now()}_${file.name}`;
             const { data: uploadData, error: uploadError } = await _supabase.storage.from('documents').upload(fileName, file);
@@ -472,46 +458,54 @@
                     file_path: uploadData.path,
                     tenant_id: document.getElementById('doc_tenant_id').value || null
                 }]);
-                alert("Erfolgreich!"); loadDocuments();
-            } else { alert(uploadError.message); btn.disabled = false; }
+                showToast("Dokument gespeichert!"); loadDocuments();
+            } else { showToast(uploadError.message, "error"); btn.disabled = false; }
         }
 
         async function fetchDocuments() {
-            const { data } = await _supabase.from('documents').select('*, profiles:tenant_id (full_name)').order('created_at', { ascending: false });
+            const isAdmin = userProfile.role === 'admin';
+            let query = _supabase.from('documents').select('*, profiles:tenant_id (full_name)').order('created_at', { ascending: false });
+            
+            // Mieter sehen nur allgemeine Dokumente oder ihre eigenen
+            if (!isAdmin) {
+                query = query.or(`tenant_id.is.null,tenant_id.eq.${currentUser.id}`);
+            }
+
+            const { data } = await query;
             const list = document.getElementById('docs-content');
             if (data && data.length > 0) {
                 list.className = "divide-y divide-gray-100 not-italic";
                 list.innerHTML = data.map(doc => `
                     <div class="py-6 flex justify-between items-center group text-left">
-                        <div class="text-left"><p class="font-bold text-hb-offblack uppercase text-left">${doc.title}</p>
-                        <p class="text-[9px] uppercase tracking-widest text-gray-400 font-bold text-left">${doc.category} • ${doc.profiles?.full_name || 'Allgemein'}</p></div>
+                        <div class="text-left">
+                            <p class="font-bold text-hb-offblack uppercase">${doc.title}</p>
+                            <p class="text-[9px] uppercase tracking-widest text-gray-400 font-bold text-left">${doc.category} ${isAdmin && doc.profiles?.full_name ? `• Mieter: ${doc.profiles.full_name}` : ''}</p>
+                        </div>
                         <div class="flex gap-6 text-left">
                             <button onclick="viewDoc('${doc.file_path}')" class="text-[10px] font-bold uppercase text-hb-olive">Ansehen</button>
-                            <button onclick="deleteDoc('${doc.id}', '${doc.file_path}')" class="text-[10px] font-bold uppercase text-hb-orange opacity-0 group-hover:opacity-100">Löschen</button>
+                            ${isAdmin ? `<button onclick="deleteDoc('${doc.id}', '${doc.file_path}')" class="text-[10px] font-bold uppercase text-hb-orange opacity-0 group-hover:opacity-100">Löschen</button>` : ''}
                         </div>
                     </div>`).join('');
-            } else { list.innerHTML = '<p class="py-8 text-left">Keine Dokumente.</p>'; }
+            } else { list.innerHTML = '<p class="py-8 text-left">Keine Dokumente gefunden.</p>'; }
         }
 
-        async function viewDoc(path) {
-            const { data } = await _supabase.storage.from('documents').createSignedUrl(path, 60);
+        async function viewDoc(path, bucket = 'documents') {
+            const { data } = await _supabase.storage.from(bucket).createSignedUrl(path, 60);
             if (data) window.open(data.signedUrl, '_blank');
         }
 
         async function deleteDoc(id, path) {
-            if (confirm("Löschen?")) {
+            if (confirm("Wirklich löschen?")) {
                 await _supabase.storage.from('documents').remove([path]);
                 await _supabase.from('documents').delete().eq('id', id);
                 fetchDocuments();
             }
         }
 
-        /* --- SCHWARZES BRETT --- */
-
+        /* --- 4. SCHWARZES BRETT --- */
         async function loadNews() {
             const container = document.getElementById('content-area');
             container.className = "space-y-8 col-span-full text-left";
-            
             const isAdmin = userProfile.role === 'admin';
             const { data: buildings } = await _supabase.from('buildings').select('*').order('name');
             const buildingOptions = buildings?.map(b => `<option value="${b.id}">${b.name}</option>`).join('') || '';
@@ -580,7 +574,16 @@
         }
 
         async function fetchNews() {
-            const { data } = await _supabase.from('news').select('*, profiles:author_id(full_name), buildings(name)').order('created_at', { ascending: false });
+            // Mieter sehen nur globale News oder die für ihr Gebäude
+            let query = _supabase.from('news').select('*, profiles:author_id(full_name), buildings(name)').order('created_at', { ascending: false });
+            if (userProfile.role === 'tenant') {
+                if(userProfile.apartments && userProfile.apartments.building_id) {
+                    query = query.or(`building_id.is.null,building_id.eq.${userProfile.apartments.building_id}`);
+                } else {
+                    query = query.is('building_id', null);
+                }
+            }
+            const { data } = await query;
             if (data) { allNews = data; renderNewsFeed(); }
         }
 
@@ -610,7 +613,7 @@
                             </div>
                         </div>
                         <div class="mb-8 text-left text-balance text-left"><h3 class="text-xl font-bold text-hb-offblack mb-4 tracking-tight uppercase text-left">${n.title}</h3><div class="news-content text-sm text-gray-600 leading-relaxed text-left text-left">${formatText(n.content)}</div></div>
-                        <div class="pt-6 border-t border-gray-50 flex items-center gap-6 text-left"><button onclick="handleLike('${n.id}', ${n.likes || 0})" class="flex items-center gap-2 transition-all"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-300 fill-current" viewBox="0 0 20 20"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" /></svg><span class="text-xs font-bold text-gray-400 text-left">${n.likes || 0} Likes</span></button></div>
+                        <div class="pt-6 border-t border-gray-50 flex items-center gap-6 text-left"><button onclick="handleLike('${n.id}', ${n.likes || 0})" class="flex items-center gap-2 transition-all hover:opacity-75"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-300 fill-current" viewBox="0 0 20 20"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" /></svg><span class="text-xs font-bold text-gray-400 text-left">${n.likes || 0} Likes</span></button></div>
                     </div>`).join('');
             } else { list.innerHTML = '<p class="py-12 text-center text-gray-400 italic text-sm text-left">Keine Einträge gefunden.</p>'; }
         }
@@ -620,7 +623,7 @@
             const payload = { title: document.getElementById('news_title').value, category: document.getElementById('news_category').value, content: document.getElementById('news_content').value, building_id: document.getElementById('news_b_id').value || null, author_id: currentUser.id };
             if (currentEditingNewsId) await _supabase.from('news').update(payload).eq('id', currentEditingNewsId);
             else await _supabase.from('news').insert([payload]);
-            resetNewsForm(); fetchNews();
+            resetNewsForm(); fetchNews(); showToast("Aushang veröffentlicht");
         }
 
         async function handleLike(id, currentLikes) {
@@ -648,146 +651,336 @@
 
         function resetNewsForm() {
             currentEditingNewsId = null;
-            if (document.getElementById('news-form')) document.getElementById('news-form').reset();
-            if (document.getElementById('news-form-title')) document.getElementById('news-form-title').textContent = "Neuer Aushang";
-            if (document.getElementById('news-submit-btn')) document.getElementById('news-submit-btn').textContent = "Aushang veröffentlichen";
-            if (document.getElementById('news-cancel-btn')) document.getElementById('news-cancel-btn').classList.add('hidden');
+            document.getElementById('news-form').reset();
+            document.getElementById('news-form-title').textContent = "Neuer Aushang";
+            document.getElementById('news-submit-btn').textContent = "Aushang veröffentlichen";
+            document.getElementById('news-cancel-btn').classList.add('hidden');
         }
 
         async function deleteNews(id) { if (confirm("Löschen?")) { await _supabase.from('news').delete().eq('id', id); fetchNews(); } }
 
-        /* --- TICKETS (MELDUNGEN) --- */
 
+        /* --- 5. TICKETS / CHAT --- */
         async function loadTickets() {
             const container = document.getElementById('content-area');
-            container.className = "space-y-8 col-span-full text-left";
+            container.className = "w-full text-left";
             const isAdmin = userProfile.role === 'admin';
 
-            let html = "";
-
-            if (!isAdmin) {
-                html += `
-                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
-                    <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Neue Meldung erstellen</h2>
-                    <form id="ticket-form" class="space-y-6">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
-                            <div class="space-y-2 text-left">
-                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest text-left">Kategorie</label>
-                                <select id="ticket_category" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm" required>
-                                    <option value="Reparatur">Reparatur / Mangel</option>
-                                    <option value="Allgemein">Allgemeine Anfrage</option>
-                                    <option value="Beschwerde">Beschwerde</option>
-                                </select>
+            if (isAdmin) {
+                container.innerHTML = `
+                    <div class="flex justify-between items-center mb-8">
+                        <h2 class="text-xl font-bold uppercase tracking-widest text-hb-offblack">Ticket Board</h2>
+                        <button onclick="openNewTicketModal()" class="bg-hb-olive text-white px-6 py-3 text-xs uppercase tracking-widest font-bold hover:bg-hb-offblack transition-all">+ Neues Ticket an Mieter</button>
+                    </div>
+                    <div class="flex flex-col lg:flex-row gap-6 items-start h-[calc(100vh-250px)] overflow-x-auto pb-4">
+                        <div class="flex-shrink-0 w-full lg:w-1/3 bg-gray-50 flex flex-col max-h-full">
+                            <div class="p-4 border-b-4 border-red-500 bg-white shadow-sm flex justify-between">
+                                <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500">Neu / Offen</h3>
+                                <span id="count-new" class="bg-red-100 text-red-600 text-[10px] px-2 py-0.5 font-bold rounded">0</span>
                             </div>
-                            <div class="space-y-2 text-left">
-                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest text-left">Betreff</label>
-                                <input type="text" id="ticket_title" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" placeholder="Kurze Beschreibung (z.B. Heizung defekt)" required>
+                            <div id="board-new" class="p-4 space-y-4 overflow-y-auto chat-scroll flex-grow">Lade...</div>
+                        </div>
+                        <div class="flex-shrink-0 w-full lg:w-1/3 bg-gray-50 flex flex-col max-h-full">
+                            <div class="p-4 border-b-4 border-hb-orange bg-white shadow-sm flex justify-between">
+                                <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500">In Bearbeitung</h3>
+                                <span id="count-progress" class="bg-orange-100 text-hb-orange text-[10px] px-2 py-0.5 font-bold rounded">0</span>
                             </div>
+                            <div id="board-progress" class="p-4 space-y-4 overflow-y-auto chat-scroll flex-grow"></div>
                         </div>
-                        <div class="space-y-2 text-left">
-                            <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest text-left">Beschreibung</label>
-                            <textarea id="ticket_desc" rows="4" class="w-full border-2 border-gray-50 p-4 focus:outline-none focus:border-hb-olive text-sm bg-hb-ultralight" placeholder="Details zur Meldung..." required></textarea>
+                        <div class="flex-shrink-0 w-full lg:w-1/3 bg-gray-50 flex flex-col max-h-full">
+                            <div class="p-4 border-b-4 border-gray-400 bg-white shadow-sm flex justify-between">
+                                <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500">Wartend / On Hold</h3>
+                                <span id="count-hold" class="bg-gray-200 text-gray-600 text-[10px] px-2 py-0.5 font-bold rounded">0</span>
+                            </div>
+                            <div id="board-hold" class="p-4 space-y-4 overflow-y-auto chat-scroll flex-grow"></div>
                         </div>
-                        <div class="pt-4 text-left">
-                            <button type="submit" id="ticket-submit-btn" class="bg-hb-offblack text-white px-10 py-4 text-xs uppercase tracking-widest font-bold hover:bg-hb-olive transition-all">Meldung absenden</button>
-                        </div>
-                    </form>
-                </div>`;
-            }
-
-            html += `
-                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
-                    <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">${isAdmin ? 'Mieter-Meldungen & Tickets' : 'Ihre Meldungen'}</h2>
-                    <div id="tickets-list" class="space-y-6 text-left">Lade...</div>
-                </div>`;
-
-            container.innerHTML = html;
-            if (!isAdmin) document.getElementById('ticket-form').addEventListener('submit', handleSaveTicket);
-            fetchTickets();
-        }
-
-        async function handleSaveTicket(e) {
-            e.preventDefault();
-            const btn = document.getElementById('ticket-submit-btn');
-            btn.disabled = true; btn.textContent = "Sende...";
-
-            const payload = {
-                tenant_id: currentUser.id,
-                apartment_id: userProfile.apartment_id,
-                category: document.getElementById('ticket_category').value,
-                title: document.getElementById('ticket_title').value,
-                description: document.getElementById('ticket_desc').value,
-                status: 'Offen'
-            };
-
-            const { error } = await _supabase.from('tickets').insert([payload]);
-            if (error) {
-                alert("Fehler: " + error.message);
-                btn.disabled = false; btn.textContent = "Meldung absenden";
+                    </div>
+                `;
             } else {
-                alert("Meldung erfolgreich gesendet!");
-                loadTickets();
+                container.innerHTML = `
+                    <div class="flex justify-between items-center mb-8">
+                        <h2 class="text-xl font-bold uppercase tracking-widest text-hb-offblack">Meine Meldungen</h2>
+                        <button onclick="openNewTicketModal()" class="bg-hb-offblack text-white px-6 py-3 text-xs uppercase tracking-widest font-bold hover:bg-hb-olive transition-all">+ Neue Meldung</button>
+                    </div>
+                    <div id="tenant-ticket-list" class="space-y-4">Lade...</div>
+                `;
             }
+            fetchTicketsBoard();
         }
 
-        async function fetchTickets() {
+        async function fetchTicketsBoard() {
             const isAdmin = userProfile.role === 'admin';
-            let query = _supabase.from('tickets').select('*, profiles!tenant_id(full_name, email), apartments!apartment_id(apartment_number, buildings(name))').order('created_at', { ascending: false });
+            let query = _supabase.from('tickets')
+                .select('*, profiles!tenant_id(full_name), creator:creator_id(full_name)')
+                .neq('status', 'Erledigt')
+                .order('created_at', { ascending: false });
 
-            if (!isAdmin) {
-                query = query.eq('tenant_id', currentUser.id);
-            }
+            if (!isAdmin) query = query.eq('tenant_id', currentUser.id);
 
             const { data, error } = await query;
-            const list = document.getElementById('tickets-list');
+            if (error) { showToast("Fehler beim Laden der Tickets", "error"); return; }
 
-            if (error) { list.innerHTML = `<p class="text-red-500 text-left">Fehler: ${error.message}</p>`; return; }
+            if (isAdmin) {
+                const newTickets = data.filter(t => t.status === 'Neu' || t.status === 'Offen');
+                const progressTickets = data.filter(t => t.status === 'In Bearbeitung');
+                const holdTickets = data.filter(t => t.status === 'Wartend');
 
-            if (data && data.length > 0) {
-                list.innerHTML = data.map(t => {
-                    let statusColor = t.status === 'Offen' ? 'text-red-500' : (t.status === 'In Bearbeitung' ? 'text-hb-orange' : 'text-green-600');
-                    let statusBg = t.status === 'Offen' ? 'bg-red-50' : (t.status === 'In Bearbeitung' ? 'bg-orange-50' : 'bg-green-50');
+                document.getElementById('count-new').textContent = newTickets.length;
+                document.getElementById('count-progress').textContent = progressTickets.length;
+                document.getElementById('count-hold').textContent = holdTickets.length;
 
-                    let adminControls = isAdmin ? `
-                        <div class="mt-6 pt-4 border-t border-gray-50 flex items-center justify-between text-left">
-                            <div class="flex items-center gap-4 text-left">
-                                <label class="text-[9px] uppercase tracking-widest font-bold text-gray-400">Status ändern:</label>
-                                <select onchange="updateTicketStatus('${t.id}', this.value)" class="border-b-2 border-gray-100 p-2 text-xs uppercase tracking-widest font-bold focus:outline-none focus:border-hb-olive bg-transparent cursor-pointer">
-                                    <option value="Offen" ${t.status === 'Offen' ? 'selected' : ''}>Offen</option>
-                                    <option value="In Bearbeitung" ${t.status === 'In Bearbeitung' ? 'selected' : ''}>In Bearbeitung</option>
-                                    <option value="Erledigt" ${t.status === 'Erledigt' ? 'selected' : ''}>Erledigt</option>
-                                </select>
-                            </div>
+                document.getElementById('board-new').innerHTML = newTickets.map(generateTicketCard).join('') || '<p class="text-[10px] text-gray-400 uppercase tracking-widest text-center py-4">Keine Tickets</p>';
+                document.getElementById('board-progress').innerHTML = progressTickets.map(generateTicketCard).join('') || '<p class="text-[10px] text-gray-400 uppercase tracking-widest text-center py-4">Keine Tickets</p>';
+                document.getElementById('board-hold').innerHTML = holdTickets.map(generateTicketCard).join('') || '<p class="text-[10px] text-gray-400 uppercase tracking-widest text-center py-4">Keine Tickets</p>';
+            } else {
+                const list = document.getElementById('tenant-ticket-list');
+                list.innerHTML = data.map(generateTicketCard).join('') || '<p class="text-sm italic text-gray-400">Keine aktiven Meldungen.</p>';
+            }
+        }
+
+        function generateTicketCard(t) {
+            return `
+                <div onclick="viewTicketChat('${t.id}')" class="bg-white p-4 shadow-sm border border-gray-100 cursor-pointer hover:border-hb-olive hover:shadow-md transition-all group relative">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-[8px] uppercase tracking-widest font-bold bg-hb-ultralight px-2 py-0.5 text-gray-500">${t.category}</span>
+                        <span class="text-[8px] uppercase tracking-widest font-bold text-gray-400">${new Date(t.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <h4 class="text-sm font-bold text-hb-offblack leading-tight mb-2 group-hover:text-hb-olive transition-colors">${t.title}</h4>
+                    <p class="text-[10px] uppercase tracking-widest text-gray-400 mt-2 border-t border-gray-50 pt-2">
+                        Mit: <span class="font-bold text-gray-600">${t.profiles?.full_name || 'Unbekannt'}</span>
+                    </p>
+                </div>
+            `;
+        }
+
+        async function viewTicketChat(ticketId) {
+            const container = document.getElementById('content-area');
+            const isAdmin = userProfile.role === 'admin';
+            
+            const { data: ticket } = await _supabase.from('tickets').select('*, profiles!tenant_id(full_name)').eq('id', ticketId).single();
+            if(!ticket) return showToast("Ticket nicht gefunden", "error");
+
+            container.innerHTML = `
+                <div class="flex flex-col h-[calc(100vh-180px)] bg-white shadow-sm border-t-4 border-hb-olive">
+                    <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-hb-ultralight">
+                        <div>
+                            <button onclick="loadTickets(); if(currentChatInterval) clearInterval(currentChatInterval);" class="text-[10px] uppercase tracking-widest font-bold text-gray-400 hover:text-hb-offblack mb-2 flex items-center gap-1">
+                                ← Zurück
+                            </button>
+                            <h2 class="text-xl font-bold text-hb-offblack uppercase tracking-tight">${ticket.title}</h2>
+                            <p class="text-[10px] uppercase tracking-widest text-gray-500 mt-1">Ticket-ID: ${ticket.id.substring(0,8)} • Mit: ${ticket.profiles?.full_name}</p>
                         </div>
-                    ` : '';
+                        ${isAdmin ? `
+                            <select onchange="updateTicketStatus('${ticket.id}', this.value)" class="border-2 border-gray-200 p-2 text-[10px] uppercase font-bold focus:outline-none focus:border-hb-olive bg-white cursor-pointer">
+                                <option value="Neu" ${ticket.status === 'Neu' ? 'selected' : ''}>Status: Neu</option>
+                                <option value="In Bearbeitung" ${ticket.status === 'In Bearbeitung' ? 'selected' : ''}>Status: In Bearbeitung</option>
+                                <option value="Wartend" ${ticket.status === 'Wartend' ? 'selected' : ''}>Status: Wartend</option>
+                                <option value="Erledigt" ${ticket.status === 'Erledigt' ? 'selected' : ''}>Status: Erledigt</option>
+                            </select>
+                        ` : `
+                            <span class="px-3 py-1 bg-gray-200 text-gray-600 text-[10px] font-bold uppercase tracking-widest rounded-sm">Status: ${ticket.status}</span>
+                        `}
+                    </div>
+
+                    <div id="chat-messages" class="flex-grow overflow-y-auto p-6 space-y-6 chat-scroll bg-white">
+                        <div class="text-center text-xs italic text-gray-400">Lade Verlauf...</div>
+                    </div>
+
+                    <div class="p-4 border-t border-gray-100 bg-gray-50">
+                        <form id="chat-reply-form" class="flex gap-4 items-end">
+                            <div class="flex-grow relative">
+                                <textarea id="chat_msg_input" rows="2" class="w-full border border-gray-200 p-3 pr-12 focus:outline-none focus:border-hb-olive text-sm" placeholder="Schreiben Sie eine Antwort..." required></textarea>
+                                <label class="absolute right-2 bottom-2 p-2 cursor-pointer text-gray-400 hover:text-hb-olive transition-colors" title="Datei anhängen">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                                    <input type="file" id="chat_file_input" class="hidden">
+                                </label>
+                            </div>
+                            <button type="submit" id="chat-send-btn" class="bg-hb-offblack text-white px-8 py-4 text-xs uppercase tracking-widest font-bold hover:bg-hb-olive transition-all h-[52px]">Senden</button>
+                        </form>
+                        <div id="chat-file-name" class="text-[10px] text-hb-olive font-bold uppercase tracking-widest mt-2 hidden">Angehängt: <span></span></div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('chat_file_input').addEventListener('change', function(e) {
+                const nameDisplay = document.getElementById('chat-file-name');
+                if(this.files[0]) {
+                    nameDisplay.querySelector('span').textContent = this.files[0].name;
+                    nameDisplay.classList.remove('hidden');
+                } else { nameDisplay.classList.add('hidden'); }
+            });
+
+            document.getElementById('chat-reply-form').addEventListener('submit', (e) => handleSendChatMessage(e, ticketId));
+            
+            await fetchChatMessages(ticketId);
+            if(currentChatInterval) clearInterval(currentChatInterval);
+            currentChatInterval = setInterval(() => fetchChatMessages(ticketId, true), 10000);
+        }
+
+        async function fetchChatMessages(ticketId, silent = false) {
+            const { data, error } = await _supabase
+                .from('ticket_messages')
+                .select('*, profiles:sender_id(full_name, role)')
+                .eq('ticket_id', ticketId)
+                .order('created_at', { ascending: true });
+
+            if (error) return;
+
+            const box = document.getElementById('chat-messages');
+            if (data && data.length > 0) {
+                const isAtBottom = box.scrollHeight - box.scrollTop <= box.clientHeight + 50;
+
+                box.innerHTML = data.map(msg => {
+                    const isMe = msg.sender_id === currentUser.id;
+                    const alignmentClass = isMe ? "ml-auto" : "mr-auto";
+                    const bgClass = isMe ? "bg-hb-ultralight border-r-4 border-hb-olive" : "bg-gray-100 border-l-4 border-gray-400";
+                    const senderName = isMe ? "Ich" : (msg.profiles?.full_name || 'Unbekannt');
+                    
+                    let attachmentHtml = "";
+                    if (msg.attachment_path) {
+                        attachmentHtml = `<div class="mt-3 pt-3 border-t border-gray-200"><button onclick="viewDoc('${msg.attachment_path}', 'ticket_attachments')" class="text-[9px] uppercase tracking-widest font-bold text-hb-olive flex items-center gap-1 hover:text-hb-orange"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> Anhang ansehen</button></div>`;
+                    }
 
                     return `
-                    <div class="p-6 bg-hb-ultralight border border-gray-100 group text-left">
-                        <div class="flex justify-between items-start mb-3 text-left">
-                            <div class="text-left">
-                                <span class="px-3 py-1 ${statusBg} ${statusColor} text-[8px] font-bold uppercase tracking-widest rounded-sm mb-3 inline-block">
-                                    Status: ${t.status}
-                                </span>
-                                <h3 class="text-lg font-bold text-hb-offblack tracking-tight text-left uppercase">${t.title}</h3>
-                                <p class="text-[9px] uppercase tracking-widest text-gray-400 font-bold mt-2 text-left">
-                                    ${new Date(t.created_at).toLocaleDateString()} • ${t.category}
-                                    ${isAdmin ? `<br><span class="text-hb-olive mt-1 inline-block">Gemeldet von: ${t.profiles?.full_name || 'Unbekannt'} (${t.apartments?.buildings?.name || ''} ${t.apartments?.apartment_number || ''})</span>` : ''}
-                                </p>
-                            </div>
+                    <div class="max-w-[80%] ${alignmentClass} text-left">
+                        <p class="text-[9px] uppercase tracking-widest text-gray-400 mb-1 font-bold px-1 ${isMe ? 'text-right' : ''}">
+                            ${senderName} • ${new Date(msg.created_at).toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'})}
+                        </p>
+                        <div class="p-4 shadow-sm ${bgClass} text-sm text-hb-offblack leading-relaxed whitespace-pre-wrap">
+                            ${msg.message}
+                            ${attachmentHtml}
                         </div>
-                        <p class="text-sm text-gray-600 mt-4 whitespace-pre-wrap leading-relaxed text-left">${t.description}</p>
-                        ${adminControls}
                     </div>`;
                 }).join('');
+
+                if (!silent || isAtBottom) box.scrollTop = box.scrollHeight;
             } else {
-                list.innerHTML = '<p class="text-sm italic text-gray-400 text-left">Keine Meldungen vorhanden.</p>';
+                box.innerHTML = '<div class="text-center py-10 text-gray-400 italic text-sm">Noch keine Nachrichten.</div>';
             }
+        }
+
+        async function handleSendChatMessage(e, ticketId) {
+            e.preventDefault();
+            const input = document.getElementById('chat_msg_input');
+            const fileInput = document.getElementById('chat_file_input');
+            const btn = document.getElementById('chat-send-btn');
+            const file = fileInput.files[0];
+            const msgText = input.value.trim();
+            
+            if (!msgText && !file) return;
+
+            btn.disabled = true; btn.textContent = "...";
+            let attachmentPath = null;
+
+            if (file) {
+                const fileName = `${ticketId}/${Date.now()}_${file.name}`;
+                const { data: uploadData, error: uploadError } = await _supabase.storage.from('ticket_attachments').upload(fileName, file);
+                if (uploadError) { showToast("Fehler beim Upload", "error"); btn.disabled = false; btn.textContent = "Senden"; return; }
+                attachmentPath = uploadData.path;
+            }
+
+            const { error } = await _supabase.from('ticket_messages').insert([{
+                ticket_id: ticketId, sender_id: currentUser.id, message: msgText, attachment_path: attachmentPath
+            }]);
+
+            if (error) {
+                showToast("Senden fehlgeschlagen", "error");
+            } else {
+                input.value = ''; fileInput.value = '';
+                document.getElementById('chat-file-name').classList.add('hidden');
+                if(userProfile.role === 'admin') _supabase.from('tickets').update({status: 'In Bearbeitung'}).eq('id', ticketId).eq('status', 'Neu').then(()=>{});
+                await fetchChatMessages(ticketId);
+            }
+            btn.disabled = false; btn.textContent = "Senden";
         }
 
         async function updateTicketStatus(id, newStatus) {
             const { error } = await _supabase.from('tickets').update({ status: newStatus }).eq('id', id);
-            if (error) alert("Fehler beim Aktualisieren: " + error.message);
-            else fetchTickets();
+            if (error) showToast(error.message, "error");
+            else showToast("Status aktualisiert");
+        }
+
+        async function openNewTicketModal() {
+            const isAdmin = userProfile.role === 'admin';
+            let tenantOptions = '';
+
+            if (isAdmin) {
+                const { data: tenants } = await _supabase.from('profiles').select('id, full_name, apartments!apartment_id(apartment_number)').eq('role', 'tenant');
+                tenantOptions = tenants?.map(t => `<option value="${t.id}">${t.full_name} (${t.apartments?.apartment_number || 'Keine WE'})</option>`).join('') || '';
+            }
+
+            const container = document.getElementById('content-area');
+            container.innerHTML = `
+                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
+                    <div class="flex justify-between items-center mb-8">
+                        <h2 class="text-xl font-bold uppercase tracking-widest text-hb-offblack">${isAdmin ? 'Ticket für Mieter eröffnen' : 'Neue Meldung'}</h2>
+                        <button onclick="loadTickets()" class="text-[10px] uppercase font-bold text-gray-400 hover:text-hb-orange">Abbrechen</button>
+                    </div>
+                    <form id="new-ticket-form" class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                            ${isAdmin ? `
+                            <div class="space-y-2">
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Empfänger (Mieter)</label>
+                                <select id="nt_tenant_id" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm" required>
+                                    <option value="" disabled selected>Bitte wählen...</option>
+                                    ${tenantOptions}
+                                </select>
+                            </div>` : ''}
+                            <div class="space-y-2 text-left ${isAdmin ? '' : 'col-span-2 md:col-span-1'}">
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Kategorie</label>
+                                <select id="nt_category" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive bg-white text-sm" required>
+                                    <option value="Reparatur">Reparatur / Mangel</option>
+                                    <option value="Allgemein">Allgemeine Anfrage</option>
+                                    <option value="Termin">Terminvereinbarung</option>
+                                    ${isAdmin ? '<option value="Mahnung">Verwarnung / Hinweis</option>' : '<option value="Beschwerde">Beschwerde</option>'}
+                                </select>
+                            </div>
+                            <div class="space-y-2 text-left col-span-1 md:col-span-2">
+                                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Betreff / Kurztitel</label>
+                                <input type="text" id="nt_title" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" placeholder="Zusammenfassung..." required>
+                            </div>
+                        </div>
+                        <div class="space-y-2 text-left">
+                            <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest">Erste Nachricht</label>
+                            <textarea id="nt_message" rows="5" class="w-full border-2 border-gray-50 p-4 focus:outline-none focus:border-hb-olive text-sm bg-hb-ultralight" placeholder="Beschreiben Sie das Anliegen..." required></textarea>
+                        </div>
+                        <div class="pt-4 flex justify-end">
+                            <button type="submit" id="nt-submit-btn" class="bg-hb-offblack text-white px-10 py-4 text-xs uppercase tracking-widest font-bold hover:bg-hb-olive transition-all">Ticket Eröffnen</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            document.getElementById('new-ticket-form').addEventListener('submit', createNewTicketProcess);
+        }
+
+        async function createNewTicketProcess(e) {
+            e.preventDefault();
+            const btn = document.getElementById('nt-submit-btn');
+            btn.disabled = true; btn.textContent = "Erstelle...";
+
+            const isAdmin = userProfile.role === 'admin';
+            const targetTenantId = isAdmin ? document.getElementById('nt_tenant_id').value : currentUser.id;
+            
+            const { data: newTicket, error: ticketError } = await _supabase.from('tickets').insert([{
+                title: document.getElementById('nt_title').value,
+                category: document.getElementById('nt_category').value,
+                tenant_id: targetTenantId,
+                creator_id: currentUser.id,
+                status: 'Neu'
+            }]).select('id').single();
+
+            if (ticketError) { showToast("Fehler beim Ticket anlegen", "error"); btn.disabled = false; return; }
+
+            const { error: msgError } = await _supabase.from('ticket_messages').insert([{
+                ticket_id: newTicket.id,
+                sender_id: currentUser.id,
+                message: document.getElementById('nt_message').value
+            }]);
+
+            if (msgError) showToast("Fehler bei Nachricht", "error");
+            else showToast("Ticket erstellt!");
+            
+            viewTicketChat(newTicket.id);
         }
 
         async function logout() { await _supabase.auth.signOut(); window.location.href = 'index.html'; }
