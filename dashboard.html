@@ -158,7 +158,6 @@
                 if (!user) { window.location.href = 'index.html'; return; }
                 currentUser = user;
 
-                // Load profile along with the building_id to allow accurate filtering for tenants
                 const { data: profile, error: profileError } = await _supabase.from('profiles').select('*, apartments!apartment_id(building_id)').eq('id', user.id).single();
                 if (profileError || !profile) { document.getElementById('welcome-title').textContent = "Profil nicht gefunden"; return; }
                 userProfile = profile;
@@ -528,7 +527,7 @@
             document.getElementById('cancel-btn').classList.add('hidden');
         }
 
-        /* --- 1.2 MIETER VERWALTUNG --- */
+        /* --- 1.2 MIETER VERWALTUNG & EINLADUNGEN --- */
         async function loadUserManagement() {
             const container = document.getElementById('content-area');
             const { data: apartments } = await _supabase.from('apartments').select('id, apartment_number, buildings(name)').order('apartment_number');
@@ -536,8 +535,8 @@
 
             container.innerHTML = `
                 <div class="card p-8 md:p-12 mb-8">
-                    <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Mieter-Account anlegen</h2>
-                    <form id="tenant-user-form" class="space-y-6">
+                    <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Mieter einladen</h2>
+                    <form id="tenant-invite-form" class="space-y-6">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
                             <div class="space-y-2 text-left">
                                 <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Vollständiger Name</label>
@@ -557,64 +556,119 @@
                                 </select>
                             </div>
                             <div class="flex items-end">
-                                <button type="submit" id="create-tenant-btn" class="btn-primary px-8 py-3 text-sm w-full">Account vorbereiten</button>
+                                <button type="submit" id="create-invite-btn" class="btn-primary px-8 py-3 text-sm w-full">Einladung generieren</button>
                             </div>
                         </div>
                     </form>
                 </div>
+                
+                <div class="card p-8 md:p-12 mb-8">
+                    <h2 class="text-xl font-bold mb-6 uppercase tracking-widest text-hb-offblack">Ausstehende Einladungen</h2>
+                    <div id="invites-list" class="divide-y divide-gray-100 text-sm">Lade...</div>
+                </div>
+
                 <div class="card p-8 md:p-12">
-                    <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Registrierte Mieter</h2>
+                    <h2 class="text-xl font-bold mb-6 uppercase tracking-widest text-hb-offblack">Registrierte Mieter</h2>
                     <div id="user-list" class="divide-y divide-gray-100 text-sm">Lade...</div>
                 </div>
             `;
-            document.getElementById('tenant-user-form').addEventListener('submit', handleSaveTenantUser);
+            document.getElementById('tenant-invite-form').addEventListener('submit', handleCreateInvite);
             fetchTenantUsers();
         }
 
-        async function handleSaveTenantUser(e) {
+        async function handleCreateInvite(e) {
             e.preventDefault();
-            const btn = document.getElementById('create-tenant-btn');
+            const btn = document.getElementById('create-invite-btn');
+            btn.disabled = true; btn.textContent = "Generiere Code...";
+
             const aptId = document.getElementById('tenant_apt_id').value;
-            btn.disabled = true; btn.textContent = "Speichere...";
+            const fullName = document.getElementById('tenant_name').value.trim();
+            const email = document.getElementById('tenant_email').value.trim();
+            
+            // Generiere einen zufälligen 6-stelligen Code (z.B. HB-X7V2A9)
+            const code = 'HB-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+
             const payload = {
-                id: crypto.randomUUID(), 
-                full_name: document.getElementById('tenant_name').value,
-                email: document.getElementById('tenant_email').value,
-                apartment_id: aptId, 
-                role: 'tenant'
+                code: code, 
+                full_name: fullName,
+                email: email,
+                apartment_id: aptId
             };
-            const { error } = await _supabase.from('profiles').insert([payload]);
+
+            const { error } = await _supabase.from('invitations').insert([payload]);
+            
             if (error) {
                 showToast(error.message, "error");
-                btn.disabled = false; btn.textContent = "Account vorbereiten";
+                btn.disabled = false; btn.textContent = "Einladung generieren";
             } else {
-                showToast("Mieter angelegt!");
-                loadUserManagement();
+                showToast("Einladung erfolgreich vorbereitet!");
+                document.getElementById('tenant-invite-form').reset();
+                fetchTenantUsers();
             }
         }
 
         async function fetchTenantUsers() {
-            const { data } = await _supabase.from('profiles').select('*, apartments!apartment_id(apartment_number, buildings(name))').eq('role', 'tenant').order('full_name');
-            const list = document.getElementById('user-list');
-            if (data && data.length > 0) {
-                list.innerHTML = data.map(u => `
+            // 1. Ausstehende Einladungen laden
+            const { data: invites } = await _supabase.from('invitations').select('*, apartments!apartment_id(apartment_number, buildings(name))').order('created_at', { ascending: false });
+            const inviteList = document.getElementById('invites-list');
+            
+            if (invites && invites.length > 0) {
+                inviteList.innerHTML = invites.map(i => `
+                    <div class="py-4 flex justify-between items-center group bg-yellow-50/50 px-4 rounded-xl mb-2 border border-yellow-100">
+                        <div>
+                            <p class="font-bold text-hb-offblack text-sm">${i.full_name} <span class="bg-yellow-200 text-yellow-800 text-[9px] px-2 py-0.5 rounded ml-2 uppercase tracking-widest font-bold">Wartet auf Login</span></p>
+                            <p class="text-[11px] text-gray-500 font-medium mt-1">
+                                ${i.email} • Code: <strong class="font-mono text-hb-olive">${i.code}</strong> • ${i.apartments?.buildings?.name || ''} ${i.apartments?.apartment_number || ''}
+                            </p>
+                        </div>
+                        <div class="flex gap-3">
+                            <button onclick="sendInviteEmail('${i.email}', '${i.code}')" class="text-[10px] font-bold text-hb-olive hover:underline border border-hb-olive px-3 py-1.5 rounded-lg hover:bg-hb-olive hover:text-white transition-colors">Link via E-Mail senden</button>
+                            <button onclick="deleteInvite('${i.code}')" class="text-[10px] font-bold text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:underline">Löschen</button>
+                        </div>
+                    </div>`).join('');
+            } else { inviteList.innerHTML = '<p class="py-4 text-gray-400 italic">Keine ausstehenden Einladungen.</p>'; }
+
+            // 2. Registrierte Profile laden
+            const { data: users } = await _supabase.from('profiles').select('*, apartments!apartment_id(apartment_number, buildings(name))').eq('role', 'tenant').order('full_name');
+            const userList = document.getElementById('user-list');
+            
+            if (users && users.length > 0) {
+                userList.innerHTML = users.map(u => `
                     <div class="py-4 flex justify-between items-center group">
                         <div>
-                            <p class="font-bold text-hb-offblack text-sm">${u.full_name}</p>
+                            <p class="font-bold text-hb-offblack text-sm">${u.full_name} <span class="bg-green-100 text-green-700 text-[9px] px-2 py-0.5 rounded ml-2 uppercase tracking-widest font-bold">Aktiv</span></p>
                             <p class="text-[11px] text-gray-500 font-medium mt-1">
                                 ${u.email} • ${u.apartments?.buildings?.name || ''} ${u.apartments?.apartment_number || 'Keine Einheit'}
                             </p>
                         </div>
                         <div class="flex gap-3">
-                            <button onclick="showToast('Einladungs-Funktion folgt in Kürze')" class="text-[10px] font-bold text-hb-olive hover:underline">Passwort-Link senden</button>
-                            <button onclick="deleteProfile('${u.id}')" class="text-[10px] font-bold text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:underline">Entfernen</button>
+                            <button onclick="deleteProfile('${u.id}')" class="text-[10px] font-bold text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:underline">Account entfernen</button>
                         </div>
                     </div>`).join('');
-            } else { list.innerHTML = '<p class="py-6 text-gray-400 italic">Keine Mieter-Accounts angelegt.</p>'; }
+            } else { userList.innerHTML = '<p class="py-6 text-gray-400 italic">Keine aktiven Mieter-Accounts.</p>'; }
+        }
+
+        function sendInviteEmail(email, code) {
+            // Ermittelt die korrekte URL (ersetzt dashboard.html durch register.html)
+            const baseUrl = window.location.href.split('/').slice(0, -1).join('/');
+            const registerUrl = baseUrl + '/register.html';
+            
+            const subject = encodeURIComponent("Ihre Einladung zum Mieterportal");
+            const body = encodeURIComponent(`Hallo,\n\nhier ist Ihre Einladung zum neuen digitalen Mieterportal.\n\nBitte klicken Sie auf den folgenden Link und geben Sie Ihr gewünschtes Passwort ein, um Ihren Account zu aktivieren:\n\nPortal-Link: ${registerUrl}?code=${code}\n\nIhr persönlicher Einladungscode lautet: ${code}\n\nViele Grüße\nIhre Hausverwaltung`);
+            
+            window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+        }
+
+        async function deleteInvite(code) {
+            if (confirm("Einladung wirklich löschen?")) {
+                await _supabase.from('invitations').delete().eq('code', code);
+                fetchTenantUsers();
+                showToast("Einladung gelöscht");
+            }
         }
 
         async function deleteProfile(id) {
-            if (confirm("Mieter-Account wirklich entfernen?")) {
+            if (confirm("Mieter-Account wirklich entfernen? Tickets und Dokumente bleiben erhalten.")) {
                 await _supabase.from('profiles').delete().eq('id', id);
                 fetchTenantUsers();
                 showToast("Mieter entfernt");
