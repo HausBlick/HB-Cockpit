@@ -481,8 +481,6 @@
         }
 
         async function fetchApartments() {
-            // Abfrage explizit ohne foreign key alias, falls dieser Supabase verwirrt.
-            // Hinweis: Falls hier wieder ein Error auftritt, ändere dies zu "profiles!profiles_apartment_id_fkey"
             const { data, error } = await _supabase.from('apartments').select('*, buildings (*), profiles(full_name)').order('apartment_number');
             const list = document.getElementById('tenants-list');
             if (error) { list.innerHTML = `<p class="text-red-500 text-base">Fehler: ${error.message}</p>`; return; }
@@ -641,7 +639,7 @@
 
             const { data: invites, error: inviteError } = await _supabase
                 .from('invitations')
-                .select('*, apartments(apartment_number, buildings(name))')
+                .select('*, apartments!invitations_apartment_id_fkey(apartment_number, buildings(name))')
                 .order('created_at', { ascending: false });
             
             if (inviteError) {
@@ -1094,7 +1092,7 @@
 
         async function fetchTicketsBoard() {
             const isAdmin = userProfile.role === 'admin';
-            let query = _supabase.from('tickets').select('*, profiles!tenant_id(full_name)').neq('status', 'Erledigt').order('created_at', { ascending: false });
+            let query = _supabase.from('tickets').select('*, profiles!tickets_tenant_id_fkey(full_name)').neq('status', 'Erledigt').order('created_at', { ascending: false });
             if (!isAdmin) query = query.eq('tenant_id', currentUser.id);
 
             const { data, error } = await query;
@@ -1127,7 +1125,7 @@
                 container.innerHTML = '<p class="text-sm text-gray-400 italic">Lade...</p>';
                 
                 const isAdmin = userProfile.role === 'admin';
-                let query = _supabase.from('tickets').select('*, profiles!tenant_id(full_name)').eq('status', 'Erledigt').order('created_at', { ascending: false });
+                let query = _supabase.from('tickets').select('*, profiles!tickets_tenant_id_fkey(full_name)').eq('status', 'Erledigt').order('created_at', { ascending: false });
                 if (!isAdmin) query = query.eq('tenant_id', currentUser.id);
 
                 const { data, error } = await query;
@@ -1167,7 +1165,7 @@
         async function viewTicketChat(ticketId) {
             const container = document.getElementById('content-area');
             const isAdmin = userProfile.role === 'admin';
-            const { data: ticket } = await _supabase.from('tickets').select('*, profiles!tenant_id(full_name)').eq('id', ticketId).single();
+            const { data: ticket } = await _supabase.from('tickets').select('*, profiles!tickets_tenant_id_fkey(full_name)').eq('id', ticketId).single();
             if(!ticket) return;
 
             container.innerHTML = `
@@ -1227,7 +1225,8 @@
         }
 
         async function fetchChatMessages(ticketId, silent = false) {
-            const { data, error } = await _supabase.from('ticket_messages').select('*, profiles!sender_id(full_name, role)').eq('ticket_id', ticketId).order('created_at', { ascending: true });
+            // Hier auch expliziter Name für Absender-Join (falls nötig, ansonsten 'profiles' belassen, da es meist eindeutig ist in ticket_messages)
+            const { data, error } = await _supabase.from('ticket_messages').select('*, profiles(full_name, role)').eq('ticket_id', ticketId).order('created_at', { ascending: true });
             if (error) return;
 
             const box = document.getElementById('chat-messages');
@@ -1239,27 +1238,29 @@
                     const wrapperClass = isMe ? "justify-end" : "justify-start";
                     const alignClass = isMe ? "items-end" : "items-start";
                     
-                    // Design der Blasen
                     const bgClass = isMe 
-                        ? "bg-hb-olive text-white rounded-[20px] rounded-br-[4px] shadow-sm" 
-                        : "bg-white text-hb-offblack border border-gray-100 rounded-[20px] rounded-bl-[4px] shadow-sm";
+                        ? "bg-hb-olive text-white rounded-[18px] rounded-br-sm shadow-sm" 
+                        : "bg-white text-hb-offblack border border-gray-100 rounded-[18px] rounded-bl-sm shadow-sm";
                     
                     const senderName = isMe ? "Ich" : (msg.profiles?.full_name || 'System');
                     
                     let attachmentHtml = "";
                     if (msg.attachment_path) {
                         const btnClass = isMe 
-                            ? "text-white hover:bg-white/10" 
-                            : "text-hb-olive hover:bg-hb-olive/5";
+                            ? "bg-white/20 hover:bg-white/30 text-white" 
+                            : "bg-gray-100 hover:bg-gray-200 text-hb-olive";
                             
                         attachmentHtml = `
-                        <div class="mt-3 pt-3 border-t ${isMe ? 'border-white/20' : 'border-gray-100'}">
-                            <button type="button" onclick="viewDoc('${msg.attachment_path}', 'ticket_attachments')" class="text-xs font-bold flex items-center gap-2 px-3 py-2 -ml-3 rounded-lg transition-colors ${btnClass}">
+                        <div class="mt-2 pt-2 border-t ${isMe ? 'border-white/20' : 'border-gray-100'}">
+                            <button type="button" onclick="viewDoc('${msg.attachment_path}', 'ticket_attachments')" class="text-xs font-bold flex items-center justify-center gap-2 w-full py-2 px-3 rounded-lg transition-colors ${btnClass}">
                                 <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg> 
-                                Anhang ansehen
+                                Anhang anzeigen
                             </button>
                         </div>`;
                     }
+
+                    // WICHTIG: .trim() schneidet unnötige Leerzeilen weg, die in der Textbox mitgesendet wurden
+                    const cleanMessage = msg.message ? msg.message.trim() : '';
 
                     return `
                     <div class="flex w-full ${wrapperClass} mb-4 message-appear">
@@ -1268,8 +1269,8 @@
                                 <span class="text-[10px] uppercase tracking-widest text-gray-400 font-bold">${senderName}</span>
                                 <span class="text-[10px] text-gray-400 font-medium">${new Date(msg.created_at).toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'})}</span>
                             </div>
-                            <div class="px-5 py-3 text-[15px] leading-relaxed whitespace-pre-wrap break-words text-left inline-block ${bgClass}" style="width: fit-content;">
-                                ${msg.message}
+                            <div class="px-4 py-2.5 text-[15px] leading-snug whitespace-pre-wrap break-words text-left inline-block w-fit max-w-full ${bgClass}">
+                                ${cleanMessage}
                                 ${attachmentHtml}
                             </div>
                         </div>
@@ -1321,7 +1322,7 @@
             const isAdmin = userProfile.role === 'admin';
             let tenantOptions = '';
             if (isAdmin) {
-                const { data: tenants } = await _supabase.from('profiles').select('id, full_name, apartments(apartment_number)').eq('role', 'tenant');
+                const { data: tenants } = await _supabase.from('profiles').select('id, full_name, apartments!profiles_apartment_id_fkey(apartment_number)').eq('role', 'tenant');
                 tenantOptions = tenants?.map(t => `<option value="${t.id}">${t.full_name} (WE ${t.apartments?.apartment_number || ''})</option>`).join('') || '';
             }
 
