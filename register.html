@@ -123,11 +123,16 @@
             btn.textContent = 'Prüfe Einladung...';
 
             try {
-                // 1. Prüfen ob der Einladungscode in der Tabelle existiert (wird im nächsten Schritt im Dashboard gebaut)
+                // 1. Prüfen ob der Einladungscode existiert
                 const { data: inviteData, error: inviteError } = await _supabase.from('invitations').select('*').eq('code', code).single();
                 
-                // HINWEIS: Solange wir die invitations Tabelle noch nicht haben, lassen wir die Registrierung als "Dummy" durchlaufen, 
-                // um die UI testen zu können. Der echte Check kommt im nächsten Schritt.
+                if (inviteError || !inviteData) {
+                    errBox.textContent = 'Ungültiger Einladungscode. Bitte überprüfen Sie Ihre Eingabe.';
+                    errBox.classList.remove('hidden');
+                    btn.disabled = false;
+                    btn.textContent = 'Account aktivieren';
+                    return;
+                }
                 
                 btn.textContent = 'Erstelle Account...';
                 
@@ -139,18 +144,21 @@
 
                 if (authError) throw authError;
 
-                // 3. Profil anlegen mit der neuen korrekten ID und dem Apartment aus der Einladung
+                // 3. Profil anlegen mit der korrekten ID und dem Apartment aus der Einladung
                 const { error: profileError } = await _supabase.from('profiles').insert([{
                     id: authData.user.id,
                     full_name: name,
                     email: email,
                     role: 'tenant',
-                    // apartment_id: inviteData ? inviteData.apartment_id : null // Wird später aktiviert
+                    apartment_id: inviteData.apartment_id 
                 }]);
 
-                if(profileError && profileError.code !== '23505') { // 23505 = Unique Violation (falls Trigger schon aktiv ist)
+                if(profileError && profileError.code !== '23505') { 
                     console.log("Profile insert status:", profileError);
                 }
+
+                // 4. Einladung als erledigt markieren/löschen (damit der Code nur einmal gilt)
+                await _supabase.from('invitations').delete().eq('code', code);
 
                 // Erfolgsmeldung & Redirect
                 document.getElementById('register-form').style.display = 'none';
