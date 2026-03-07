@@ -466,7 +466,6 @@
             const isAdmin = userProfile.role === 'admin';
             let query = _supabase.from('documents').select('*, profiles:tenant_id (full_name)').order('created_at', { ascending: false });
             
-            // Mieter sehen nur allgemeine Dokumente oder ihre eigenen
             if (!isAdmin) {
                 query = query.or(`tenant_id.is.null,tenant_id.eq.${currentUser.id}`);
             }
@@ -544,7 +543,7 @@
                                 <textarea id="news_content" rows="6" class="w-full border-2 border-gray-50 p-4 focus:outline-none focus:border-hb-olive text-sm bg-hb-ultralight transition-all" placeholder="Schreiben Sie hier Ihre Nachricht..." required></textarea>
                             </div>
                             <div class="flex justify-center gap-4 pt-4 text-left">
-                                <button type="submit" id="news-submit-btn" class="bg-hb-offblack text-white px-16 py-5 text-xs uppercase tracking-[0.3em] font-bold hover:bg-hb-olive transition-all text-balance">Aushang veröffentlichen</button>
+                                <button type="submit" id="news-submit-btn" class="bg-hb-offblack text-white px-16 py-5 text-xs uppercase tracking-widest font-bold hover:bg-hb-olive transition-all text-balance">Aushang veröffentlichen</button>
                                 <button type="button" id="news-cancel-btn" onclick="resetNewsForm()" class="hidden bg-gray-200 text-gray-500 px-8 py-5 text-xs uppercase tracking-widest font-bold hover:bg-gray-300 transition-all">Abbrechen</button>
                             </div>
                         </form>
@@ -574,7 +573,6 @@
         }
 
         async function fetchNews() {
-            // Mieter sehen nur globale News oder die für ihr Gebäude
             let query = _supabase.from('news').select('*, profiles:author_id(full_name), buildings(name)').order('created_at', { ascending: false });
             if (userProfile.role === 'tenant') {
                 if(userProfile.apartments && userProfile.apartments.building_id) {
@@ -711,7 +709,7 @@
         async function fetchTicketsBoard() {
             const isAdmin = userProfile.role === 'admin';
             let query = _supabase.from('tickets')
-                .select('*, profiles!tenant_id(full_name), creator:creator_id(full_name)')
+                .select('*, profiles!tenant_id(full_name)')
                 .neq('status', 'Erledigt')
                 .order('created_at', { ascending: false });
 
@@ -966,10 +964,11 @@
                 category: document.getElementById('nt_category').value,
                 tenant_id: targetTenantId,
                 creator_id: currentUser.id,
+                description: document.getElementById('nt_message').value, // Sichert ab, falls die Spalte nicht Null sein darf
                 status: 'Neu'
             }]).select('id').single();
 
-            if (ticketError) { showToast("Fehler beim Ticket anlegen", "error"); btn.disabled = false; return; }
+            if (ticketError) { showToast("Fehler beim Ticket anlegen: " + ticketError.message, "error"); btn.disabled = false; return; }
 
             const { error: msgError } = await _supabase.from('ticket_messages').insert([{
                 ticket_id: newTicket.id,
