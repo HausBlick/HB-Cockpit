@@ -662,7 +662,7 @@
             const registerUrl = baseUrl + '/register.html';
             
             const subject = encodeURIComponent("Ihre Einladung zum Mieterportal");
-            const body = encodeURIComponent(`Hallo,\n\nhier ist Ihre Einladung zum neuen digitalen Mieterportal.\n\nBitte klicken Sie auf den folgenden Link und geben Sie Ihr gewünschtes Passwort ein, um Ihren Account zu aktivieren:\n\nPortal-Link: ${registerUrl}?code=${code}\n\nIhr persönlicher Einladungscode lautet: ${code}\n\nViele Grüße\nIhre Hausverwaltung`);
+            const body = encodeURIComponent(`Hallo,\n\nhier ist Ihre Einladung zum neuen digitalen Mieterportal.\nIm Portal haben Sie ab jetzt Zugriff auf Ihre Dokumente zum Mietverhältnis, können mit uns Kommunizieren und erhalten aktuelle News und informationen.\n\nBitte klicken Sie auf den folgenden Link und geben Sie Ihr gewünschtes Passwort ein, um Ihren Account zu aktivieren:\n\nPortal-Link: ${registerUrl}?code=${code}\n\nIhr persönlicher Einladungscode lautet: ${code}\n\nViele Grüße\n\nHB Verwaltung`);
             
             window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
         }
