@@ -40,9 +40,9 @@
         .active-link { background-color: #687451 !important; color: white !important; font-weight: 600; box-shadow: 0 4px 10px rgba(104, 116, 81, 0.2); }
         .active-link svg { stroke: white !important; }
         
-        input, select, textarea { border-radius: 15px; background-color: #F9FAF8; border: 1px solid #e5e7eb; transition: all 0.2s; }
+        input, select, textarea { border-radius: 15px; background-color: #F9FAF8; border: 1px solid #e5e7eb; transition: all 0.2s; padding: 16px; }
         input:focus, select:focus, textarea:focus { background-color: white; border-color: #687451; box-shadow: 0 0 0 3px rgba(104, 116, 81, 0.1); outline: none; }
-        input[type="checkbox"] { border-radius: 4px; width: 1.2rem; height: 1.2rem; accent-color: #EB762D; cursor: pointer; }
+        input[type="checkbox"] { border-radius: 4px; width: 1.2rem; height: 1.2rem; accent-color: #EB762D; cursor: pointer; padding: 0; }
         
         .card { background: white; border-radius: 15px; box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03); border: 1px solid rgba(0,0,0,0.02); }
         .btn-primary { background-color: #687451; color: white; border-radius: 15px; transition: all 0.2s; font-weight: 600; }
@@ -164,7 +164,7 @@
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
             const bgColor = type === 'error' ? 'bg-hb-orange' : 'bg-hb-olive';
-            toast.className = `${bgColor} text-white px-8 py-5 rounded-[15px] shadow-2xl flex items-center gap-4 transform transition-all duration-300 translate-y-10 opacity-0`;
+            toast.className = `${bgColor} text-white px-8 py-5 rounded-[15px] shadow-2xl flex items-center gap-4 transform transition-all duration-300 translate-y-10 opacity-0 z-50`;
             toast.innerHTML = `<span class="text-sm font-bold tracking-wide">${message}</span>`;
             container.appendChild(toast);
             requestAnimationFrame(() => toast.classList.remove('translate-y-10', 'opacity-0'));
@@ -194,17 +194,16 @@
                 if (!user) { window.location.href = 'index.html'; return; }
                 currentUser = user;
 
-                // 1. Profil laden
+                // 1. Sicheres Laden NUR des Profils (keine Ambiguity Fehler mehr)
                 const { data: profile, error: profileError } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
                 
                 if (profileError || !profile) { 
-                    document.getElementById('welcome-title').textContent = profileError ? `Fehler: ${profileError.message}` : "Profil nicht gefunden."; 
-                    document.getElementById('role-label').textContent = "SYSTEMFEHLER";
+                    document.getElementById('welcome-title').textContent = "Profilfehler"; 
                     return; 
                 }
                 userProfile = profile;
 
-                // 2. Wohnung laden (falls Mieter)
+                // 2. Gebäude separat laden, falls Mieter
                 if (userProfile.role === 'tenant' && userProfile.apartment_id) {
                     const { data: aptData } = await _supabase.from('apartments').select('building_id').eq('id', userProfile.apartment_id).single();
                     if (aptData) userProfile.apartments = { building_id: aptData.building_id };
@@ -212,7 +211,6 @@
 
                 const firstName = profile.full_name ? profile.full_name.split(' ')[0] : 'Nutzer';
                 
-                // Header-Werte setzen
                 document.getElementById('welcome-title').textContent = "Hallo, " + firstName + "!";
                 document.getElementById('role-label').textContent = profile.role === 'admin' ? 'Vermieter Cockpit' : 'Mieter Portal';
                 document.getElementById('user-avatar').textContent = firstName.charAt(0).toUpperCase();
@@ -226,8 +224,8 @@
 
         function renderNav(role) {
             const nav = document.getElementById('nav-links');
-            const itemClass = "nav-link flex items-center gap-4 p-3 text-sm font-semibold text-hb-offblack cursor-pointer text-left";
-            const sectionClass = "pt-8 pb-3 px-4 text-[10px] uppercase tracking-widest font-extrabold text-gray-400 text-left";
+            const itemClass = "nav-link flex items-center gap-4 p-4 text-base font-semibold text-hb-offblack cursor-pointer text-left";
+            const sectionClass = "pt-8 pb-3 px-4 text-xs uppercase tracking-widest font-extrabold text-gray-400 text-left";
             
             if (role === 'admin') {
                 nav.innerHTML = `
@@ -274,25 +272,25 @@
         }
 
         // --- ZENTRALE VORSCHAU FUNKTION & "NEU" STATUS ENTFERNEN ---
-        async function viewDoc(docId, path, bucket = 'documents') {
-            // "Neu" Flag reparieren, falls es die Dokumentencloud ist
+        async function viewDoc(docId, path, readByStr, bucket = 'documents') {
+            // "Neu" Flag reparieren
             if (docId && bucket === 'documents' && userProfile.role === 'tenant') {
-                 // Lade aktuelles read_by array aus der DB um Fehler durch HTML Stringify zu vermeiden
-                 const { data: currentDoc } = await _supabase.from('documents').select('read_by').eq('id', docId).single();
-                 let readBy = currentDoc?.read_by || [];
+                 let readBy = [];
+                 try { readBy = JSON.parse(readByStr); } catch(e){}
                  
                  if(!readBy.includes(currentUser.id)) {
                      readBy.push(currentUser.id);
-                     // Im Hintergrund updaten
                      await _supabase.from('documents').update({read_by: readBy}).eq('id', docId);
-                     if(document.getElementById('docs-content')) fetchDocuments(); 
+                     // Badge sofort im DOM verstecken für flüssige Experience
+                     const badge = document.getElementById('badge-' + docId);
+                     if(badge) badge.remove();
                  }
             }
 
-            // Signed URL für die temporäre Vorschau im Browser generieren
+            // Signed URL generieren
             const { data, error } = await _supabase.storage.from(bucket).createSignedUrl(path, 3600); 
             if (error) { 
-                showToast("Fehler beim Öffnen der Datei", "error"); 
+                showToast("Fehler beim Öffnen", "error"); 
                 return; 
             }
             window.open(data.signedUrl, '_blank');
@@ -302,7 +300,7 @@
         async function loadDashboard() {
             const container = document.getElementById('content-area');
             const isAdmin = userProfile.role === 'admin';
-            container.innerHTML = `<div class="text-gray-400 italic text-sm text-left">Lade Übersicht...</div>`;
+            container.innerHTML = `<div class="text-gray-400 italic text-base text-left">Lade Übersicht...</div>`;
 
             if (isAdmin) {
                 const [aptData, profData, tickData] = await Promise.all([
@@ -315,17 +313,17 @@
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 text-left">
                         <div class="card p-8 flex flex-col justify-center cursor-pointer hover:border-hb-olive transition-all transform hover:-translate-y-1 text-left" onclick="loadTickets(); setActiveNav('nav-tickets')">
                             <div class="text-hb-orange mb-4 text-left">${icons.tickets}</div>
-                            <h3 class="text-4xl font-extrabold text-hb-offblack text-left">${tickData.count || 0}</h3>
+                            <h3 class="text-5xl font-extrabold text-hb-offblack text-left">${tickData.count || 0}</h3>
                             <p class="text-sm uppercase tracking-widest font-bold text-gray-400 mt-2 text-left">Offene Tickets</p>
                         </div>
                         <div class="card p-8 flex flex-col justify-center cursor-pointer hover:border-hb-olive transition-all transform hover:-translate-y-1 text-left" onclick="loadUserManagement(); setActiveNav('nav-users')">
                             <div class="text-hb-olive mb-4 text-left">${icons.users}</div>
-                            <h3 class="text-4xl font-extrabold text-hb-offblack text-left">${profData.count || 0}</h3>
+                            <h3 class="text-5xl font-extrabold text-hb-offblack text-left">${profData.count || 0}</h3>
                             <p class="text-sm uppercase tracking-widest font-bold text-gray-400 mt-2 text-left">Aktive Mieter</p>
                         </div>
                         <div class="card p-8 flex flex-col justify-center cursor-pointer hover:border-hb-olive transition-all transform hover:-translate-y-1 text-left" onclick="loadTenants(); setActiveNav('nav-apartments')">
                             <div class="text-hb-olive mb-4 text-left">${icons.buildings}</div>
-                            <h3 class="text-4xl font-extrabold text-hb-offblack text-left">${aptData.count || 0}</h3>
+                            <h3 class="text-5xl font-extrabold text-hb-offblack text-left">${aptData.count || 0}</h3>
                             <p class="text-sm uppercase tracking-widest font-bold text-gray-400 mt-2 text-left">Verwaltete Einheiten</p>
                         </div>
                     </div>
@@ -333,9 +331,9 @@
                         <div class="absolute top-0 right-0 opacity-10 transform translate-x-8 -translate-y-8">
                             <svg class="w-48 h-48" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 12h3v8h6v-6h2v6h6v-8h3L12 2z"/></svg>
                         </div>
-                        <h2 class="text-2xl font-extrabold mb-3 relative z-10 text-left text-balance">Willkommen im Mieterportal</h2>
-                        <p class="text-hb-ultralight text-sm relative z-10 max-w-2xl text-left text-balance">Ihre Immobilienverwaltung. Kaufmännisch präzise. Technisch weitsichtig.</p>
-                        <button onclick="openNewTicketModal()" class="mt-8 bg-white text-hb-olive px-8 py-3 rounded-[15px] text-sm font-bold shadow-lg hover:shadow-xl transition-all relative z-10 text-left">+ Neues Ticket erstellen</button>
+                        <h2 class="text-3xl font-extrabold mb-3 relative z-10 text-left text-balance">Willkommen im Mieterportal</h2>
+                        <p class="text-hb-ultralight text-lg relative z-10 max-w-2xl text-left text-balance">Ihre Immobilienverwaltung. Kaufmännisch präzise. Technisch weitsichtig.</p>
+                        <button onclick="openNewTicketModal()" class="mt-8 bg-white text-hb-olive px-10 py-4 rounded-[15px] text-base font-bold shadow-lg hover:shadow-xl transition-all relative z-10 text-left">+ Neues Ticket erstellen</button>
                     </div>
                 `;
             } else {
@@ -344,14 +342,14 @@
                     _supabase.from('news').select('*').order('created_at', { ascending: false }).limit(1)
                 ]);
 
-                let latestNewsHtml = '<p class="text-sm text-gray-500 text-left">Keine Neuigkeiten vorhanden.</p>';
+                let latestNewsHtml = '<p class="text-base text-gray-500 text-left">Keine Neuigkeiten vorhanden.</p>';
                 if(newsData.data && newsData.data.length > 0) {
                     const n = newsData.data[0];
                     latestNewsHtml = `
                         <div class="bg-gray-50 p-6 rounded-[15px] border border-gray-100 text-left">
                             <span class="text-xs uppercase tracking-widest font-bold text-hb-olive mb-2 block text-left">${n.category}</span>
-                            <h4 class="text-lg font-bold text-hb-offblack mb-3 text-left text-balance">${n.title}</h4>
-                            <button onclick="loadNews(); setActiveNav('nav-news')" class="text-sm font-semibold text-hb-orange flex items-center gap-2 hover:underline text-left">Zum Schwarzen Brett <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+                            <h4 class="text-xl font-extrabold text-hb-offblack mb-4 text-left text-balance">${n.title}</h4>
+                            <button onclick="loadNews(); setActiveNav('nav-news')" class="text-base font-bold text-hb-orange flex items-center gap-2 hover:underline text-left">Zum Schwarzen Brett <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
                         </div>
                     `;
                 }
@@ -360,17 +358,17 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 text-left">
                         <div class="card p-8 flex flex-col justify-center cursor-pointer hover:border-hb-olive transition-all text-left" onclick="loadTickets(); setActiveNav('nav-tickets')">
                             <div class="text-hb-orange mb-4 text-left">${icons.tickets}</div>
-                            <h3 class="text-4xl font-extrabold text-hb-offblack text-left">${tickData.count || 0}</h3>
-                            <p class="text-sm uppercase tracking-widest font-semibold text-gray-400 mt-2 text-left">Meine Offenen Meldungen</p>
+                            <h3 class="text-5xl font-extrabold text-hb-offblack text-left">${tickData.count || 0}</h3>
+                            <p class="text-sm uppercase tracking-widest font-bold text-gray-400 mt-2 text-left">Meine Offenen Meldungen</p>
                         </div>
                         <div class="card p-8 flex flex-col justify-center cursor-pointer hover:border-hb-olive transition-all text-left" onclick="loadDocuments(); setActiveNav('nav-docs')">
                             <div class="text-hb-olive mb-4 text-left">${icons.docs}</div>
-                            <h3 class="text-xl font-bold text-hb-offblack mt-2 mb-1 text-left">Dokumenten-Cloud</h3>
-                            <p class="text-sm font-medium text-gray-500 text-left">Aktuelle Abrechnungen einsehen</p>
+                            <h3 class="text-2xl font-extrabold text-hb-offblack mt-2 mb-1 text-left">Dokumenten-Cloud</h3>
+                            <p class="text-base font-medium text-gray-500 text-left">Aktuelle Abrechnungen einsehen</p>
                         </div>
                     </div>
-                    <div class="card p-8 text-left">
-                        <h3 class="text-xl font-extrabold text-hb-offblack mb-5 flex items-center gap-2 text-left">${icons.news} Aktuelles im Haus</h3>
+                    <div class="card p-10 text-left">
+                        <h3 class="text-2xl font-extrabold text-hb-offblack mb-6 flex items-center gap-3 text-left">${icons.news} Aktuelles im Haus</h3>
                         ${latestNewsHtml}
                     </div>
                 `;
@@ -382,47 +380,47 @@
             const container = document.getElementById('content-area');
             
             container.innerHTML = `
-                <div class="card p-8 md:p-12 mb-8 text-left">
-                    <h2 class="text-2xl font-bold mb-8 uppercase tracking-widest text-hb-offblack text-left">Mein Profil</h2>
+                <div class="card p-10 md:p-12 mb-8 text-left">
+                    <h2 class="text-2xl font-extrabold mb-10 uppercase tracking-widest text-hb-offblack text-left">Mein Profil</h2>
                     
-                    <form id="profile-update-form" class="space-y-6 max-w-2xl text-left">
-                        <h3 class="text-sm font-bold uppercase tracking-widest text-hb-olive border-b border-gray-100 pb-2 mb-4 text-left">Persönliche Daten</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5 text-left">
+                    <form id="profile-update-form" class="space-y-8 max-w-2xl text-left">
+                        <h3 class="text-base font-bold uppercase tracking-widest text-hb-olive border-b border-gray-100 pb-3 mb-6 text-left">Persönliche Daten</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
                             <div class="col-span-1 md:col-span-2 text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Vollständiger Name</label>
-                                <input type="text" id="profile_name" value="${userProfile.full_name || ''}" class="w-full p-3 text-sm text-left" required>
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Vollständiger Name</label>
+                                <input type="text" id="profile_name" value="${userProfile.full_name || ''}" class="w-full p-4 text-base text-left" required>
                             </div>
                             <div class="text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Geburtsdatum</label>
-                                <input type="date" id="profile_birthday" value="${userProfile.birthday || ''}" class="w-full p-3 text-sm text-gray-700 text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Geburtsdatum</label>
+                                <input type="date" id="profile_birthday" value="${userProfile.birthday || ''}" class="w-full p-4 text-base text-gray-700 text-left">
                             </div>
-                            <div class="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-5 text-left">
+                            <div class="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
                                 <div class="text-left">
-                                    <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Telefon (Festnetz)</label>
-                                    <input type="text" id="profile_phone" value="${userProfile.phone || ''}" class="w-full p-3 text-sm text-left">
+                                    <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Telefon (Festnetz)</label>
+                                    <input type="text" id="profile_phone" value="${userProfile.phone || ''}" class="w-full p-4 text-base text-left">
                                 </div>
                                 <div class="text-left">
-                                    <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Mobil</label>
-                                    <input type="text" id="profile_mobile" value="${userProfile.mobile || ''}" class="w-full p-3 text-sm text-left">
+                                    <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Mobil</label>
+                                    <input type="text" id="profile_mobile" value="${userProfile.mobile || ''}" class="w-full p-4 text-base text-left">
                                 </div>
                             </div>
                             <div class="col-span-1 md:col-span-2 mt-4 text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">E-Mail (Login)</label>
-                                <input type="email" id="profile_email" value="${currentUser.email}" class="w-full p-3 bg-gray-50 text-gray-500 text-sm cursor-not-allowed text-left" disabled title="E-Mail Änderung bitte über den Support anfragen">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">E-Mail (Login)</label>
+                                <input type="email" id="profile_email" value="${currentUser.email}" class="w-full p-4 bg-gray-50 text-gray-500 text-base cursor-not-allowed text-left" disabled title="E-Mail Änderung bitte über den Support anfragen">
                                 <p class="text-xs text-gray-400 mt-2 text-left">E-Mail-Änderungen sind aktuell aus Sicherheitsgründen gesperrt.</p>
                             </div>
                         </div>
-                        <button type="submit" id="btn-update-profile" class="btn-primary px-8 py-3 text-sm uppercase tracking-widest font-bold mt-6 text-left">Daten Speichern</button>
+                        <button type="submit" id="btn-update-profile" class="btn-primary px-10 py-4 text-base uppercase tracking-widest font-bold mt-6 text-left">Daten Speichern</button>
                     </form>
 
-                    <form id="password-update-form" class="space-y-6 max-w-2xl mt-12 text-left">
-                        <h3 class="text-sm font-bold uppercase tracking-widest text-hb-olive border-b border-gray-100 pb-2 mb-4 text-left">Passwort ändern</h3>
+                    <form id="password-update-form" class="space-y-8 max-w-2xl mt-16 text-left">
+                        <h3 class="text-base font-bold uppercase tracking-widest text-hb-olive border-b border-gray-100 pb-3 mb-6 text-left">Passwort ändern</h3>
                         <div class="space-y-4 text-left">
                             <div class="text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Neues Passwort</label>
-                                <input type="password" id="new_password" class="w-full p-3 text-sm text-left" placeholder="Mindestens 6 Zeichen" required minlength="6">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Neues Passwort</label>
+                                <input type="password" id="new_password" class="w-full p-4 text-base text-left" placeholder="Mindestens 6 Zeichen" required minlength="6">
                             </div>
-                            <button type="submit" id="btn-update-password" class="btn-primary px-8 py-3 text-sm uppercase tracking-widest font-bold mt-4 text-left">Passwort aktualisieren</button>
+                            <button type="submit" id="btn-update-password" class="btn-primary px-10 py-4 text-base uppercase tracking-widest font-bold mt-4 text-left">Passwort aktualisieren</button>
                         </div>
                     </form>
                 </div>
@@ -488,40 +486,40 @@
             const buildingOptions = buildings?.map(b => `<option value="${b.id}">${b.name}</option>`).join('') || '';
 
             container.innerHTML = `
-                <div class="card p-8 md:p-12 mb-8 text-left">
-                    <h2 id="form-title" class="text-2xl font-bold mb-8 uppercase tracking-widest text-hb-offblack text-left">Einheit erfassen</h2>
-                    <form id="apartment-form" class="space-y-6 text-left">
+                <div class="card p-10 md:p-12 mb-8 text-left">
+                    <h2 id="form-title" class="text-2xl font-extrabold mb-10 uppercase tracking-widest text-hb-offblack text-left">Einheit erfassen</h2>
+                    <form id="apartment-form" class="space-y-8 text-left">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
                             <div class="space-y-2 text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest text-left">Objekt auswählen</label>
-                                <select id="b_id" class="w-full p-3 text-sm text-left" required>
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest text-left mb-1">Objekt auswählen</label>
+                                <select id="b_id" class="w-full p-4 text-base text-left" required>
                                     <option value="" disabled selected>Bitte wählen...</option>
                                     ${buildingOptions}
                                 </select>
                             </div>
                             <div class="space-y-2 text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest text-left">Wohnungsnummer</label>
-                                <input type="text" id="apt_no" class="w-full p-3 text-sm text-left" placeholder="z.B. 1.OG Links" required>
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest text-left mb-1">Wohnungsnummer</label>
+                                <input type="text" id="apt_no" class="w-full p-4 text-base text-left" placeholder="z.B. 1.OG Links" required>
                             </div>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-                            <div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 mb-1 text-left">Kaltmiete (€)</label><input type="number" id="rent" class="w-full p-3 text-sm text-left" step="0.01"></div>
-                            <div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 mb-1 text-left">Nebenkosten (€)</label><input type="number" id="utils" class="w-full p-3 text-sm text-left" step="0.01"></div>
-                            <div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 mb-1 text-left">Fläche (m²)</label><input type="number" id="sq_m" class="w-full p-3 text-sm text-left" step="0.1"></div>
+                            <div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 mb-2 text-left">Kaltmiete (€)</label><input type="number" id="rent" class="w-full p-4 text-base text-left" step="0.01"></div>
+                            <div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 mb-2 text-left">Nebenkosten (€)</label><input type="number" id="utils" class="w-full p-4 text-base text-left" step="0.01"></div>
+                            <div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 mb-2 text-left">Fläche (m²)</label><input type="number" id="sq_m" class="w-full p-4 text-base text-left" step="0.1"></div>
                         </div>
                         <div class="pt-6 border-t border-gray-50 grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-                            <div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 mb-1 text-left">Stromzähler-Nr.</label><input type="text" id="m_elec" class="w-full p-3 text-sm text-left" placeholder="Optional"></div>
-                            <div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 mb-1 text-left">Wasserzähler-Nr.</label><input type="text" id="m_water" class="w-full p-3 text-sm text-left" placeholder="Optional"></div>
-                            <div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 mb-1 text-left">Wärmezähler-Nr.</label><input type="text" id="m_heat" class="w-full p-3 text-sm text-left" placeholder="Optional"></div>
+                            <div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 mb-2 text-left">Stromzähler-Nr.</label><input type="text" id="m_elec" class="w-full p-4 text-base text-left" placeholder="Optional"></div>
+                            <div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 mb-2 text-left">Wasserzähler-Nr.</label><input type="text" id="m_water" class="w-full p-4 text-base text-left" placeholder="Optional"></div>
+                            <div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 mb-2 text-left">Wärmezähler-Nr.</label><input type="text" id="m_heat" class="w-full p-4 text-base text-left" placeholder="Optional"></div>
                         </div>
                         <div class="pt-6 flex gap-4 text-left">
-                            <button type="submit" id="submit-btn" class="btn-primary px-8 py-3 text-sm text-left">Einheit Speichern</button>
-                            <button type="button" id="cancel-btn" onclick="resetForm()" class="hidden bg-gray-100 text-gray-600 px-8 py-3 rounded-[15px] text-sm font-semibold hover:bg-gray-200 text-left">Abbrechen</button>
+                            <button type="submit" id="submit-btn" class="btn-primary px-10 py-4 text-base text-left">Einheit Speichern</button>
+                            <button type="button" id="cancel-btn" onclick="resetForm()" class="hidden bg-gray-100 text-gray-600 px-10 py-4 rounded-[15px] text-base font-bold hover:bg-gray-200 text-left transition-colors">Abbrechen</button>
                         </div>
                     </form>
                 </div>
-                <div class="card p-8 md:p-12 text-left">
-                    <h2 class="text-2xl font-bold mb-8 uppercase tracking-widest text-hb-offblack text-left">Bestands-Liste</h2>
+                <div class="card p-10 md:p-12 text-left">
+                    <h2 class="text-2xl font-extrabold mb-10 uppercase tracking-widest text-hb-offblack text-left">Bestands-Liste</h2>
                     <div id="tenants-list" class="space-y-4 text-left">Lade Daten...</div>
                 </div>
             `;
@@ -530,34 +528,41 @@
         }
 
         async function fetchApartments() {
-            // Abfrage explizit ohne foreign key alias, falls dieser Supabase verwirrt.
-            const { data, error } = await _supabase.from('apartments').select('*, buildings (*), profiles(full_name)').order('apartment_number');
+            // Abfrage aufgeteilt und in JS gemappt, um "Mehrdeutige Beziehungen" zu vermeiden!
+            const { data: aptData, error: aptError } = await _supabase.from('apartments').select('*, buildings(*)').order('apartment_number');
+            const { data: profData } = await _supabase.from('profiles').select('full_name, apartment_id').eq('role', 'tenant');
+            
             const list = document.getElementById('tenants-list');
-            if (error) { list.innerHTML = `<p class="text-red-500 text-sm text-left">Fehler: ${error.message}</p>`; return; }
-            if (data && data.length > 0) {
+            if (aptError) { list.innerHTML = `<p class="text-red-500 text-base text-left">Fehler: ${aptError.message}</p>`; return; }
+            
+            if (aptData && aptData.length > 0) {
                 let currentB = "";
-                list.innerHTML = data.map(apt => {
-                    let header = (currentB !== apt.buildings?.name) ? `<div class="bg-hb-ultralight px-4 py-2 mt-8 mb-3 rounded-lg text-xs font-bold uppercase tracking-widest text-hb-olive text-left">${apt.buildings?.name || "Nicht zugeordnet"}</div>` : "";
+                list.innerHTML = aptData.map(apt => {
+                    let header = (currentB !== apt.buildings?.name) ? `<div class="bg-hb-ultralight px-5 py-3 mt-10 mb-4 rounded-xl text-xs font-black uppercase tracking-widest text-hb-olive text-left border border-gray-100">${apt.buildings?.name || "Nicht zugeordnet"}</div>` : "";
                     currentB = apt.buildings?.name;
-                    const names = apt.profiles && apt.profiles.length > 0 ? apt.profiles.map(p => p.full_name).join(', ') : 'LEERSTEHEND';
+                    
+                    // Mieter per JS filtern
+                    const tenantProfiles = profData ? profData.filter(p => p.apartment_id === apt.id) : [];
+                    const names = tenantProfiles.length > 0 ? tenantProfiles.map(p => p.full_name).join(', ') : 'LEERSTEHEND';
+                    
                     return header + `
-                        <div class="flex flex-wrap justify-between items-center p-6 bg-white border border-gray-100 rounded-[15px] hover:border-hb-olive transition-colors gap-4 group text-left">
+                        <div class="flex flex-col md:flex-row justify-between md:items-center p-8 bg-white border border-gray-100 rounded-[15px] hover:border-hb-olive transition-all shadow-sm gap-6 group text-left">
                             <div class="flex-1 min-w-[200px] text-left">
-                                <h3 class="font-bold text-lg text-hb-offblack text-left">${apt.apartment_number}</h3>
-                                <p class="text-sm text-gray-500 font-medium mt-1 text-left">${apt.sq_meters || '0'} m² | Mieter: <span class="font-bold text-hb-offblack text-left">${names}</span></p>
+                                <h3 class="font-black text-xl text-hb-offblack text-left">${apt.apartment_number}</h3>
+                                <p class="text-base text-gray-500 mt-2 text-left">${apt.sq_meters || '0'} m² | Mieter: <span class="font-extrabold text-hb-offblack text-left">${names}</span></p>
                             </div>
-                            <div class="w-full lg:w-auto grid grid-cols-3 gap-6 bg-gray-50 p-4 rounded-xl border border-gray-100 min-w-[300px] text-left">
-                                <div class="text-left"><p class="text-[10px] uppercase text-gray-400 font-bold text-center text-left">Strom</p><p class="text-sm font-bold text-center mt-1 text-left">${apt.meter_electricity || '-'}</p></div>
-                                <div class="text-left"><p class="text-[10px] uppercase text-gray-400 font-bold text-center text-left">Wasser</p><p class="text-sm font-bold text-center mt-1 text-left">${apt.meter_water || '-'}</p></div>
-                                <div class="text-left"><p class="text-[10px] uppercase text-gray-400 font-bold text-center text-left">Heizung</p><p class="text-sm font-bold text-center mt-1 text-left">${apt.meter_heating || '-'}</p></div>
+                            <div class="w-full md:w-auto grid grid-cols-3 gap-6 bg-gray-50/80 p-5 rounded-2xl border border-gray-100 min-w-[320px] text-left">
+                                <div class="text-left"><p class="text-[10px] uppercase text-gray-400 font-extrabold text-center text-left tracking-widest">Strom</p><p class="text-base font-bold text-center mt-2 text-left">${apt.meter_electricity || '-'}</p></div>
+                                <div class="text-left"><p class="text-[10px] uppercase text-gray-400 font-extrabold text-center text-left tracking-widest">Wasser</p><p class="text-base font-bold text-center mt-2 text-left">${apt.meter_water || '-'}</p></div>
+                                <div class="text-left"><p class="text-[10px] uppercase text-gray-400 font-extrabold text-center text-left tracking-widest">Heizung</p><p class="text-base font-bold text-center mt-2 text-left">${apt.meter_heating || '-'}</p></div>
                             </div>
-                            <div class="text-right min-w-[120px] flex flex-col items-end gap-2 text-left">
-                                <p class="text-base font-bold text-hb-olive text-left">${(parseFloat(apt.rent_amount || 0) + parseFloat(apt.utilities_amount || 0)).toFixed(2)} €</p>
-                                <button onclick="editApartment('${apt.id}')" class="text-xs uppercase font-bold text-gray-400 hover:text-hb-olive transition-colors text-left">Bearbeiten</button>
+                            <div class="text-left md:text-right min-w-[120px] flex flex-row md:flex-col items-center md:items-end justify-between md:justify-center gap-3 text-left">
+                                <p class="text-lg font-black text-hb-olive text-left">${(parseFloat(apt.rent_amount || 0) + parseFloat(apt.utilities_amount || 0)).toFixed(2)} €</p>
+                                <button onclick="editApartment('${apt.id}')" class="text-xs uppercase font-extrabold text-gray-400 hover:text-hb-olive transition-colors text-left bg-gray-50 md:bg-transparent px-4 py-2 md:p-0 rounded-lg md:rounded-none">Bearbeiten</button>
                             </div>
                         </div>`;
                 }).join('');
-            } else { list.innerHTML = `<p class="text-gray-400 italic text-sm text-left">Keine Einheiten vorhanden.</p>`; }
+            } else { list.innerHTML = `<p class="text-gray-400 italic text-base text-left">Keine Einheiten vorhanden.</p>`; }
         }
 
         async function handleSaveApartment(e) {
@@ -611,42 +616,42 @@
             const aptOptions = apartments?.map(a => `<option value="${a.id}">${a.buildings.name}: ${a.apartment_number}</option>`).join('') || '';
 
             container.innerHTML = `
-                <div class="card p-8 md:p-12 mb-8 text-left">
-                    <h2 class="text-2xl font-bold mb-8 uppercase tracking-widest text-hb-offblack text-left">Mieter einladen</h2>
+                <div class="card p-10 md:p-12 mb-8 text-left">
+                    <h2 class="text-2xl font-extrabold mb-10 uppercase tracking-widest text-hb-offblack text-left">Mieter einladen</h2>
                     <form id="tenant-invite-form" class="space-y-6 text-left">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
                             <div class="space-y-2 text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest text-left">Vollständiger Name</label>
-                                <input type="text" id="tenant_name" class="w-full p-3 text-sm text-left" placeholder="Vorname Nachname" required>
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest text-left mb-2">Vollständiger Name</label>
+                                <input type="text" id="tenant_name" class="w-full p-4 text-base text-left" placeholder="Vorname Nachname" required>
                             </div>
                             <div class="space-y-2 text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest text-left">E-Mail Adresse</label>
-                                <input type="email" id="tenant_email" class="w-full p-3 text-sm text-left" placeholder="mail@beispiel.de" required>
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest text-left mb-2">E-Mail Adresse</label>
+                                <input type="email" id="tenant_email" class="w-full p-4 text-base text-left" placeholder="mail@beispiel.de" required>
                             </div>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
                             <div class="space-y-2 text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest text-left">Einheit zuweisen</label>
-                                <select id="tenant_apt_id" class="w-full p-3 text-sm text-left" required>
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest text-left mb-2">Einheit zuweisen</label>
+                                <select id="tenant_apt_id" class="w-full p-4 text-base text-left" required>
                                     <option value="" disabled selected>Bitte wählen...</option>
                                     ${aptOptions}
                                 </select>
                             </div>
-                            <div class="flex items-end text-left">
-                                <button type="submit" id="create-invite-btn" class="btn-primary px-8 py-3 text-sm w-full text-left">Einladung generieren</button>
+                            <div class="flex items-end text-left pt-2">
+                                <button type="submit" id="create-invite-btn" class="btn-primary px-10 py-4 text-base w-full text-left">Einladung generieren</button>
                             </div>
                         </div>
                     </form>
                 </div>
                 
-                <div class="card p-8 md:p-12 mb-8 text-left">
-                    <h2 class="text-xl font-bold mb-6 uppercase tracking-widest text-hb-offblack text-left">Ausstehende Einladungen</h2>
-                    <div id="invites-list" class="divide-y divide-gray-100 text-sm text-left">Lade...</div>
+                <div class="card p-10 md:p-12 mb-8 text-left">
+                    <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack text-left">Ausstehende Einladungen</h2>
+                    <div id="invites-list" class="divide-y divide-gray-100 text-base text-left">Lade...</div>
                 </div>
 
-                <div class="card p-8 md:p-12 text-left">
-                    <h2 class="text-xl font-bold mb-6 uppercase tracking-widest text-hb-offblack text-left">Registrierte Mieter</h2>
-                    <div id="user-list" class="divide-y divide-gray-100 text-sm text-left">Lade...</div>
+                <div class="card p-10 md:p-12 text-left">
+                    <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack text-left">Registrierte Mieter</h2>
+                    <div id="user-list" class="divide-y divide-gray-100 text-base text-left">Lade...</div>
                 </div>
             `;
             document.getElementById('tenant-invite-form').addEventListener('submit', handleCreateInvite);
@@ -687,52 +692,54 @@
             const inviteList = document.getElementById('invites-list');
             const userList = document.getElementById('user-list');
 
-            // Fallback Name für Foreign Key, falls es Probleme gab
-            const { data: invites, error: inviteError } = await _supabase
-                .from('invitations')
-                .select('*, apartments!invitations_apartment_id_fkey(apartment_number, buildings(name))')
-                .order('created_at', { ascending: false });
+            // Komplettes JS Mapping für 100% Sicherheit gegen Ambiguity-Errors!
+            const { data: invites, error: inviteError } = await _supabase.from('invitations').select('*'); // sortierung entfernt, falls spalte fehlt
+            const { data: apts } = await _supabase.from('apartments').select('id, apartment_number, buildings(name)');
+            const aptMap = {};
+            if(apts) apts.forEach(a => aptMap[a.id] = a);
             
             if (inviteError) {
                 inviteList.innerHTML = `<p class="text-red-500 py-4 italic text-left">Fehler beim Laden: ${inviteError.message}</p>`;
             } else if (invites && invites.length > 0) {
-                inviteList.innerHTML = invites.map(i => `
-                    <div class="py-5 flex justify-between items-center group bg-yellow-50/50 px-5 rounded-xl mb-3 border border-yellow-100 text-left">
+                inviteList.innerHTML = invites.map(i => {
+                    const aptInfo = aptMap[i.apartment_id];
+                    return `
+                    <div class="py-6 flex flex-col md:flex-row md:justify-between md:items-center group bg-yellow-50/50 px-6 rounded-2xl mb-4 border border-yellow-200 text-left gap-4">
                         <div class="text-left">
-                            <p class="font-bold text-hb-offblack text-sm text-left">${i.full_name} <span class="bg-yellow-200 text-yellow-800 text-[10px] px-2 py-1 rounded ml-2 uppercase tracking-widest font-bold">Wartet auf Login</span></p>
-                            <p class="text-xs text-gray-500 font-medium mt-1 text-left">
-                                ${i.email} • Code: <strong class="font-mono text-hb-olive">${i.code}</strong> • ${i.apartments?.buildings?.name || ''} ${i.apartments?.apartment_number || ''}
+                            <p class="font-extrabold text-hb-offblack text-lg text-left">${i.full_name} <span class="bg-yellow-200 text-yellow-800 text-[10px] px-3 py-1 rounded-lg ml-3 uppercase tracking-widest font-black">Wartet auf Login</span></p>
+                            <p class="text-base text-gray-500 font-medium mt-2 text-left">
+                                ${i.email} • Code: <strong class="font-mono text-hb-olive">${i.code}</strong> • ${aptInfo ? `${aptInfo.buildings?.name} WE ${aptInfo.apartment_number}` : ''}
                             </p>
                         </div>
                         <div class="flex gap-4 text-left">
-                            <button onclick="sendInviteEmail('${i.email}', '${i.code}')" class="text-xs font-bold text-hb-olive hover:underline border border-hb-olive px-4 py-2 rounded-lg hover:bg-hb-olive hover:text-white transition-colors text-left">Link via E-Mail senden</button>
-                            <button onclick="deleteInvite('${i.code}')" class="text-xs font-bold text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:underline text-left">Löschen</button>
+                            <button onclick="sendInviteEmail('${i.email}', '${i.code}')" class="text-sm font-bold text-hb-olive hover:underline border border-hb-olive px-5 py-3 rounded-xl hover:bg-hb-olive hover:text-white transition-colors text-left bg-white">E-Mail senden</button>
+                            <button onclick="deleteInvite('${i.code}')" class="text-sm font-bold text-red-500 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity hover:underline text-left">Löschen</button>
                         </div>
-                    </div>`).join('');
-            } else { inviteList.innerHTML = '<p class="py-4 text-gray-400 italic text-sm text-left">Keine ausstehenden Einladungen.</p>'; }
+                    </div>`;
+                }).join('');
+            } else { inviteList.innerHTML = '<p class="py-6 text-gray-400 italic text-base text-left">Keine ausstehenden Einladungen.</p>'; }
 
-            const { data: users, error: usersError } = await _supabase
-                .from('profiles')
-                .select('*, apartments(apartment_number, buildings(name))')
-                .eq('role', 'tenant')
-                .order('full_name');
+            const { data: users, error: usersError } = await _supabase.from('profiles').select('*').eq('role', 'tenant').order('full_name');
             
             if (usersError) {
                 userList.innerHTML = `<p class="text-red-500 py-4 italic text-left">Fehler beim Laden: ${usersError.message}</p>`;
             } else if (users && users.length > 0) {
-                userList.innerHTML = users.map(u => `
-                    <div class="py-5 flex justify-between items-center group text-left">
+                userList.innerHTML = users.map(u => {
+                    const aptInfo = aptMap[u.apartment_id];
+                    return `
+                    <div class="py-6 flex flex-col md:flex-row justify-between md:items-center group text-left gap-4 border-b border-gray-50 last:border-0">
                         <div class="text-left">
-                            <p class="font-bold text-hb-offblack text-sm text-left">${u.full_name} <span class="bg-green-100 text-green-700 text-[10px] px-2 py-1 rounded ml-2 uppercase tracking-widest font-bold">Aktiv</span></p>
-                            <p class="text-xs text-gray-500 font-medium mt-1 text-left">
-                                ${u.email} • ${u.apartments?.buildings?.name || ''} ${u.apartments?.apartment_number || 'Keine Einheit'}
+                            <p class="font-extrabold text-hb-offblack text-lg text-left">${u.full_name} <span class="bg-green-100 text-green-700 text-[10px] px-3 py-1 rounded-lg ml-3 uppercase tracking-widest font-black">Aktiv</span></p>
+                            <p class="text-base text-gray-500 font-medium mt-2 text-left">
+                                ${u.email} • ${aptInfo ? `${aptInfo.buildings?.name} WE ${aptInfo.apartment_number}` : 'Keine Einheit zugewiesen'}
                             </p>
                         </div>
-                        <div class="flex gap-4 text-left">
-                            <button onclick="deleteProfile('${u.id}')" class="text-xs font-bold text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:underline text-left">Account entfernen</button>
+                        <div class="flex text-left">
+                            <button onclick="deleteProfile('${u.id}')" class="text-sm font-bold text-red-500 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity hover:underline text-left bg-red-50 md:bg-transparent px-4 py-2 md:p-0 rounded-lg">Account entfernen</button>
                         </div>
-                    </div>`).join('');
-            } else { userList.innerHTML = '<p class="py-6 text-gray-400 italic text-sm text-left">Keine aktiven Mieter-Accounts.</p>'; }
+                    </div>`;
+                }).join('');
+            } else { userList.innerHTML = '<p class="py-6 text-gray-400 italic text-base text-left">Keine aktiven Mieter-Accounts.</p>'; }
         }
 
         function sendInviteEmail(email, code) {
@@ -771,33 +778,33 @@
             let html = "";
             if (isAdmin) {
                 html += `
-                    <div class="card p-8 md:p-12 mb-8 text-left">
+                    <div class="card p-10 md:p-12 mb-8 text-left">
                         <h2 class="text-2xl font-bold mb-8 text-hb-offblack flex items-center gap-3 text-left">${icons.news} Neuer Aushang</h2>
                         <form id="news-form" class="space-y-6 text-left">
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
                                 <div class="text-left">
-                                    <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Gültig für</label>
-                                    <select id="news_b_id" class="w-full p-3 text-sm text-left"><option value="">Alle Gebäude</option>${buildingOptions}</select>
+                                    <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Gültig für</label>
+                                    <select id="news_b_id" class="w-full p-4 text-base text-left"><option value="">Alle Gebäude</option>${buildingOptions}</select>
                                 </div>
                                 <div class="text-left">
-                                    <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Kategorie</label>
-                                    <select id="news_category" class="w-full p-3 text-sm text-left" required>
+                                    <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Kategorie</label>
+                                    <select id="news_category" class="w-full p-4 text-base text-left" required>
                                         <option value="Information">Information</option><option value="Ankündigung">Ankündigung</option>
                                         <option value="Wartung">Wartung</option><option value="Termin">Termin</option><option value="Dringend">Dringend</option>
                                     </select>
                                 </div>
                                 <div class="text-left">
-                                    <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Titel</label>
-                                    <input type="text" id="news_title" class="w-full p-3 text-sm text-left" placeholder="Kurze Überschrift" required>
+                                    <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Titel</label>
+                                    <input type="text" id="news_title" class="w-full p-4 text-base text-left" placeholder="Kurze Überschrift" required>
                                 </div>
                             </div>
                             <div class="text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Inhalt (Nutze **fett**, *kursiv*, [Titel](URL), --- für Linie)</label>
-                                <textarea id="news_content" rows="5" class="w-full p-3 text-sm text-left" placeholder="Schreiben Sie hier Ihre Nachricht..." required></textarea>
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Inhalt (Nutze **fett**, *kursiv*, [Titel](URL), --- für Linie)</label>
+                                <textarea id="news_content" rows="5" class="w-full p-4 text-base text-left" placeholder="Schreiben Sie hier Ihre Nachricht..." required></textarea>
                             </div>
-                            <div class="flex gap-4 text-left">
-                                <button type="submit" id="news-submit-btn" class="btn-primary px-8 py-3 text-sm text-left">Veröffentlichen</button>
-                                <button type="button" id="news-cancel-btn" onclick="resetNewsForm()" class="hidden bg-gray-100 text-gray-600 px-8 py-3 rounded-[15px] text-sm font-semibold hover:bg-gray-200 text-left">Abbrechen</button>
+                            <div class="flex gap-4 text-left pt-2">
+                                <button type="submit" id="news-submit-btn" class="btn-primary px-10 py-4 text-base text-left">Veröffentlichen</button>
+                                <button type="button" id="news-cancel-btn" onclick="resetNewsForm()" class="hidden bg-gray-100 text-gray-600 px-10 py-4 rounded-[15px] text-base font-bold hover:bg-gray-200 text-left transition-colors">Abbrechen</button>
                             </div>
                         </form>
                     </div>`;
@@ -806,9 +813,9 @@
             html += `
                 <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-8 text-left">
                     <h2 class="text-3xl font-extrabold text-hb-offblack text-left">Blackboard Feed</h2>
-                    <div class="flex gap-3 w-full md:w-auto text-left">
-                        <input type="text" id="news-search" oninput="handleNewsSearch(this.value)" placeholder="Suchen..." class="flex-grow md:w-64 p-3 text-sm border-none shadow-sm rounded-[15px] text-left">
-                        <select id="news-filter-cat" onchange="handleNewsFilter(this.value)" class="p-3 text-sm cursor-pointer border-none bg-white shadow-sm rounded-[15px] text-left">
+                    <div class="flex gap-4 w-full md:w-auto text-left">
+                        <input type="text" id="news-search" oninput="handleNewsSearch(this.value)" placeholder="Suchen..." class="flex-grow md:w-64 p-4 text-base border-none shadow-sm rounded-[15px] text-left">
+                        <select id="news-filter-cat" onchange="handleNewsFilter(this.value)" class="p-4 text-base cursor-pointer border-none bg-white shadow-sm rounded-[15px] text-left">
                             <option value="">Alle</option><option value="Information">Info</option><option value="Ankündigung">Ankündigung</option><option value="Wartung">Wartung</option>
                         </select>
                     </div>
@@ -848,33 +855,33 @@
                     const likeIconColor = hasLiked ? 'text-hb-orange fill-current' : 'text-gray-300';
 
                     return `
-                    <div class="card p-8 md:p-10 text-left">
+                    <div class="card p-10 text-left">
                         <div class="flex justify-between items-start mb-8 text-left">
                             <div class="flex items-center gap-5 text-left">
-                                <div class="w-12 h-12 bg-hb-olive text-white font-bold flex items-center justify-center rounded-full text-base uppercase text-left">${(n.profiles?.full_name || 'HB').charAt(0)}</div>
+                                <div class="w-14 h-14 bg-hb-olive text-white font-extrabold flex items-center justify-center rounded-full text-xl uppercase text-left shadow-sm">${(n.profiles?.full_name || 'HB').charAt(0)}</div>
                                 <div class="text-left">
-                                    <p class="text-sm font-bold text-hb-offblack text-left">${n.profiles?.full_name || 'HB Verwaltung'}</p>
-                                    <p class="text-[10px] text-gray-400 uppercase tracking-widest font-medium mt-1 text-left">${new Date(n.created_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}${isAdmin && n.buildings?.name ? ` • ${n.buildings.name}` : ''}</p>
+                                    <p class="text-lg font-bold text-hb-offblack text-left">${n.profiles?.full_name || 'HB Verwaltung'}</p>
+                                    <p class="text-xs text-gray-400 uppercase tracking-widest font-bold mt-1 text-left">${new Date(n.created_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}${isAdmin && n.buildings?.name ? ` • ${n.buildings.name}` : ''}</p>
                                 </div>
                             </div>
                             <div class="flex flex-col items-end gap-3 text-left">
-                                <span class="px-4 py-1.5 bg-gray-50 text-gray-600 text-[10px] font-bold uppercase tracking-widest rounded-lg border border-gray-100 text-left">${n.category}</span>
+                                <span class="px-5 py-2 bg-gray-50 text-gray-600 text-xs font-bold uppercase tracking-widest rounded-xl border border-gray-100 text-left">${n.category}</span>
                                 ${isAdmin ? `<div class="flex gap-4 mt-2 text-left"><button onclick="editNews('${n.id}')" class="text-xs font-bold text-hb-olive hover:underline text-left">Bearbeiten</button><button onclick="deleteNews('${n.id}')" class="text-xs font-bold text-hb-orange hover:underline text-left">Löschen</button></div>` : ''}
                             </div>
                         </div>
                         <div class="mb-8 text-left">
                             <h3 class="text-2xl font-extrabold text-hb-offblack mb-4 text-left">${n.title}</h3>
-                            <div class="news-content text-sm text-gray-600 leading-relaxed text-left">${formatText(n.content)}</div>
+                            <div class="news-content text-base text-gray-600 leading-relaxed text-left">${formatText(n.content)}</div>
                         </div>
-                        <div class="pt-5 border-t border-gray-50 flex items-center gap-6 text-left">
+                        <div class="pt-6 border-t border-gray-50 flex items-center gap-6 text-left">
                             <button onclick="handleLike('${n.id}')" class="flex items-center gap-3 transition-all hover:opacity-75 text-left" ${hasLiked ? 'title="Bereits geliked"' : ''}>
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 ${likeIconColor}" viewBox="0 0 20 20" stroke="currentColor" stroke-width="1"><path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" /></svg>
-                                <span class="text-sm font-bold ${hasLiked ? 'text-hb-orange' : 'text-gray-400'} text-left">${n.likes || 0}</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 ${likeIconColor}" viewBox="0 0 20 20" stroke="currentColor" stroke-width="1"><path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" /></svg>
+                                <span class="text-lg font-bold ${hasLiked ? 'text-hb-orange' : 'text-gray-400'} text-left">${n.likes || 0}</span>
                             </button>
                         </div>
                     </div>`
                 }).join('');
-            } else { list.innerHTML = '<p class="py-16 text-center text-gray-400 italic text-sm text-left">Keine Einträge gefunden.</p>'; }
+            } else { list.innerHTML = '<p class="py-16 text-center text-gray-400 italic text-base text-left">Keine Einträge gefunden.</p>'; }
         }
 
         async function handleSaveNews(e) {
@@ -950,56 +957,56 @@
                 tenantOptions = tenants?.map(t => `<option value="${t.id}">${t.full_name}</option>`).join('') || '';
 
                 uploadHtml = `
-                    <div class="card p-8 md:p-10 mb-8 text-left border-2 border-dashed border-gray-200 bg-gray-50/50">
-                        <h2 class="text-lg font-bold mb-6 text-hb-offblack text-left">Einzel-Upload (Multi-Upload folgt im nächsten Schritt)</h2>
-                        <form id="upload-form" class="flex flex-col md:flex-row gap-4 items-end text-left">
+                    <div class="card p-8 md:p-12 mb-8 text-left border-2 border-dashed border-gray-200 bg-gray-50/50">
+                        <h2 class="text-xl font-bold mb-6 text-hb-offblack text-left">Einzel-Upload (Multi-Upload folgt im nächsten Schritt)</h2>
+                        <form id="upload-form" class="flex flex-col md:flex-row gap-5 items-end text-left">
                             <div class="flex-grow w-full text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Datei & Titel</label>
-                                <input type="file" id="file-input" class="w-full text-sm text-left p-3 bg-white" required>
-                                <input type="text" id="doc_title" placeholder="Anzeigetitel" class="w-full text-sm text-left mt-2 p-3 bg-white border border-gray-200" required>
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Datei & Titel</label>
+                                <input type="file" id="file-input" class="w-full text-base text-left p-4 bg-white border border-gray-200" required>
+                                <input type="text" id="doc_title" placeholder="Anzeigetitel" class="w-full text-base text-left mt-3 p-4 bg-white border border-gray-200" required>
                             </div>
-                            <div class="w-full md:w-48 flex-shrink-0 text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Kategorie</label>
-                                <select id="doc_category" class="w-full p-3 text-sm bg-white border border-gray-200 text-left">
+                            <div class="w-full md:w-56 flex-shrink-0 text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Kategorie</label>
+                                <select id="doc_category" class="w-full p-4 text-base bg-white border border-gray-200 text-left">
                                     <option value="Abrechnung">Jahresabrechnung</option><option value="Mietvertrag">Mietvertrag</option><option value="Protokoll">Protokoll</option><option value="Sonstiges">Sonstiges</option>
                                 </select>
                             </div>
-                            <div class="w-full md:w-48 flex-shrink-0 text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Sichtbarkeit</label>
-                                <select id="doc_tenant_id" class="w-full p-3 text-sm bg-white border border-gray-200 text-left">
+                            <div class="w-full md:w-56 flex-shrink-0 text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Sichtbarkeit</label>
+                                <select id="doc_tenant_id" class="w-full p-4 text-base bg-white border border-gray-200 text-left">
                                     <option value="">Alle (Allgemein)</option>
                                     ${tenantOptions}
                                 </select>
                             </div>
-                            <button type="submit" id="upload-btn" class="btn-primary px-8 py-3 text-sm w-full md:w-auto h-[46px] text-left flex-shrink-0">Hochladen</button>
+                            <button type="submit" id="upload-btn" class="btn-primary px-8 py-4 text-base w-full md:w-auto text-left flex-shrink-0">Hochladen</button>
                         </form>
                     </div>`;
             }
 
             html = uploadHtml + `
                 <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6 text-left">
-                    <h2 class="text-2xl font-extrabold text-hb-offblack flex items-center gap-3 text-left">${icons.docs} ${isAdmin ? 'Alle Dokumente' : 'Meine Dokumente'}</h2>
-                    <div class="flex gap-3 w-full md:w-auto text-left">
-                        <input type="text" id="doc-search" oninput="handleDocSearch(this.value)" placeholder="Suchen..." class="flex-grow md:w-64 p-3 text-sm border border-gray-200 shadow-sm rounded-[15px] bg-white text-left">
-                        <select id="doc-filter-cat" onchange="handleDocFilter(this.value)" class="p-3 text-sm cursor-pointer border border-gray-200 bg-white shadow-sm rounded-[15px] min-w-[150px] text-left">
+                    <h2 class="text-3xl font-extrabold text-hb-offblack flex items-center gap-3 text-left">${icons.docs} ${isAdmin ? 'Alle Dokumente' : 'Meine Dokumente'}</h2>
+                    <div class="flex gap-4 w-full md:w-auto text-left">
+                        <input type="text" id="doc-search" oninput="handleDocSearch(this.value)" placeholder="Suchen..." class="flex-grow md:w-64 p-4 text-base border border-gray-200 shadow-sm rounded-[15px] bg-white text-left">
+                        <select id="doc-filter-cat" onchange="handleDocFilter(this.value)" class="p-4 text-base cursor-pointer border border-gray-200 bg-white shadow-sm rounded-[15px] min-w-[160px] text-left">
                             <option value="">Alle Kategorien</option><option value="Abrechnung">Abrechnung</option><option value="Mietvertrag">Vertrag</option><option value="Protokoll">Protokoll</option><option value="Sonstiges">Sonstiges</option>
                         </select>
                     </div>
                 </div>
 
-                <div class="card overflow-hidden border border-gray-100 text-left">
+                <div class="card overflow-hidden border border-gray-100 text-left shadow-sm">
                     <div class="overflow-x-auto text-left">
                         <table class="w-full text-left border-collapse">
                             <thead>
                                 <tr class="bg-gray-50/80 text-gray-500 text-[10px] uppercase tracking-widest border-b border-gray-100 text-left">
-                                    <th class="p-5 font-extrabold w-1/2 text-left">Dateiname</th>
-                                    <th class="p-5 font-extrabold hidden md:table-cell text-left">Kategorie</th>
-                                    <th class="p-5 font-extrabold hidden lg:table-cell text-left">Freigabe am</th>
-                                    <th class="p-5 font-extrabold text-right">Aktion</th>
+                                    <th class="p-6 font-extrabold w-1/2 text-left">Dateiname</th>
+                                    <th class="p-6 font-extrabold hidden md:table-cell text-left">Kategorie</th>
+                                    <th class="p-6 font-extrabold hidden lg:table-cell text-left">Freigabe am</th>
+                                    <th class="p-6 font-extrabold text-right">Aktion</th>
                                 </tr>
                             </thead>
-                            <tbody id="docs-content" class="divide-y divide-gray-50 text-sm text-left">
-                                <tr><td colspan="4" class="p-8 text-center text-gray-400 italic text-left">Dokumente werden geladen...</td></tr>
+                            <tbody id="docs-content" class="divide-y divide-gray-50 text-base text-left">
+                                <tr><td colspan="4" class="p-10 text-center text-gray-400 italic text-left">Dokumente werden geladen...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -1055,7 +1062,6 @@
             });
 
             if (filtered.length > 0) {
-                // Eigene Sortierung: Für Mieter ungelesene Dokumente immer nach oben!
                 if(!isAdmin) {
                     filtered.sort((a, b) => {
                         const aReadBy = a.read_by || [];
@@ -1064,14 +1070,14 @@
                         const bUnread = !bReadBy.includes(currentUser.id);
                         if (aUnread && !bUnread) return -1;
                         if (!aUnread && bUnread) return 1;
-                        return 0; // Danach greift die ursprüngliche Datums-Sortierung
+                        return 0; 
                     });
                 }
 
                 list.innerHTML = filtered.map(doc => {
                     const readBy = doc.read_by || [];
                     const isUnread = !isAdmin && !readBy.includes(currentUser.id);
-                    const unreadBadge = isUnread ? `<span class="px-2.5 py-1 bg-red-100 text-red-600 rounded text-[9px] font-black uppercase tracking-widest ml-3 shadow-sm inline-flex items-center text-left">NEU</span>` : '';
+                    const unreadBadge = isUnread ? `<span id="badge-${doc.id}" class="px-2.5 py-1 bg-red-100 text-red-600 rounded text-[9px] font-black uppercase tracking-widest ml-3 shadow-sm inline-flex items-center text-left">NEU</span>` : '';
                     
                     const dateObj = new Date(doc.created_at);
                     const dateStr = dateObj.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' <span class="text-gray-400 font-normal text-left">, ' + dateObj.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'}) + ' Uhr</span>';
@@ -1080,35 +1086,35 @@
 
                     return `
                     <tr class="hover:bg-gray-50/50 transition-colors group text-left">
-                        <td class="p-5 align-middle border-b border-gray-50 text-left">
+                        <td class="p-6 align-middle border-b border-gray-50 text-left">
                             <div class="flex items-center gap-4 text-left">
-                                <div class="w-10 h-10 rounded-xl bg-hb-ultralight flex items-center justify-center text-hb-olive flex-shrink-0 group-hover:bg-white shadow-sm border border-gray-100 text-left">
-                                    <svg class="w-5 h-5 text-left" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                                <div class="w-12 h-12 rounded-xl bg-hb-ultralight flex items-center justify-center text-hb-olive flex-shrink-0 group-hover:bg-white shadow-sm border border-gray-100 text-left transition-colors">
+                                    <svg class="w-6 h-6 text-left" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
                                 </div>
                                 <div class="text-left">
-                                    <p class="font-extrabold text-hb-offblack flex items-center text-sm text-left">${doc.title} ${unreadBadge}</p>
+                                    <p class="font-extrabold text-hb-offblack flex items-center text-base text-left">${doc.title} ${unreadBadge}</p>
                                     ${targetInfo}
                                 </div>
                             </div>
                         </td>
-                        <td class="p-5 align-middle hidden md:table-cell border-b border-gray-50 text-left">
-                            <span class="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 text-[10px] font-extrabold uppercase tracking-widest rounded-lg shadow-sm text-left">${doc.category}</span>
+                        <td class="p-6 align-middle hidden md:table-cell border-b border-gray-50 text-left">
+                            <span class="px-4 py-2 bg-white border border-gray-200 text-gray-600 text-xs font-extrabold uppercase tracking-widest rounded-xl shadow-sm text-left">${doc.category}</span>
                         </td>
-                        <td class="p-5 align-middle hidden lg:table-cell text-sm font-semibold text-gray-600 border-b border-gray-50 text-left">
+                        <td class="p-6 align-middle hidden lg:table-cell text-sm font-semibold text-gray-600 border-b border-gray-50 text-left">
                             ${dateStr}
                         </td>
-                        <td class="p-5 align-middle text-right border-b border-gray-50 text-right">
-                            <div class="flex justify-end items-center gap-2 text-right">
-                                <button onclick="viewDoc('${doc.id}', '${doc.file_path}', 'documents')" class="bg-white border border-hb-olive text-hb-olive hover:bg-hb-olive hover:text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 text-right">
-                                    Anzeigen <svg class="w-3 h-3 text-right" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                        <td class="p-6 align-middle text-right border-b border-gray-50 text-right">
+                            <div class="flex justify-end items-center gap-3 text-right">
+                                <button onclick="viewDoc('${doc.id}', '${doc.file_path}', '${JSON.stringify(readBy).replace(/"/g, '&quot;')}', 'documents')" class="bg-white border-2 border-hb-olive text-hb-olive hover:bg-hb-olive hover:text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm flex items-center gap-2 text-right">
+                                    Anzeigen <svg class="w-4 h-4 text-right" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                                 </button>
-                                ${isAdmin ? `<button onclick="deleteDoc('${doc.id}', '${doc.file_path}')" class="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100 text-right" title="Dokument löschen"><svg class="w-4 h-4 text-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>` : ''}
+                                ${isAdmin ? `<button onclick="deleteDoc('${doc.id}', '${doc.file_path}')" class="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white p-3 rounded-xl transition-all opacity-0 group-hover:opacity-100 text-right" title="Dokument löschen"><svg class="w-5 h-5 text-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>` : ''}
                             </div>
                         </td>
                     </tr>`;
                 }).join('');
             } else {
-                list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-sm text-gray-400 italic text-left">Keine Dokumente für diese Kriterien gefunden.</td></tr>';
+                list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-base text-gray-400 italic text-left">Keine Dokumente für diese Kriterien gefunden.</td></tr>';
             }
         }
 
@@ -1121,7 +1127,7 @@
             let buildingsHtml = '';
             if (isAdmin) {
                 const { data: buildings } = await _supabase.from('buildings').select('id, name').order('name');
-                buildingsHtml = buildings?.map(b => `<label class="flex items-center gap-2 text-left"><input type="checkbox" name="contact_buildings" value="${b.id}"> <span class="text-sm text-gray-600 text-left">${b.name}</span></label>`).join('') || '';
+                buildingsHtml = buildings?.map(b => `<label class="flex items-center gap-2 text-left"><input type="checkbox" name="contact_buildings" value="${b.id}"> <span class="text-base text-gray-600 text-left">${b.name}</span></label>`).join('') || '';
             }
 
             let html = '';
@@ -1133,16 +1139,16 @@
                     <form id="contact-form" class="space-y-6 text-left">
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-left">
                             <div class="text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Firma (Optional)</label>
-                                <input type="text" id="contact_company" class="w-full p-3 text-sm text-left" placeholder="Malerbetrieb Meier GmbH">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Firma (Optional)</label>
+                                <input type="text" id="contact_company" class="w-full p-4 text-base text-left" placeholder="Malerbetrieb Meier GmbH">
                             </div>
                             <div class="text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Ansprechpartner</label>
-                                <input type="text" id="contact_person" class="w-full p-3 text-sm text-left" required>
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Ansprechpartner</label>
+                                <input type="text" id="contact_person" class="w-full p-4 text-base text-left" required>
                             </div>
                             <div class="text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Kategorie</label>
-                                <select id="contact_category" class="w-full p-3 text-sm text-left" required>
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Kategorie</label>
+                                <select id="contact_category" class="w-full p-4 text-base text-left" required>
                                     <option value="Sanitär">Sanitär</option>
                                     <option value="Elektrik">Elektrik</option>
                                     <option value="Hausverwaltung">Hausverwaltung</option>
@@ -1152,34 +1158,34 @@
                                 </select>
                             </div>
                             <div class="text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Telefon</label>
-                                <input type="text" id="contact_phone" class="w-full p-3 text-sm text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Telefon</label>
+                                <input type="text" id="contact_phone" class="w-full p-4 text-base text-left">
                             </div>
                             <div class="text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Mobil</label>
-                                <input type="text" id="contact_mobile" class="w-full p-3 text-sm text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Mobil</label>
+                                <input type="text" id="contact_mobile" class="w-full p-4 text-base text-left">
                             </div>
                             <div class="text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">E-Mail</label>
-                                <input type="email" id="contact_email" class="w-full p-3 text-sm text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">E-Mail</label>
+                                <input type="email" id="contact_email" class="w-full p-4 text-base text-left">
                             </div>
                             <div class="col-span-1 md:col-span-2 lg:col-span-3 text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Adresse (Strasse, PLZ Ort)</label>
-                                <input type="text" id="contact_address" class="w-full p-3 text-sm text-left" placeholder="Musterstraße 1, 12345 Musterstadt">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Adresse (Strasse, PLZ Ort)</label>
+                                <input type="text" id="contact_address" class="w-full p-4 text-base text-left" placeholder="Musterstraße 1, 12345 Musterstadt">
                             </div>
                             <div class="col-span-1 md:col-span-2 lg:col-span-3 text-left">
                                 <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Zuweisung zu Objekten (Leer lassen für 'Alle Gebäude')</label>
-                                <div class="flex flex-wrap gap-5 p-4 bg-white border border-gray-100 rounded-[15px] text-left">
+                                <div class="flex flex-wrap gap-5 p-5 bg-white border border-gray-100 rounded-[15px] text-left">
                                     ${buildingsHtml}
                                 </div>
                             </div>
-                            <div class="col-span-1 md:col-span-2 lg:col-span-3 flex items-center gap-3 p-4 bg-red-50 border border-red-100 rounded-[15px] mt-2 text-left">
+                            <div class="col-span-1 md:col-span-2 lg:col-span-3 flex items-center gap-4 p-5 bg-red-50 border border-red-100 rounded-[15px] mt-2 text-left">
                                 <input type="checkbox" id="contact_is_emergency" class="w-6 h-6 text-red-600 border-red-300 rounded focus:ring-red-500 text-left">
-                                <label for="contact_is_emergency" class="text-sm font-bold text-red-700 cursor-pointer text-left">Ist das ein 24/7 Notdienst-Kontakt?</label>
+                                <label for="contact_is_emergency" class="text-base font-bold text-red-700 cursor-pointer text-left">Ist das ein 24/7 Notdienst-Kontakt?</label>
                             </div>
                         </div>
-                        <div class="flex justify-end pt-4 text-left">
-                            <button type="submit" id="contact-submit-btn" class="btn-primary px-10 py-3 text-sm text-left">Speichern</button>
+                        <div class="flex justify-end pt-6 text-left">
+                            <button type="submit" id="contact-submit-btn" class="btn-primary px-10 py-4 text-base text-left">Speichern</button>
                         </div>
                     </form>
                 </div>`;
@@ -1188,18 +1194,18 @@
             html += `
                 <div class="card p-8 md:p-12 text-left">
                     <div class="flex justify-between items-center mb-8 text-left text-balance">
-                        <h2 class="text-2xl font-extrabold text-hb-offblack flex items-center gap-3 text-left">${icons.contact} Kontaktbuch</h2>
+                        <h2 class="text-3xl font-extrabold text-hb-offblack flex items-center gap-3 text-left">${icons.contact} Kontaktbuch</h2>
                     </div>
                     
                     <div class="bg-yellow-50 border-l-4 border-yellow-400 p-6 rounded-r-[15px] mb-10 text-left">
-                        <p class="text-sm text-yellow-800 font-medium leading-relaxed text-left text-balance">
+                        <p class="text-base text-yellow-800 font-medium leading-relaxed text-left text-balance">
                             <strong class="font-bold text-yellow-900 block mb-1 text-left">Wichtiger Hinweis:</strong> 
                             Die folgenden Kontakte sind ausschließlich für <strong>Notfälle und Kleinreparaturen</strong> gedacht. Größere Arbeiten und Aufträge, die den Rahmen von Kleinreparaturen übersteigen, müssen vorab vom Vermieter beauftragt oder freigegeben werden.
                         </p>
                     </div>
                     
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left" id="contacts-list">
-                        <p class="text-sm text-gray-400 italic text-left">Lade Kontakte...</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left" id="contacts-list">
+                        <p class="text-base text-gray-400 italic text-left">Lade Kontakte...</p>
                     </div>
                 </div>
             `;
@@ -1215,7 +1221,7 @@
             const { data, error } = await _supabase.from('contacts').select('*').order('company');
             const list = document.getElementById('contacts-list');
             
-            if (error) { list.innerHTML = '<p class="text-red-500 text-sm text-left">Fehler beim Laden.</p>'; return; }
+            if (error) { list.innerHTML = '<p class="text-red-500 text-base text-left">Fehler beim Laden.</p>'; return; }
             
             let filteredData = data || [];
             
@@ -1238,37 +1244,37 @@
                         case 'Vermieter': catColor = "bg-green-100 text-green-700"; break;
                     }
 
-                    const emergencyBadge = c.is_emergency ? `<span class="bg-red-500 text-white px-3 py-1 rounded text-[10px] font-bold tracking-widest uppercase shadow-sm animate-pulse text-left">🚨 Notdienst</span>` : '';
-                    const globalBadge = isAdmin && (!c.building_ids || c.building_ids.length === 0) ? `<span class="bg-gray-200 text-gray-600 px-3 py-1 rounded text-[10px] font-bold tracking-widest uppercase ml-2 text-left">GLOBAL</span>` : '';
+                    const emergencyBadge = c.is_emergency ? `<span class="bg-red-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase shadow-sm animate-pulse text-left">🚨 Notdienst</span>` : '';
+                    const globalBadge = isAdmin && (!c.building_ids || c.building_ids.length === 0) ? `<span class="bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg text-[10px] font-bold tracking-widest uppercase ml-2 text-left">GLOBAL</span>` : '';
 
                     return `
-                    <div class="border border-gray-100 p-6 rounded-[15px] flex flex-col gap-4 group hover:border-hb-olive transition-colors bg-white shadow-sm relative overflow-hidden text-left">
-                        ${c.is_emergency ? `<div class="absolute top-0 right-0 w-20 h-20 bg-red-500 transform rotate-45 translate-x-10 -translate-y-10 text-left"></div>` : ''}
+                    <div class="border border-gray-100 p-8 rounded-[15px] flex flex-col gap-4 group hover:border-hb-olive transition-colors bg-white shadow-sm relative overflow-hidden text-left">
+                        ${c.is_emergency ? `<div class="absolute top-0 right-0 w-24 h-24 bg-red-500 transform rotate-45 translate-x-12 -translate-y-12 text-left"></div>` : ''}
                         
                         <div class="flex justify-between items-start z-10 text-left">
                             <div class="text-left">
-                                <span class="${catColor} px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest text-left">${c.category}</span>
+                                <span class="${catColor} px-4 py-2 rounded-xl text-[10px] font-extrabold uppercase tracking-widest text-left">${c.category}</span>
                                 ${emergencyBadge}
                                 ${globalBadge}
                             </div>
                             ${isAdmin ? `<button onclick="deleteContact('${c.id}')" class="text-xs font-bold text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:underline text-left">Löschen</button>` : ''}
                         </div>
                         
-                        <div class="z-10 mt-2 text-left">
-                            ${c.company ? `<h4 class="font-extrabold text-lg text-hb-offblack text-left">${c.company}</h4>` : ''}
-                            <p class="text-sm font-semibold text-gray-700 ${c.company ? 'mt-1' : 'text-lg'} text-left text-balance">${c.contact_person}</p>
-                            ${c.address ? `<p class="text-xs text-gray-500 mt-2 leading-snug text-left">${c.address}</p>` : ''}
+                        <div class="z-10 mt-3 text-left">
+                            ${c.company ? `<h4 class="font-extrabold text-xl text-hb-offblack text-left">${c.company}</h4>` : ''}
+                            <p class="text-base font-semibold text-gray-700 ${c.company ? 'mt-1' : 'text-xl'} text-left text-balance">${c.contact_person}</p>
+                            ${c.address ? `<p class="text-sm text-gray-500 mt-2 leading-snug text-left">${c.address}</p>` : ''}
                         </div>
 
-                        <div class="mt-4 space-y-2 z-10 border-t border-gray-50 pt-4 text-left">
-                            ${c.phone ? `<a href="tel:${c.phone.replace(/[^0-9+]/g, '')}" class="text-sm font-semibold text-gray-600 hover:text-hb-orange flex items-center gap-2 text-left"><svg class="w-4 h-4 text-left" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg> ${c.phone}</a>` : ''}
-                            ${c.mobile ? `<a href="tel:${c.mobile.replace(/[^0-9+]/g, '')}" class="text-sm font-semibold text-gray-600 hover:text-hb-orange flex items-center gap-2 text-left"><svg class="w-4 h-4 text-left" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg> ${c.mobile}</a>` : ''}
-                            ${c.email ? `<a href="mailto:${c.email}" class="text-sm font-semibold text-gray-600 hover:text-hb-orange flex items-center gap-2 text-left"><svg class="w-4 h-4 text-left" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg> ${c.email}</a>` : ''}
+                        <div class="mt-5 space-y-3 z-10 border-t border-gray-50 pt-5 text-left">
+                            ${c.phone ? `<a href="tel:${c.phone.replace(/[^0-9+]/g, '')}" class="text-base font-semibold text-hb-offblack hover:text-hb-orange flex items-center gap-3 text-left"><svg class="w-5 h-5 text-gray-400 text-left" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg> ${c.phone}</a>` : ''}
+                            ${c.mobile ? `<a href="tel:${c.mobile.replace(/[^0-9+]/g, '')}" class="text-base font-semibold text-hb-offblack hover:text-hb-orange flex items-center gap-3 text-left"><svg class="w-5 h-5 text-gray-400 text-left" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg> ${c.mobile}</a>` : ''}
+                            ${c.email ? `<a href="mailto:${c.email}" class="text-base font-semibold text-hb-offblack hover:text-hb-orange flex items-center gap-3 text-left"><svg class="w-5 h-5 text-gray-400 text-left" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg> ${c.email}</a>` : ''}
                         </div>
                     </div>
                 `}).join('');
             } else {
-                list.innerHTML = '<p class="text-sm text-gray-400 italic col-span-2 text-left">Keine Kontakte vorhanden.</p>';
+                list.innerHTML = '<p class="text-base text-gray-400 italic col-span-2 text-left">Keine Kontakte vorhanden.</p>';
             }
         }
 
@@ -1313,27 +1319,40 @@
         /* --- TICKETS BOARD & CHAT --- */
         async function fetchTicketsBoard() {
             const isAdmin = userProfile.role === 'admin';
-            let query = _supabase.from('tickets').select('*, profiles!tickets_tenant_id_fkey(full_name)').neq('status', 'Erledigt').order('created_at', { ascending: false });
-            if (!isAdmin) query = query.eq('tenant_id', currentUser.id);
-
-            const { data, error } = await query;
+            
+            // Abfrage aufgeteilt und per JS gemappt, um Ambiguity Errors mit Creator vs Tenant zu beheben
+            const { data: ticketsData, error } = await _supabase.from('tickets').select('*').neq('status', 'Erledigt').order('created_at', { ascending: false });
+            const { data: profData } = await _supabase.from('profiles').select('id, full_name');
+            
             if (error) return showToast(error.message, "error");
 
+            // Profile Map erstellen
+            const profMap = {};
+            if(profData) profData.forEach(p => profMap[p.id] = p.full_name);
+
+            // Profile in Tickets einfügen
+            let filteredTickets = ticketsData;
+            if(!isAdmin) {
+                filteredTickets = ticketsData.filter(t => t.tenant_id === currentUser.id);
+            }
+            
+            filteredTickets.forEach(t => t.profiles = { full_name: profMap[t.tenant_id] || 'Unbekannt' });
+
             if (isAdmin) {
-                const nT = data.filter(t => t.status === 'Neu' || t.status === 'Offen');
-                const pT = data.filter(t => t.status === 'In Bearbeitung');
-                const hT = data.filter(t => t.status === 'Wartend');
+                const nT = filteredTickets.filter(t => t.status === 'Neu' || t.status === 'Offen');
+                const pT = filteredTickets.filter(t => t.status === 'In Bearbeitung');
+                const hT = filteredTickets.filter(t => t.status === 'Wartend');
 
                 document.getElementById('count-new').textContent = nT.length;
                 document.getElementById('count-progress').textContent = pT.length;
                 document.getElementById('count-hold').textContent = hT.length;
 
-                document.getElementById('board-new').innerHTML = nT.map(t => generateTicketCard(t)).join('') || '<div class="border-2 border-dashed border-gray-200 rounded-[15px] p-8 text-center text-sm text-gray-400 font-bold text-left">Leer</div>';
-                document.getElementById('board-progress').innerHTML = pT.map(t => generateTicketCard(t)).join('') || '<div class="border-2 border-dashed border-gray-200 rounded-[15px] p-8 text-center text-sm text-gray-400 font-bold text-left">Leer</div>';
-                document.getElementById('board-hold').innerHTML = hT.map(t => generateTicketCard(t)).join('') || '<div class="border-2 border-dashed border-gray-200 rounded-[15px] p-8 text-center text-sm text-gray-400 font-bold text-left">Leer</div>';
+                document.getElementById('board-new').innerHTML = nT.map(t => generateTicketCard(t)).join('') || '<div class="border-2 border-dashed border-gray-200 rounded-[15px] p-8 text-center text-base text-gray-400 font-bold text-left">Leer</div>';
+                document.getElementById('board-progress').innerHTML = pT.map(t => generateTicketCard(t)).join('') || '<div class="border-2 border-dashed border-gray-200 rounded-[15px] p-8 text-center text-base text-gray-400 font-bold text-left">Leer</div>';
+                document.getElementById('board-hold').innerHTML = hT.map(t => generateTicketCard(t)).join('') || '<div class="border-2 border-dashed border-gray-200 rounded-[15px] p-8 text-center text-base text-gray-400 font-bold text-left">Leer</div>';
             } else {
                 const list = document.getElementById('tenant-ticket-list');
-                list.innerHTML = data.map(t => generateTicketCard(t)).join('') || '<p class="text-sm italic text-gray-400 text-left">Keine aktiven Meldungen.</p>';
+                list.innerHTML = filteredTickets.map(t => generateTicketCard(t)).join('') || '<p class="text-base italic text-gray-400 text-left">Keine aktiven Meldungen.</p>';
             }
         }
 
@@ -1343,19 +1362,27 @@
             
             if(showingCompletedTickets) {
                 container.classList.remove('hidden');
-                container.innerHTML = '<p class="text-sm text-gray-400 italic text-left">Lade...</p>';
+                container.innerHTML = '<p class="text-base text-gray-400 italic text-left">Lade...</p>';
                 
                 const isAdmin = userProfile.role === 'admin';
-                let query = _supabase.from('tickets').select('*, profiles!tickets_tenant_id_fkey(full_name)').eq('status', 'Erledigt').order('created_at', { ascending: false });
-                if (!isAdmin) query = query.eq('tenant_id', currentUser.id);
+                
+                // Ebenfalls aufteilen für 100% Sicherheit
+                const { data: ticketsData, error } = await _supabase.from('tickets').select('*').eq('status', 'Erledigt').order('created_at', { ascending: false });
+                const { data: profData } = await _supabase.from('profiles').select('id, full_name');
+                
+                if (error) { container.innerHTML = `<p class="text-red-500 text-left">Fehler: ${error.message}</p>`; return; }
 
-                const { data, error } = await query;
-                if (error) { container.innerHTML = '<p class="text-red-500 text-left">Fehler beim Laden.</p>'; return; }
+                const profMap = {};
+                if(profData) profData.forEach(p => profMap[p.id] = p.full_name);
 
-                if (data && data.length > 0) {
-                    container.innerHTML = data.map(t => generateTicketCard(t, true)).join('');
+                let filteredTickets = ticketsData;
+                if(!isAdmin) filteredTickets = ticketsData.filter(t => t.tenant_id === currentUser.id);
+                filteredTickets.forEach(t => t.profiles = { full_name: profMap[t.tenant_id] || 'Unbekannt' });
+
+                if (filteredTickets && filteredTickets.length > 0) {
+                    container.innerHTML = filteredTickets.map(t => generateTicketCard(t, true)).join('');
                 } else {
-                    container.innerHTML = '<p class="text-sm text-gray-400 italic text-left">Keine erledigten Tickets vorhanden.</p>';
+                    container.innerHTML = '<p class="text-base text-gray-400 italic text-left">Keine erledigten Tickets vorhanden.</p>';
                 }
             } else {
                 container.classList.add('hidden');
@@ -1374,8 +1401,8 @@
                         <span class="text-[10px] uppercase tracking-widest font-extrabold bg-gray-100 px-3 py-1.5 rounded-lg text-gray-600 text-left">${t.category}</span>
                         <span class="text-xs font-bold text-gray-400 text-left">${new Date(t.created_at).toLocaleDateString()}</span>
                     </div>
-                    <h4 class="text-sm font-extrabold text-hb-offblack leading-tight mb-4 text-left text-balance">${t.title}</h4>
-                    <p class="text-[11px] text-gray-500 font-bold mt-4 pt-4 border-t border-gray-50 flex items-center gap-2 text-left uppercase tracking-widest">
+                    <h4 class="text-base font-extrabold text-hb-offblack leading-tight mb-4 text-left text-balance">${t.title}</h4>
+                    <p class="text-xs text-gray-500 font-bold mt-4 pt-4 border-t border-gray-50 flex items-center gap-2 text-left uppercase tracking-widest">
                         <svg class="w-4 h-4 text-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                         ${t.profiles?.full_name || 'Unbekannt'}
                     </p>
@@ -1386,17 +1413,17 @@
         async function viewTicketChat(ticketId) {
             const container = document.getElementById('content-area');
             const isAdmin = userProfile.role === 'admin';
-            const { data: ticket } = await _supabase.from('tickets').select('*, profiles!tickets_tenant_id_fkey(full_name)').eq('id', ticketId).single();
+            const { data: ticket } = await _supabase.from('tickets').select('*').eq('id', ticketId).single();
             if(!ticket) return;
 
             container.innerHTML = `
                 <div class="card flex flex-col h-[calc(100vh-140px)] overflow-hidden shadow-xl text-left border-gray-200">
                     <div class="p-6 border-b border-gray-100 flex flex-col md:flex-row md:justify-between md:items-center bg-white z-10 shadow-sm gap-4">
                         <div class="text-left">
-                            <button onclick="loadTickets(); if(currentChatInterval) clearInterval(currentChatInterval);" class="text-[10px] uppercase tracking-widest font-extrabold text-hb-olive hover:text-hb-offblack mb-2 flex items-center gap-2 transition-colors text-left bg-hb-olive/5 px-3 py-1.5 rounded-lg w-fit">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7"/></svg> ZURÜCK
+                            <button onclick="loadTickets(); if(currentChatInterval) clearInterval(currentChatInterval);" class="text-[10px] uppercase tracking-widest font-extrabold text-hb-olive hover:text-hb-offblack mb-3 flex items-center gap-2 transition-colors text-left bg-hb-olive/5 px-4 py-2 rounded-lg w-fit">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7"/></svg> ZURÜCK ZUR LISTE
                             </button>
-                            <h2 class="text-xl md:text-2xl font-extrabold text-hb-offblack tracking-tight text-left text-balance leading-snug">${ticket.title}</h2>
+                            <h2 class="text-2xl font-extrabold text-hb-offblack tracking-tight text-left text-balance leading-snug">${ticket.title}</h2>
                         </div>
                         ${isAdmin ? `
                             <select onchange="updateTicketStatus('${ticket.id}', this.value)" class="border-2 border-gray-100 rounded-[15px] p-3 text-sm font-extrabold focus:outline-none focus:border-hb-olive bg-gray-50 cursor-pointer text-left w-full md:w-auto">
@@ -1415,7 +1442,7 @@
                     <div class="p-4 md:p-6 border-t border-gray-100 bg-white text-left">
                         <form id="chat-reply-form" class="flex gap-3 md:gap-4 items-end text-left relative">
                             <div class="flex-grow relative text-left">
-                                <textarea id="chat_msg_input" rows="2" class="w-full rounded-[15px] border-2 border-gray-100 p-4 pr-14 focus:outline-none focus:border-hb-olive text-sm resize-none shadow-inner text-left bg-gray-50 focus:bg-white transition-colors" placeholder="Ihre Nachricht..." required></textarea>
+                                <textarea id="chat_msg_input" rows="2" class="w-full rounded-[15px] border-2 border-gray-100 p-4 pr-14 focus:outline-none focus:border-hb-olive text-base resize-none shadow-inner text-left bg-gray-50 focus:bg-white transition-colors" placeholder="Ihre Nachricht..." required></textarea>
                                 <label class="absolute right-3 bottom-3 p-2 cursor-pointer text-gray-400 hover:text-hb-olive transition-colors bg-white rounded-lg shadow-sm border border-gray-50 text-left flex items-center justify-center" title="Datei anhängen">
                                     <svg class="h-5 w-5 text-left" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
                                     <input type="file" id="chat_file_input" class="hidden text-left">
@@ -1446,23 +1473,30 @@
         }
 
         async function fetchChatMessages(ticketId, silent = false) {
-            const { data, error } = await _supabase.from('ticket_messages').select('*, profiles!sender_id(full_name, role)').eq('ticket_id', ticketId).order('created_at', { ascending: true });
+            // JS Mapping für Profile, um Ambiguity Errors zu vermeiden
+            const { data: msgData, error } = await _supabase.from('ticket_messages').select('*').eq('ticket_id', ticketId).order('created_at', { ascending: true });
+            const { data: profData } = await _supabase.from('profiles').select('id, full_name, role');
+            
             if (error) return;
 
+            const profMap = {};
+            if(profData) profData.forEach(p => profMap[p.id] = p);
+
             const box = document.getElementById('chat-messages');
-            if (data && data.length > 0) {
+            if (msgData && msgData.length > 0) {
                 const isAtBottom = box.scrollHeight - box.scrollTop <= box.clientHeight + 100;
 
-                box.innerHTML = data.map(msg => {
+                box.innerHTML = msgData.map(msg => {
                     const isMe = msg.sender_id === currentUser.id;
-                    const wrapperClass = isMe ? "justify-end text-right" : "justify-start text-left";
+                    const wrapperClass = isMe ? "justify-end" : "justify-start";
                     const alignClass = isMe ? "items-end" : "items-start";
                     
                     const bgClass = isMe 
                         ? "bg-hb-olive text-white rounded-[20px] rounded-br-[4px] shadow-sm" 
-                        : "bg-white text-hb-offblack border border-gray-100 rounded-[20px] rounded-bl-[4px] shadow-sm";
+                        : "bg-white text-hb-offblack border border-gray-200 rounded-[20px] rounded-bl-[4px] shadow-sm";
                     
-                    const senderName = isMe ? "Ich" : (msg.profiles?.full_name || 'System');
+                    const senderProfile = profMap[msg.sender_id] || {};
+                    const senderName = isMe ? "Ich" : (senderProfile.full_name || 'System');
                     
                     let attachmentHtml = "";
                     if (msg.attachment_path) {
@@ -1474,15 +1508,16 @@
                         <div class="mt-3">
                             <button type="button" onclick="viewDoc(null, '${msg.attachment_path}', null, 'ticket_attachments')" class="text-xs font-extrabold flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl transition-colors border ${btnClass}">
                                 <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg> 
-                                ANHANG VORSCHAU
+                                ANHANG ANZEIGEN
                             </button>
                         </div>`;
                     }
 
+                    // Trim entfernt unsichtbare Leerzeilen (Umbrüche) vom Ende des Textes, was die Blasen oft riesig gemacht hat
                     const cleanMessage = msg.message ? msg.message.trim() : '';
 
                     return `
-                    <div class="flex w-full ${wrapperClass} message-appear text-left">
+                    <div class="flex w-full ${wrapperClass} mb-4 message-appear text-left">
                         <div class="flex flex-col ${alignClass} max-w-[85%] md:max-w-[70%]">
                             <div class="flex items-center gap-2 mb-1.5 px-1">
                                 <span class="text-[10px] uppercase tracking-widest text-gray-400 font-extrabold">${senderName}</span>
@@ -1497,7 +1532,7 @@
                 }).join('');
 
                 if (!silent || isAtBottom) box.scrollTop = box.scrollHeight;
-            } else { box.innerHTML = '<div class="text-center py-20 text-gray-400 italic text-sm text-left">Senden Sie Ihre erste Nachricht, um den Chat zu starten.</div>'; }
+            } else { box.innerHTML = '<div class="text-center py-20 text-gray-400 italic text-base text-left">Senden Sie Ihre erste Nachricht, um den Chat zu starten.</div>'; }
         }
 
         async function handleSendChatMessage(e, ticketId) {
@@ -1554,25 +1589,25 @@
                     </div>
                     <form id="new-ticket-form" class="space-y-6 text-left">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
-                            ${isAdmin ? `<div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Empfänger (Mieter)</label><select id="nt_tenant_id" class="w-full p-3 text-sm text-left" required><option value="" disabled selected>Bitte wählen...</option>${tenantOptions}</select></div>` : ''}
+                            ${isAdmin ? `<div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Empfänger (Mieter)</label><select id="nt_tenant_id" class="w-full p-4 text-base text-left" required><option value="" disabled selected>Bitte wählen...</option>${tenantOptions}</select></div>` : ''}
                             <div class="${isAdmin ? '' : 'col-span-2 md:col-span-1'} text-left">
                                 <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Kategorie</label>
-                                <select id="nt_category" class="w-full p-3 text-sm text-left" required>
+                                <select id="nt_category" class="w-full p-4 text-base text-left" required>
                                     <option value="Reparatur">Reparatur / Mangel</option><option value="Allgemein">Allgemeine Anfrage</option><option value="Termin">Termin</option>
                                     ${isAdmin ? '<option value="Mahnung">Verwarnung</option>' : '<option value="Beschwerde">Beschwerde</option>'}
                                 </select>
                             </div>
                             <div class="col-span-1 md:col-span-2 text-left">
                                 <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Betreff</label>
-                                <input type="text" id="nt_title" class="w-full p-3 text-sm text-left" placeholder="Zusammenfassung..." required>
+                                <input type="text" id="nt_title" class="w-full p-4 text-base text-left" placeholder="Zusammenfassung..." required>
                             </div>
                         </div>
                         <div class="text-left">
                             <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Nachricht</label>
-                            <textarea id="nt_message" rows="5" class="w-full p-3 text-sm text-left" placeholder="Beschreiben Sie das Anliegen..." required></textarea>
+                            <textarea id="nt_message" rows="5" class="w-full p-4 text-base text-left" placeholder="Beschreiben Sie das Anliegen..." required></textarea>
                         </div>
                         <div class="pt-4 flex justify-end text-left">
-                            <button type="submit" id="nt-submit-btn" class="btn-primary px-10 py-3 text-sm text-left">Ticket Eröffnen</button>
+                            <button type="submit" id="nt-submit-btn" class="btn-primary px-10 py-4 text-base text-left">Ticket Eröffnen</button>
                         </div>
                     </form>
                 </div>
