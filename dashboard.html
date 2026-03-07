@@ -164,12 +164,26 @@
                 if (!user) { window.location.href = 'index.html'; return; }
                 currentUser = user;
 
-                // Load profile - we check for the explicit relationship to avoid ambiguity
-                const { data: profile, error: profileError } = await _supabase.from('profiles').select('*, apartments(building_id)').eq('id', user.id).single();
-                if (profileError || !profile) { document.getElementById('welcome-title').textContent = "Profil nicht gefunden"; return; }
+                // 1. Zuerst NUR das Profil laden (verhindert Abstürze durch Join-Fehler)
+                const { data: profile, error: profileError } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
+                
+                if (profileError || !profile) { 
+                    console.error("Profil Fehler:", profileError);
+                    document.getElementById('welcome-title').textContent = profileError ? `Fehler: ${profileError.message}` : "Profil nicht in der Datenbank."; 
+                    document.getElementById('role-label').textContent = "SYSTEMFEHLER";
+                    return; 
+                }
                 userProfile = profile;
 
-                document.getElementById('welcome-title').textContent = "Hallo, " + profile.full_name.split(' ')[0] + "!";
+                // 2. Wohnung separat laden, falls Mieter
+                if (userProfile.role === 'tenant' && userProfile.apartment_id) {
+                    const { data: aptData } = await _supabase.from('apartments').select('building_id').eq('id', userProfile.apartment_id).single();
+                    if (aptData) {
+                        userProfile.apartments = { building_id: aptData.building_id };
+                    }
+                }
+
+                document.getElementById('welcome-title').textContent = "Hallo, " + (profile.full_name ? profile.full_name.split(' ')[0] : 'Nutzer') + "!";
                 document.getElementById('role-label').textContent = profile.role === 'admin' ? 'Vermieter Cockpit' : 'Mieter Portal';
 
                 renderNav(profile.role);
@@ -228,9 +242,8 @@
             return formatted.split('\n').join('<br>');
         }
 
-        // Zentrale Funktion für Dokumenten-Vorschau (Signed URLs)
         async function viewDoc(path, bucket = 'documents') {
-            const { data, error } = await _supabase.storage.from(bucket).createSignedUrl(path, 3600); // Link ist 1 Stunde gültig
+            const { data, error } = await _supabase.storage.from(bucket).createSignedUrl(path, 3600); 
             if (error) { 
                 showToast("Fehler beim Öffnen des Dokuments", "error"); 
                 return; 
@@ -468,7 +481,9 @@
         }
 
         async function fetchApartments() {
-            const { data, error } = await _supabase.from('apartments').select('*, buildings (*), profiles!profiles_apartment_id_fkey(full_name)').order('apartment_number');
+            // Abfrage explizit ohne foreign key alias, falls dieser Supabase verwirrt.
+            // Hinweis: Falls hier wieder ein Error auftritt, ändere dies zu "profiles!profiles_apartment_id_fkey"
+            const { data, error } = await _supabase.from('apartments').select('*, buildings (*), profiles(full_name)').order('apartment_number');
             const list = document.getElementById('tenants-list');
             if (error) { list.innerHTML = `<p class="text-red-500 text-base">Fehler: ${error.message}</p>`; return; }
             if (data && data.length > 0) {
@@ -626,7 +641,7 @@
 
             const { data: invites, error: inviteError } = await _supabase
                 .from('invitations')
-                .select('*, apartments!invitations_apartment_id_fkey(apartment_number, buildings(name))')
+                .select('*, apartments(apartment_number, buildings(name))')
                 .order('created_at', { ascending: false });
             
             if (inviteError) {
@@ -649,7 +664,7 @@
 
             const { data: users, error: usersError } = await _supabase
                 .from('profiles')
-                .select('*, apartments!profiles_apartment_id_fkey(apartment_number, buildings(name))')
+                .select('*, apartments(apartment_number, buildings(name))')
                 .eq('role', 'tenant')
                 .order('full_name');
             
@@ -1079,7 +1094,7 @@
 
         async function fetchTicketsBoard() {
             const isAdmin = userProfile.role === 'admin';
-            let query = _supabase.from('tickets').select('*, profiles!tenant_id(full_name)').neq('status', 'Erledigt').order('created_at', { ascending: false });
+            let query = _supabase.from('tickets').select('*, profiles(full_name)').neq('status', 'Erledigt').order('created_at', { ascending: false });
             if (!isAdmin) query = query.eq('tenant_id', currentUser.id);
 
             const { data, error } = await query;
@@ -1112,7 +1127,7 @@
                 container.innerHTML = '<p class="text-sm text-gray-400 italic">Lade...</p>';
                 
                 const isAdmin = userProfile.role === 'admin';
-                let query = _supabase.from('tickets').select('*, profiles!tenant_id(full_name)').eq('status', 'Erledigt').order('created_at', { ascending: false });
+                let query = _supabase.from('tickets').select('*, profiles(full_name)').eq('status', 'Erledigt').order('created_at', { ascending: false });
                 if (!isAdmin) query = query.eq('tenant_id', currentUser.id);
 
                 const { data, error } = await query;
@@ -1152,7 +1167,7 @@
         async function viewTicketChat(ticketId) {
             const container = document.getElementById('content-area');
             const isAdmin = userProfile.role === 'admin';
-            const { data: ticket } = await _supabase.from('tickets').select('*, profiles!tenant_id(full_name)').eq('id', ticketId).single();
+            const { data: ticket } = await _supabase.from('tickets').select('*, profiles(full_name)').eq('id', ticketId).single();
             if(!ticket) return;
 
             container.innerHTML = `
@@ -1212,7 +1227,7 @@
         }
 
         async function fetchChatMessages(ticketId, silent = false) {
-            const { data, error } = await _supabase.from('ticket_messages').select('*, profiles:sender_id(full_name, role)').eq('ticket_id', ticketId).order('created_at', { ascending: true });
+            const { data, error } = await _supabase.from('ticket_messages').select('*, profiles(full_name, role)').eq('ticket_id', ticketId).order('created_at', { ascending: true });
             if (error) return;
 
             const box = document.getElementById('chat-messages');
@@ -1306,8 +1321,8 @@
             const isAdmin = userProfile.role === 'admin';
             let tenantOptions = '';
             if (isAdmin) {
-                const { data: tenants } = await _supabase.from('profiles').select('id, full_name, apartments!profiles_apartment_id_fkey(apartment_number)').eq('role', 'tenant');
-                tenantOptions = tenants?.map(t => `<option value="${t.id}">${t.full_name} (${t.apartments?.apartment_number || 'Keine WE'})</option>`).join('') || '';
+                const { data: tenants } = await _supabase.from('profiles').select('id, full_name, apartments(apartment_number)').eq('role', 'tenant');
+                tenantOptions = tenants?.map(t => `<option value="${t.id}">${t.full_name} (WE ${t.apartments?.apartment_number || ''})</option>`).join('') || '';
             }
 
             const container = document.getElementById('content-area');
