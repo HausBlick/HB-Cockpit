@@ -137,10 +137,15 @@
                 btn.textContent = 'Erstelle Account...';
                 
                 // 2. Auth User erstellen
-                const { data: authData, error: authError } = await _supabase.auth.signUp({ 
-                    email: email, 
-                    password: pwd 
-                });
+const { data: authData, error: authError } = await _supabase.auth.signUp({ 
+    email: email, 
+    password: pwd,
+    options: {
+        data: {
+            full_name: name // Das hier schickt den Namen an den Trigger!
+        }
+    }
+});
 
                 if (authError) throw authError;
 
