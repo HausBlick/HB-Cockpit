@@ -142,12 +142,16 @@
                     <li><a onclick="loadNews(); setActiveNav('nav-news')" id="nav-news" class="${linkClass}">Schwarzes Brett</a></li>
                     <li class="pt-8 pb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-300 text-balance">Dateien</li>
                     <li><a onclick="loadDocuments(); setActiveNav('nav-docs')" id="nav-docs" class="${linkClass}">Dokumenten-Cloud</a></li>
+                    <li class="pt-8 pb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-300 text-balance">Einstellungen</li>
+                    <li><a onclick="loadProfile(); setActiveNav('nav-profile')" id="nav-profile" class="${linkClass}">Mein Profil</a></li>
                 `;
             } else {
                 nav.innerHTML = `
                     <li><a id="nav-news" onclick="loadNews(); setActiveNav('nav-news')" class="${linkClass}">Schwarzes Brett</a></li>
                     <li><a id="nav-tickets" onclick="loadTickets(); setActiveNav('nav-tickets')" class="${linkClass}">Meine Meldungen</a></li>
                     <li><a id="nav-docs" onclick="loadDocuments(); setActiveNav('nav-docs')" class="${linkClass}">Meine Dokumente</a></li>
+                    <li class="pt-8 pb-2 px-3 text-[10px] uppercase tracking-widest font-bold text-gray-300 text-balance">Einstellungen</li>
+                    <li><a onclick="loadProfile(); setActiveNav('nav-profile')" id="nav-profile" class="${linkClass}">Mein Profil</a></li>
                 `;
             }
         }
@@ -172,6 +176,81 @@
                 .replace(/^- (.*$)/gim, '<li>$1</li>');
             if (formatted.includes('<li>')) formatted = formatted.replace(/(<li>.*<\/li>)/gms, '<ul>$1</ul>');
             return formatted.split('\n').join('<br>');
+        }
+
+        /* --- 0. PROFIL EINSTELLUNGEN --- */
+        async function loadProfile() {
+            const container = document.getElementById('content-area');
+            container.className = "w-full text-left";
+
+            container.innerHTML = `
+                <div class="bg-white p-8 md:p-12 shadow-sm border-t-4 border-hb-olive text-left">
+                    <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Mein Profil</h2>
+                    
+                    <form id="profile-update-form" class="space-y-6 max-w-2xl">
+                        <h3 class="text-sm font-bold uppercase tracking-widest text-hb-olive border-b border-gray-100 pb-2 mb-4">Persönliche Daten</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Vollständiger Name</label>
+                                <input type="text" id="profile_name" value="${userProfile.full_name}" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" required>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">E-Mail (Login)</label>
+                                <input type="email" id="profile_email" value="${currentUser.email}" class="w-full border-b-2 border-gray-100 p-3 bg-gray-50 text-gray-500 text-sm cursor-not-allowed" disabled title="E-Mail Änderung bitte über den Support anfragen">
+                                <p class="text-[9px] text-gray-400 mt-1">E-Mail-Änderungen sind aktuell aus Sicherheitsgründen gesperrt.</p>
+                            </div>
+                            <button type="submit" id="btn-update-profile" class="bg-hb-offblack text-white px-8 py-3 text-xs uppercase tracking-widest font-bold hover:bg-hb-olive transition-all mt-4">Daten Speichern</button>
+                        </div>
+                    </form>
+
+                    <form id="password-update-form" class="space-y-6 max-w-2xl mt-12">
+                        <h3 class="text-sm font-bold uppercase tracking-widest text-hb-olive border-b border-gray-100 pb-2 mb-4">Passwort ändern</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Neues Passwort</label>
+                                <input type="password" id="new_password" class="w-full border-b-2 border-gray-100 p-3 focus:outline-none focus:border-hb-olive text-sm" placeholder="Mindestens 6 Zeichen" required minlength="6">
+                            </div>
+                            <button type="submit" id="btn-update-password" class="bg-hb-offblack text-white px-8 py-3 text-xs uppercase tracking-widest font-bold hover:bg-hb-olive transition-all mt-4">Passwort aktualisieren</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+
+            document.getElementById('profile-update-form').addEventListener('submit', handleUpdateProfile);
+            document.getElementById('password-update-form').addEventListener('submit', handleUpdatePassword);
+        }
+
+        async function handleUpdateProfile(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-update-profile');
+            btn.disabled = true; btn.textContent = "Speichere...";
+            const newName = document.getElementById('profile_name').value;
+            
+            const { error } = await _supabase.from('profiles').update({ full_name: newName }).eq('id', currentUser.id);
+            if(error) {
+                showToast(error.message, "error");
+            } else {
+                userProfile.full_name = newName;
+                document.getElementById('welcome-title').textContent = newName;
+                showToast("Profil aktualisiert!");
+            }
+            btn.disabled = false; btn.textContent = "Daten Speichern";
+        }
+
+        async function handleUpdatePassword(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-update-password');
+            btn.disabled = true; btn.textContent = "Speichere...";
+            const newPassword = document.getElementById('new_password').value;
+
+            const { error } = await _supabase.auth.updateUser({ password: newPassword });
+            if(error) {
+                showToast("Fehler: " + error.message, "error");
+            } else {
+                showToast("Passwort erfolgreich geändert!");
+                document.getElementById('new_password').value = '';
+            }
+            btn.disabled = false; btn.textContent = "Passwort aktualisieren";
         }
 
         /* --- 1. EINHEITEN --- */
@@ -543,7 +622,7 @@
                                 <textarea id="news_content" rows="6" class="w-full border-2 border-gray-50 p-4 focus:outline-none focus:border-hb-olive text-sm bg-hb-ultralight transition-all" placeholder="Schreiben Sie hier Ihre Nachricht..." required></textarea>
                             </div>
                             <div class="flex justify-center gap-4 pt-4 text-left">
-                                <button type="submit" id="news-submit-btn" class="bg-hb-offblack text-white px-16 py-5 text-xs uppercase tracking-widest font-bold hover:bg-hb-olive transition-all text-balance">Aushang veröffentlichen</button>
+                                <button type="submit" id="news-submit-btn" class="bg-hb-offblack text-white px-16 py-5 text-xs uppercase tracking-[0.3em] font-bold hover:bg-hb-olive transition-all text-balance">Aushang veröffentlichen</button>
                                 <button type="button" id="news-cancel-btn" onclick="resetNewsForm()" class="hidden bg-gray-200 text-gray-500 px-8 py-5 text-xs uppercase tracking-widest font-bold hover:bg-gray-300 transition-all">Abbrechen</button>
                             </div>
                         </form>
