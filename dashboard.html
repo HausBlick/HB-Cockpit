@@ -61,7 +61,7 @@
     <!-- MOBILE HEADER -->
     <div class="md:hidden bg-white border-b border-gray-100 p-4 flex justify-between items-center sticky top-0 z-50">
         <div class="font-bold text-xl tracking-tight text-hb-olive flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-8 w-auto">
             Mieterportal
         </div>
         <button onclick="toggleMenu()" class="text-hb-olive p-2 focus:outline-none bg-gray-50 rounded-[15px]">
@@ -73,9 +73,7 @@
     <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-40 w-72 bg-white border-r border-gray-100 flex-shrink-0 h-screen flex flex-col shadow-soft text-left">
         <div class="p-8 pb-4 hidden md:block">
             <div class="font-extrabold text-2xl tracking-tighter text-hb-olive flex items-center gap-3 mb-1">
-                <div class="p-2 bg-hb-olive text-white rounded-[15px]">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-                </div>
+                <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-10 w-auto">
                 Mieterportal
             </div>
             <p class="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-400 pl-12">HB Verwaltung</p>
@@ -689,7 +687,7 @@
                             <div class="flex items-center gap-4">
                                 <div class="w-10 h-10 bg-hb-olive text-white font-bold flex items-center justify-center rounded-full text-sm uppercase">${(n.profiles?.full_name || 'HB').charAt(0)}</div>
                                 <div>
-                                    <p class="text-sm font-bold text-hb-offblack">${n.profiles?.full_name || 'Verwaltung'}</p>
+                                    <p class="text-sm font-bold text-hb-offblack">${n.profiles?.full_name || 'HB Verwaltung'}</p>
                                     <p class="text-[10px] text-gray-400 uppercase tracking-widest font-medium">${new Date(n.created_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}${isAdmin && n.buildings?.name ? ` • ${n.buildings.name}` : ''}</p>
                                 </div>
                             </div>
