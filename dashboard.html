@@ -172,7 +172,7 @@
                 document.getElementById('header-avatar').textContent = profile.full_name.charAt(0).toUpperCase();
 
                 renderNav(profile.role);
-                loadDashboard(); // Startseite ist jetzt immer das Dashboard
+                loadDashboard(); 
             } catch (err) { console.error(err); }
         }
 
@@ -382,7 +382,222 @@
             btn.disabled = false; btn.textContent = "Passwort aktualisieren";
         }
 
-        /* --- 1. SCHWARZES BRETT --- */
+        /* --- 1.1 EINHEITEN & OBJEKTE VERWALTEN --- */
+        async function loadTenants() {
+            const container = document.getElementById('content-area');
+            const { data: buildings } = await _supabase.from('buildings').select('*').order('name');
+            const buildingOptions = buildings?.map(b => `<option value="${b.id}">${b.name}</option>`).join('') || '';
+
+            container.innerHTML = `
+                <div class="card p-8 md:p-12 mb-8">
+                    <h2 id="form-title" class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Einheit erfassen</h2>
+                    <form id="apartment-form" class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                            <div class="space-y-2 text-left">
+                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Objekt auswählen</label>
+                                <select id="b_id" class="w-full p-3 text-sm" required>
+                                    <option value="" disabled selected>Bitte wählen...</option>
+                                    ${buildingOptions}
+                                </select>
+                            </div>
+                            <div class="space-y-2 text-left">
+                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Wohnungsnummer</label>
+                                <input type="text" id="apt_no" class="w-full p-3 text-sm" placeholder="z.B. 1.OG Links" required>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div><label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">Kaltmiete (€)</label><input type="number" id="rent" class="w-full p-3 text-sm" step="0.01"></div>
+                            <div><label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">Nebenkosten (€)</label><input type="number" id="utils" class="w-full p-3 text-sm" step="0.01"></div>
+                            <div><label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">Fläche (m²)</label><input type="number" id="sq_m" class="w-full p-3 text-sm" step="0.1"></div>
+                        </div>
+                        <div class="pt-6 border-t border-gray-50 grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div><label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">Stromzähler-Nr.</label><input type="text" id="m_elec" class="w-full p-3 text-sm" placeholder="Optional"></div>
+                            <div><label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">Wasserzähler-Nr.</label><input type="text" id="m_water" class="w-full p-3 text-sm" placeholder="Optional"></div>
+                            <div><label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">Wärmezähler-Nr.</label><input type="text" id="m_heat" class="w-full p-3 text-sm" placeholder="Optional"></div>
+                        </div>
+                        <div class="pt-6 flex gap-3">
+                            <button type="submit" id="submit-btn" class="btn-primary px-8 py-3 text-sm">Einheit Speichern</button>
+                            <button type="button" id="cancel-btn" onclick="resetForm()" class="hidden bg-gray-100 text-gray-600 px-8 py-3 rounded-[15px] text-sm font-semibold hover:bg-gray-200">Abbrechen</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="card p-8 md:p-12">
+                    <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Bestands-Liste</h2>
+                    <div id="tenants-list" class="space-y-4">Lade Daten...</div>
+                </div>
+            `;
+            document.getElementById('apartment-form').addEventListener('submit', handleSaveApartment);
+            fetchApartments();
+        }
+
+        async function fetchApartments() {
+            const { data, error } = await _supabase.from('apartments').select('*, buildings (*), profiles!apartment_id(full_name)').order('apartment_number');
+            const list = document.getElementById('tenants-list');
+            if (error) { list.innerHTML = `<p class="text-red-500 text-left">Fehler: ${error.message}</p>`; return; }
+            if (data && data.length > 0) {
+                let currentB = "";
+                list.innerHTML = data.map(apt => {
+                    let header = (currentB !== apt.buildings?.name) ? `<div class="bg-hb-ultralight px-4 py-2 mt-6 mb-2 rounded-lg text-[10px] font-bold uppercase tracking-widest text-hb-olive">${apt.buildings?.name || "Nicht zugeordnet"}</div>` : "";
+                    currentB = apt.buildings?.name;
+                    const names = apt.profiles && apt.profiles.length > 0 ? apt.profiles.map(p => p.full_name).join(', ') : 'LEERSTEHEND';
+                    return header + `
+                        <div class="flex flex-wrap justify-between items-center p-5 bg-white border border-gray-100 rounded-[15px] hover:border-hb-olive transition-colors gap-4 group">
+                            <div class="flex-1 min-w-[200px]">
+                                <h3 class="font-bold text-base text-hb-offblack">${apt.apartment_number}</h3>
+                                <p class="text-xs text-gray-500 font-medium mt-1">${apt.sq_meters || '0'} m² | Mieter: <span class="font-bold text-hb-offblack">${names}</span></p>
+                            </div>
+                            <div class="w-full lg:w-auto grid grid-cols-3 gap-4 bg-gray-50 p-3 rounded-xl border border-gray-100 min-w-[280px]">
+                                <div><p class="text-[9px] uppercase text-gray-400 font-bold text-center">Strom</p><p class="text-xs font-bold text-center mt-1">${apt.meter_electricity || '-'}</p></div>
+                                <div><p class="text-[9px] uppercase text-gray-400 font-bold text-center">Wasser</p><p class="text-xs font-bold text-center mt-1">${apt.meter_water || '-'}</p></div>
+                                <div><p class="text-[9px] uppercase text-gray-400 font-bold text-center">Heizung</p><p class="text-xs font-bold text-center mt-1">${apt.meter_heating || '-'}</p></div>
+                            </div>
+                            <div class="text-right min-w-[120px] flex flex-col items-end gap-1">
+                                <p class="text-sm font-bold text-hb-olive">${(parseFloat(apt.rent_amount || 0) + parseFloat(apt.utilities_amount || 0)).toFixed(2)} €</p>
+                                <button onclick="editApartment('${apt.id}')" class="text-[10px] uppercase font-bold text-gray-400 hover:text-hb-olive transition-colors">Bearbeiten</button>
+                            </div>
+                        </div>`;
+                }).join('');
+            } else { list.innerHTML = `<p class="text-gray-400 italic">Keine Einheiten vorhanden.</p>`; }
+        }
+
+        async function handleSaveApartment(e) {
+            e.preventDefault();
+            const payload = {
+                building_id: document.getElementById('b_id').value, 
+                apartment_number: document.getElementById('apt_no').value,
+                rent_amount: parseFloat(document.getElementById('rent').value) || 0,
+                utilities_amount: parseFloat(document.getElementById('utils').value) || 0,
+                sq_meters: parseFloat(document.getElementById('sq_m').value) || 0,
+                meter_electricity: document.getElementById('m_elec').value,
+                meter_water: document.getElementById('m_water').value,
+                meter_heating: document.getElementById('m_heat').value
+            };
+            if (currentEditingId) await _supabase.from('apartments').update(payload).eq('id', currentEditingId);
+            else await _supabase.from('apartments').insert([payload]);
+            resetForm(); fetchApartments(); showToast("Einheit gespeichert");
+        }
+
+        async function editApartment(id) {
+            const { data: apt } = await _supabase.from('apartments').select('*').eq('id', id).single();
+            if (apt) {
+                currentEditingId = id;
+                document.getElementById('b_id').value = apt.building_id;
+                document.getElementById('apt_no').value = apt.apartment_number;
+                document.getElementById('rent').value = apt.rent_amount;
+                document.getElementById('utils').value = apt.utilities_amount;
+                document.getElementById('sq_m').value = apt.sq_meters;
+                if(document.getElementById('m_elec')) document.getElementById('m_elec').value = apt.meter_electricity || '';
+                if(document.getElementById('m_water')) document.getElementById('m_water').value = apt.meter_water || '';
+                if(document.getElementById('m_heat')) document.getElementById('m_heat').value = apt.meter_heating || '';
+                document.getElementById('form-title').textContent = "Einheit bearbeiten";
+                document.getElementById('submit-btn').textContent = "Änderungen speichern";
+                document.getElementById('cancel-btn').classList.remove('hidden');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        function resetForm() {
+            currentEditingId = null;
+            document.getElementById('apartment-form').reset();
+            document.getElementById('form-title').textContent = "Einheit erfassen";
+            document.getElementById('submit-btn').textContent = "Einheit speichern";
+            document.getElementById('cancel-btn').classList.add('hidden');
+        }
+
+        /* --- 1.2 MIETER VERWALTUNG --- */
+        async function loadUserManagement() {
+            const container = document.getElementById('content-area');
+            const { data: apartments } = await _supabase.from('apartments').select('id, apartment_number, buildings(name)').order('apartment_number');
+            const aptOptions = apartments?.map(a => `<option value="${a.id}">${a.buildings.name}: ${a.apartment_number}</option>`).join('') || '';
+
+            container.innerHTML = `
+                <div class="card p-8 md:p-12 mb-8">
+                    <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Mieter-Account anlegen</h2>
+                    <form id="tenant-user-form" class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                            <div class="space-y-2 text-left">
+                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Vollständiger Name</label>
+                                <input type="text" id="tenant_name" class="w-full p-3 text-sm" placeholder="Vorname Nachname" required>
+                            </div>
+                            <div class="space-y-2 text-left">
+                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">E-Mail Adresse</label>
+                                <input type="email" id="tenant_email" class="w-full p-3 text-sm" placeholder="mail@beispiel.de" required>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                            <div class="space-y-2 text-left">
+                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Einheit zuweisen</label>
+                                <select id="tenant_apt_id" class="w-full p-3 text-sm" required>
+                                    <option value="" disabled selected>Bitte wählen...</option>
+                                    ${aptOptions}
+                                </select>
+                            </div>
+                            <div class="flex items-end">
+                                <button type="submit" id="create-tenant-btn" class="btn-primary px-8 py-3 text-sm w-full">Account vorbereiten</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="card p-8 md:p-12">
+                    <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-hb-offblack">Registrierte Mieter</h2>
+                    <div id="user-list" class="divide-y divide-gray-100 text-sm">Lade...</div>
+                </div>
+            `;
+            document.getElementById('tenant-user-form').addEventListener('submit', handleSaveTenantUser);
+            fetchTenantUsers();
+        }
+
+        async function handleSaveTenantUser(e) {
+            e.preventDefault();
+            const btn = document.getElementById('create-tenant-btn');
+            const aptId = document.getElementById('tenant_apt_id').value;
+            btn.disabled = true; btn.textContent = "Speichere...";
+            const payload = {
+                id: crypto.randomUUID(), 
+                full_name: document.getElementById('tenant_name').value,
+                email: document.getElementById('tenant_email').value,
+                apartment_id: aptId, 
+                role: 'tenant'
+            };
+            const { error } = await _supabase.from('profiles').insert([payload]);
+            if (error) {
+                showToast(error.message, "error");
+                btn.disabled = false; btn.textContent = "Account vorbereiten";
+            } else {
+                showToast("Mieter angelegt!");
+                loadUserManagement();
+            }
+        }
+
+        async function fetchTenantUsers() {
+            const { data } = await _supabase.from('profiles').select('*, apartments!apartment_id(apartment_number, buildings(name))').eq('role', 'tenant').order('full_name');
+            const list = document.getElementById('user-list');
+            if (data && data.length > 0) {
+                list.innerHTML = data.map(u => `
+                    <div class="py-4 flex justify-between items-center group">
+                        <div>
+                            <p class="font-bold text-hb-offblack text-sm">${u.full_name}</p>
+                            <p class="text-[11px] text-gray-500 font-medium mt-1">
+                                ${u.email} • ${u.apartments?.buildings?.name || ''} ${u.apartments?.apartment_number || 'Keine Einheit'}
+                            </p>
+                        </div>
+                        <div class="flex gap-3">
+                            <button onclick="showToast('Einladungs-Funktion folgt in Kürze')" class="text-[10px] font-bold text-hb-olive hover:underline">Passwort-Link senden</button>
+                            <button onclick="deleteProfile('${u.id}')" class="text-[10px] font-bold text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:underline">Entfernen</button>
+                        </div>
+                    </div>`).join('');
+            } else { list.innerHTML = '<p class="py-6 text-gray-400 italic">Keine Mieter-Accounts angelegt.</p>'; }
+        }
+
+        async function deleteProfile(id) {
+            if (confirm("Mieter-Account wirklich entfernen?")) {
+                await _supabase.from('profiles').delete().eq('id', id);
+                fetchTenantUsers();
+                showToast("Mieter entfernt");
+            }
+        }
+
+        /* --- 2. SCHWARZES BRETT --- */
         async function loadNews() {
             const container = document.getElementById('content-area');
             const isAdmin = userProfile.role === 'admin';
@@ -397,23 +612,23 @@
                         <form id="news-form" class="space-y-5">
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
                                 <div>
-                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Gültig für</label>
+                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Gültig für</label>
                                     <select id="news_b_id" class="w-full p-3 text-sm"><option value="">Alle Gebäude</option>${buildingOptions}</select>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Kategorie</label>
+                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Kategorie</label>
                                     <select id="news_category" class="w-full p-3 text-sm" required>
                                         <option value="Information">Information</option><option value="Ankündigung">Ankündigung</option>
                                         <option value="Wartung">Wartung</option><option value="Termin">Termin</option><option value="Dringend">Dringend</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Titel</label>
+                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Titel</label>
                                     <input type="text" id="news_title" class="w-full p-3 text-sm" placeholder="Kurze Überschrift" required>
                                 </div>
                             </div>
                             <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Inhalt (Nutze **fett**, *kursiv*, [Titel](URL), --- für Linie)</label>
+                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Inhalt (Nutze **fett**, *kursiv*, [Titel](URL), --- für Linie)</label>
                                 <textarea id="news_content" rows="4" class="w-full p-3 text-sm" placeholder="Schreiben Sie hier Ihre Nachricht..." required></textarea>
                             </div>
                             <div class="flex gap-3">
@@ -428,7 +643,7 @@
                 <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
                     <h2 class="text-2xl font-extrabold text-hb-offblack">Blackboard Feed</h2>
                     <div class="flex gap-3 w-full md:w-auto">
-                        <input type="text" id="news-search" oninput="handleNewsSearch(this.value)" placeholder="Suchen..." class="flex-grow md:w-64 p-2 text-sm">
+                        <input type="text" id="news-search" oninput="handleNewsSearch(this.value)" placeholder="Suchen..." class="flex-grow md:w-64 p-2 text-sm border-none shadow-sm">
                         <select id="news-filter-cat" onchange="handleNewsFilter(this.value)" class="p-2 text-sm cursor-pointer border-none bg-white shadow-sm rounded-[15px]">
                             <option value="">Alle</option><option value="Information">Info</option><option value="Ankündigung">Ankündigung</option><option value="Wartung">Wartung</option>
                         </select>
@@ -523,7 +738,7 @@
 
             const { error } = await _supabase.from('news').update({ likes: currentLikes, liked_by: likedBy }).eq('id', id);
             if (error) {
-                showToast("Like konnte nicht gespeichert werden. Bitte Spalte 'liked_by' (uuid[]) in Supabase anlegen.", "error");
+                showToast("Like konnte nicht gespeichert werden.", "error");
             } else {
                 fetchNews();
             }
@@ -558,7 +773,7 @@
         async function deleteNews(id) { if (confirm("Löschen?")) { await _supabase.from('news').delete().eq('id', id); fetchNews(); showToast("Gelöscht"); } }
 
 
-        /* --- 2. DOKUMENTE --- */
+        /* --- 3. DOKUMENTE --- */
         async function loadDocuments() {
             const container = document.getElementById('content-area');
             const isAdmin = userProfile.role === 'admin';
@@ -577,25 +792,30 @@
                         <form id="upload-form" class="space-y-5">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                                 <div>
+                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Kategorie</label>
                                     <select id="doc_category" class="w-full p-3 text-sm">
                                         <option value="Abrechnung">Jahresabrechnung</option><option value="Mietvertrag">Mietvertrag</option><option value="Protokoll">Protokoll</option><option value="Sonstiges">Sonstiges</option>
                                     </select>
                                 </div>
-                                <div><input type="text" id="doc_title" class="w-full p-3 text-sm" placeholder="Anzeigetitel" required></div>
                                 <div>
+                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Titel</label>
+                                    <input type="text" id="doc_title" class="w-full p-3 text-sm" placeholder="Anzeigetitel" required>
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Sichtbarkeit</label>
                                     <select id="doc_tenant_id" class="w-full p-3 text-sm">
                                         <option value="">Allgemeines Dokument (Für alle sichtbar)</option>
                                         ${tenantOptions}
                                     </select>
                                 </div>
-                                <div class="flex items-center">
+                                <div class="flex items-end">
                                     <label class="flex items-center justify-center w-full h-[46px] border border-dashed border-gray-300 rounded-[15px] cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
                                         <span class="text-xs font-semibold text-gray-500" id="file-status">PDF / Datei auswählen</span>
                                         <input id="file-input" type="file" class="hidden" onchange="document.getElementById('file-status').textContent = this.files[0].name" />
                                     </label>
                                 </div>
                             </div>
-                            <button type="submit" id="upload-btn" class="btn-primary px-6 py-2 text-sm w-full md:w-auto">Upload starten</button>
+                            <button type="submit" id="upload-btn" class="btn-primary px-8 py-3 text-sm w-full md:w-auto mt-2">Upload starten</button>
                         </form>
                     </div>
                 `;
@@ -629,13 +849,6 @@
                 }]);
                 showToast("Dokument gespeichert!"); loadDocuments();
             } else { showToast(uploadError.message, "error"); btn.disabled = false; }
-        }
-
-        async function markDocAsRead(id, currentReadBy) {
-            if(!currentReadBy.includes(currentUser.id)) {
-                currentReadBy.push(currentUser.id);
-                await _supabase.from('documents').update({read_by: currentReadBy}).eq('id', id);
-            }
         }
 
         async function fetchDocuments() {
@@ -721,7 +934,7 @@
         }
 
 
-        /* --- 3. TICKETS & HELPDESK --- */
+        /* --- 4. TICKETS & HELPDESK --- */
         async function loadTickets() {
             const container = document.getElementById('content-area');
             const isAdmin = userProfile.role === 'admin';
@@ -1010,7 +1223,7 @@
         }
 
 
-        /* --- 4. KONTAKTBUCH (PLATZHALTER) --- */
+        /* --- 5. KONTAKTBUCH (PLATZHALTER) --- */
         async function loadContacts() {
             const container = document.getElementById('content-area');
             const isAdmin = userProfile.role === 'admin';
@@ -1024,7 +1237,6 @@
                     <p class="text-sm text-gray-500 mb-6">Wichtige Ansprechpartner für Ihre Wohnanlage.</p>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="contacts-list">
-                        <!-- Statischer Platzhalter, da Tabelle noch nicht in DB existiert -->
                         <div class="border border-gray-100 p-4 rounded-[15px] flex items-start gap-4">
                             <div class="p-3 bg-hb-ultralight rounded-xl text-hb-olive"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>
                             <div>
