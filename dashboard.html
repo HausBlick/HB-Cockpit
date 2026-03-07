@@ -610,11 +610,10 @@
             const inviteList = document.getElementById('invites-list');
             const userList = document.getElementById('user-list');
 
-            // 1. Ausstehende Einladungen laden
+            // 1. Ausstehende Einladungen laden (ohne erzwungene Sortierung nach created_at, da Spalte evtl. fehlt)
             const { data: invites, error: inviteError } = await _supabase
                 .from('invitations')
-                .select('*, apartments(apartment_number, buildings(name))')
-                .order('created_at', { ascending: false });
+                .select('*, apartments!apartment_id(apartment_number, buildings(name))');
             
             if (inviteError) {
                 inviteList.innerHTML = `<p class="text-red-500 py-4 italic">Fehler beim Laden der Einladungen: ${inviteError.message}</p>`;
@@ -634,10 +633,10 @@
                     </div>`).join('');
             } else { inviteList.innerHTML = '<p class="py-4 text-gray-400 italic">Keine ausstehenden Einladungen.</p>'; }
 
-            // 2. Registrierte Profile laden
+            // 2. Registrierte Profile laden (Explizite Join-Angabe !apartment_id gegen Mehrdeutigkeit)
             const { data: users, error: usersError } = await _supabase
                 .from('profiles')
-                .select('*, apartments(apartment_number, buildings(name))')
+                .select('*, apartments!apartment_id(apartment_number, buildings(name))')
                 .eq('role', 'tenant')
                 .order('full_name');
             
