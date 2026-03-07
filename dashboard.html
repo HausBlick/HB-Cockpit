@@ -476,7 +476,7 @@
                             </div>
                             <div class="text-right min-w-[120px] flex flex-col items-end gap-1">
                                 <p class="text-sm font-bold text-hb-olive">${(parseFloat(apt.rent_amount || 0) + parseFloat(apt.utilities_amount || 0)).toFixed(2)} €</p>
-                                <button onclick="editApartment('${apt.id}')" class="text-[10px] uppercase font-bold text-HB-olive transition-colors">Bearbeiten</button>
+                                <button onclick="editApartment('${apt.id}')" class="text-[10px] uppercase font-bold text-hb-olive transition-colors">Bearbeiten</button>
                             </div>
                         </div>`;
                 }).join('');
@@ -610,13 +610,12 @@
             const inviteList = document.getElementById('invites-list');
             const userList = document.getElementById('user-list');
 
-            // 1. Ausstehende Einladungen laden (ohne erzwungene Sortierung nach created_at, da Spalte evtl. fehlt)
             const { data: invites, error: inviteError } = await _supabase
                 .from('invitations')
                 .select('*, apartments!apartment_id(apartment_number, buildings(name))');
             
             if (inviteError) {
-                inviteList.innerHTML = `<p class="text-red-500 py-4 italic">Fehler beim Laden der Einladungen: ${inviteError.message}</p>`;
+                inviteList.innerHTML = `<p class="text-red-500 py-4 italic">Fehler beim Laden: ${inviteError.message}</p>`;
             } else if (invites && invites.length > 0) {
                 inviteList.innerHTML = invites.map(i => `
                     <div class="py-4 flex justify-between items-center group bg-yellow-50/50 px-4 rounded-xl mb-2 border border-yellow-100">
@@ -633,7 +632,6 @@
                     </div>`).join('');
             } else { inviteList.innerHTML = '<p class="py-4 text-gray-400 italic">Keine ausstehenden Einladungen.</p>'; }
 
-            // 2. Registrierte Profile laden (Explizite Join-Angabe !apartment_id gegen Mehrdeutigkeit)
             const { data: users, error: usersError } = await _supabase
                 .from('profiles')
                 .select('*, apartments!apartment_id(apartment_number, buildings(name))')
@@ -641,7 +639,7 @@
                 .order('full_name');
             
             if (usersError) {
-                userList.innerHTML = `<p class="text-red-500 py-4 italic">Fehler beim Laden der Mieter: ${usersError.message}</p>`;
+                userList.innerHTML = `<p class="text-red-500 py-4 italic">Fehler beim Laden: ${usersError.message}</p>`;
             } else if (users && users.length > 0) {
                 userList.innerHTML = users.map(u => `
                     <div class="py-4 flex justify-between items-center group">
