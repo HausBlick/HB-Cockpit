@@ -164,7 +164,8 @@
                 if (!user) { window.location.href = 'index.html'; return; }
                 currentUser = user;
 
-                const { data: profile, error: profileError } = await _supabase.from('profiles').select('*, apartments!profiles_apartment_id_fkey(building_id)').eq('id', user.id).single();
+                // Load profile - we check for the explicit relationship to avoid ambiguity
+                const { data: profile, error: profileError } = await _supabase.from('profiles').select('*, apartments(building_id)').eq('id', user.id).single();
                 if (profileError || !profile) { document.getElementById('welcome-title').textContent = "Profil nicht gefunden"; return; }
                 userProfile = profile;
 
@@ -992,7 +993,7 @@
                             </div>
                         </div>
                         <div class="flex gap-3">
-                            <button onclick="viewDoc('${doc.file_path}')" class="p-3 text-hb-olive hover:bg-hb-olive hover:text-white rounded-[15px] transition-colors tooltip" title="Dokument anzeigen">
+                            <button onclick="viewDoc('${doc.file_path}', 'documents')" class="p-3 text-hb-olive hover:bg-hb-olive hover:text-white rounded-[15px] transition-colors tooltip" title="Dokument anzeigen">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                             </button>
                             ${isAdmin ? `<button onclick="deleteDoc('${doc.id}', '${doc.file_path}')" class="p-3 text-red-400 hover:bg-red-50 rounded-[15px] transition-colors"><svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>` : ''}
@@ -1220,22 +1221,39 @@
 
                 box.innerHTML = data.map(msg => {
                     const isMe = msg.sender_id === currentUser.id;
-                    const wrapperClass = isMe ? "justify-end text-right" : "justify-start text-left";
-                    const bgClass = isMe ? "bg-hb-olive text-white rounded-2xl rounded-tr-none shadow-md" : "bg-white border border-gray-200 text-hb-offblack rounded-2xl rounded-tl-none shadow-sm";
+                    const wrapperClass = isMe ? "justify-end" : "justify-start";
+                    const alignClass = isMe ? "items-end" : "items-start";
+                    
+                    // Design der Blasen
+                    const bgClass = isMe 
+                        ? "bg-hb-olive text-white rounded-[20px] rounded-br-[4px] shadow-sm" 
+                        : "bg-white text-hb-offblack border border-gray-100 rounded-[20px] rounded-bl-[4px] shadow-sm";
+                    
                     const senderName = isMe ? "Ich" : (msg.profiles?.full_name || 'System');
                     
                     let attachmentHtml = "";
                     if (msg.attachment_path) {
-                        attachmentHtml = `<div class="mt-3 pt-3 border-t ${isMe ? 'border-white/20' : 'border-gray-100'}"><button type="button" onclick="viewDoc('${msg.attachment_path}', 'ticket_attachments')" class="text-xs font-bold flex items-center gap-2 hover:underline ${isMe ? 'text-white' : 'text-hb-olive'}"><svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg> Anhang anzeigen</button></div>`;
+                        const btnClass = isMe 
+                            ? "text-white hover:bg-white/10" 
+                            : "text-hb-olive hover:bg-hb-olive/5";
+                            
+                        attachmentHtml = `
+                        <div class="mt-3 pt-3 border-t ${isMe ? 'border-white/20' : 'border-gray-100'}">
+                            <button type="button" onclick="viewDoc('${msg.attachment_path}', 'ticket_attachments')" class="text-xs font-bold flex items-center gap-2 px-3 py-2 -ml-3 rounded-lg transition-colors ${btnClass}">
+                                <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg> 
+                                Anhang ansehen
+                            </button>
+                        </div>`;
                     }
 
                     return `
                     <div class="flex w-full ${wrapperClass} mb-4 message-appear">
-                        <div class="max-w-[85%] md:max-w-[65%] w-fit flex flex-col ${isMe ? 'items-end' : 'items-start'}">
-                            <p class="text-[10px] uppercase tracking-widest text-gray-400 mb-1 font-bold px-1">
-                                ${senderName} • ${new Date(msg.created_at).toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'})}
-                            </p>
-                            <div class="p-4 ${bgClass} text-base leading-relaxed whitespace-pre-wrap text-left break-words">
+                        <div class="flex flex-col ${alignClass} max-w-[85%] md:max-w-[65%]">
+                            <div class="flex items-center gap-2 mb-1 px-1">
+                                <span class="text-[10px] uppercase tracking-widest text-gray-400 font-bold">${senderName}</span>
+                                <span class="text-[10px] text-gray-400 font-medium">${new Date(msg.created_at).toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'})}</span>
+                            </div>
+                            <div class="px-5 py-3 text-[15px] leading-relaxed whitespace-pre-wrap break-words text-left inline-block ${bgClass}" style="width: fit-content;">
                                 ${msg.message}
                                 ${attachmentHtml}
                             </div>
