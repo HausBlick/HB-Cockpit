@@ -608,9 +608,11 @@
             const inviteList = document.getElementById('invites-list');
             const userList = document.getElementById('user-list');
 
+            // 1. Ausstehende Einladungen laden (Sortierung nach created_at ist jetzt möglich)
             const { data: invites, error: inviteError } = await _supabase
                 .from('invitations')
-                .select('*, apartments!invitations_apartment_id_fkey(apartment_number, buildings(name))');
+                .select('*, apartments!invitations_apartment_id_fkey(apartment_number, buildings(name))')
+                .order('created_at', { ascending: false });
             
             if (inviteError) {
                 inviteList.innerHTML = `<p class="text-red-500 py-4 italic text-left">Fehler beim Laden: ${inviteError.message}</p>`;
@@ -630,6 +632,7 @@
                     </div>`).join('');
             } else { inviteList.innerHTML = '<p class="py-4 text-gray-400 italic text-left">Keine ausstehenden Einladungen.</p>'; }
 
+            // 2. Registrierte Profile laden
             const { data: users, error: usersError } = await _supabase
                 .from('profiles')
                 .select('*, apartments!profiles_apartment_id_fkey(apartment_number, buildings(name))')
@@ -691,27 +694,27 @@
             if (isAdmin) {
                 html += `
                     <div class="card p-8 mb-8 text-left">
-                        <h2 class="text-lg font-bold mb-6 text-hb-offblack flex items-center gap-2">${icons.news} Neuer Aushang</h2>
+                        <h2 class="text-lg font-bold mb-6 text-hb-offblack flex items-center gap-2 text-left">${icons.news} Neuer Aushang</h2>
                         <form id="news-form" class="space-y-5">
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
                                 <div>
-                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Gültig für</label>
+                                    <label class="block text-[10px] font-bold uppercase text-HB-gray-500 tracking-widest mb-1">Gültig für</label>
                                     <select id="news_b_id" class="w-full p-3 text-sm"><option value="">Alle Gebäude</option>${buildingOptions}</select>
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Kategorie</label>
+                                    <label class="block text-[10px] font-bold uppercase text-HB-gray-500 tracking-widest mb-1">Kategorie</label>
                                     <select id="news_category" class="w-full p-3 text-sm" required>
                                         <option value="Information">Information</option><option value="Ankündigung">Ankündigung</option>
                                         <option value="Wartung">Wartung</option><option value="Termin">Termin</option><option value="Dringend">Dringend</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Titel</label>
+                                    <label class="block text-[10px] font-bold uppercase text-HB-gray-500 tracking-widest mb-1">Titel</label>
                                     <input type="text" id="news_title" class="w-full p-3 text-sm" placeholder="Kurze Überschrift" required>
                                 </div>
                             </div>
                             <div>
-                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Inhalt (Nutze **fett**, *kursiv*, [Titel](URL), --- für Linie)</label>
+                                <label class="block text-[10px] font-bold uppercase text-HB-gray-500 tracking-widest mb-1">Inhalt (Nutze **fett**, *kursiv*, [Titel](URL), --- für Linie)</label>
                                 <textarea id="news_content" rows="4" class="w-full p-3 text-sm" placeholder="Schreiben Sie hier Ihre Nachricht..." required></textarea>
                             </div>
                             <div class="flex gap-3 text-left">
@@ -871,30 +874,30 @@
             if (isAdmin) {
                 html += `
                     <div class="card p-8 mb-8 text-left">
-                        <h2 class="text-lg font-bold mb-6 text-hb-offblack flex items-center gap-2">${icons.docs} Dokument hochladen</h2>
-                        <form id="upload-form" class="space-y-5">
+                        <h2 class="text-lg font-bold mb-6 text-hb-offblack flex items-center gap-2 text-left">${icons.docs} Dokument hochladen</h2>
+                        <form id="upload-form" class="space-y-5 text-left">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-5 text-left">
                                 <div>
-                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Kategorie</label>
-                                    <select id="doc_category" class="w-full p-3 text-sm">
+                                    <label class="block text-[10px] font-bold uppercase text-HB-gray-500 tracking-widest mb-1 text-left">Kategorie</label>
+                                    <select id="doc_category" class="w-full p-3 text-sm text-left">
                                         <option value="Abrechnung">Jahresabrechnung</option><option value="Mietvertrag">Mietvertrag</option><option value="Protokoll">Protokoll</option><option value="Sonstiges">Sonstiges</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Titel</label>
-                                    <input type="text" id="doc_title" class="w-full p-3 text-sm" placeholder="Anzeigetitel" required>
+                                    <label class="block text-[10px] font-bold uppercase text-HB-gray-500 tracking-widest mb-1 text-left">Titel</label>
+                                    <input type="text" id="doc_title" class="w-full p-3 text-sm text-left" placeholder="Anzeigetitel" required>
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Sichtbarkeit</label>
-                                    <select id="doc_tenant_id" class="w-full p-3 text-sm">
+                                    <label class="block text-[10px] font-bold uppercase text-HB-gray-500 tracking-widest mb-1 text-left">Sichtbarkeit</label>
+                                    <select id="doc_tenant_id" class="w-full p-3 text-sm text-left">
                                         <option value="">Allgemeines Dokument (Für alle sichtbar)</option>
                                         ${tenantOptions}
                                     </select>
                                 </div>
                                 <div class="flex items-end text-left">
-                                    <label class="flex items-center justify-center w-full h-[46px] border border-dashed border-gray-300 rounded-[15px] cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
-                                        <span class="text-xs font-semibold text-gray-500" id="file-status">PDF / Datei auswählen</span>
-                                        <input id="file-input" type="file" class="hidden" onchange="document.getElementById('file-status').textContent = this.files[0].name" />
+                                    <label class="flex items-center justify-center w-full h-[46px] border border-dashed border-gray-300 rounded-[15px] cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors text-left">
+                                        <span class="text-xs font-semibold text-gray-500 text-left" id="file-status">PDF / Datei auswählen</span>
+                                        <input id="file-input" type="file" class="hidden text-left" onchange="document.getElementById('file-status').textContent = this.files[0].name" />
                                     </label>
                                 </div>
                             </div>
@@ -959,7 +962,7 @@
                 list.innerHTML = data.map(doc => {
                     const readBy = doc.read_by || [];
                     const isUnread = !isAdmin && !readBy.includes(currentUser.id);
-                    const unreadBadge = isUnread ? `<span class="px-2 py-0.5 bg-red-100 text-red-600 rounded text-[10px] font-bold ml-2">NEU</span>` : '';
+                    const unreadBadge = isUnread ? `<span class="px-2 py-0.5 bg-red-100 text-red-600 rounded text-[10px] font-bold ml-2 text-left">NEU</span>` : '';
 
                     return `
                     <div class="flex items-center justify-between p-4 bg-gray-50 border border-gray-100 rounded-[15px] hover:border-hb-olive transition-colors group text-left">
@@ -969,17 +972,17 @@
                             </div>
                             <div class="text-left">
                                 <h4 class="font-bold text-sm text-hb-offblack flex items-center text-left">${doc.title} ${unreadBadge}</h4>
-                                <p class="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mt-0.5 text-left">
+                                <p class="text-[10px] text-HB-gray-500 uppercase tracking-widest font-semibold mt-0.5 text-left">
                                     ${doc.category} • ${new Date(doc.created_at).toLocaleDateString()} 
                                     ${isAdmin && doc.profiles?.full_name ? ` • Für: ${doc.profiles.full_name}` : ''}
                                 </p>
                             </div>
                         </div>
                         <div class="flex gap-2 text-left">
-                            <button onclick="downloadAndReadDoc('${doc.id}', '${doc.file_path}', '${JSON.stringify(readBy).replace(/"/g, '&quot;')}')" class="p-2 text-hb-olive hover:bg-hb-olive hover:text-white rounded-[15px] transition-colors tooltip" title="Herunterladen">
+                            <button onclick="downloadAndReadDoc('${doc.id}', '${doc.file_path}', '${JSON.stringify(readBy).replace(/"/g, '&quot;')}')" class="p-2 text-hb-olive hover:bg-hb-olive hover:text-white rounded-[15px] transition-colors tooltip text-left" title="Herunterladen">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                             </button>
-                            ${isAdmin ? `<button onclick="deleteDoc('${doc.id}', '${doc.file_path}')" class="p-2 text-red-400 hover:bg-red-50 rounded-[15px] transition-colors"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>` : ''}
+                            ${isAdmin ? `<button onclick="deleteDoc('${doc.id}', '${doc.file_path}')" class="p-2 text-red-400 hover:bg-red-50 rounded-[15px] transition-colors text-left"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>` : ''}
                         </div>
                     </div>`
                 }).join('');
@@ -1189,7 +1192,7 @@
                                 <textarea id="chat_msg_input" rows="2" class="w-full rounded-[15px] border border-gray-200 p-3 pr-12 focus:outline-none focus:border-hb-olive text-sm resize-none shadow-inner text-left" placeholder="Nachricht schreiben..." required></textarea>
                                 <label class="absolute right-3 bottom-3 p-1 cursor-pointer text-gray-400 hover:text-hb-olive transition-colors bg-white rounded-md text-left" title="Datei anhängen">
                                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-                                    <input type="file" id="chat_file_input" class="hidden">
+                                    <input type="file" id="chat_file_input" class="hidden text-left">
                                 </label>
                             </div>
                             <button type="submit" id="chat-send-btn" class="bg-hb-olive text-white w-12 h-12 rounded-[15px] flex items-center justify-center hover:bg-hb-offblack transition-colors shadow-md text-left">
@@ -1232,7 +1235,7 @@
                     
                     let attachmentHtml = "";
                     if (msg.attachment_path) {
-                        attachmentHtml = `<div class="mt-2 pt-2 border-t ${isMe ? 'border-white/20' : 'border-gray-100'} text-left"><button onclick="viewDoc('${msg.attachment_path}', 'ticket_attachments')" class="text-[10px] font-bold flex items-center gap-1 hover:underline text-left"><svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> Anhang öffnen</button></div>`;
+                        attachmentHtml = `<div class="mt-2 pt-2 border-t ${isMe ? 'border-white/20' : 'border-gray-100'} text-left"><button onclick="viewDoc('${msg.attachment_path}', 'ticket_attachments')" class="text-[10px] font-bold flex items-center gap-1 hover:underline text-left text-HB-olive"><svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> Anhang öffnen</button></div>`;
                     }
 
                     return `
@@ -1372,15 +1375,15 @@
                     <form id="contact-form" class="space-y-5 text-left">
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 text-left">
                             <div class="text-left">
-                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Firma (Optional)</label>
+                                <label class="block text-[10px] font-bold uppercase text-HB-gray-500 tracking-widest mb-1 text-left">Firma (Optional)</label>
                                 <input type="text" id="contact_company" class="w-full p-3 text-sm text-left" placeholder="Malerbetrieb Meier GmbH">
                             </div>
                             <div class="text-left">
-                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Ansprechpartner</label>
+                                <label class="block text-[10px] font-bold uppercase text-HB-gray-500 tracking-widest mb-1 text-left">Ansprechpartner</label>
                                 <input type="text" id="contact_person" class="w-full p-3 text-sm text-left" required>
                             </div>
                             <div class="text-left">
-                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Kategorie</label>
+                                <label class="block text-[10px] font-bold uppercase text-HB-gray-500 tracking-widest mb-1 text-left">Kategorie</label>
                                 <select id="contact_category" class="w-full p-3 text-sm text-left" required>
                                     <option value="Sanitär">Sanitär</option>
                                     <option value="Elektrik">Elektrik</option>
@@ -1391,23 +1394,23 @@
                                 </select>
                             </div>
                             <div class="text-left">
-                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Telefon</label>
+                                <label class="block text-[10px] font-bold uppercase text-HB-gray-500 tracking-widest mb-1 text-left">Telefon</label>
                                 <input type="text" id="contact_phone" class="w-full p-3 text-sm text-left">
                             </div>
                             <div class="text-left">
-                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Mobil</label>
+                                <label class="block text-[10px] font-bold uppercase text-HB-gray-500 tracking-widest mb-1 text-left">Mobil</label>
                                 <input type="text" id="contact_mobile" class="w-full p-3 text-sm text-left">
                             </div>
                             <div class="text-left">
-                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">E-Mail</label>
+                                <label class="block text-[10px] font-bold uppercase text-HB-gray-500 tracking-widest mb-1 text-left">E-Mail</label>
                                 <input type="email" id="contact_email" class="w-full p-3 text-sm text-left">
                             </div>
                             <div class="col-span-1 md:col-span-2 lg:col-span-3 text-left">
-                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Adresse (Strasse, PLZ Ort)</label>
+                                <label class="block text-[10px] font-bold uppercase text-HB-gray-500 tracking-widest mb-1 text-left">Adresse (Strasse, PLZ Ort)</label>
                                 <input type="text" id="contact_address" class="w-full p-3 text-sm text-left" placeholder="Musterstraße 1, 12345 Musterstadt">
                             </div>
                             <div class="col-span-1 md:col-span-2 lg:col-span-3 text-left">
-                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Zuweisung zu Objekten (Leer lassen für 'Alle Gebäude')</label>
+                                <label class="block text-[10px] font-bold uppercase text-HB-gray-500 tracking-widest mb-2 text-left">Zuweisung zu Objekten (Leer lassen für 'Alle Gebäude')</label>
                                 <div class="flex flex-wrap gap-4 p-3 bg-white border border-gray-100 rounded-[15px] text-left">
                                     ${buildingsHtml}
                                 </div>
@@ -1500,9 +1503,9 @@
                         </div>
 
                         <div class="mt-2 space-y-1.5 z-10 border-t border-gray-50 pt-3 text-left">
-                            ${c.phone ? `<a href="tel:${c.phone.replace(/[^0-9+]/g, '')}" class="text-xs font-semibold text-gray-600 hover:text-hb-orange flex items-center gap-2 text-left"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg> ${c.phone}</a>` : ''}
-                            ${c.mobile ? `<a href="tel:${c.mobile.replace(/[^0-9+]/g, '')}" class="text-xs font-semibold text-gray-600 hover:text-hb-orange flex items-center gap-2 text-left"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg> ${c.mobile}</a>` : ''}
-                            ${c.email ? `<a href="mailto:${c.email}" class="text-xs font-semibold text-gray-600 hover:text-hb-orange flex items-center gap-2 text-left"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg> ${c.email}</a>` : ''}
+                            ${c.phone ? `<a href="tel:${c.phone.replace(/[^0-9+]/g, '')}" class="text-xs font-semibold text-HB-gray-600 hover:text-HB-orange flex items-center gap-2 text-left"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg> ${c.phone}</a>` : ''}
+                            ${c.mobile ? `<a href="tel:${c.mobile.replace(/[^0-9+]/g, '')}" class="text-xs font-semibold text-HB-gray-600 hover:text-HB-orange flex items-center gap-2 text-left"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg> ${c.mobile}</a>` : ''}
+                            ${c.email ? `<a href="mailto:${c.email}" class="text-xs font-semibold text-HB-gray-600 hover:text-HB-orange flex items-center gap-2 text-left"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg> ${c.email}</a>` : ''}
                         </div>
                     </div>
                 `}).join('');
@@ -1516,7 +1519,7 @@
             const btn = document.getElementById('contact-submit-btn');
             btn.disabled = true; btn.textContent = "Speichere...";
             
-            const selectedBuildings = Array.from(document.querySelectorAll('input[name="contact_buildings"]:checked')).map(cb => cb.value);
+            const selectedBuildings = Array.from(document.querySelectorAll('input[name="contact_buildings"]:checked')).map(cb => parseInt(cb.value));
 
             const payload = {
                 company: document.getElementById('contact_company').value || null,
