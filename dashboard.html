@@ -72,12 +72,12 @@
 
     <!-- SIDEBAR -->
     <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-40 w-72 bg-white border-r border-gray-100 flex-shrink-0 h-screen flex flex-col shadow-soft text-left">
-        <div class="p-8 pb-4 hidden md:block">
-            <div class="font-extrabold text-2xl tracking-tighter text-hb-olive flex items-center gap-3 mb-1">
+        <div class="p-8 pb-4 hidden md:block text-center">
+            <div class="font-extrabold text-2xl tracking-tighter text-hb-olive flex items-center justify-center gap-3 mb-1">
                 <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-10 w-auto">
                 Mieterportal
             </div>
-            <p class="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-400 pl-12">HB Verwaltung</p>
+            <p class="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-400">HB Verwaltung</p>
         </div>
         
         <div class="flex-grow p-4 overflow-y-auto">
@@ -158,6 +158,7 @@
                 if (!user) { window.location.href = 'index.html'; return; }
                 currentUser = user;
 
+                // Load profile with building link to enable tenant filtering
                 const { data: profile, error: profileError } = await _supabase.from('profiles').select('*, apartments!apartment_id(building_id)').eq('id', user.id).single();
                 if (profileError || !profile) { document.getElementById('welcome-title').textContent = "Profil nicht gefunden"; return; }
                 userProfile = profile;
@@ -172,22 +173,19 @@
 
         function renderNav(role) {
             const nav = document.getElementById('nav-links');
-            const itemClass = "nav-link flex items-center gap-3 p-3 text-sm font-medium text-gray-600 cursor-pointer";
+            const itemClass = "nav-link flex items-center gap-3 p-3 text-sm font-medium text-HB-offblack cursor-pointer";
             const sectionClass = "pt-6 pb-2 px-3 text-[10px] uppercase tracking-widest font-extrabold text-gray-400";
             
             if (role === 'admin') {
                 nav.innerHTML = `
                     <li><a onclick="loadDashboard(); setActiveNav('nav-dash')" id="nav-dash" class="${itemClass} active-link">${icons.dashboard} Dashboard</a></li>
-                    
                     <li class="${sectionClass}">Kommunikation</li>
                     <li><a onclick="loadNews(); setActiveNav('nav-news')" id="nav-news" class="${itemClass}">${icons.news} Schwarzes Brett</a></li>
                     <li><a onclick="loadTickets(); setActiveNav('nav-tickets')" id="nav-tickets" class="${itemClass}">${icons.tickets} Mieter-Tickets</a></li>
-                    
                     <li class="${sectionClass}">Mieterverwaltung</li>
                     <li><a onclick="loadUserManagement(); setActiveNav('nav-users')" id="nav-users" class="${itemClass}">${icons.users} Meine Mieter</a></li>
                     <li><a onclick="loadTenants(); setActiveNav('nav-apartments')" id="nav-apartments" class="${itemClass}">${icons.buildings} Objekte & Einheiten</a></li>
                     <li><a onclick="loadDocuments(); setActiveNav('nav-docs')" id="nav-docs" class="${itemClass}">${icons.docs} Dokumente</a></li>
-                    
                     <li class="${sectionClass}">Service</li>
                     <li><a onclick="loadContacts(); setActiveNav('nav-contact')" id="nav-contact" class="${itemClass}">${icons.contact} Kontaktbuch</a></li>
                 `;
@@ -216,9 +214,9 @@
                 .replace(/^---$/gm, '<hr class="my-6 border-gray-100">')
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                 .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="text-hb-olive underline font-bold hover:text-hb-orange transition-colors">$1</a>')
-                .replace(/\[olive\](.*?)\[\/olive\]/g, '<span class="text-hb-olive font-bold">$1</span>')
-                .replace(/\[orange\](.*?)\[\/orange\]/g, '<span class="text-hb-orange font-bold">$1</span>')
+                .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="text-HB-olive underline font-bold hover:text-HB-orange transition-colors">$1</a>')
+                .replace(/\[olive\](.*?)\[\/olive\]/g, '<span class="text-HB-olive font-bold">$1</span>')
+                .replace(/\[orange\](.*?)\[\/orange\]/g, '<span class="text-HB-orange font-bold">$1</span>')
                 .replace(/^- (.*$)/gim, '<li>$1</li>');
             if (formatted.includes('<li>')) formatted = formatted.replace(/(<li>.*<\/li>)/gms, '<ul>$1</ul>');
             return formatted.split('\n').join('<br>');
