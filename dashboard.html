@@ -1094,7 +1094,7 @@
 
         async function fetchTicketsBoard() {
             const isAdmin = userProfile.role === 'admin';
-            let query = _supabase.from('tickets').select('*, profiles(full_name)').neq('status', 'Erledigt').order('created_at', { ascending: false });
+            let query = _supabase.from('tickets').select('*, profiles!tenant_id(full_name)').neq('status', 'Erledigt').order('created_at', { ascending: false });
             if (!isAdmin) query = query.eq('tenant_id', currentUser.id);
 
             const { data, error } = await query;
@@ -1127,7 +1127,7 @@
                 container.innerHTML = '<p class="text-sm text-gray-400 italic">Lade...</p>';
                 
                 const isAdmin = userProfile.role === 'admin';
-                let query = _supabase.from('tickets').select('*, profiles(full_name)').eq('status', 'Erledigt').order('created_at', { ascending: false });
+                let query = _supabase.from('tickets').select('*, profiles!tenant_id(full_name)').eq('status', 'Erledigt').order('created_at', { ascending: false });
                 if (!isAdmin) query = query.eq('tenant_id', currentUser.id);
 
                 const { data, error } = await query;
@@ -1167,7 +1167,7 @@
         async function viewTicketChat(ticketId) {
             const container = document.getElementById('content-area');
             const isAdmin = userProfile.role === 'admin';
-            const { data: ticket } = await _supabase.from('tickets').select('*, profiles(full_name)').eq('id', ticketId).single();
+            const { data: ticket } = await _supabase.from('tickets').select('*, profiles!tenant_id(full_name)').eq('id', ticketId).single();
             if(!ticket) return;
 
             container.innerHTML = `
@@ -1227,7 +1227,7 @@
         }
 
         async function fetchChatMessages(ticketId, silent = false) {
-            const { data, error } = await _supabase.from('ticket_messages').select('*, profiles(full_name, role)').eq('ticket_id', ticketId).order('created_at', { ascending: true });
+            const { data, error } = await _supabase.from('ticket_messages').select('*, profiles!sender_id(full_name, role)').eq('ticket_id', ticketId).order('created_at', { ascending: true });
             if (error) return;
 
             const box = document.getElementById('chat-messages');
