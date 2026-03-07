@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HB Verwaltung | Mieter-Portal Login</title>
+    <title>Mieterportal | Login</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -15,62 +15,94 @@
                     colors: {
                         'hb-olive': '#687451',
                         'hb-offblack': '#373737',
-                        'hb-ultralight': '#F5F5F5',
+                        'hb-ultralight': '#F9FAF8',
                         'hb-orange': '#EB762D'
                     },
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    }
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
                 }
             }
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { background-color: #F9FAF8; }
+        input { border-radius: 15px; background-color: #F9FAF8; border: 1px solid #e5e7eb; transition: all 0.2s; }
+        input:focus { background-color: white; border-color: #687451; box-shadow: 0 0 0 3px rgba(104, 116, 81, 0.1); outline: none; }
+        .btn-primary { background-color: #687451; color: white; border-radius: 15px; transition: all 0.2s; font-weight: 600; }
+        .btn-primary:hover { background-color: #555f42; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(104, 116, 81, 0.2); }
+    </style>
 </head>
-<body class="bg-hb-ultralight font-sans h-screen flex items-center justify-center text-hb-offblack">
+<body class="font-sans text-hb-offblack min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
 
-    <div class="bg-white p-10 rounded-none shadow-sm w-full max-w-md border-t-4 border-hb-olive text-center">
-        <img src="HB_icon_olive_RGB.svg" alt="HB Verwaltung Logo" class="h-20 w-auto mx-auto mb-6">
-        
-        <h1 class="text-xl font-semibold mb-8 uppercase tracking-widest text-hb-offblack">Mieter-Portal</h1>
-        
-        <form id="login-form" class="space-y-5 text-left">
+    <!-- Zurück Button (Webseite) -->
+    <a href="https://www.hausblick-fn.de" class="absolute top-6 left-6 md:top-10 md:left-10 flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-hb-olive transition-colors z-20">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        Zurück zur Webseite
+    </a>
+
+    <!-- Dezente Hintergrund-Dekoration -->
+    <div class="fixed top-[-10%] right-[-5%] w-[40vw] h-[40vw] bg-hb-olive/5 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="fixed bottom-[-10%] left-[-5%] w-[40vw] h-[40vw] bg-hb-orange/5 rounded-full blur-3xl pointer-events-none"></div>
+
+    <!-- Login Container -->
+    <div class="w-full max-w-md bg-white p-8 md:p-10 rounded-[15px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 relative z-10">
+        <div class="text-center mb-8">
+            <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-16 w-auto mx-auto mb-4">
+            <h1 class="text-2xl font-extrabold tracking-tight text-hb-offblack">Mieterportal</h1>
+            <p class="text-sm text-gray-500 font-medium mt-1">Bitte loggen Sie sich ein</p>
+        </div>
+
+        <form id="login-form" class="space-y-5">
             <div>
-                <label class="block text-xs uppercase tracking-wider font-bold text-hb-olive mb-2">E-Mail Adresse</label>
-                <input type="email" id="email" class="w-full border border-gray-200 rounded-none p-3 focus:outline-none focus:border-hb-olive transition-colors" placeholder="beispiel@email.de" required>
+                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">E-Mail Adresse</label>
+                <input type="email" id="email" class="w-full p-4 text-sm" placeholder="name@beispiel.de" required>
             </div>
             <div>
-                <label class="block text-xs uppercase tracking-wider font-bold text-hb-olive mb-2">Persönliches Passwort</label>
-                <input type="password" id="password" class="w-full border border-gray-200 rounded-none p-3 focus:outline-none focus:border-hb-olive transition-colors" placeholder="••••••••" required>
+                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Passwort</label>
+                <input type="password" id="password" class="w-full p-4 text-sm" placeholder="••••••••" required>
             </div>
-            <button type="submit" class="w-full bg-hb-olive text-white font-medium py-4 px-4 rounded-none hover:bg-opacity-90 transition duration-200 uppercase text-xs tracking-[0.2em]">
-                Anmelden
-            </button>
+            
+            <div id="error-msg" class="hidden bg-red-50 text-red-600 text-xs font-bold p-3 rounded-[15px] border border-red-100 text-center"></div>
+
+            <button type="submit" id="login-btn" class="w-full btn-primary py-4 text-sm mt-2">Einloggen</button>
         </form>
-        <p id="error-msg" class="text-hb-orange text-sm mt-6 hidden font-medium"></p>
+        
+        <div class="mt-8 text-center border-t border-gray-100 pt-6">
+            <p class="text-xs text-gray-400 font-medium">Noch kein Passwort? Oder Passwort vergessen? Bitte kontaktieren Sie die Hausverwaltung.</p>
+        </div>
     </div>
 
     <script>
-        // Deine fest hinterlegten Supabase-Daten
         const supabaseUrl = 'https://unprrlbvylmzxxhpfisr.supabase.co';
         const supabaseKey = 'sb_publishable_nWYozmRQq8E17z_ljZ2SHA_LUulwUV1';
-        
         const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+        async function checkLogin() {
+            const { data: { user } } = await _supabase.auth.getUser();
+            if (user) window.location.href = 'dashboard.html';
+        }
+        checkLogin();
 
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            const btn = document.getElementById('login-btn');
+            const errBox = document.getElementById('error-msg');
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            
-            const { data, error } = await _supabase.auth.signInWithPassword({
-                email: email,
-                password: password,
-            });
+
+            btn.disabled = true;
+            btn.textContent = 'Lädt...';
+            errBox.classList.add('hidden');
+
+            const { data, error } = await _supabase.auth.signInWithPassword({ email, password });
 
             if (error) {
-                const errorEl = document.getElementById('error-msg');
-                errorEl.textContent = "Anmeldung fehlgeschlagen: " + error.message;
-                errorEl.classList.remove('hidden');
+                errBox.textContent = (error.message === 'Invalid login credentials') 
+                    ? 'Falsche E-Mail-Adresse oder Passwort.' 
+                    : 'Fehler: ' + error.message;
+                errBox.classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = 'Einloggen';
             } else {
                 window.location.href = 'dashboard.html';
             }
