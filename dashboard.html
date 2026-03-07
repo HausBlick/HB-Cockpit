@@ -40,9 +40,9 @@
         .active-link { background-color: #687451 !important; color: white !important; font-weight: 600; box-shadow: 0 4px 10px rgba(104, 116, 81, 0.2); }
         .active-link svg { stroke: white !important; }
         
-        input, select, textarea { border-radius: 15px; background-color: #F9FAF8; border: 1px solid #e5e7eb; transition: all 0.2s; padding: 12px 16px; }
+        input, select, textarea { border-radius: 15px; background-color: #F9FAF8; border: 1px solid #e5e7eb; transition: all 0.2s; }
         input:focus, select:focus, textarea:focus { background-color: white; border-color: #687451; box-shadow: 0 0 0 3px rgba(104, 116, 81, 0.1); outline: none; }
-        input[type="checkbox"] { border-radius: 4px; width: 1.2rem; height: 1.2rem; accent-color: #EB762D; cursor: pointer; padding: 0; }
+        input[type="checkbox"] { border-radius: 4px; width: 1.2rem; height: 1.2rem; accent-color: #EB762D; cursor: pointer; }
         
         .card { background: white; border-radius: 15px; box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03); border: 1px solid rgba(0,0,0,0.02); }
         .btn-primary { background-color: #687451; color: white; border-radius: 15px; transition: all 0.2s; font-weight: 600; }
@@ -165,7 +165,7 @@
             const toast = document.createElement('div');
             const bgColor = type === 'error' ? 'bg-hb-orange' : 'bg-hb-olive';
             toast.className = `${bgColor} text-white px-8 py-5 rounded-[15px] shadow-2xl flex items-center gap-4 transform transition-all duration-300 translate-y-10 opacity-0`;
-            toast.innerHTML = `<span class="text-base font-bold tracking-wide">${message}</span>`;
+            toast.innerHTML = `<span class="text-sm font-bold tracking-wide">${message}</span>`;
             container.appendChild(toast);
             requestAnimationFrame(() => toast.classList.remove('translate-y-10', 'opacity-0'));
             setTimeout(() => { toast.classList.add('opacity-0'); setTimeout(() => toast.remove(), 300); }, 4000);
@@ -226,8 +226,8 @@
 
         function renderNav(role) {
             const nav = document.getElementById('nav-links');
-            const itemClass = "nav-link flex items-center gap-4 p-4 text-base font-semibold text-hb-offblack cursor-pointer text-left";
-            const sectionClass = "pt-8 pb-3 px-4 text-xs uppercase tracking-widest font-extrabold text-gray-400 text-left";
+            const itemClass = "nav-link flex items-center gap-4 p-3 text-sm font-semibold text-hb-offblack cursor-pointer text-left";
+            const sectionClass = "pt-8 pb-3 px-4 text-[10px] uppercase tracking-widest font-extrabold text-gray-400 text-left";
             
             if (role === 'admin') {
                 nav.innerHTML = `
@@ -246,7 +246,7 @@
                 nav.innerHTML = `
                     <li><a onclick="loadDashboard(); setActiveNav('nav-dash')" id="nav-dash" class="${itemClass} active-link">${icons.dashboard} Dashboard</a></li>
                     <li><a onclick="loadNews(); setActiveNav('nav-news')" id="nav-news" class="${itemClass}">${icons.news} Schwarzes Brett</a></li>
-                    <li><a onclick="loadTickets(); setActiveNav('nav-tickets')" id="nav-tickets" class="${itemClass}">${icons.tickets} Meine Tickets</a></li>
+                    <li><a onclick="loadTickets(); setActiveNav('nav-tickets')" id="nav-tickets" class="${itemClass}">${icons.tickets} Meine Meldungen</a></li>
                     <li><a onclick="loadDocuments(); setActiveNav('nav-docs')" id="nav-docs" class="${itemClass}">${icons.docs} Meine Dokumente</a></li>
                     <li><a onclick="loadContacts(); setActiveNav('nav-contact')" id="nav-contact" class="${itemClass}">${icons.contact} Kontaktbuch</a></li>
                 `;
@@ -274,18 +274,18 @@
         }
 
         // --- ZENTRALE VORSCHAU FUNKTION & "NEU" STATUS ENTFERNEN ---
-        async function viewDoc(docId, path, readByStr, bucket = 'documents') {
+        async function viewDoc(docId, path, bucket = 'documents') {
             // "Neu" Flag reparieren, falls es die Dokumentencloud ist
             if (docId && bucket === 'documents' && userProfile.role === 'tenant') {
-                 let readBy = [];
-                 try { readBy = JSON.parse(readByStr); } catch(e){}
+                 // Lade aktuelles read_by array aus der DB um Fehler durch HTML Stringify zu vermeiden
+                 const { data: currentDoc } = await _supabase.from('documents').select('read_by').eq('id', docId).single();
+                 let readBy = currentDoc?.read_by || [];
                  
                  if(!readBy.includes(currentUser.id)) {
                      readBy.push(currentUser.id);
-                     // Im Hintergrund updaten, damit die Liste beim nächsten Laden stimmt
-                     _supabase.from('documents').update({read_by: readBy}).eq('id', docId).then(() => {
-                         if(document.getElementById('docs-content')) fetchDocuments(); 
-                     });
+                     // Im Hintergrund updaten
+                     await _supabase.from('documents').update({read_by: readBy}).eq('id', docId);
+                     if(document.getElementById('docs-content')) fetchDocuments(); 
                  }
             }
 
@@ -298,11 +298,11 @@
             window.open(data.signedUrl, '_blank');
         }
 
-        /* --- 0. DASHBOARD --- */
+        /* --- 0. DASHBOARD (STARTSEITE) --- */
         async function loadDashboard() {
             const container = document.getElementById('content-area');
             const isAdmin = userProfile.role === 'admin';
-            container.innerHTML = `<div class="text-gray-400 italic text-lg text-left">Lade Übersicht...</div>`;
+            container.innerHTML = `<div class="text-gray-400 italic text-sm text-left">Lade Übersicht...</div>`;
 
             if (isAdmin) {
                 const [aptData, profData, tickData] = await Promise.all([
@@ -312,27 +312,30 @@
                 ]);
 
                 container.innerHTML = `
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10 text-left">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 text-left">
                         <div class="card p-8 flex flex-col justify-center cursor-pointer hover:border-hb-olive transition-all transform hover:-translate-y-1 text-left" onclick="loadTickets(); setActiveNav('nav-tickets')">
                             <div class="text-hb-orange mb-4 text-left">${icons.tickets}</div>
-                            <h3 class="text-5xl font-extrabold text-hb-offblack text-left">${tickData.count || 0}</h3>
+                            <h3 class="text-4xl font-extrabold text-hb-offblack text-left">${tickData.count || 0}</h3>
                             <p class="text-sm uppercase tracking-widest font-bold text-gray-400 mt-2 text-left">Offene Tickets</p>
                         </div>
                         <div class="card p-8 flex flex-col justify-center cursor-pointer hover:border-hb-olive transition-all transform hover:-translate-y-1 text-left" onclick="loadUserManagement(); setActiveNav('nav-users')">
                             <div class="text-hb-olive mb-4 text-left">${icons.users}</div>
-                            <h3 class="text-5xl font-extrabold text-hb-offblack text-left">${profData.count || 0}</h3>
+                            <h3 class="text-4xl font-extrabold text-hb-offblack text-left">${profData.count || 0}</h3>
                             <p class="text-sm uppercase tracking-widest font-bold text-gray-400 mt-2 text-left">Aktive Mieter</p>
                         </div>
                         <div class="card p-8 flex flex-col justify-center cursor-pointer hover:border-hb-olive transition-all transform hover:-translate-y-1 text-left" onclick="loadTenants(); setActiveNav('nav-apartments')">
                             <div class="text-hb-olive mb-4 text-left">${icons.buildings}</div>
-                            <h3 class="text-5xl font-extrabold text-hb-offblack text-left">${aptData.count || 0}</h3>
+                            <h3 class="text-4xl font-extrabold text-hb-offblack text-left">${aptData.count || 0}</h3>
                             <p class="text-sm uppercase tracking-widest font-bold text-gray-400 mt-2 text-left">Verwaltete Einheiten</p>
                         </div>
                     </div>
                     <div class="card p-12 text-center bg-hb-olive text-white border-none relative overflow-hidden text-left">
-                        <h2 class="text-3xl font-extrabold mb-4 relative z-10 text-left text-balance">Willkommen im Mieterportal</h2>
-                        <p class="text-hb-ultralight text-lg relative z-10 max-w-2xl text-left text-balance">Ihre Immobilienverwaltung. Kaufmännisch präzise. Technisch weitsichtig.</p>
-                        <button onclick="openNewTicketModal()" class="mt-10 bg-white text-hb-olive px-10 py-4 rounded-[15px] text-base font-bold shadow-lg hover:shadow-2xl transition-all relative z-10 text-left">+ Neues Ticket erstellen</button>
+                        <div class="absolute top-0 right-0 opacity-10 transform translate-x-8 -translate-y-8">
+                            <svg class="w-48 h-48" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 12h3v8h6v-6h2v6h6v-8h3L12 2z"/></svg>
+                        </div>
+                        <h2 class="text-2xl font-extrabold mb-3 relative z-10 text-left text-balance">Willkommen im Mieterportal</h2>
+                        <p class="text-hb-ultralight text-sm relative z-10 max-w-2xl text-left text-balance">Ihre Immobilienverwaltung. Kaufmännisch präzise. Technisch weitsichtig.</p>
+                        <button onclick="openNewTicketModal()" class="mt-8 bg-white text-hb-olive px-8 py-3 rounded-[15px] text-sm font-bold shadow-lg hover:shadow-xl transition-all relative z-10 text-left">+ Neues Ticket erstellen</button>
                     </div>
                 `;
             } else {
@@ -341,272 +344,600 @@
                     _supabase.from('news').select('*').order('created_at', { ascending: false }).limit(1)
                 ]);
 
-                let latestNewsHtml = '<p class="text-base text-gray-500 text-left">Keine Neuigkeiten vorhanden.</p>';
+                let latestNewsHtml = '<p class="text-sm text-gray-500 text-left">Keine Neuigkeiten vorhanden.</p>';
                 if(newsData.data && newsData.data.length > 0) {
                     const n = newsData.data[0];
                     latestNewsHtml = `
                         <div class="bg-gray-50 p-6 rounded-[15px] border border-gray-100 text-left">
                             <span class="text-xs uppercase tracking-widest font-bold text-hb-olive mb-2 block text-left">${n.category}</span>
-                            <h4 class="text-xl font-extrabold text-hb-offblack mb-4 text-left text-balance">${n.title}</h4>
-                            <button onclick="loadNews(); setActiveNav('nav-news')" class="text-base font-bold text-hb-orange flex items-center gap-2 hover:underline text-left">Zum Schwarzen Brett <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+                            <h4 class="text-lg font-bold text-hb-offblack mb-3 text-left text-balance">${n.title}</h4>
+                            <button onclick="loadNews(); setActiveNav('nav-news')" class="text-sm font-semibold text-hb-orange flex items-center gap-2 hover:underline text-left">Zum Schwarzen Brett <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
                         </div>
                     `;
                 }
 
                 container.innerHTML = `
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10 text-left">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 text-left">
                         <div class="card p-8 flex flex-col justify-center cursor-pointer hover:border-hb-olive transition-all text-left" onclick="loadTickets(); setActiveNav('nav-tickets')">
                             <div class="text-hb-orange mb-4 text-left">${icons.tickets}</div>
-                            <h3 class="text-5xl font-extrabold text-hb-offblack text-left">${tickData.count || 0}</h3>
-                            <p class="text-sm uppercase tracking-widest font-bold text-gray-400 mt-2 text-left">Offene Meldungen</p>
+                            <h3 class="text-4xl font-extrabold text-hb-offblack text-left">${tickData.count || 0}</h3>
+                            <p class="text-sm uppercase tracking-widest font-semibold text-gray-400 mt-2 text-left">Meine Offenen Meldungen</p>
                         </div>
                         <div class="card p-8 flex flex-col justify-center cursor-pointer hover:border-hb-olive transition-all text-left" onclick="loadDocuments(); setActiveNav('nav-docs')">
                             <div class="text-hb-olive mb-4 text-left">${icons.docs}</div>
-                            <h3 class="text-2xl font-extrabold text-hb-offblack mt-2 text-left">Dokumenten-Cloud</h3>
-                            <p class="text-base font-medium text-gray-500 text-left">Aktuelle Abrechnungen einsehen</p>
+                            <h3 class="text-xl font-bold text-hb-offblack mt-2 mb-1 text-left">Dokumenten-Cloud</h3>
+                            <p class="text-sm font-medium text-gray-500 text-left">Aktuelle Abrechnungen einsehen</p>
                         </div>
                     </div>
-                    <div class="card p-10 text-left">
-                        <h3 class="text-2xl font-extrabold text-hb-offblack mb-6 flex items-center gap-3 text-left">${icons.news} Aktuelles im Haus</h3>
+                    <div class="card p-8 text-left">
+                        <h3 class="text-xl font-extrabold text-hb-offblack mb-5 flex items-center gap-2 text-left">${icons.news} Aktuelles im Haus</h3>
                         ${latestNewsHtml}
                     </div>
                 `;
             }
         }
 
-        /* --- 0.5. PROFIL --- */
+        /* --- 0.5. PROFIL EINSTELLUNGEN --- */
         async function loadProfile() {
             const container = document.getElementById('content-area');
+            
             container.innerHTML = `
-                <div class="card p-10 md:p-12 mb-8 text-left">
-                    <h2 class="text-2xl font-bold mb-10 uppercase tracking-widest text-hb-offblack text-left">Mein Profil</h2>
-                    <form id="profile-update-form" class="space-y-8 max-w-2xl text-left">
-                        <h3 class="text-base font-bold uppercase tracking-widest text-hb-olive border-b border-gray-100 pb-3 mb-6 text-left">Persönliche Daten</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                <div class="card p-8 md:p-12 mb-8 text-left">
+                    <h2 class="text-2xl font-bold mb-8 uppercase tracking-widest text-hb-offblack text-left">Mein Profil</h2>
+                    
+                    <form id="profile-update-form" class="space-y-6 max-w-2xl text-left">
+                        <h3 class="text-sm font-bold uppercase tracking-widest text-hb-olive border-b border-gray-100 pb-2 mb-4 text-left">Persönliche Daten</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5 text-left">
                             <div class="col-span-1 md:col-span-2 text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Vollständiger Name</label>
-                                <input type="text" id="profile_name" value="${userProfile.full_name || ''}" class="w-full text-base text-left" required>
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Vollständiger Name</label>
+                                <input type="text" id="profile_name" value="${userProfile.full_name || ''}" class="w-full p-3 text-sm text-left" required>
                             </div>
                             <div class="text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Geburtsdatum</label>
-                                <input type="date" id="profile_birthday" value="${userProfile.birthday || ''}" class="w-full text-base text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Geburtsdatum</label>
+                                <input type="date" id="profile_birthday" value="${userProfile.birthday || ''}" class="w-full p-3 text-sm text-gray-700 text-left">
                             </div>
-                            <div class="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                            <div class="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-5 text-left">
                                 <div class="text-left">
-                                    <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Telefon (Festnetz)</label>
-                                    <input type="text" id="profile_phone" value="${userProfile.phone || ''}" class="w-full text-base text-left">
+                                    <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Telefon (Festnetz)</label>
+                                    <input type="text" id="profile_phone" value="${userProfile.phone || ''}" class="w-full p-3 text-sm text-left">
                                 </div>
                                 <div class="text-left">
-                                    <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Mobil</label>
-                                    <input type="text" id="profile_mobile" value="${userProfile.mobile || ''}" class="w-full text-base text-left">
+                                    <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Mobil</label>
+                                    <input type="text" id="profile_mobile" value="${userProfile.mobile || ''}" class="w-full p-3 text-sm text-left">
                                 </div>
+                            </div>
+                            <div class="col-span-1 md:col-span-2 mt-4 text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">E-Mail (Login)</label>
+                                <input type="email" id="profile_email" value="${currentUser.email}" class="w-full p-3 bg-gray-50 text-gray-500 text-sm cursor-not-allowed text-left" disabled title="E-Mail Änderung bitte über den Support anfragen">
+                                <p class="text-xs text-gray-400 mt-2 text-left">E-Mail-Änderungen sind aktuell aus Sicherheitsgründen gesperrt.</p>
                             </div>
                         </div>
-                        <button type="submit" class="btn-primary px-10 py-4 text-base uppercase tracking-widest font-bold mt-6 text-left">Daten Speichern</button>
+                        <button type="submit" id="btn-update-profile" class="btn-primary px-8 py-3 text-sm uppercase tracking-widest font-bold mt-6 text-left">Daten Speichern</button>
                     </form>
-                </div>`;
+
+                    <form id="password-update-form" class="space-y-6 max-w-2xl mt-12 text-left">
+                        <h3 class="text-sm font-bold uppercase tracking-widest text-hb-olive border-b border-gray-100 pb-2 mb-4 text-left">Passwort ändern</h3>
+                        <div class="space-y-4 text-left">
+                            <div class="text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Neues Passwort</label>
+                                <input type="password" id="new_password" class="w-full p-3 text-sm text-left" placeholder="Mindestens 6 Zeichen" required minlength="6">
+                            </div>
+                            <button type="submit" id="btn-update-password" class="btn-primary px-8 py-3 text-sm uppercase tracking-widest font-bold mt-4 text-left">Passwort aktualisieren</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+
             document.getElementById('profile-update-form').addEventListener('submit', handleUpdateProfile);
+            document.getElementById('password-update-form').addEventListener('submit', handleUpdatePassword);
         }
 
         async function handleUpdateProfile(e) {
             e.preventDefault();
+            const btn = document.getElementById('btn-update-profile');
+            btn.disabled = true; btn.textContent = "Speichere...";
+            
+            const newName = document.getElementById('profile_name').value;
+            const newBirthday = document.getElementById('profile_birthday').value || null;
+            const newPhone = document.getElementById('profile_phone').value || null;
+            const newMobile = document.getElementById('profile_mobile').value || null;
+            
             const payload = { 
-                full_name: document.getElementById('profile_name').value,
-                birthday: document.getElementById('profile_birthday').value || null,
-                phone: document.getElementById('profile_phone').value || null,
-                mobile: document.getElementById('profile_mobile').value || null
+                full_name: newName,
+                birthday: newBirthday,
+                phone: newPhone,
+                mobile: newMobile
             };
+
             const { error } = await _supabase.from('profiles').update(payload).eq('id', currentUser.id);
-            if(!error) { 
+            if(error) {
+                showToast(error.message, "error");
+            } else {
+                userProfile.full_name = newName;
+                userProfile.birthday = newBirthday;
+                userProfile.phone = newPhone;
+                userProfile.mobile = newMobile;
+                document.getElementById('welcome-title').textContent = "Hallo, " + newName.split(' ')[0] + "!";
                 showToast("Profil aktualisiert!"); 
-                userProfile = {...userProfile, ...payload}; 
-                document.getElementById('dropdown-name').textContent = payload.full_name;
-                document.getElementById('user-avatar').textContent = payload.full_name.charAt(0).toUpperCase();
+                document.getElementById('dropdown-name').textContent = newName;
+                document.getElementById('user-avatar').textContent = newName.charAt(0).toUpperCase();
+            }
+            btn.disabled = false; btn.textContent = "Daten Speichern";
+        }
+
+        async function handleUpdatePassword(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-update-password');
+            btn.disabled = true; btn.textContent = "Speichere...";
+            const newPassword = document.getElementById('new_password').value;
+
+            const { error } = await _supabase.auth.updateUser({ password: newPassword });
+            if(error) {
+                showToast("Fehler: " + error.message, "error");
+            } else {
+                showToast("Passwort erfolgreich geändert!");
+                document.getElementById('new_password').value = '';
+            }
+            btn.disabled = false; btn.textContent = "Passwort aktualisieren";
+        }
+
+        /* --- 1.1 EINHEITEN & OBJEKTE VERWALTEN --- */
+        async function loadTenants() {
+            const container = document.getElementById('content-area');
+            const { data: buildings } = await _supabase.from('buildings').select('*').order('name');
+            const buildingOptions = buildings?.map(b => `<option value="${b.id}">${b.name}</option>`).join('') || '';
+
+            container.innerHTML = `
+                <div class="card p-8 md:p-12 mb-8 text-left">
+                    <h2 id="form-title" class="text-2xl font-bold mb-8 uppercase tracking-widest text-hb-offblack text-left">Einheit erfassen</h2>
+                    <form id="apartment-form" class="space-y-6 text-left">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                            <div class="space-y-2 text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest text-left">Objekt auswählen</label>
+                                <select id="b_id" class="w-full p-3 text-sm text-left" required>
+                                    <option value="" disabled selected>Bitte wählen...</option>
+                                    ${buildingOptions}
+                                </select>
+                            </div>
+                            <div class="space-y-2 text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest text-left">Wohnungsnummer</label>
+                                <input type="text" id="apt_no" class="w-full p-3 text-sm text-left" placeholder="z.B. 1.OG Links" required>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+                            <div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 mb-1 text-left">Kaltmiete (€)</label><input type="number" id="rent" class="w-full p-3 text-sm text-left" step="0.01"></div>
+                            <div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 mb-1 text-left">Nebenkosten (€)</label><input type="number" id="utils" class="w-full p-3 text-sm text-left" step="0.01"></div>
+                            <div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 mb-1 text-left">Fläche (m²)</label><input type="number" id="sq_m" class="w-full p-3 text-sm text-left" step="0.1"></div>
+                        </div>
+                        <div class="pt-6 border-t border-gray-50 grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+                            <div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 mb-1 text-left">Stromzähler-Nr.</label><input type="text" id="m_elec" class="w-full p-3 text-sm text-left" placeholder="Optional"></div>
+                            <div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 mb-1 text-left">Wasserzähler-Nr.</label><input type="text" id="m_water" class="w-full p-3 text-sm text-left" placeholder="Optional"></div>
+                            <div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 mb-1 text-left">Wärmezähler-Nr.</label><input type="text" id="m_heat" class="w-full p-3 text-sm text-left" placeholder="Optional"></div>
+                        </div>
+                        <div class="pt-6 flex gap-4 text-left">
+                            <button type="submit" id="submit-btn" class="btn-primary px-8 py-3 text-sm text-left">Einheit Speichern</button>
+                            <button type="button" id="cancel-btn" onclick="resetForm()" class="hidden bg-gray-100 text-gray-600 px-8 py-3 rounded-[15px] text-sm font-semibold hover:bg-gray-200 text-left">Abbrechen</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="card p-8 md:p-12 text-left">
+                    <h2 class="text-2xl font-bold mb-8 uppercase tracking-widest text-hb-offblack text-left">Bestands-Liste</h2>
+                    <div id="tenants-list" class="space-y-4 text-left">Lade Daten...</div>
+                </div>
+            `;
+            document.getElementById('apartment-form').addEventListener('submit', handleSaveApartment);
+            fetchApartments();
+        }
+
+        async function fetchApartments() {
+            // Abfrage explizit ohne foreign key alias, falls dieser Supabase verwirrt.
+            const { data, error } = await _supabase.from('apartments').select('*, buildings (*), profiles(full_name)').order('apartment_number');
+            const list = document.getElementById('tenants-list');
+            if (error) { list.innerHTML = `<p class="text-red-500 text-sm text-left">Fehler: ${error.message}</p>`; return; }
+            if (data && data.length > 0) {
+                let currentB = "";
+                list.innerHTML = data.map(apt => {
+                    let header = (currentB !== apt.buildings?.name) ? `<div class="bg-hb-ultralight px-4 py-2 mt-8 mb-3 rounded-lg text-xs font-bold uppercase tracking-widest text-hb-olive text-left">${apt.buildings?.name || "Nicht zugeordnet"}</div>` : "";
+                    currentB = apt.buildings?.name;
+                    const names = apt.profiles && apt.profiles.length > 0 ? apt.profiles.map(p => p.full_name).join(', ') : 'LEERSTEHEND';
+                    return header + `
+                        <div class="flex flex-wrap justify-between items-center p-6 bg-white border border-gray-100 rounded-[15px] hover:border-hb-olive transition-colors gap-4 group text-left">
+                            <div class="flex-1 min-w-[200px] text-left">
+                                <h3 class="font-bold text-lg text-hb-offblack text-left">${apt.apartment_number}</h3>
+                                <p class="text-sm text-gray-500 font-medium mt-1 text-left">${apt.sq_meters || '0'} m² | Mieter: <span class="font-bold text-hb-offblack text-left">${names}</span></p>
+                            </div>
+                            <div class="w-full lg:w-auto grid grid-cols-3 gap-6 bg-gray-50 p-4 rounded-xl border border-gray-100 min-w-[300px] text-left">
+                                <div class="text-left"><p class="text-[10px] uppercase text-gray-400 font-bold text-center text-left">Strom</p><p class="text-sm font-bold text-center mt-1 text-left">${apt.meter_electricity || '-'}</p></div>
+                                <div class="text-left"><p class="text-[10px] uppercase text-gray-400 font-bold text-center text-left">Wasser</p><p class="text-sm font-bold text-center mt-1 text-left">${apt.meter_water || '-'}</p></div>
+                                <div class="text-left"><p class="text-[10px] uppercase text-gray-400 font-bold text-center text-left">Heizung</p><p class="text-sm font-bold text-center mt-1 text-left">${apt.meter_heating || '-'}</p></div>
+                            </div>
+                            <div class="text-right min-w-[120px] flex flex-col items-end gap-2 text-left">
+                                <p class="text-base font-bold text-hb-olive text-left">${(parseFloat(apt.rent_amount || 0) + parseFloat(apt.utilities_amount || 0)).toFixed(2)} €</p>
+                                <button onclick="editApartment('${apt.id}')" class="text-xs uppercase font-bold text-gray-400 hover:text-hb-olive transition-colors text-left">Bearbeiten</button>
+                            </div>
+                        </div>`;
+                }).join('');
+            } else { list.innerHTML = `<p class="text-gray-400 italic text-sm text-left">Keine Einheiten vorhanden.</p>`; }
+        }
+
+        async function handleSaveApartment(e) {
+            e.preventDefault();
+            const payload = {
+                building_id: document.getElementById('b_id').value, 
+                apartment_number: document.getElementById('apt_no').value,
+                rent_amount: parseFloat(document.getElementById('rent').value) || 0,
+                utilities_amount: parseFloat(document.getElementById('utils').value) || 0,
+                sq_meters: parseFloat(document.getElementById('sq_m').value) || 0,
+                meter_electricity: document.getElementById('m_elec').value,
+                meter_water: document.getElementById('m_water').value,
+                meter_heating: document.getElementById('m_heat').value
+            };
+            if (currentEditingId) await _supabase.from('apartments').update(payload).eq('id', currentEditingId);
+            else await _supabase.from('apartments').insert([payload]);
+            resetForm(); fetchApartments(); showToast("Einheit gespeichert");
+        }
+
+        async function editApartment(id) {
+            const { data: apt } = await _supabase.from('apartments').select('*').eq('id', id).single();
+            if (apt) {
+                currentEditingId = id;
+                document.getElementById('b_id').value = apt.building_id;
+                document.getElementById('apt_no').value = apt.apartment_number;
+                document.getElementById('rent').value = apt.rent_amount;
+                document.getElementById('utils').value = apt.utilities_amount;
+                document.getElementById('sq_m').value = apt.sq_meters;
+                if(document.getElementById('m_elec')) document.getElementById('m_elec').value = apt.meter_electricity || '';
+                if(document.getElementById('m_water')) document.getElementById('m_water').value = apt.meter_water || '';
+                if(document.getElementById('m_heat')) document.getElementById('m_heat').value = apt.meter_heating || '';
+                document.getElementById('form-title').textContent = "Einheit bearbeiten";
+                document.getElementById('submit-btn').textContent = "Änderungen speichern";
+                document.getElementById('cancel-btn').classList.remove('hidden');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         }
 
-        /* --- 1. MIETERVERWALTUNG --- */
+        function resetForm() {
+            currentEditingId = null;
+            document.getElementById('apartment-form').reset();
+            document.getElementById('form-title').textContent = "Einheit erfassen";
+            document.getElementById('submit-btn').textContent = "Einheit speichern";
+            document.getElementById('cancel-btn').classList.add('hidden');
+        }
+
+        /* --- 1.2 MIETER VERWALTUNG & EINLADUNGEN --- */
         async function loadUserManagement() {
             const container = document.getElementById('content-area');
             const { data: apartments } = await _supabase.from('apartments').select('id, apartment_number, buildings(name)').order('apartment_number');
             const aptOptions = apartments?.map(a => `<option value="${a.id}">${a.buildings.name}: ${a.apartment_number}</option>`).join('') || '';
 
             container.innerHTML = `
-                <div class="card p-10 md:p-12 mb-8 text-left">
-                    <h2 class="text-2xl font-bold mb-10 uppercase tracking-widest text-hb-offblack text-left">Mieter einladen</h2>
-                    <form id="tenant-invite-form" class="space-y-8 text-left">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
-                            <div class="text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest text-left mb-2">Name</label>
-                                <input type="text" id="tenant_name" class="w-full text-base text-left" required>
+                <div class="card p-8 md:p-12 mb-8 text-left">
+                    <h2 class="text-2xl font-bold mb-8 uppercase tracking-widest text-hb-offblack text-left">Mieter einladen</h2>
+                    <form id="tenant-invite-form" class="space-y-6 text-left">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                            <div class="space-y-2 text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest text-left">Vollständiger Name</label>
+                                <input type="text" id="tenant_name" class="w-full p-3 text-sm text-left" placeholder="Vorname Nachname" required>
                             </div>
-                            <div class="text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest text-left mb-2">E-Mail</label>
-                                <input type="email" id="tenant_email" class="w-full text-base text-left" required>
+                            <div class="space-y-2 text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest text-left">E-Mail Adresse</label>
+                                <input type="email" id="tenant_email" class="w-full p-3 text-sm text-left" placeholder="mail@beispiel.de" required>
                             </div>
-                            <div class="text-left">
-                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest text-left mb-2">Einheit</label>
-                                <select id="tenant_apt_id" class="w-full text-base text-left" required>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                            <div class="space-y-2 text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest text-left">Einheit zuweisen</label>
+                                <select id="tenant_apt_id" class="w-full p-3 text-sm text-left" required>
                                     <option value="" disabled selected>Bitte wählen...</option>
                                     ${aptOptions}
                                 </select>
                             </div>
                             <div class="flex items-end text-left">
-                                <button type="submit" class="btn-primary px-8 py-4 text-base w-full text-left">Einladung generieren</button>
+                                <button type="submit" id="create-invite-btn" class="btn-primary px-8 py-3 text-sm w-full text-left">Einladung generieren</button>
                             </div>
                         </div>
                     </form>
                 </div>
-                <div class="card p-10 md:p-12 mb-8 text-left">
-                    <h2 class="text-xl font-bold mb-8 uppercase text-left tracking-widest">Ausstehende Einladungen</h2>
-                    <div id="invites-list" class="divide-y divide-gray-100 text-left">Lade...</div>
+                
+                <div class="card p-8 md:p-12 mb-8 text-left">
+                    <h2 class="text-xl font-bold mb-6 uppercase tracking-widest text-hb-offblack text-left">Ausstehende Einladungen</h2>
+                    <div id="invites-list" class="divide-y divide-gray-100 text-sm text-left">Lade...</div>
                 </div>
-                <div class="card p-10 md:p-12 text-left">
-                    <h2 class="text-xl font-bold mb-8 uppercase text-left tracking-widest">Registrierte Mieter</h2>
-                    <div id="user-list" class="divide-y divide-gray-100 text-left">Lade...</div>
-                </div>`;
+
+                <div class="card p-8 md:p-12 text-left">
+                    <h2 class="text-xl font-bold mb-6 uppercase tracking-widest text-hb-offblack text-left">Registrierte Mieter</h2>
+                    <div id="user-list" class="divide-y divide-gray-100 text-sm text-left">Lade...</div>
+                </div>
+            `;
             document.getElementById('tenant-invite-form').addEventListener('submit', handleCreateInvite);
             fetchTenantUsers();
         }
 
         async function handleCreateInvite(e) {
             e.preventDefault();
+            const btn = document.getElementById('create-invite-btn');
+            btn.disabled = true; btn.textContent = "Generiere Code...";
+
+            const aptId = document.getElementById('tenant_apt_id').value;
+            const fullName = document.getElementById('tenant_name').value.trim();
+            const email = document.getElementById('tenant_email').value.trim();
+            
             const code = 'HB-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+
             const payload = {
-                code, 
-                full_name: document.getElementById('tenant_name').value.trim(),
-                email: document.getElementById('tenant_email').value.trim(),
-                apartment_id: document.getElementById('tenant_apt_id').value
+                code: code, 
+                full_name: fullName,
+                email: email,
+                apartment_id: aptId
             };
+
             const { error } = await _supabase.from('invitations').insert([payload]);
-            if(!error) { showToast("Einladung generiert!"); document.getElementById('tenant-invite-form').reset(); fetchTenantUsers(); }
+            
+            if (error) {
+                showToast(error.message, "error");
+                btn.disabled = false; btn.textContent = "Einladung generieren";
+            } else {
+                showToast("Einladung erfolgreich vorbereitet!");
+                document.getElementById('tenant-invite-form').reset();
+                fetchTenantUsers();
+            }
         }
 
         async function fetchTenantUsers() {
             const inviteList = document.getElementById('invites-list');
             const userList = document.getElementById('user-list');
 
-            const { data: invites } = await _supabase.from('invitations').select('*, apartments!invitations_apartment_id_fkey(apartment_number, buildings(name))').order('created_at', { ascending: false });
-            if (invites) inviteList.innerHTML = invites.map(i => `
-                <div class="py-6 flex justify-between items-center group text-left">
-                    <div class="text-left">
-                        <p class="font-extrabold text-hb-offblack text-lg text-left">${i.full_name} <span class="bg-yellow-100 text-yellow-800 text-[10px] px-3 py-1 rounded ml-3 uppercase font-black">Wartend</span></p>
-                        <p class="text-sm text-gray-500 font-bold mt-2 text-left">Code: <span class="font-mono text-hb-olive">${i.code}</span> • ${i.apartments?.buildings?.name} WE ${i.apartments?.apartment_number}</p>
-                    </div>
-                    <div class="flex gap-2">
-                        <button onclick="sendInviteEmail('${i.email}', '${i.code}')" class="text-hb-olive font-bold hover:underline text-sm px-3 py-2 text-left">Senden</button>
-                        <button onclick="deleteInvite('${i.code}')" class="text-red-500 font-bold hover:underline text-sm px-3 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity">Löschen</button>
-                    </div>
-                </div>`).join('') || '<p class="py-4 text-gray-400 italic text-left">Keine Einladungen.</p>';
+            // Fallback Name für Foreign Key, falls es Probleme gab
+            const { data: invites, error: inviteError } = await _supabase
+                .from('invitations')
+                .select('*, apartments!invitations_apartment_id_fkey(apartment_number, buildings(name))')
+                .order('created_at', { ascending: false });
+            
+            if (inviteError) {
+                inviteList.innerHTML = `<p class="text-red-500 py-4 italic text-left">Fehler beim Laden: ${inviteError.message}</p>`;
+            } else if (invites && invites.length > 0) {
+                inviteList.innerHTML = invites.map(i => `
+                    <div class="py-5 flex justify-between items-center group bg-yellow-50/50 px-5 rounded-xl mb-3 border border-yellow-100 text-left">
+                        <div class="text-left">
+                            <p class="font-bold text-hb-offblack text-sm text-left">${i.full_name} <span class="bg-yellow-200 text-yellow-800 text-[10px] px-2 py-1 rounded ml-2 uppercase tracking-widest font-bold">Wartet auf Login</span></p>
+                            <p class="text-xs text-gray-500 font-medium mt-1 text-left">
+                                ${i.email} • Code: <strong class="font-mono text-hb-olive">${i.code}</strong> • ${i.apartments?.buildings?.name || ''} ${i.apartments?.apartment_number || ''}
+                            </p>
+                        </div>
+                        <div class="flex gap-4 text-left">
+                            <button onclick="sendInviteEmail('${i.email}', '${i.code}')" class="text-xs font-bold text-hb-olive hover:underline border border-hb-olive px-4 py-2 rounded-lg hover:bg-hb-olive hover:text-white transition-colors text-left">Link via E-Mail senden</button>
+                            <button onclick="deleteInvite('${i.code}')" class="text-xs font-bold text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:underline text-left">Löschen</button>
+                        </div>
+                    </div>`).join('');
+            } else { inviteList.innerHTML = '<p class="py-4 text-gray-400 italic text-sm text-left">Keine ausstehenden Einladungen.</p>'; }
 
-            const { data: users } = await _supabase.from('profiles').select('*, apartments!profiles_apartment_id_fkey(apartment_number, buildings(name))').eq('role', 'tenant').order('full_name');
-            if (users) userList.innerHTML = users.map(u => `
-                <div class="py-6 flex justify-between items-center group text-left">
-                    <div class="text-left">
-                        <p class="font-extrabold text-hb-offblack text-lg text-left">${u.full_name} <span class="bg-green-100 text-green-700 text-[10px] px-3 py-1 rounded ml-3 uppercase font-black">Aktiv</span></p>
-                        <p class="text-sm text-gray-500 font-bold mt-2 text-left">${u.email} • ${u.apartments?.buildings?.name} WE ${u.apartments?.apartment_number}</p>
-                    </div>
-                    <button onclick="deleteProfile('${u.id}')" class="text-red-500 font-bold hover:underline text-sm px-3 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity">Entfernen</button>
-                </div>`).join('') || '<p class="py-4 text-gray-400 italic text-left">Keine Mieter.</p>';
+            const { data: users, error: usersError } = await _supabase
+                .from('profiles')
+                .select('*, apartments(apartment_number, buildings(name))')
+                .eq('role', 'tenant')
+                .order('full_name');
+            
+            if (usersError) {
+                userList.innerHTML = `<p class="text-red-500 py-4 italic text-left">Fehler beim Laden: ${usersError.message}</p>`;
+            } else if (users && users.length > 0) {
+                userList.innerHTML = users.map(u => `
+                    <div class="py-5 flex justify-between items-center group text-left">
+                        <div class="text-left">
+                            <p class="font-bold text-hb-offblack text-sm text-left">${u.full_name} <span class="bg-green-100 text-green-700 text-[10px] px-2 py-1 rounded ml-2 uppercase tracking-widest font-bold">Aktiv</span></p>
+                            <p class="text-xs text-gray-500 font-medium mt-1 text-left">
+                                ${u.email} • ${u.apartments?.buildings?.name || ''} ${u.apartments?.apartment_number || 'Keine Einheit'}
+                            </p>
+                        </div>
+                        <div class="flex gap-4 text-left">
+                            <button onclick="deleteProfile('${u.id}')" class="text-xs font-bold text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:underline text-left">Account entfernen</button>
+                        </div>
+                    </div>`).join('');
+            } else { userList.innerHTML = '<p class="py-6 text-gray-400 italic text-sm text-left">Keine aktiven Mieter-Accounts.</p>'; }
         }
 
         function sendInviteEmail(email, code) {
             const baseUrl = window.location.href.split('/').slice(0, -1).join('/');
-            const subject = encodeURIComponent("Einladung zum Mieterportal");
-            const body = encodeURIComponent(`Hallo,\n\nHier ist Ihr Link zum Mieterportal:\n${baseUrl}/register.html?code=${code}\n\nCode: ${code}\n\nViele Grüße\nIhre Hausverwaltung`);
+            const registerUrl = baseUrl + '/register.html';
+            
+            const subject = encodeURIComponent("Ihre Einladung zum Mieterportal");
+            const body = encodeURIComponent(`Hallo,\n\nhier ist Ihre Einladung zum neuen digitalen Mieterportal.\nIm Portal haben Sie ab jetzt Zugriff auf Ihre Dokumente zum Mietverhältnis, können mit uns Kommunizieren und erhalten aktuelle News und informationen.\n\nBitte klicken Sie auf den folgenden Link und geben Sie Ihr gewünschtes Passwort ein, um Ihren Account zu aktivieren:\n\nPortal-Link: ${registerUrl}?code=${code}\n\nIhr persönlicher Einladungscode lautet: ${code}\n\nViele Grüße\n\nHB Verwaltung`);
+            
             window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
         }
 
-        /* --- 2. EINHEITEN --- */
-        async function loadTenants() {
-            const container = document.getElementById('content-area');
-            const { data: buildings } = await _supabase.from('buildings').select('*').order('name');
-            const bOptions = buildings?.map(b => `<option value="${b.id}">${b.name}</option>`).join('') || '';
-            container.innerHTML = `
-                <div class="card p-10 md:p-12 mb-8 text-left">
-                    <h2 class="text-2xl font-bold mb-10 uppercase tracking-widest text-hb-offblack text-left">Einheit erfassen</h2>
-                    <form id="apartment-form" class="space-y-8 text-left">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
-                            <div class="text-left">
-                                <label class="text-xs font-bold uppercase text-gray-500 text-left mb-2 block tracking-widest">Objekt</label>
-                                <select id="b_id" class="w-full text-base text-left" required>${bOptions}</select>
-                            </div>
-                            <div class="text-left">
-                                <label class="text-xs font-bold uppercase text-gray-500 text-left mb-2 block tracking-widest">WE-Nummer</label>
-                                <input type="text" id="apt_no" class="w-full text-base text-left" required>
-                            </div>
-                        </div>
-                        <button type="submit" class="btn-primary px-10 py-4 text-base text-left">Speichern</button>
-                    </form>
-                </div>
-                <div class="card p-10 md:p-12 text-left">
-                    <h2 class="text-xl font-bold mb-8 uppercase tracking-widest text-left text-hb-offblack">Bestands-Liste</h2>
-                    <div id="tenants-list" class="space-y-4 text-left">Lade...</div>
-                </div>`;
-            document.getElementById('apartment-form').addEventListener('submit', handleSaveApartment);
-            fetchApartments();
+        async function deleteInvite(code) {
+            if (confirm("Einladung wirklich löschen?")) {
+                await _supabase.from('invitations').delete().eq('code', code);
+                fetchTenantUsers();
+                showToast("Einladung gelöscht");
+            }
         }
 
-        async function fetchApartments() {
-            const { data } = await _supabase.from('apartments').select('*, buildings(*), profiles!profiles_apartment_id_fkey(full_name)').order('apartment_number');
-            const list = document.getElementById('tenants-list');
-            if (data) list.innerHTML = data.map(apt => `
-                <div class="p-6 border border-gray-100 rounded-2xl flex justify-between items-center text-left bg-gray-50 hover:border-hb-olive transition-colors">
-                    <div class="text-left">
-                        <p class="font-black text-lg text-hb-offblack text-left">${apt.buildings?.name} - ${apt.apartment_number}</p>
-                        <p class="text-sm text-gray-500 font-bold mt-1 text-left">Mieter: ${apt.profiles?.[0]?.full_name || 'LEERSTEHEND'}</p>
-                    </div>
-                </div>`).join('');
+        async function deleteProfile(id) {
+            if (confirm("Mieter-Account wirklich entfernen? Tickets und Dokumente bleiben erhalten.")) {
+                await _supabase.from('profiles').delete().eq('id', id);
+                fetchTenantUsers();
+                showToast("Mieter entfernt");
+            }
         }
 
-        async function handleSaveApartment(e) {
-            e.preventDefault();
-            const payload = { building_id: document.getElementById('b_id').value, apartment_number: document.getElementById('apt_no').value };
-            const { error } = await _supabase.from('apartments').insert([payload]);
-            if(!error) { showToast("Einheit angelegt"); loadTenants(); }
-        }
-
-        /* --- 3. NEWS --- */
+        /* --- 2. SCHWARZES BRETT --- */
         async function loadNews() {
             const container = document.getElementById('content-area');
             const isAdmin = userProfile.role === 'admin';
-            let adminHtml = isAdmin ? `
-                <div class="card p-10 mb-10 text-left">
-                    <h2 class="text-2xl font-bold mb-8 text-left text-hb-offblack flex items-center gap-3">${icons.news} Neuer Aushang</h2>
-                    <form id="news-form" class="space-y-6 text-left">
-                        <input type="text" id="news_title" placeholder="Titel" class="w-full text-base text-left" required>
-                        <textarea id="news_content" rows="4" placeholder="Nachricht..." class="w-full text-base text-left" required></textarea>
-                        <button type="submit" class="btn-primary px-8 py-4 text-left">Veröffentlichen</button>
-                    </form>
-                </div>` : '';
+            const { data: buildings } = await _supabase.from('buildings').select('*').order('name');
+            const buildingOptions = buildings?.map(b => `<option value="${b.id}">${b.name}</option>`).join('') || '';
 
-            container.innerHTML = adminHtml + `<div id="news-list" class="space-y-8 text-left"></div>`;
-            if(isAdmin) document.getElementById('news-form').addEventListener('submit', handleSaveNews);
+            let html = "";
+            if (isAdmin) {
+                html += `
+                    <div class="card p-8 md:p-12 mb-8 text-left">
+                        <h2 class="text-2xl font-bold mb-8 text-hb-offblack flex items-center gap-3 text-left">${icons.news} Neuer Aushang</h2>
+                        <form id="news-form" class="space-y-6 text-left">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+                                <div class="text-left">
+                                    <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Gültig für</label>
+                                    <select id="news_b_id" class="w-full p-3 text-sm text-left"><option value="">Alle Gebäude</option>${buildingOptions}</select>
+                                </div>
+                                <div class="text-left">
+                                    <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Kategorie</label>
+                                    <select id="news_category" class="w-full p-3 text-sm text-left" required>
+                                        <option value="Information">Information</option><option value="Ankündigung">Ankündigung</option>
+                                        <option value="Wartung">Wartung</option><option value="Termin">Termin</option><option value="Dringend">Dringend</option>
+                                    </select>
+                                </div>
+                                <div class="text-left">
+                                    <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Titel</label>
+                                    <input type="text" id="news_title" class="w-full p-3 text-sm text-left" placeholder="Kurze Überschrift" required>
+                                </div>
+                            </div>
+                            <div class="text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Inhalt (Nutze **fett**, *kursiv*, [Titel](URL), --- für Linie)</label>
+                                <textarea id="news_content" rows="5" class="w-full p-3 text-sm text-left" placeholder="Schreiben Sie hier Ihre Nachricht..." required></textarea>
+                            </div>
+                            <div class="flex gap-4 text-left">
+                                <button type="submit" id="news-submit-btn" class="btn-primary px-8 py-3 text-sm text-left">Veröffentlichen</button>
+                                <button type="button" id="news-cancel-btn" onclick="resetNewsForm()" class="hidden bg-gray-100 text-gray-600 px-8 py-3 rounded-[15px] text-sm font-semibold hover:bg-gray-200 text-left">Abbrechen</button>
+                            </div>
+                        </form>
+                    </div>`;
+            }
+
+            html += `
+                <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-8 text-left">
+                    <h2 class="text-3xl font-extrabold text-hb-offblack text-left">Blackboard Feed</h2>
+                    <div class="flex gap-3 w-full md:w-auto text-left">
+                        <input type="text" id="news-search" oninput="handleNewsSearch(this.value)" placeholder="Suchen..." class="flex-grow md:w-64 p-3 text-sm border-none shadow-sm rounded-[15px] text-left">
+                        <select id="news-filter-cat" onchange="handleNewsFilter(this.value)" class="p-3 text-sm cursor-pointer border-none bg-white shadow-sm rounded-[15px] text-left">
+                            <option value="">Alle</option><option value="Information">Info</option><option value="Ankündigung">Ankündigung</option><option value="Wartung">Wartung</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="news-list" class="space-y-8 text-left"></div>`;
+
+            container.innerHTML = html;
+            if (isAdmin) document.getElementById('news-form').addEventListener('submit', handleSaveNews);
             fetchNews();
+        }
+
+        async function fetchNews() {
+            let query = _supabase.from('news').select('*, profiles:author_id(full_name), buildings(name)').order('created_at', { ascending: false });
+            if (userProfile.role === 'tenant') {
+                if(userProfile.apartments && userProfile.apartments.building_id) {
+                    query = query.or(`building_id.is.null,building_id.eq.${userProfile.apartments.building_id}`);
+                } else { query = query.is('building_id', null); }
+            }
+            const { data } = await query;
+            if (data) { allNews = data; renderNewsFeed(); }
+        }
+
+        function renderNewsFeed() {
+            const list = document.getElementById('news-list');
+            const isAdmin = userProfile.role === 'admin';
+            let filtered = allNews.filter(n => {
+                const matchesSearch = n.title.toLowerCase().includes(newsSearchQuery.toLowerCase()) || n.content.toLowerCase().includes(newsSearchQuery.toLowerCase());
+                const matchesCat = newsCategoryFilter === "" || n.category === newsCategoryFilter;
+                return matchesSearch && matchesCat;
+            });
+
+            if (filtered.length > 0) {
+                list.innerHTML = filtered.map(n => {
+                    let likedBy = [];
+                    try { likedBy = n.liked_by || []; } catch(e){}
+                    const hasLiked = likedBy.includes(currentUser.id);
+                    const likeIconColor = hasLiked ? 'text-hb-orange fill-current' : 'text-gray-300';
+
+                    return `
+                    <div class="card p-8 md:p-10 text-left">
+                        <div class="flex justify-between items-start mb-8 text-left">
+                            <div class="flex items-center gap-5 text-left">
+                                <div class="w-12 h-12 bg-hb-olive text-white font-bold flex items-center justify-center rounded-full text-base uppercase text-left">${(n.profiles?.full_name || 'HB').charAt(0)}</div>
+                                <div class="text-left">
+                                    <p class="text-sm font-bold text-hb-offblack text-left">${n.profiles?.full_name || 'HB Verwaltung'}</p>
+                                    <p class="text-[10px] text-gray-400 uppercase tracking-widest font-medium mt-1 text-left">${new Date(n.created_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}${isAdmin && n.buildings?.name ? ` • ${n.buildings.name}` : ''}</p>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end gap-3 text-left">
+                                <span class="px-4 py-1.5 bg-gray-50 text-gray-600 text-[10px] font-bold uppercase tracking-widest rounded-lg border border-gray-100 text-left">${n.category}</span>
+                                ${isAdmin ? `<div class="flex gap-4 mt-2 text-left"><button onclick="editNews('${n.id}')" class="text-xs font-bold text-hb-olive hover:underline text-left">Bearbeiten</button><button onclick="deleteNews('${n.id}')" class="text-xs font-bold text-hb-orange hover:underline text-left">Löschen</button></div>` : ''}
+                            </div>
+                        </div>
+                        <div class="mb-8 text-left">
+                            <h3 class="text-2xl font-extrabold text-hb-offblack mb-4 text-left">${n.title}</h3>
+                            <div class="news-content text-sm text-gray-600 leading-relaxed text-left">${formatText(n.content)}</div>
+                        </div>
+                        <div class="pt-5 border-t border-gray-50 flex items-center gap-6 text-left">
+                            <button onclick="handleLike('${n.id}')" class="flex items-center gap-3 transition-all hover:opacity-75 text-left" ${hasLiked ? 'title="Bereits geliked"' : ''}>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 ${likeIconColor}" viewBox="0 0 20 20" stroke="currentColor" stroke-width="1"><path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" /></svg>
+                                <span class="text-sm font-bold ${hasLiked ? 'text-hb-orange' : 'text-gray-400'} text-left">${n.likes || 0}</span>
+                            </button>
+                        </div>
+                    </div>`
+                }).join('');
+            } else { list.innerHTML = '<p class="py-16 text-center text-gray-400 italic text-sm text-left">Keine Einträge gefunden.</p>'; }
         }
 
         async function handleSaveNews(e) {
             e.preventDefault();
-            const payload = { 
-                title: document.getElementById('news_title').value, 
-                content: document.getElementById('news_content').value, 
-                author_id: currentUser.id,
-                category: 'Information'
-            };
-            const { error } = await _supabase.from('news').insert([payload]);
-            if(!error) { showToast("News veröffentlicht"); loadNews(); }
+            const payload = { title: document.getElementById('news_title').value, category: document.getElementById('news_category').value, content: document.getElementById('news_content').value, building_id: document.getElementById('news_b_id').value || null, author_id: currentUser.id };
+            if (currentEditingNewsId) await _supabase.from('news').update(payload).eq('id', currentEditingNewsId);
+            else await _supabase.from('news').insert([payload]);
+            resetNewsForm(); fetchNews(); showToast("Aushang veröffentlicht");
         }
 
-        async function fetchNews() {
-            const { data } = await _supabase.from('news').select('*').order('created_at', { ascending: false });
-            if (data) document.getElementById('news-list').innerHTML = data.map(n => `
-                <div class="card p-10 text-left">
-                    <h3 class="text-2xl font-black mb-4 text-left text-hb-offblack">${n.title}</h3>
-                    <div class="text-lg text-gray-600 leading-relaxed text-left">${formatText(n.content)}</div>
-                </div>`).join('');
+        async function handleLike(id) {
+            const newsItem = allNews.find(n => n.id === id);
+            if (!newsItem) return;
+            
+            let likedBy = [];
+            try { likedBy = newsItem.liked_by || []; } catch(e){}
+
+            if (likedBy.includes(currentUser.id)) {
+                showToast("Du hast diesen Beitrag bereits geliked", "error");
+                return;
+            }
+
+            likedBy.push(currentUser.id);
+            const currentLikes = (newsItem.likes || 0) + 1;
+
+            const { error } = await _supabase.from('news').update({ likes: currentLikes, liked_by: likedBy }).eq('id', id);
+            if (error) {
+                showToast("Like konnte nicht gespeichert werden.", "error");
+            } else {
+                fetchNews();
+            }
         }
 
-        /* --- 4. DOKUMENTE (NEUES DATEISYSTEM-DESIGN + FILTER) --- */
+        function handleNewsSearch(val) { newsSearchQuery = val; renderNewsFeed(); }
+        function handleNewsFilter(val) { newsCategoryFilter = val; renderNewsFeed(); }
+
+        async function editNews(id) {
+            const { data: n } = await _supabase.from('news').select('*').eq('id', id).single();
+            if (n) {
+                currentEditingNewsId = id;
+                document.getElementById('news_title').value = n.title;
+                document.getElementById('news_category').value = n.category;
+                document.getElementById('news_content').value = n.content;
+                document.getElementById('news_b_id').value = n.building_id || '';
+                document.getElementById('news-form-title').innerHTML = `${icons.news} Aushang bearbeiten`;
+                document.getElementById('news-submit-btn').textContent = "Speichern";
+                document.getElementById('news-cancel-btn').classList.remove('hidden');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        function resetNewsForm() {
+            currentEditingNewsId = null;
+            document.getElementById('news-form').reset();
+            document.getElementById('news-form-title').innerHTML = `${icons.news} Neuer Aushang`;
+            document.getElementById('news-submit-btn').textContent = "Veröffentlichen";
+            document.getElementById('news-cancel-btn').classList.add('hidden');
+        }
+
+        async function deleteNews(id) { if (confirm("Löschen?")) { await _supabase.from('news').delete().eq('id', id); fetchNews(); showToast("Gelöscht"); } }
+
+
+        /* --- 4. DOKUMENTE (DATEISYSTEM-DESIGN + FILTER) --- */
         async function loadDocuments() {
             const container = document.getElementById('content-area');
             const isAdmin = userProfile.role === 'admin';
@@ -622,53 +953,53 @@
                     <div class="card p-8 md:p-10 mb-8 text-left border-2 border-dashed border-gray-200 bg-gray-50/50">
                         <h2 class="text-lg font-bold mb-6 text-hb-offblack text-left">Einzel-Upload (Multi-Upload folgt im nächsten Schritt)</h2>
                         <form id="upload-form" class="flex flex-col md:flex-row gap-4 items-end text-left">
-                            <div class="flex-grow w-full">
+                            <div class="flex-grow w-full text-left">
                                 <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Datei & Titel</label>
-                                <input type="file" id="file-input" class="w-full text-base text-left p-3 bg-white" required>
-                                <input type="text" id="doc_title" placeholder="Anzeigetitel" class="w-full text-base text-left mt-2 p-3 bg-white" required>
+                                <input type="file" id="file-input" class="w-full text-sm text-left p-3 bg-white" required>
+                                <input type="text" id="doc_title" placeholder="Anzeigetitel" class="w-full text-sm text-left mt-2 p-3 bg-white border border-gray-200" required>
                             </div>
-                            <div class="w-full md:w-48 flex-shrink-0">
+                            <div class="w-full md:w-48 flex-shrink-0 text-left">
                                 <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Kategorie</label>
-                                <select id="doc_category" class="w-full p-3 text-base bg-white">
+                                <select id="doc_category" class="w-full p-3 text-sm bg-white border border-gray-200 text-left">
                                     <option value="Abrechnung">Jahresabrechnung</option><option value="Mietvertrag">Mietvertrag</option><option value="Protokoll">Protokoll</option><option value="Sonstiges">Sonstiges</option>
                                 </select>
                             </div>
-                            <div class="w-full md:w-48 flex-shrink-0">
+                            <div class="w-full md:w-48 flex-shrink-0 text-left">
                                 <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Sichtbarkeit</label>
-                                <select id="doc_tenant_id" class="w-full p-3 text-base bg-white">
+                                <select id="doc_tenant_id" class="w-full p-3 text-sm bg-white border border-gray-200 text-left">
                                     <option value="">Alle (Allgemein)</option>
                                     ${tenantOptions}
                                 </select>
                             </div>
-                            <button type="submit" id="upload-btn" class="btn-primary px-8 py-3 text-base w-full md:w-auto h-[46px] text-left flex-shrink-0">Hochladen</button>
+                            <button type="submit" id="upload-btn" class="btn-primary px-8 py-3 text-sm w-full md:w-auto h-[46px] text-left flex-shrink-0">Hochladen</button>
                         </form>
                     </div>`;
             }
 
             html = uploadHtml + `
-                <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
-                    <h2 class="text-3xl font-extrabold text-hb-offblack flex items-center gap-3">${icons.docs} ${isAdmin ? 'Alle Dokumente' : 'Meine Dokumente'}</h2>
-                    <div class="flex gap-3 w-full md:w-auto">
-                        <input type="text" id="doc-search" oninput="handleDocSearch(this.value)" placeholder="Suchen..." class="flex-grow md:w-64 p-3 text-base border border-gray-100 shadow-sm rounded-[15px] bg-white">
-                        <select id="doc-filter-cat" onchange="handleDocFilter(this.value)" class="p-3 text-base cursor-pointer border border-gray-100 bg-white shadow-sm rounded-[15px] min-w-[150px]">
-                            <option value="">Alle</option><option value="Abrechnung">Abrechnung</option><option value="Mietvertrag">Vertrag</option><option value="Protokoll">Protokoll</option><option value="Sonstiges">Sonstiges</option>
+                <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6 text-left">
+                    <h2 class="text-2xl font-extrabold text-hb-offblack flex items-center gap-3 text-left">${icons.docs} ${isAdmin ? 'Alle Dokumente' : 'Meine Dokumente'}</h2>
+                    <div class="flex gap-3 w-full md:w-auto text-left">
+                        <input type="text" id="doc-search" oninput="handleDocSearch(this.value)" placeholder="Suchen..." class="flex-grow md:w-64 p-3 text-sm border border-gray-200 shadow-sm rounded-[15px] bg-white text-left">
+                        <select id="doc-filter-cat" onchange="handleDocFilter(this.value)" class="p-3 text-sm cursor-pointer border border-gray-200 bg-white shadow-sm rounded-[15px] min-w-[150px] text-left">
+                            <option value="">Alle Kategorien</option><option value="Abrechnung">Abrechnung</option><option value="Mietvertrag">Vertrag</option><option value="Protokoll">Protokoll</option><option value="Sonstiges">Sonstiges</option>
                         </select>
                     </div>
                 </div>
 
-                <div class="card overflow-hidden border border-gray-100">
-                    <div class="overflow-x-auto">
+                <div class="card overflow-hidden border border-gray-100 text-left">
+                    <div class="overflow-x-auto text-left">
                         <table class="w-full text-left border-collapse">
                             <thead>
-                                <tr class="bg-gray-50/80 text-gray-500 text-[10px] uppercase tracking-widest border-b border-gray-100">
-                                    <th class="p-5 font-extrabold w-1/2">Dateiname</th>
-                                    <th class="p-5 font-extrabold hidden md:table-cell">Kategorie</th>
-                                    <th class="p-5 font-extrabold hidden lg:table-cell">Freigabe am</th>
+                                <tr class="bg-gray-50/80 text-gray-500 text-[10px] uppercase tracking-widest border-b border-gray-100 text-left">
+                                    <th class="p-5 font-extrabold w-1/2 text-left">Dateiname</th>
+                                    <th class="p-5 font-extrabold hidden md:table-cell text-left">Kategorie</th>
+                                    <th class="p-5 font-extrabold hidden lg:table-cell text-left">Freigabe am</th>
                                     <th class="p-5 font-extrabold text-right">Aktion</th>
                                 </tr>
                             </thead>
-                            <tbody id="docs-content" class="divide-y divide-gray-50 text-base">
-                                <tr><td colspan="4" class="p-8 text-center text-gray-400 italic">Dokumente werden geladen...</td></tr>
+                            <tbody id="docs-content" class="divide-y divide-gray-50 text-sm text-left">
+                                <tr><td colspan="4" class="p-8 text-center text-gray-400 italic text-left">Dokumente werden geladen...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -740,44 +1071,44 @@
                 list.innerHTML = filtered.map(doc => {
                     const readBy = doc.read_by || [];
                     const isUnread = !isAdmin && !readBy.includes(currentUser.id);
-                    const unreadBadge = isUnread ? `<span class="px-2.5 py-1 bg-red-100 text-red-600 rounded text-[9px] font-black uppercase tracking-widest ml-3 shadow-sm inline-flex items-center">NEU</span>` : '';
+                    const unreadBadge = isUnread ? `<span class="px-2.5 py-1 bg-red-100 text-red-600 rounded text-[9px] font-black uppercase tracking-widest ml-3 shadow-sm inline-flex items-center text-left">NEU</span>` : '';
                     
                     const dateObj = new Date(doc.created_at);
-                    const dateStr = dateObj.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' <span class="text-gray-400 font-normal">, ' + dateObj.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'}) + ' Uhr</span>';
+                    const dateStr = dateObj.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' <span class="text-gray-400 font-normal text-left">, ' + dateObj.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'}) + ' Uhr</span>';
                     
-                    const targetInfo = isAdmin && doc.profiles?.full_name ? `<p class="text-[10px] uppercase tracking-widest font-bold text-hb-orange mt-1">Sichtbar für: ${doc.profiles.full_name}</p>` : '';
+                    const targetInfo = isAdmin && doc.profiles?.full_name ? `<p class="text-[10px] uppercase tracking-widest font-bold text-hb-orange mt-1 text-left">Sichtbar für: ${doc.profiles.full_name}</p>` : '';
 
                     return `
-                    <tr class="hover:bg-gray-50/50 transition-colors group">
-                        <td class="p-5 align-middle border-b border-gray-50">
-                            <div class="flex items-center gap-4">
-                                <div class="w-10 h-10 rounded-xl bg-hb-ultralight flex items-center justify-center text-hb-olive flex-shrink-0 group-hover:bg-white shadow-sm border border-gray-100">
-                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                    <tr class="hover:bg-gray-50/50 transition-colors group text-left">
+                        <td class="p-5 align-middle border-b border-gray-50 text-left">
+                            <div class="flex items-center gap-4 text-left">
+                                <div class="w-10 h-10 rounded-xl bg-hb-ultralight flex items-center justify-center text-hb-olive flex-shrink-0 group-hover:bg-white shadow-sm border border-gray-100 text-left">
+                                    <svg class="w-5 h-5 text-left" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
                                 </div>
-                                <div>
-                                    <p class="font-extrabold text-hb-offblack flex items-center text-base">${doc.title} ${unreadBadge}</p>
+                                <div class="text-left">
+                                    <p class="font-extrabold text-hb-offblack flex items-center text-sm text-left">${doc.title} ${unreadBadge}</p>
                                     ${targetInfo}
                                 </div>
                             </div>
                         </td>
-                        <td class="p-5 align-middle hidden md:table-cell border-b border-gray-50">
-                            <span class="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 text-[10px] font-extrabold uppercase tracking-widest rounded-lg shadow-sm">${doc.category}</span>
+                        <td class="p-5 align-middle hidden md:table-cell border-b border-gray-50 text-left">
+                            <span class="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 text-[10px] font-extrabold uppercase tracking-widest rounded-lg shadow-sm text-left">${doc.category}</span>
                         </td>
-                        <td class="p-5 align-middle hidden lg:table-cell text-sm font-semibold text-gray-600 border-b border-gray-50">
+                        <td class="p-5 align-middle hidden lg:table-cell text-sm font-semibold text-gray-600 border-b border-gray-50 text-left">
                             ${dateStr}
                         </td>
-                        <td class="p-5 align-middle text-right border-b border-gray-50">
-                            <div class="flex justify-end items-center gap-2">
-                                <button onclick="viewDoc('${doc.id}', '${doc.file_path}', '${JSON.stringify(readBy).replace(/"/g, '&quot;')}')" class="bg-white border border-hb-olive text-hb-olive hover:bg-hb-olive hover:text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2">
-                                    Anzeigen <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                        <td class="p-5 align-middle text-right border-b border-gray-50 text-right">
+                            <div class="flex justify-end items-center gap-2 text-right">
+                                <button onclick="viewDoc('${doc.id}', '${doc.file_path}', 'documents')" class="bg-white border border-hb-olive text-hb-olive hover:bg-hb-olive hover:text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 text-right">
+                                    Anzeigen <svg class="w-3 h-3 text-right" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                                 </button>
-                                ${isAdmin ? `<button onclick="deleteDoc('${doc.id}', '${doc.file_path}')" class="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100" title="Dokument löschen"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>` : ''}
+                                ${isAdmin ? `<button onclick="deleteDoc('${doc.id}', '${doc.file_path}')" class="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100 text-right" title="Dokument löschen"><svg class="w-4 h-4 text-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>` : ''}
                             </div>
                         </td>
                     </tr>`;
                 }).join('');
             } else {
-                list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-base text-gray-400 italic">Keine Dokumente für diese Kriterien gefunden.</td></tr>';
+                list.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-sm text-gray-400 italic text-left">Keine Dokumente für diese Kriterien gefunden.</td></tr>';
             }
         }
 
@@ -786,31 +1117,197 @@
         async function loadContacts() {
             const container = document.getElementById('content-area');
             const isAdmin = userProfile.role === 'admin';
-            container.innerHTML = `
-                <div class="card p-10 text-left">
-                    <h2 class="text-2xl font-extrabold mb-10 text-left">Kontaktbuch</h2>
-                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-6 rounded-r-2xl mb-10 text-left">
-                        <p class="text-base text-yellow-800 font-bold text-left text-balance">Hinweis: Diese Kontakte sind für Notfälle und Kleinreparaturen. Größere Arbeiten bedürfen der Freigabe durch den Vermieter.</p>
-                    </div>
-                    <div id="contacts-list" class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left"></div>
+            
+            let buildingsHtml = '';
+            if (isAdmin) {
+                const { data: buildings } = await _supabase.from('buildings').select('id, name').order('name');
+                buildingsHtml = buildings?.map(b => `<label class="flex items-center gap-2 text-left"><input type="checkbox" name="contact_buildings" value="${b.id}"> <span class="text-sm text-gray-600 text-left">${b.name}</span></label>`).join('') || '';
+            }
+
+            let html = '';
+            
+            if (isAdmin) {
+                html += `
+                <div class="card p-8 md:p-12 mb-8 text-left">
+                    <h2 class="text-2xl font-bold mb-8 text-hb-offblack flex items-center gap-3 text-left">${icons.contact} Neuen Kontakt anlegen</h2>
+                    <form id="contact-form" class="space-y-6 text-left">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-left">
+                            <div class="text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Firma (Optional)</label>
+                                <input type="text" id="contact_company" class="w-full p-3 text-sm text-left" placeholder="Malerbetrieb Meier GmbH">
+                            </div>
+                            <div class="text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Ansprechpartner</label>
+                                <input type="text" id="contact_person" class="w-full p-3 text-sm text-left" required>
+                            </div>
+                            <div class="text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Kategorie</label>
+                                <select id="contact_category" class="w-full p-3 text-sm text-left" required>
+                                    <option value="Sanitär">Sanitär</option>
+                                    <option value="Elektrik">Elektrik</option>
+                                    <option value="Hausverwaltung">Hausverwaltung</option>
+                                    <option value="Hausmeister">Hausmeister</option>
+                                    <option value="Vermieter">Vermieter</option>
+                                    <option value="Sonstiges">Sonstiges</option>
+                                </select>
+                            </div>
+                            <div class="text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Telefon</label>
+                                <input type="text" id="contact_phone" class="w-full p-3 text-sm text-left">
+                            </div>
+                            <div class="text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Mobil</label>
+                                <input type="text" id="contact_mobile" class="w-full p-3 text-sm text-left">
+                            </div>
+                            <div class="text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">E-Mail</label>
+                                <input type="email" id="contact_email" class="w-full p-3 text-sm text-left">
+                            </div>
+                            <div class="col-span-1 md:col-span-2 lg:col-span-3 text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Adresse (Strasse, PLZ Ort)</label>
+                                <input type="text" id="contact_address" class="w-full p-3 text-sm text-left" placeholder="Musterstraße 1, 12345 Musterstadt">
+                            </div>
+                            <div class="col-span-1 md:col-span-2 lg:col-span-3 text-left">
+                                <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-2 text-left">Zuweisung zu Objekten (Leer lassen für 'Alle Gebäude')</label>
+                                <div class="flex flex-wrap gap-5 p-4 bg-white border border-gray-100 rounded-[15px] text-left">
+                                    ${buildingsHtml}
+                                </div>
+                            </div>
+                            <div class="col-span-1 md:col-span-2 lg:col-span-3 flex items-center gap-3 p-4 bg-red-50 border border-red-100 rounded-[15px] mt-2 text-left">
+                                <input type="checkbox" id="contact_is_emergency" class="w-6 h-6 text-red-600 border-red-300 rounded focus:ring-red-500 text-left">
+                                <label for="contact_is_emergency" class="text-sm font-bold text-red-700 cursor-pointer text-left">Ist das ein 24/7 Notdienst-Kontakt?</label>
+                            </div>
+                        </div>
+                        <div class="flex justify-end pt-4 text-left">
+                            <button type="submit" id="contact-submit-btn" class="btn-primary px-10 py-3 text-sm text-left">Speichern</button>
+                        </div>
+                    </form>
                 </div>`;
+            }
+
+            html += `
+                <div class="card p-8 md:p-12 text-left">
+                    <div class="flex justify-between items-center mb-8 text-left text-balance">
+                        <h2 class="text-2xl font-extrabold text-hb-offblack flex items-center gap-3 text-left">${icons.contact} Kontaktbuch</h2>
+                    </div>
+                    
+                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-6 rounded-r-[15px] mb-10 text-left">
+                        <p class="text-sm text-yellow-800 font-medium leading-relaxed text-left text-balance">
+                            <strong class="font-bold text-yellow-900 block mb-1 text-left">Wichtiger Hinweis:</strong> 
+                            Die folgenden Kontakte sind ausschließlich für <strong>Notfälle und Kleinreparaturen</strong> gedacht. Größere Arbeiten und Aufträge, die den Rahmen von Kleinreparaturen übersteigen, müssen vorab vom Vermieter beauftragt oder freigegeben werden.
+                        </p>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left" id="contacts-list">
+                        <p class="text-sm text-gray-400 italic text-left">Lade Kontakte...</p>
+                    </div>
+                </div>
+            `;
+            
+            container.innerHTML = html;
+            
+            if (isAdmin) document.getElementById('contact-form').addEventListener('submit', handleSaveContact);
             fetchContacts();
         }
 
         async function fetchContacts() {
-            const { data } = await _supabase.from('contacts').select('*').order('company');
-            if(data) document.getElementById('contacts-list').innerHTML = data.map(c => `
-                <div class="p-8 border border-gray-100 rounded-3xl bg-hb-ultralight/50 text-left">
-                    ${c.is_emergency ? '<span class="bg-red-500 text-white px-3 py-1 rounded text-[10px] font-black uppercase mb-4 inline-block text-left">🚨 Notdienst</span>' : ''}
-                    <h4 class="text-xl font-black text-hb-offblack text-left">${c.company || ''}</h4>
-                    <p class="text-base font-bold text-gray-700 mt-2 text-left">${c.contact_person}</p>
-                    <p class="text-xs font-black uppercase tracking-widest text-hb-olive mt-4 text-left">${c.category}</p>
-                    <div class="mt-6 space-y-3 text-left">
-                        ${c.phone ? `<p class="text-base font-bold text-left">📞 ${c.phone}</p>` : ''}
-                        ${c.mobile ? `<p class="text-base font-bold text-left">📱 ${c.mobile}</p>` : ''}
-                        ${c.email ? `<p class="text-base font-bold text-left">✉️ ${c.email}</p>` : ''}
+            const isAdmin = userProfile.role === 'admin';
+            const { data, error } = await _supabase.from('contacts').select('*').order('company');
+            const list = document.getElementById('contacts-list');
+            
+            if (error) { list.innerHTML = '<p class="text-red-500 text-sm text-left">Fehler beim Laden.</p>'; return; }
+            
+            let filteredData = data || [];
+            
+            if (!isAdmin) {
+                const myBuildingId = userProfile.apartments?.building_id;
+                filteredData = filteredData.filter(c => {
+                    if (!c.building_ids || c.building_ids.length === 0) return true;
+                    if (myBuildingId && c.building_ids.includes(myBuildingId)) return true;
+                    return false;
+                });
+            }
+            
+            if (filteredData.length > 0) {
+                list.innerHTML = filteredData.map(c => {
+                    let catColor = "bg-gray-100 text-gray-600";
+                    switch(c.category) {
+                        case 'Sanitär': catColor = "bg-blue-100 text-blue-700"; break;
+                        case 'Elektrik': catColor = "bg-yellow-100 text-yellow-700"; break;
+                        case 'Hausverwaltung': catColor = "bg-hb-ultralight text-hb-olive"; break;
+                        case 'Vermieter': catColor = "bg-green-100 text-green-700"; break;
+                    }
+
+                    const emergencyBadge = c.is_emergency ? `<span class="bg-red-500 text-white px-3 py-1 rounded text-[10px] font-bold tracking-widest uppercase shadow-sm animate-pulse text-left">🚨 Notdienst</span>` : '';
+                    const globalBadge = isAdmin && (!c.building_ids || c.building_ids.length === 0) ? `<span class="bg-gray-200 text-gray-600 px-3 py-1 rounded text-[10px] font-bold tracking-widest uppercase ml-2 text-left">GLOBAL</span>` : '';
+
+                    return `
+                    <div class="border border-gray-100 p-6 rounded-[15px] flex flex-col gap-4 group hover:border-hb-olive transition-colors bg-white shadow-sm relative overflow-hidden text-left">
+                        ${c.is_emergency ? `<div class="absolute top-0 right-0 w-20 h-20 bg-red-500 transform rotate-45 translate-x-10 -translate-y-10 text-left"></div>` : ''}
+                        
+                        <div class="flex justify-between items-start z-10 text-left">
+                            <div class="text-left">
+                                <span class="${catColor} px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest text-left">${c.category}</span>
+                                ${emergencyBadge}
+                                ${globalBadge}
+                            </div>
+                            ${isAdmin ? `<button onclick="deleteContact('${c.id}')" class="text-xs font-bold text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:underline text-left">Löschen</button>` : ''}
+                        </div>
+                        
+                        <div class="z-10 mt-2 text-left">
+                            ${c.company ? `<h4 class="font-extrabold text-lg text-hb-offblack text-left">${c.company}</h4>` : ''}
+                            <p class="text-sm font-semibold text-gray-700 ${c.company ? 'mt-1' : 'text-lg'} text-left text-balance">${c.contact_person}</p>
+                            ${c.address ? `<p class="text-xs text-gray-500 mt-2 leading-snug text-left">${c.address}</p>` : ''}
+                        </div>
+
+                        <div class="mt-4 space-y-2 z-10 border-t border-gray-50 pt-4 text-left">
+                            ${c.phone ? `<a href="tel:${c.phone.replace(/[^0-9+]/g, '')}" class="text-sm font-semibold text-gray-600 hover:text-hb-orange flex items-center gap-2 text-left"><svg class="w-4 h-4 text-left" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg> ${c.phone}</a>` : ''}
+                            ${c.mobile ? `<a href="tel:${c.mobile.replace(/[^0-9+]/g, '')}" class="text-sm font-semibold text-gray-600 hover:text-hb-orange flex items-center gap-2 text-left"><svg class="w-4 h-4 text-left" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg> ${c.mobile}</a>` : ''}
+                            ${c.email ? `<a href="mailto:${c.email}" class="text-sm font-semibold text-gray-600 hover:text-hb-orange flex items-center gap-2 text-left"><svg class="w-4 h-4 text-left" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg> ${c.email}</a>` : ''}
+                        </div>
                     </div>
-                </div>`).join('');
+                `}).join('');
+            } else {
+                list.innerHTML = '<p class="text-sm text-gray-400 italic col-span-2 text-left">Keine Kontakte vorhanden.</p>';
+            }
+        }
+
+        async function handleSaveContact(e) {
+            e.preventDefault();
+            const btn = document.getElementById('contact-submit-btn');
+            btn.disabled = true; btn.textContent = "Speichere...";
+            
+            const selectedBuildings = Array.from(document.querySelectorAll('input[name="contact_buildings"]:checked')).map(cb => parseInt(cb.value));
+
+            const payload = {
+                company: document.getElementById('contact_company').value || null,
+                contact_person: document.getElementById('contact_person').value,
+                category: document.getElementById('contact_category').value,
+                phone: document.getElementById('contact_phone').value || null,
+                mobile: document.getElementById('contact_mobile').value || null,
+                email: document.getElementById('contact_email').value || null,
+                address: document.getElementById('contact_address').value || null,
+                is_emergency: document.getElementById('contact_is_emergency').checked,
+                building_ids: selectedBuildings.length > 0 ? selectedBuildings : null
+            };
+            
+            const { error } = await _supabase.from('contacts').insert([payload]);
+            if (error) {
+                showToast(error.message, "error");
+            } else {
+                showToast("Kontakt angelegt");
+                document.getElementById('contact-form').reset();
+                fetchContacts();
+            }
+            btn.disabled = false; btn.textContent = "Speichern";
+        }
+
+        async function deleteContact(id) {
+            if (confirm("Kontakt wirklich löschen?")) {
+                await _supabase.from('contacts').delete().eq('id', id);
+                fetchContacts(); 
+                showToast("Kontakt gelöscht");
+            }
         }
 
         /* --- TICKETS BOARD & CHAT --- */
@@ -836,7 +1333,7 @@
                 document.getElementById('board-hold').innerHTML = hT.map(t => generateTicketCard(t)).join('') || '<div class="border-2 border-dashed border-gray-200 rounded-[15px] p-8 text-center text-sm text-gray-400 font-bold text-left">Leer</div>';
             } else {
                 const list = document.getElementById('tenant-ticket-list');
-                list.innerHTML = data.map(t => generateTicketCard(t)).join('') || '<p class="text-base italic text-gray-400 text-left">Keine aktiven Meldungen.</p>';
+                list.innerHTML = data.map(t => generateTicketCard(t)).join('') || '<p class="text-sm italic text-gray-400 text-left">Keine aktiven Meldungen.</p>';
             }
         }
 
@@ -858,7 +1355,7 @@
                 if (data && data.length > 0) {
                     container.innerHTML = data.map(t => generateTicketCard(t, true)).join('');
                 } else {
-                    container.innerHTML = '<p class="text-base text-gray-400 italic text-left">Keine erledigten Tickets vorhanden.</p>';
+                    container.innerHTML = '<p class="text-sm text-gray-400 italic text-left">Keine erledigten Tickets vorhanden.</p>';
                 }
             } else {
                 container.classList.add('hidden');
@@ -877,7 +1374,7 @@
                         <span class="text-[10px] uppercase tracking-widest font-extrabold bg-gray-100 px-3 py-1.5 rounded-lg text-gray-600 text-left">${t.category}</span>
                         <span class="text-xs font-bold text-gray-400 text-left">${new Date(t.created_at).toLocaleDateString()}</span>
                     </div>
-                    <h4 class="text-base font-extrabold text-hb-offblack leading-tight mb-4 text-left text-balance">${t.title}</h4>
+                    <h4 class="text-sm font-extrabold text-hb-offblack leading-tight mb-4 text-left text-balance">${t.title}</h4>
                     <p class="text-[11px] text-gray-500 font-bold mt-4 pt-4 border-t border-gray-50 flex items-center gap-2 text-left uppercase tracking-widest">
                         <svg class="w-4 h-4 text-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                         ${t.profiles?.full_name || 'Unbekannt'}
@@ -918,7 +1415,7 @@
                     <div class="p-4 md:p-6 border-t border-gray-100 bg-white text-left">
                         <form id="chat-reply-form" class="flex gap-3 md:gap-4 items-end text-left relative">
                             <div class="flex-grow relative text-left">
-                                <textarea id="chat_msg_input" rows="2" class="w-full rounded-[15px] border-2 border-gray-100 p-4 pr-14 focus:outline-none focus:border-hb-olive text-base resize-none shadow-inner text-left bg-gray-50 focus:bg-white transition-colors" placeholder="Ihre Nachricht..." required></textarea>
+                                <textarea id="chat_msg_input" rows="2" class="w-full rounded-[15px] border-2 border-gray-100 p-4 pr-14 focus:outline-none focus:border-hb-olive text-sm resize-none shadow-inner text-left bg-gray-50 focus:bg-white transition-colors" placeholder="Ihre Nachricht..." required></textarea>
                                 <label class="absolute right-3 bottom-3 p-2 cursor-pointer text-gray-400 hover:text-hb-olive transition-colors bg-white rounded-lg shadow-sm border border-gray-50 text-left flex items-center justify-center" title="Datei anhängen">
                                     <svg class="h-5 w-5 text-left" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
                                     <input type="file" id="chat_file_input" class="hidden text-left">
@@ -982,7 +1479,6 @@
                         </div>`;
                     }
 
-                    // Trim entfernt unsichtbare Leerzeilen (Umbrüche) vom Ende des Textes, was die Blasen oft riesig gemacht hat
                     const cleanMessage = msg.message ? msg.message.trim() : '';
 
                     return `
@@ -1058,25 +1554,25 @@
                     </div>
                     <form id="new-ticket-form" class="space-y-6 text-left">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
-                            ${isAdmin ? `<div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Empfänger (Mieter)</label><select id="nt_tenant_id" class="w-full p-4 text-base text-left" required><option value="" disabled selected>Bitte wählen...</option>${tenantOptions}</select></div>` : ''}
+                            ${isAdmin ? `<div class="text-left"><label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Empfänger (Mieter)</label><select id="nt_tenant_id" class="w-full p-3 text-sm text-left" required><option value="" disabled selected>Bitte wählen...</option>${tenantOptions}</select></div>` : ''}
                             <div class="${isAdmin ? '' : 'col-span-2 md:col-span-1'} text-left">
                                 <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Kategorie</label>
-                                <select id="nt_category" class="w-full p-4 text-base text-left" required>
+                                <select id="nt_category" class="w-full p-3 text-sm text-left" required>
                                     <option value="Reparatur">Reparatur / Mangel</option><option value="Allgemein">Allgemeine Anfrage</option><option value="Termin">Termin</option>
                                     ${isAdmin ? '<option value="Mahnung">Verwarnung</option>' : '<option value="Beschwerde">Beschwerde</option>'}
                                 </select>
                             </div>
                             <div class="col-span-1 md:col-span-2 text-left">
                                 <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Betreff</label>
-                                <input type="text" id="nt_title" class="w-full p-4 text-base text-left" placeholder="Zusammenfassung..." required>
+                                <input type="text" id="nt_title" class="w-full p-3 text-sm text-left" placeholder="Zusammenfassung..." required>
                             </div>
                         </div>
                         <div class="text-left">
                             <label class="block text-xs font-bold uppercase text-gray-500 tracking-widest mb-1 text-left">Nachricht</label>
-                            <textarea id="nt_message" rows="5" class="w-full p-4 text-base text-left" placeholder="Beschreiben Sie das Anliegen..." required></textarea>
+                            <textarea id="nt_message" rows="5" class="w-full p-3 text-sm text-left" placeholder="Beschreiben Sie das Anliegen..." required></textarea>
                         </div>
                         <div class="pt-4 flex justify-end text-left">
-                            <button type="submit" id="nt-submit-btn" class="btn-primary px-10 py-4 text-base text-left">Ticket Eröffnen</button>
+                            <button type="submit" id="nt-submit-btn" class="btn-primary px-10 py-3 text-sm text-left">Ticket Eröffnen</button>
                         </div>
                     </form>
                 </div>
