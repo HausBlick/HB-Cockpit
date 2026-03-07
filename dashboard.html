@@ -158,7 +158,8 @@
                 if (!user) { window.location.href = 'index.html'; return; }
                 currentUser = user;
 
-                const { data: profile, error: profileError } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
+                // Load profile along with the building_id to allow accurate filtering for tenants
+                const { data: profile, error: profileError } = await _supabase.from('profiles').select('*, apartments!apartment_id(building_id)').eq('id', user.id).single();
                 if (profileError || !profile) { document.getElementById('welcome-title').textContent = "Profil nicht gefunden"; return; }
                 userProfile = profile;
 
@@ -1299,6 +1300,12 @@
             const container = document.getElementById('content-area');
             const isAdmin = userProfile.role === 'admin';
             
+            let buildingsHtml = '';
+            if (isAdmin) {
+                const { data: buildings } = await _supabase.from('buildings').select('id, name').order('name');
+                buildingsHtml = buildings?.map(b => `<label class="flex items-center gap-2"><input type="checkbox" name="contact_buildings" value="${b.id}"> <span class="text-xs text-gray-600">${b.name}</span></label>`).join('') || '';
+            }
+
             let html = '';
             
             if (isAdmin) {
@@ -1341,6 +1348,12 @@
                             <div class="col-span-1 md:col-span-2 lg:col-span-3">
                                 <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Adresse (Strasse, PLZ Ort)</label>
                                 <input type="text" id="contact_address" class="w-full p-3 text-sm" placeholder="Musterstraße 1, 12345 Musterstadt">
+                            </div>
+                            <div class="col-span-1 md:col-span-2 lg:col-span-3">
+                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-2">Zuweisung zu Objekten (Leer lassen für 'Alle Gebäude')</label>
+                                <div class="flex flex-wrap gap-4 p-3 bg-white border border-gray-100 rounded-[15px]">
+                                    ${buildingsHtml}
+                                </div>
                             </div>
                             <div class="col-span-1 md:col-span-2 lg:col-span-3 flex items-center gap-3 p-3 bg-red-50 border border-red-100 rounded-[15px] mt-2">
                                 <input type="checkbox" id="contact_is_emergency" class="w-5 h-5 text-red-600 border-red-300 rounded focus:ring-red-500">
@@ -1386,9 +1399,22 @@
             
             if (error) { list.innerHTML = '<p class="text-red-500">Fehler beim Laden.</p>'; return; }
             
-            if (data && data.length > 0) {
-                list.innerHTML = data.map(c => {
-                    // Farben für Kategorien
+            let filteredData = data || [];
+            
+            // Filtern für Mieter basierend auf der building_ids Spalte
+            if (!isAdmin) {
+                const myBuildingId = userProfile.apartments?.building_id;
+                filteredData = filteredData.filter(c => {
+                    // Globaler Kontakt (keinem spezifischen Gebäude zugewiesen)
+                    if (!c.building_ids || c.building_ids.length === 0) return true;
+                    // Dem Gebäude des Mieters zugewiesen
+                    if (myBuildingId && c.building_ids.includes(myBuildingId)) return true;
+                    return false;
+                });
+            }
+            
+            if (filteredData.length > 0) {
+                list.innerHTML = filteredData.map(c => {
                     let catColor = "bg-gray-100 text-gray-600";
                     switch(c.category) {
                         case 'Sanitär': catColor = "bg-blue-100 text-blue-700"; break;
@@ -1398,6 +1424,7 @@
                     }
 
                     const emergencyBadge = c.is_emergency ? `<span class="bg-red-500 text-white px-2 py-0.5 rounded text-[10px] font-bold tracking-widest uppercase shadow-sm animate-pulse">🚨 Notdienst</span>` : '';
+                    const globalBadge = isAdmin && (!c.building_ids || c.building_ids.length === 0) ? `<span class="bg-gray-200 text-gray-600 px-2 py-0.5 rounded text-[9px] font-bold ml-2">GLOBAL</span>` : '';
 
                     return `
                     <div class="border border-gray-100 p-5 rounded-[15px] flex flex-col gap-3 group hover:border-hb-olive transition-colors bg-white shadow-sm relative overflow-hidden">
@@ -1407,6 +1434,7 @@
                             <div>
                                 <span class="${catColor} px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-widest">${c.category}</span>
                                 ${emergencyBadge}
+                                ${globalBadge}
                             </div>
                             ${isAdmin ? `<button onclick="deleteContact('${c.id}')" class="text-[10px] font-bold text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:underline">Löschen</button>` : ''}
                         </div>
@@ -1434,6 +1462,8 @@
             const btn = document.getElementById('contact-submit-btn');
             btn.disabled = true; btn.textContent = "Speichere...";
             
+            const selectedBuildings = Array.from(document.querySelectorAll('input[name="contact_buildings"]:checked')).map(cb => cb.value);
+
             const payload = {
                 company: document.getElementById('contact_company').value || null,
                 contact_person: document.getElementById('contact_person').value,
@@ -1442,7 +1472,8 @@
                 mobile: document.getElementById('contact_mobile').value || null,
                 email: document.getElementById('contact_email').value || null,
                 address: document.getElementById('contact_address').value || null,
-                is_emergency: document.getElementById('contact_is_emergency').checked
+                is_emergency: document.getElementById('contact_is_emergency').checked,
+                building_ids: selectedBuildings.length > 0 ? selectedBuildings : null
             };
             
             const { error } = await _supabase.from('contacts').insert([payload]);
