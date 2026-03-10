@@ -27,38 +27,25 @@
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { background-color: #F9FAF8; font-size: 16px; }
+        body { background-color: #F9FAF8; font-size: 16px; color: #373737; }
         #sidebar { transition: transform 0.3s ease-in-out; }
         .nav-link { border-radius: 12px; transition: all 0.2s; cursor: pointer; }
         .nav-link:hover { background-color: #f3f4f6; color: #687451; }
         .active-link { background-color: #687451 !important; color: white !important; font-weight: 600; }
         
-        input, select, textarea { border-radius: 12px; background-color: #F9FAF8; border: 1px solid #e5e7eb; transition: all 0.2s; padding: 12px 16px; }
-        input:focus, select:focus, textarea:focus { background-color: white; border-color: #687451; outline: none; box-shadow: 0 0 0 3px rgba(104, 116, 81, 0.1); }
-        
         .card { background: white; border-radius: 15px; box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03); border: 1px solid rgba(0,0,0,0.02); }
-        .btn-primary { background-color: #687451; color: white; border-radius: 12px; transition: all 0.2s; font-weight: 600; padding: 12px 24px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
-        .btn-primary:hover { background-color: #555f42; transform: translateY(-1px); }
-        
-        /* Zammad Style Ticket Sidebar */
-        .ticket-sidebar-item { padding: 10px 14px; border-radius: 10px; cursor: pointer; font-size: 14px; transition: all 0.2s; color: #6b7280; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
-        .ticket-sidebar-item:hover { background: #f3f4f6; color: #374151; }
-        .ticket-sidebar-item.active { background: #687451; color: white; }
-        .ticket-count-badge { background: rgba(0,0,0,0.1); padding: 2px 8px; border-radius: 20px; font-size: 11px; }
-        .ticket-sidebar-item.active .ticket-count-badge { background: rgba(255,255,255,0.2); }
-
-        .chat-scroll::-webkit-scrollbar { width: 6px; }
-        .chat-scroll::-webkit-scrollbar-thumb { background-color: #e5e7eb; border-radius: 10px; }
+        .btn-primary { background-color: #687451; color: white; border-radius: 12px; transition: all 0.2s; font-weight: 600; padding: 12px 24px; cursor: pointer; }
         
         .dropdown-open { display: block !important; animation: fadeIn 0.15s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-<body class="font-sans text-hb-offblack min-h-screen flex flex-col md:flex-row text-left relative overflow-hidden" onclick="closeDropdowns(event)">
+<body class="font-sans min-h-screen flex flex-col md:flex-row text-left relative overflow-hidden" onclick="closeDropdowns(event)">
 
+    <!-- === START: UI BASIS ELEMENTE === -->
     <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none"></div>
 
-    <!-- MOBILE HEADER -->
+    <!-- Mobile Header -->
     <div class="md:hidden bg-white border-b border-gray-100 p-4 flex justify-between items-center sticky top-0 z-50">
         <div class="font-bold text-xl tracking-tight text-hb-olive flex items-center gap-2">
             <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-8 w-auto">
@@ -68,8 +55,9 @@
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" /></svg>
         </button>
     </div>
+    <!-- === END: UI BASIS ELEMENTE === -->
 
-    <!-- MAIN SIDEBAR -->
+    <!-- === START: MODUL SIDEBAR === -->
     <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-40 w-72 bg-white border-r border-gray-100 flex-shrink-0 h-screen flex flex-col shadow-soft">
         <div class="p-8 pb-4 hidden md:block text-center border-b border-gray-50 mb-4">
             <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-10 w-auto mx-auto mb-2">
@@ -77,19 +65,24 @@
             <p class="text-[10px] uppercase tracking-widest font-bold text-gray-400">HB Verwaltung</p>
         </div>
         <div class="flex-grow p-4 overflow-y-auto">
-            <ul class="space-y-1" id="nav-links"></ul>
+            <ul class="space-y-1" id="nav-links">
+                <!-- Navigations-Links werden per JavaScript eingefügt -->
+            </ul>
         </div>
     </nav>
-    <div id="overlay" onclick="toggleMenu()" class="fixed inset-0 bg-hb-offblack/20 backdrop-blur-sm z-30 hidden"></div>
+    <div id="overlay" onclick="toggleMenu()" class="fixed inset-0 bg-hb-offblack/20 backdrop-blur-sm z-30 hidden text-left"></div>
+    <!-- === END: MODUL SIDEBAR === -->
 
-    <!-- MAIN CONTENT AREA -->
+    <!-- === START: MAIN VIEWPORT === -->
     <main class="flex-grow h-screen overflow-y-auto relative flex flex-col">
+        <!-- Header -->
         <header class="p-6 md:p-10 flex justify-between items-center sticky top-0 bg-hb-ultralight/80 backdrop-blur-md z-30">
-            <div>
+            <div class="text-left">
                 <p id="role-label" class="text-[10px] uppercase tracking-widest font-bold text-hb-orange mb-1"></p>
                 <h1 id="welcome-title" class="text-2xl md:text-3xl font-extrabold tracking-tight">Lade...</h1>
             </div>
             
+            <!-- User Menu -->
             <div class="relative dropdown-container">
                 <button onclick="toggleUserDropdown(event)" class="flex items-center gap-3 bg-white p-1.5 pr-3 rounded-full border border-gray-200 shadow-sm hover:border-hb-olive transition-colors">
                     <div id="user-avatar" class="w-9 h-9 bg-hb-olive text-white rounded-full flex items-center justify-center font-bold text-sm uppercase">?</div>
@@ -100,7 +93,7 @@
                         <p class="text-sm font-bold truncate" id="dropdown-name">Name</p>
                         <p class="text-xs text-gray-400 truncate" id="dropdown-email">email</p>
                     </div>
-                    <button onclick="loadProfile(); setActiveNav('');" class="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-3">
+                    <button onclick="loadProfile();" class="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-3">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> Profil bearbeiten
                     </button>
                     <button onclick="logout()" class="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 flex items-center gap-3 border-t border-gray-50">
@@ -110,8 +103,12 @@
             </div>
         </header>
 
-        <div id="content-area" class="flex-grow px-6 md:px-10 pb-20 overflow-y-auto"></div>
+        <!-- Dynamic Content Area -->
+        <div id="content-area" class="flex-grow px-6 md:px-10 pb-20 overflow-y-auto text-left">
+            <!-- Inhalte werden hier geladen -->
+        </div>
     </main>
+    <!-- === END: MAIN VIEWPORT === -->
 
     <script>
         // === START: SETUP & GLOBALE VARIABLEN ===
@@ -121,15 +118,6 @@
 
         let currentUser = null;
         let userProfile = null;
-        let currentEditingId = null;
-        let currentEditingNewsId = null;
-        let currentEditingContactId = null;
-        
-        let allNews = [];
-        let allDocs = [];
-        let allTickets = [];
-        let buildings = [];
-        let ticketView = { type: 'status', value: 'Neu' };
 
         const icons = {
             dashboard: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>`,
@@ -171,7 +159,7 @@
         function renderNav(role) {
             const nav = document.getElementById('nav-links');
             const itemClass = "nav-link flex items-center gap-4 p-3.5 text-sm font-semibold text-hb-offblack";
-            const sectionClass = "pt-6 pb-2 px-4 text-[10px] uppercase tracking-widest font-extrabold text-gray-400";
+            const sectionClass = "pt-6 pb-2 px-4 text-[10px] uppercase tracking-widest font-extrabold text-gray-400 text-left";
             
             if (role === 'admin') {
                 nav.innerHTML = `
@@ -195,245 +183,75 @@
                 `;
             }
         }
+
+        function setActiveNav(id) {
+            document.querySelectorAll('#nav-links a').forEach(el => el.classList.remove('active-link'));
+            const activeEl = document.getElementById(id);
+            if (activeEl) activeEl.classList.add('active-link');
+            if(window.innerWidth < 768) toggleMenu();
+        }
         // === END: INIT & NAVIGATION ===
 
         // === START: MODUL DASHBOARD ===
         async function loadDashboard() {
             const container = document.getElementById('content-area');
-            const isAdmin = userProfile.role === 'admin';
-            container.innerHTML = `<p class="text-gray-400 italic">Übersicht wird geladen...</p>`;
-
-            if (isAdmin) {
-                const [aptData, profData, tickData] = await Promise.all([
-                    _supabase.from('apartments').select('id', { count: 'exact' }),
-                    _supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'tenant'),
-                    _supabase.from('tickets').select('id', { count: 'exact' }).neq('status', 'Geschlossen')
-                ]);
-
-                container.innerHTML = `
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-                        <div class="card p-8 flex flex-col justify-center cursor-pointer hover:border-hb-olive transition-all transform hover:-translate-y-1" onclick="loadTickets(); setActiveNav('nav-tickets')">
-                            <div class="text-hb-orange mb-4">${icons.tickets}</div>
-                            <h3 class="text-5xl font-extrabold">${tickData.count || 0}</h3>
-                            <p class="text-xs uppercase tracking-widest font-bold text-gray-400 mt-2">Aktive Tickets</p>
-                        </div>
-                        <div class="card p-8 flex flex-col justify-center cursor-pointer hover:border-hb-olive transition-all transform hover:-translate-y-1" onclick="loadUserManagement(); setActiveNav('nav-users')">
-                            <div class="text-hb-olive mb-4">${icons.users}</div>
-                            <h3 class="text-5xl font-extrabold">${profData.count || 0}</h3>
-                            <p class="text-xs uppercase tracking-widest font-bold text-gray-400 mt-2">Aktive Mieter</p>
-                        </div>
-                        <div class="card p-8 flex flex-col justify-center cursor-pointer hover:border-hb-olive transition-all transform hover:-translate-y-1" onclick="loadTenants(); setActiveNav('nav-apartments')">
-                            <div class="text-hb-olive mb-4">${icons.buildings}</div>
-                            <h3 class="text-5xl font-extrabold">${aptData.count || 0}</h3>
-                            <p class="text-xs uppercase tracking-widest font-bold text-gray-400 mt-2">Einheiten</p>
-                        </div>
-                    </div>
-                `;
-            } else {
-                container.innerHTML = `<div class="card p-10 bg-hb-olive text-white">Willkommen im Mieterportal!</div>`;
-            }
-        }
-        // === END: MODUL DASHBOARD ===
-
-        // === START: MODUL TICKETS (ZAMMAD STYLE) ===
-        async function loadTickets() {
-            const container = document.getElementById('content-area');
-            const isAdmin = userProfile.role === 'admin';
-            
-            if (isAdmin) {
-                container.innerHTML = `
-                    <div class="flex flex-col md:flex-row h-[calc(100vh-250px)] gap-6">
-                        <!-- Sidebar: Sichten & Objekte -->
-                        <aside class="w-full md:w-64 flex-shrink-0 overflow-y-auto pr-2 chat-scroll">
-                            <button onclick="openNewTicketModal()" class="btn-primary w-full mb-8 shadow-sm">+ Neues Ticket</button>
-                            <div class="space-y-8">
-                                <div>
-                                    <h3 class="px-3 text-[10px] uppercase font-black tracking-widest text-gray-400 mb-3">Sichten</h3>
-                                    <nav class="space-y-1" id="ticket-views-nav"></nav>
-                                </div>
-                                <div>
-                                    <h3 class="px-3 text-[10px] uppercase font-black tracking-widest text-gray-400 mb-3">Objekte</h3>
-                                    <nav class="space-y-1" id="ticket-buildings-nav"></nav>
-                                </div>
-                            </div>
-                        </aside>
-                        <!-- Main: Ticket Liste -->
-                        <section class="flex-grow card overflow-hidden flex flex-col bg-white">
-                            <div class="overflow-x-auto flex-grow">
-                                <table class="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr class="bg-gray-50 border-b border-gray-100 text-[10px] uppercase font-black tracking-widest text-gray-400">
-                                            <th class="p-5 w-16">ID</th>
-                                            <th class="p-5">Betreff / Mieter</th>
-                                            <th class="p-5">Objekt</th>
-                                            <th class="p-5">Status</th>
-                                            <th class="p-5 text-right">Datum</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="ticket-list-body" class="text-sm divide-y divide-gray-50"></tbody>
-                                </table>
-                            </div>
-                            <div id="ticket-empty-state" class="hidden p-20 text-center text-gray-400 italic">Keine Tickets vorhanden.</div>
-                        </section>
-                    </div>
-                `;
-                fetchTickets();
-            } else {
-                container.innerHTML = `<div class="card p-8"><h2 class="text-xl font-extrabold mb-6">Meine Tickets</h2><div id="tenant-ticket-list" class="space-y-4"></div></div>`;
-                fetchTickets();
-            }
-        }
-
-        async function fetchTickets() {
-            const isAdmin = userProfile.role === 'admin';
-            if (isAdmin) {
-                const { data: bData } = await _supabase.from('buildings').select('*').order('name');
-                buildings = bData || [];
-            }
-            const { data, error } = await _supabase.from('tickets').select('*, profiles:tenant_id(full_name), buildings(name)').order('created_at', { ascending: false });
-            if (!error) {
-                allTickets = data;
-                renderTicketSidebar();
-                renderTicketList();
-            }
-        }
-
-        function renderTicketSidebar() {
-            const viewsNav = document.getElementById('ticket-views-nav');
-            const bNav = document.getElementById('ticket-buildings-nav');
-            if (!viewsNav) return;
-
-            const views = [
-                { id: 'Neu', label: 'Neu', count: allTickets.filter(t => t.status === 'Neu').length },
-                { id: 'Offen', label: 'Offen', count: allTickets.filter(t => t.status === 'Offen' || t.status === 'In Bearbeitung').length },
-                { id: 'Geschlossen', label: 'Abgeschlossen', count: allTickets.filter(t => t.status === 'Geschlossen' || t.status === 'Erledigt').length }
-            ];
-
-            viewsNav.innerHTML = views.map(v => `
-                <div onclick="setTicketFilter('status', '${v.id}')" class="ticket-sidebar-item ${ticketView.type === 'status' && ticketView.value === v.id ? 'active' : ''}">
-                    <span>${v.label}</span> <span class="ticket-count-badge">${v.count}</span>
-                </div>
-            `).join('');
-
-            bNav.innerHTML = buildings.map(b => `
-                <div onclick="setTicketFilter('building', '${b.id}')" class="ticket-sidebar-item ${ticketView.type === 'building' && ticketView.value == b.id ? 'active' : ''}">
-                    <span class="truncate">${b.name}</span>
-                </div>
-            `).join('');
-        }
-
-        function setTicketFilter(type, value) {
-            ticketView = { type, value };
-            renderTicketSidebar();
-            renderTicketList();
-        }
-
-        function renderTicketList() {
-            const isAdmin = userProfile.role === 'admin';
-            const body = document.getElementById('ticket-list-body');
-            if (!body) return;
-
-            let filtered = isAdmin ? allTickets.filter(t => {
-                if (ticketView.type === 'status') {
-                    if (ticketView.value === 'Geschlossen') return t.status === 'Geschlossen' || t.status === 'Erledigt';
-                    if (ticketView.value === 'Offen') return t.status === 'Offen' || t.status === 'In Bearbeitung';
-                    return t.status === ticketView.value;
-                }
-                return t.building_id == ticketView.value;
-            }) : allTickets.filter(t => t.tenant_id === currentUser.id);
-
-            body.innerHTML = filtered.map(t => `
-                <tr onclick="viewTicketChat('${t.id}')" class="hover:bg-gray-50 cursor-pointer transition-colors group">
-                    <td class="p-5 font-mono text-[10px] text-gray-400">#${t.id.substring(0,4)}</td>
-                    <td class="p-5">
-                        <div class="font-bold text-hb-offblack">${t.title}</div>
-                        <div class="text-[11px] text-gray-400">${t.profiles?.full_name || 'Unbekannt'}</div>
-                    </td>
-                    <td class="p-5 text-xs text-gray-500 font-semibold">${t.buildings?.name || '-'}</td>
-                    <td class="p-5"><span class="px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest bg-hb-ultralight text-hb-olive border border-hb-olive/10">${t.status}</span></td>
-                    <td class="p-5 text-right text-xs text-gray-400">${new Date(t.created_at).toLocaleDateString()}</td>
-                </tr>
-            `).join('');
-        }
-        // === END: MODUL TICKETS ===
-
-        // === START: MODUL OBJEKTE & MIETER ===
-        async function loadTenants() {
-            const container = document.getElementById('content-area');
-            const { data: bData } = await _supabase.from('buildings').select('*').order('name');
-            const options = bData?.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
-            
             container.innerHTML = `
-                <div class="card p-8 mb-8">
-                    <h2 class="text-xl font-bold mb-6">Objekt anlegen</h2>
-                    <form onsubmit="handleSaveBuilding(event)" class="flex gap-4">
-                        <input type="text" id="b_name" placeholder="Name (z.B. Seestraße 10)" class="flex-grow" required>
-                        <button type="submit" class="btn-primary">Speichern</button>
-                    </form>
-                </div>
-                <div class="card p-8">
-                    <h2 class="text-xl font-bold mb-6">Einheit anlegen</h2>
-                    <form onsubmit="handleSaveApartment(event)" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <select id="apt_b_id" required><option value="">Gebäude wählen...</option>${options}</select>
-                        <input type="text" id="apt_no" placeholder="WE Nummer" required>
-                        <button type="submit" class="btn-primary">Hinzufügen</button>
-                    </form>
+                <div class="p-10 card text-center">
+                    <h2 class="text-xl font-bold mb-2">Willkommen im Dashboard</h2>
+                    <p class="text-gray-500">Wähle einen Menüpunkt aus der Sidebar, um zu starten.</p>
                 </div>
             `;
         }
-        
-        async function handleSaveBuilding(e) {
-            e.preventDefault();
-            const name = document.getElementById('b_name').value;
-            await _supabase.from('buildings').insert([{ name }]);
-            showToast("Objekt gespeichert"); loadTenants();
-        }
+        // === END: MODUL DASHBOARD ===
 
-        async function handleSaveApartment(e) {
-            e.preventDefault();
-            const b_id = document.getElementById('apt_b_id').value;
-            const apartment_number = document.getElementById('apt_no').value;
-            await _supabase.from('apartments').insert([{ building_id: b_id, apartment_number }]);
-            showToast("Einheit gespeichert"); loadTenants();
-        }
-        // === END: MODUL OBJEKTE & MIETER ===
-
-        // === START: MODUL DOKUMENTE ===
-        async function loadDocuments() {
+        // === START: MODUL TICKETS ===
+        async function loadTickets() {
             const container = document.getElementById('content-area');
-            const isAdmin = userProfile.role === 'admin';
-            container.innerHTML = `<div class="card p-8"><h2 class="text-xl font-bold">Dokumenten-Cloud</h2><div id="docs-list" class="mt-6 space-y-2"></div></div>`;
-            const { data } = await _supabase.from('documents').select('*').order('created_at', { ascending: false });
-            if(data) document.getElementById('docs-list').innerHTML = data.map(d => `
-                <div class="p-4 border border-gray-100 rounded-xl flex justify-between items-center hover:bg-gray-50 transition-colors">
-                    <div>
-                        <p class="font-bold">${d.title}</p>
-                        <p class="text-xs text-gray-400">${new Date(d.created_at).toLocaleString()}</p>
-                    </div>
-                    <button onclick="viewDoc('${d.id}', '${d.file_path}', '${JSON.stringify(d.read_by || [])}')" class="text-hb-olive font-bold text-sm">Ansehen</button>
-                </div>
-            `).join('') || '<p class="text-gray-400 italic">Keine Dokumente.</p>';
+            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Tickets</h2><p class="text-gray-400 italic">Modul wird neu aufgebaut...</p>`;
         }
-        // === END: MODUL DOKUMENTE ===
+        // === END: MODUL TICKETS ===
 
         // === START: MODUL NEWS ===
         async function loadNews() {
             const container = document.getElementById('content-area');
-            const isAdmin = userProfile.role === 'admin';
-            let adminForm = isAdmin ? `<div class="card p-8 mb-8"><form onsubmit="handleSaveNews(event)" class="space-y-4"><input type="text" id="news_title" placeholder="Titel" class="w-full" required><textarea id="news_content" placeholder="Nachricht..." class="w-full" required></textarea><button type="submit" class="btn-primary">Veröffentlichen</button></form></div>` : '';
-            container.innerHTML = adminForm + `<div id="news-feed" class="space-y-6"></div>`;
-            const { data } = await _supabase.from('news').select('*').order('created_at', { ascending: false });
-            if(data) document.getElementById('news-feed').innerHTML = data.map(n => `<div class="card p-8"><h3 class="text-xl font-bold">${n.title}</h3><p class="mt-4 text-gray-600">${n.content}</p></div>`).join('');
-        }
-        
-        async function handleSaveNews(e) {
-            e.preventDefault();
-            const title = document.getElementById('news_title').value;
-            const content = document.getElementById('news_content').value;
-            await _supabase.from('news').insert([{ title, content, author_id: currentUser.id }]);
-            showToast("News veröffentlicht"); loadNews();
+            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Schwarzes Brett</h2><p class="text-gray-400 italic">Modul wird neu aufgebaut...</p>`;
         }
         // === END: MODUL NEWS ===
+
+        // === START: MODUL DOKUMENTE ===
+        async function loadDocuments() {
+            const container = document.getElementById('content-area');
+            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Dokumente</h2><p class="text-gray-400 italic">Modul wird neu aufgebaut...</p>`;
+        }
+        // === END: MODUL DOKUMENTE ===
+
+        // === START: MODUL OBJEKTE ===
+        async function loadTenants() {
+            const container = document.getElementById('content-area');
+            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Objekte & Einheiten</h2><p class="text-gray-400 italic">Modul wird neu aufgebaut...</p>`;
+        }
+        // === END: MODUL OBJEKTE ===
+
+        // === START: MODUL MIETER ===
+        async function loadUserManagement() {
+            const container = document.getElementById('content-area');
+            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Mieterverwaltung</h2><p class="text-gray-400 italic">Modul wird neu aufgebaut...</p>`;
+        }
+        // === END: MODUL MIETER ===
+
+        // === START: MODUL KONTAKTE ===
+        async function loadContacts() {
+            const container = document.getElementById('content-area');
+            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Kontaktbuch</h2><p class="text-gray-400 italic">Modul wird neu aufgebaut...</p>`;
+        }
+        // === END: MODUL KONTAKTE ===
+
+        // === START: MODUL PROFIL ===
+        async function loadProfile() {
+            const container = document.getElementById('content-area');
+            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Mein Profil</h2><p class="text-gray-400 italic">Modul wird neu aufgebaut...</p>`;
+        }
+        // === END: MODUL PROFIL ===
 
         init();
     </script>
