@@ -67,6 +67,7 @@
 </head>
 <body class="font-sans text-hb-offblack min-h-screen flex flex-col md:flex-row text-left relative overflow-hidden" onclick="closeDropdowns(event)">
 
+    <!-- === START: UI ELEMENTS === -->
     <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none"></div>
 
     <!-- MOBILE HEADER -->
@@ -79,8 +80,9 @@
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" /></svg>
         </button>
     </div>
+    <!-- === END: UI ELEMENTS === -->
 
-    <!-- SIDEBAR -->
+    <!-- === START: SIDEBAR === -->
     <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-40 w-72 bg-white border-r border-gray-100 flex-shrink-0 h-screen flex flex-col shadow-soft text-left text-balance">
         <div class="p-8 pb-4 hidden md:block text-center">
             <div class="font-extrabold text-2xl tracking-tighter text-hb-olive flex items-center justify-center gap-3 mb-1">
@@ -94,10 +96,10 @@
             <ul class="space-y-1" id="nav-links"></ul>
         </div>
     </nav>
-
     <div id="overlay" onclick="toggleMenu()" class="fixed inset-0 bg-hb-offblack/20 backdrop-blur-sm z-30 hidden"></div>
+    <!-- === END: SIDEBAR === -->
 
-    <!-- MAIN CONTENT -->
+    <!-- === START: MAIN CONTENT AREA === -->
     <main class="flex-grow p-6 md:p-10 lg:p-12 h-screen overflow-y-auto relative">
         <header class="mb-10 flex justify-between items-center bg-white md:bg-transparent p-4 md:p-0 rounded-[15px] shadow-sm md:shadow-none border md:border-none border-gray-100">
             <div class="text-left text-balance">
@@ -105,7 +107,7 @@
                 <h1 id="welcome-title" class="text-2xl md:text-4xl font-extrabold tracking-tight text-hb-offblack text-left">Lade...</h1>
             </div>
             
-            <!-- Neues Profil Dropdown (oben rechts) -->
+            <!-- Profil Dropdown -->
             <div class="relative dropdown-container">
                 <button onclick="toggleUserDropdown(event)" class="flex items-center gap-3 bg-white p-2 pr-4 rounded-full shadow-sm border border-gray-200 hover:border-hb-olive transition-colors focus:outline-none">
                     <div id="user-avatar" class="w-10 h-10 bg-hb-olive text-white rounded-full flex items-center justify-center font-bold text-base uppercase">?</div>
@@ -128,8 +130,10 @@
 
         <div id="content-area" class="w-full max-w-7xl mx-auto space-y-10 pb-20 text-left"></div>
     </main>
+    <!-- === END: MAIN CONTENT AREA === -->
 
     <script>
+        // === START: SETUP & GLOBALE VARIABLEN ===
         const supabaseUrl = 'https://unprrlbvylmzxxhpfisr.supabase.co';
         const supabaseKey = 'sb_publishable_nWYozmRQq8E17z_ljZ2SHA_LUulwUV1';
         const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
@@ -138,19 +142,17 @@
         let userProfile = null;
         let currentEditingId = null;
         let currentEditingNewsId = null;
-        let currentEditingContactId = null; // Neu für Kontakt-Bearbeitung
+        let currentEditingContactId = null;
         let allNews = [];
         let newsSearchQuery = "";
         let newsCategoryFilter = "";
         let currentChatInterval = null;
         let showingCompletedTickets = false;
         
-        // Document filter variables
         let allDocs = [];
         let docSearchQuery = "";
         let docCategoryFilter = "";
 
-        // --- SVGs ---
         const icons = {
             dashboard: `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 stroke-current" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>`,
             news: `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 stroke-current" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 20H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1m2 13a2 2 0 0 1-2-2V7m2 13a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2m-4-3H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"></path></svg>`,
@@ -189,13 +191,26 @@
             }
         }
 
+        function formatText(text) {
+            if (!text) return "";
+            let formatted = text
+                .replace(/^---$/gm, '<hr class="my-8 border-gray-100">')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="text-hb-olive underline font-bold hover:text-hb-orange transition-colors">$1</a>')
+                .replace(/^- (.*$)/gim, '<li>$1</li>');
+            if (formatted.includes('<li>')) formatted = `<ul class="list-disc pl-6 space-y-2 my-4">${formatted}</ul>`;
+            return formatted.split('\n').join('<br>');
+        }
+        // === END: SETUP & GLOBALE VARIABLEN ===
+
+        // === START: INIT & NAVIGATION ===
         async function init() {
             try {
                 const { data: { user } } = await _supabase.auth.getUser();
                 if (!user) { window.location.href = 'index.html'; return; }
                 currentUser = user;
 
-                // Sicheres Laden NUR des Profils (keine Ambiguity Fehler mehr)
                 const { data: profile, error: profileError } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
                 
                 if (profileError || !profile) { 
@@ -204,7 +219,6 @@
                 }
                 userProfile = profile;
 
-                // Gebäude separat laden, falls Mieter
                 if (userProfile.role === 'tenant' && userProfile.apartment_id) {
                     const { data: aptData } = await _supabase.from('apartments').select('building_id').eq('id', userProfile.apartment_id).single();
                     if (aptData) userProfile.apartments = { building_id: aptData.building_id };
@@ -259,45 +273,9 @@
             if (activeEl) activeEl.classList.add('active-link');
             if(window.innerWidth < 768) toggleMenu();
         }
+        // === END: INIT & NAVIGATION ===
 
-        function formatText(text) {
-            if (!text) return "";
-            let formatted = text
-                .replace(/^---$/gm, '<hr class="my-8 border-gray-100">')
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="text-hb-olive underline font-bold hover:text-hb-orange transition-colors">$1</a>')
-                .replace(/^- (.*$)/gim, '<li>$1</li>');
-            if (formatted.includes('<li>')) formatted = formatted.replace(/(<li>.*<\/li>)/gms, '<ul class="list-disc pl-5 space-y-1">$1</ul>');
-            return formatted.split('\n').join('<br>');
-        }
-
-        // --- ZENTRALE VORSCHAU FUNKTION & "NEU" STATUS ENTFERNEN ---
-        async function viewDoc(docId, path, readByStr, bucket = 'documents') {
-            // "Neu" Flag reparieren
-            if (docId && bucket === 'documents' && userProfile.role === 'tenant') {
-                 let readBy = [];
-                 try { readBy = JSON.parse(readByStr); } catch(e){}
-                 
-                 if(!readBy.includes(currentUser.id)) {
-                     readBy.push(currentUser.id);
-                     await _supabase.from('documents').update({read_by: readBy}).eq('id', docId);
-                     // Badge sofort im DOM verstecken für flüssige Experience
-                     const badge = document.getElementById('badge-' + docId);
-                     if(badge) badge.remove();
-                 }
-            }
-
-            // Signed URL generieren
-            const { data, error } = await _supabase.storage.from(bucket).createSignedUrl(path, 3600); 
-            if (error) { 
-                showToast("Fehler beim Öffnen", "error"); 
-                return; 
-            }
-            window.open(data.signedUrl, '_blank');
-        }
-
-        /* --- 0. DASHBOARD (STARTSEITE) --- */
+        // === START: MODUL DASHBOARD ===
         async function loadDashboard() {
             const container = document.getElementById('content-area');
             const isAdmin = userProfile.role === 'admin';
@@ -360,7 +338,7 @@
                         <div class="card p-8 flex flex-col justify-center cursor-pointer hover:border-hb-olive transition-all text-left" onclick="loadTickets(); setActiveNav('nav-tickets')">
                             <div class="text-hb-orange mb-4 text-left">${icons.tickets}</div>
                             <h3 class="text-5xl font-extrabold text-hb-offblack text-left">${tickData.count || 0}</h3>
-                            <p class="text-sm uppercase tracking-widest font-semibold text-gray-400 mt-2 text-left">Meine Offenen Tickets</p>
+                            <p class="text-sm uppercase tracking-widest font-bold text-gray-400 mt-2 text-left">Meine Offenen Tickets</p>
                         </div>
                         <div class="card p-8 flex flex-col justify-center cursor-pointer hover:border-hb-olive transition-all text-left" onclick="loadDocuments(); setActiveNav('nav-docs')">
                             <div class="text-hb-olive mb-4 text-left">${icons.docs}</div>
@@ -375,8 +353,9 @@
                 `;
             }
         }
+        // === END: MODUL DASHBOARD ===
 
-        /* --- 0.5. PROFIL EINSTELLUNGEN --- */
+        // === START: MODUL PROFIL ===
         async function loadProfile() {
             const container = document.getElementById('content-area');
             
@@ -479,8 +458,9 @@
             }
             btn.disabled = false; btn.textContent = "Passwort aktualisieren";
         }
+        // === END: MODUL PROFIL ===
 
-        /* --- 1.1 EINHEITEN & OBJEKTE VERWALTEN --- */
+        // === START: MODUL EINHEITEN ===
         async function loadTenants() {
             const container = document.getElementById('content-area');
             const { data: buildings } = await _supabase.from('buildings').select('*').order('name');
@@ -607,8 +587,9 @@
             document.getElementById('submit-btn').textContent = "Einheit speichern";
             document.getElementById('cancel-btn').classList.add('hidden');
         }
+        // === END: MODUL EINHEITEN ===
 
-        /* --- 1.2 MIETER VERWALTUNG & EINLADUNGEN --- */
+        // === START: MODUL MIETERVERWALTUNG ===
         async function loadUserManagement() {
             const container = document.getElementById('content-area');
             const { data: apartments } = await _supabase.from('apartments').select('id, apartment_number, buildings(name)').order('apartment_number');
@@ -765,8 +746,9 @@
                 showToast("Mieter entfernt");
             }
         }
+        // === END: MODUL MIETERVERWALTUNG ===
 
-        /* --- 2. SCHWARZES BRETT --- */
+        // === START: MODUL NEWS ===
         async function loadNews() {
             const container = document.getElementById('content-area');
             const isAdmin = userProfile.role === 'admin';
@@ -952,9 +934,10 @@
         }
 
         async function deleteNews(id) { if (confirm("Löschen?")) { await _supabase.from('news').delete().eq('id', id); fetchNews(); showToast("Gelöscht"); } }
+        // === END: MODUL NEWS ===
 
 
-        /* --- 4. DOKUMENTE (DATEISYSTEM-DESIGN + FILTER) --- */
+        // === START: MODUL DOKUMENTE ===
         async function loadDocuments() {
             const container = document.getElementById('content-area');
             const isAdmin = userProfile.role === 'admin';
@@ -1145,9 +1128,10 @@
                 fetchDocuments(); showToast("Dokument gelöscht");
             }
         }
+        // === END: MODUL DOKUMENTE ===
 
 
-        /* --- 5. KONTAKTBUCH (MIT EDIT-FUNKTION) --- */
+        // === START: MODUL KONTAKTE ===
         async function loadContacts() {
             const container = document.getElementById('content-area');
             const isAdmin = userProfile.role === 'admin';
@@ -1396,12 +1380,13 @@
                 showToast("Kontakt gelöscht");
             }
         }
+        // === END: MODUL KONTAKTE ===
 
-        /* --- TICKETS BOARD & CHAT --- */
+
+        // === START: MODUL TICKETS ===
         async function fetchTicketsBoard() {
             const isAdmin = userProfile.role === 'admin';
             
-            // JS Mapping statt Supabase-Join, um Mehrdeutigkeiten bei den UUIDs zu vermeiden
             const { data: ticketsData, error } = await _supabase.from('tickets').select('*').neq('status', 'Erledigt').order('created_at', { ascending: false });
             const { data: profData } = await _supabase.from('profiles').select('id, full_name');
             
@@ -1709,8 +1694,13 @@
             if (msgError) showToast("Fehler bei Nachricht", "error"); else showToast("Ticket erstellt!");
             viewTicketChat(newTicket.id);
         }
+        // === END: MODUL TICKETS ===
 
+        // === START: MODUL AUTH ===
         async function logout() { await _supabase.auth.signOut(); window.location.href = 'index.html'; }
+        // === END: MODUL AUTH ===
+
+        // Starte die App
         init();
     </script>
 </body>
