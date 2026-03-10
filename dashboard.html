@@ -41,10 +41,16 @@
         /* Form Elements */
         input, select, textarea { border-radius: 12px; background-color: #F9FAF8; border: 1px solid #e5e7eb; transition: all 0.2s; padding: 12px 16px; width: 100%; font-size: 14px; }
         input:focus, select:focus, textarea:focus { background-color: white; border-color: #687451; outline: none; box-shadow: 0 0 0 3px rgba(104, 116, 81, 0.1); }
+        input[type="checkbox"] { width: auto; accent-color: #687451; width: 1.2rem; height: 1.2rem; cursor: pointer; border-radius: 4px; }
+        
         .btn-primary { background-color: #687451; color: white; border-radius: 12px; transition: all 0.2s; font-weight: 600; padding: 12px 24px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
         .btn-primary:hover { background-color: #555f42; transform: translateY(-1px); }
         .btn-secondary { background-color: #e5e7eb; color: #374151; border-radius: 12px; transition: all 0.2s; font-weight: 600; padding: 12px 24px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
         .btn-secondary:hover { background-color: #d1d5db; }
+
+        /* Hide scrollbar for tabs but keep functionality */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="font-sans min-h-screen flex flex-col md:flex-row text-left relative overflow-hidden" onclick="closeDropdowns(event)">
@@ -158,6 +164,22 @@
         function closeDropdowns(e) { if(!e.target.closest('.dropdown-container')) document.getElementById('user-dropdown').classList.add('hidden'); }
         function logout() { _supabase.auth.signOut().then(() => window.location.href = 'index.html'); }
         function toggleMenu() { document.getElementById('sidebar').classList.toggle('-translate-x-full'); document.getElementById('overlay').classList.toggle('hidden'); }
+        
+        // Globale Funktion für die Tabs in der Einheiten-Maske
+        window.switchAptTab = function(tabId) {
+            document.querySelectorAll('.apt-tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.apt-tab-btn').forEach(el => {
+                el.classList.remove('border-hb-olive', 'text-hb-olive');
+                el.classList.add('border-transparent', 'text-gray-500');
+            });
+            
+            document.getElementById('tab-' + tabId).classList.remove('hidden');
+            const activeBtn = document.getElementById('btn-tab-' + tabId);
+            if(activeBtn) {
+                activeBtn.classList.remove('border-transparent', 'text-gray-500');
+                activeBtn.classList.add('border-hb-olive', 'text-hb-olive');
+            }
+        };
         // === END: SETUP & GLOBALE VARIABLEN ===
 
         // === START: INIT & NAVIGATION ===
@@ -504,89 +526,131 @@
             }
         }
 
-        // --- Formular: Einheit (Neu / Edit) ---
+        // --- Formular: Einheit (Neu / Edit) mit TABS ---
         function showApartmentForm(id = null) {
             const area = document.getElementById('units-area');
             let apt = id ? currentApartments.find(x => x.id === id) : {};
             const isEdit = !!id;
 
             area.innerHTML = `
-                <div class="card p-8 h-full overflow-y-auto border border-gray-100 shadow-sm">
-                    <div class="flex justify-between items-center mb-8">
+                <div class="card p-8 h-full overflow-y-auto border border-gray-100 shadow-sm flex flex-col">
+                    <div class="flex justify-between items-center mb-6 flex-shrink-0">
                         <h2 class="text-2xl font-extrabold text-hb-offblack tracking-tight">${isEdit ? 'Einheit bearbeiten' : 'Neue Einheit anlegen'}</h2>
                         <button onclick="selectBuilding(selectedBuildingId)" class="text-xs font-bold text-gray-400 uppercase tracking-widest hover:text-hb-orange">Zurück zur Übersicht</button>
                     </div>
+
+                    <!-- Tab Navigation -->
+                    <div class="flex overflow-x-auto border-b border-gray-200 mb-6 gap-8 hide-scrollbar flex-shrink-0">
+                        <button type="button" id="btn-tab-base" onclick="switchAptTab('base')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-hb-olive text-hb-olive">Stammdaten</button>
+                        <button type="button" id="btn-tab-finance" onclick="switchAptTab('finance')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Finanzen</button>
+                        <button type="button" id="btn-tab-apportionment" onclick="switchAptTab('apportionment')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Umlageschlüssel</button>
+                        <button type="button" id="btn-tab-meters" onclick="switchAptTab('meters')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Zähler</button>
+                    </div>
                     
-                    <form id="apartment-form" class="space-y-6">
+                    <form id="apartment-form" class="flex-grow flex flex-col justify-between">
                         <input type="hidden" id="apt_form_id" value="${apt.id || ''}">
                         
-                        <div class="bg-gray-50 p-5 rounded-xl border border-gray-100 space-y-4">
-                            <h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">Stammdaten</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-                                <div class="space-y-1">
-                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Nummer / Lage *</label>
-                                    <input type="text" id="apt_form_no" value="${apt.apartment_number || ''}" placeholder="z.B. WE 01" required>
+                        <div class="flex-grow">
+                            <!-- TAB: STAMMDATEN -->
+                            <div id="tab-base" class="apt-tab-content space-y-6">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Nummer / Lage *</label>
+                                        <input type="text" id="apt_form_no" value="${apt.apartment_number || ''}" placeholder="z.B. WE 01" required>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Etage</label>
+                                        <input type="text" id="apt_form_floor" value="${apt.floor || ''}" placeholder="z.B. 1. OG Links">
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Nutzungsart</label>
+                                        <select id="apt_form_type">
+                                            <option value="Wohnen" ${apt.type === 'Wohnen' ? 'selected' : ''}>Wohnen</option>
+                                            <option value="Gewerbe" ${apt.type === 'Gewerbe' ? 'selected' : ''}>Gewerbe</option>
+                                            <option value="Stellplatz" ${apt.type === 'Stellplatz' ? 'selected' : ''}>Stellplatz/Garage</option>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Zimmer</label>
+                                        <input type="number" id="apt_form_rooms" value="${apt.rooms || ''}" step="0.5" placeholder="z.B. 2.5">
+                                    </div>
                                 </div>
-                                <div class="space-y-1">
-                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Etage</label>
-                                    <input type="text" id="apt_form_floor" value="${apt.floor || ''}" placeholder="z.B. 1. OG Links">
+                            </div>
+
+                            <!-- TAB: FINANZEN -->
+                            <div id="tab-finance" class="apt-tab-content hidden space-y-6">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Aktuelle Kaltmiete (€)</label>
+                                        <input type="number" id="apt_form_rent" value="${apt.rent_amount || ''}" step="0.01">
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Nebenkosten-Vorauszahlung (€)</label>
+                                        <input type="number" id="apt_form_utils" value="${apt.utilities_amount || ''}" step="0.01">
+                                    </div>
+                                    <div class="space-y-1 md:col-span-2 border-t border-gray-100 pt-4 mt-2">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Hausgeld / Vorauszahlung WEG (€)</label>
+                                        <input type="number" id="apt_form_hausgeld" value="${apt.hausgeld || ''}" step="0.01" placeholder="Relevant für Eigentümer/WEG">
+                                    </div>
                                 </div>
-                                <div class="space-y-1">
-                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Nutzungsart</label>
-                                    <select id="apt_form_type">
-                                        <option value="Wohnen" ${apt.type === 'Wohnen' ? 'selected' : ''}>Wohnen</option>
-                                        <option value="Gewerbe" ${apt.type === 'Gewerbe' ? 'selected' : ''}>Gewerbe</option>
-                                        <option value="Stellplatz" ${apt.type === 'Stellplatz' ? 'selected' : ''}>Stellplatz/Garage</option>
-                                    </select>
+                            </div>
+
+                            <!-- TAB: UMLAGESCHLÜSSEL -->
+                            <div id="tab-apportionment" class="apt-tab-content hidden space-y-6">
+                                <div class="bg-blue-50/50 border border-blue-100 p-4 rounded-xl mb-4 text-sm text-blue-800">
+                                    Diese Werte dienen als Basis (Verteilerschlüssel) für die jährliche Nebenkosten- und Hausgeldabrechnung.
                                 </div>
-                                <div class="space-y-1">
-                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Fläche (m²)</label>
-                                    <input type="number" id="apt_form_sqm" value="${apt.sq_meters || ''}" step="0.01">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Wohn-/Nutzfläche (m²)</label>
+                                        <input type="number" id="apt_form_sqm" value="${apt.sq_meters || ''}" step="0.01">
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">MEA (Miteigentumsanteile)</label>
+                                        <input type="number" id="apt_form_mea" value="${apt.mea || ''}" step="0.0001" placeholder="z.B. 125.5">
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Einheiten (Verteilerschlüssel)</label>
+                                        <input type="number" id="apt_form_dist_units" value="${apt.distribution_units || '1'}" step="0.0001" placeholder="Standard: 1">
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Personenanzahl (Aktuell)</label>
+                                        <input type="number" id="apt_form_persons" value="${apt.persons_count || '1'}" step="1" min="0">
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Festumlage / Direktkosten (€)</label>
+                                        <input type="number" id="apt_form_fixed_app" value="${apt.fixed_apportionment || ''}" step="0.01">
+                                    </div>
                                 </div>
-                                <div class="space-y-1">
-                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Zimmer</label>
-                                    <input type="number" id="apt_form_rooms" value="${apt.rooms || ''}" step="0.5" placeholder="z.B. 2.5">
+                                <div class="mt-6 p-4 border border-gray-200 rounded-xl bg-gray-50 flex items-center gap-3">
+                                    <input type="checkbox" id="apt_form_ext_bill" ${apt.has_external_billing ? 'checked' : ''}>
+                                    <label for="apt_form_ext_bill" class="text-sm font-bold text-gray-700 cursor-pointer">Heiz- und Warmwasserkosten werden durch externen Dienstleister (z.B. Techem, Brunata) abgerechnet.</label>
                                 </div>
-                                <div class="space-y-1">
-                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">MEA (Anteile)</label>
-                                    <input type="number" id="apt_form_mea" value="${apt.mea || ''}" step="0.0001" placeholder="z.B. 125.5">
+                            </div>
+
+                            <!-- TAB: ZÄHLER -->
+                            <div id="tab-meters" class="apt-tab-content hidden space-y-6">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Stromzähler-Nr.</label>
+                                        <input type="text" id="apt_form_elec" value="${apt.meter_electricity || ''}">
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Wasserzähler-Nr.</label>
+                                        <input type="text" id="apt_form_water" value="${apt.meter_water || ''}">
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Wärmemengenzähler-Nr.</label>
+                                        <input type="text" id="apt_form_heat" value="${apt.meter_heating || ''}">
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="bg-gray-50 p-5 rounded-xl border border-gray-100 space-y-4">
-                                <h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">Finanzen</h3>
-                                <div class="space-y-1">
-                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Kaltmiete (€)</label>
-                                    <input type="number" id="apt_form_rent" value="${apt.rent_amount || ''}" step="0.01">
-                                </div>
-                                <div class="space-y-1">
-                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Nebenkosten-Vorausz. (€)</label>
-                                    <input type="number" id="apt_form_utils" value="${apt.utilities_amount || ''}" step="0.01">
-                                </div>
-                            </div>
-
-                            <div class="bg-gray-50 p-5 rounded-xl border border-gray-100 space-y-4">
-                                <h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">Zähler (Nummern)</h3>
-                                <div class="space-y-1">
-                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Strom</label>
-                                    <input type="text" id="apt_form_elec" value="${apt.meter_electricity || ''}">
-                                </div>
-                                <div class="space-y-1">
-                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Wasser</label>
-                                    <input type="text" id="apt_form_water" value="${apt.meter_water || ''}">
-                                </div>
-                                <div class="space-y-1">
-                                    <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Wärme</label>
-                                    <input type="text" id="apt_form_heat" value="${apt.meter_heating || ''}">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="pt-4 flex gap-4">
+                        <!-- Buttons Container am Ende -->
+                        <div class="pt-6 mt-6 border-t border-gray-100 flex gap-4 flex-shrink-0">
                             <button type="submit" class="btn-primary w-full md:w-auto">Einheit speichern</button>
-                            ${isEdit ? `<button type="button" onclick="deleteApartment(${apt.id})" class="btn-secondary text-red-500 hover:bg-red-50 hover:text-red-600 bg-white border border-red-100">Löschen</button>` : ''}
+                            ${isEdit ? `<button type="button" onclick="deleteApartment(${apt.id})" class="btn-secondary text-red-500 hover:bg-red-50 hover:text-red-600 bg-white border border-red-100">Einheit löschen</button>` : ''}
                         </div>
                     </form>
                 </div>
@@ -599,11 +663,22 @@
                     apartment_number: document.getElementById('apt_form_no').value,
                     floor: document.getElementById('apt_form_floor').value,
                     type: document.getElementById('apt_form_type').value,
-                    sq_meters: document.getElementById('apt_form_sqm').value || null,
                     rooms: document.getElementById('apt_form_rooms').value || null,
-                    mea: document.getElementById('apt_form_mea').value || null,
+                    
+                    // Finanzen
                     rent_amount: document.getElementById('apt_form_rent').value || 0,
                     utilities_amount: document.getElementById('apt_form_utils').value || 0,
+                    hausgeld: document.getElementById('apt_form_hausgeld').value || 0,
+                    
+                    // Umlagen
+                    sq_meters: document.getElementById('apt_form_sqm').value || null,
+                    mea: document.getElementById('apt_form_mea').value || null,
+                    distribution_units: document.getElementById('apt_form_dist_units').value || 1,
+                    persons_count: document.getElementById('apt_form_persons').value || 1,
+                    fixed_apportionment: document.getElementById('apt_form_fixed_app').value || 0,
+                    has_external_billing: document.getElementById('apt_form_ext_bill').checked,
+                    
+                    // Zähler
                     meter_electricity: document.getElementById('apt_form_elec').value,
                     meter_water: document.getElementById('apt_form_water').value,
                     meter_heating: document.getElementById('apt_form_heat').value
