@@ -60,7 +60,6 @@
             to { opacity: 1; transform: scale(1); }
         }
 
-        /* Profile Dropdown logic */
         .dropdown-open { display: block !important; animation: fadeIn 0.15s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
     </style>
@@ -70,7 +69,6 @@
     <!-- === START: UI ELEMENTS === -->
     <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none"></div>
 
-    <!-- MOBILE HEADER -->
     <div class="md:hidden bg-white border-b border-gray-100 p-4 flex justify-between items-center sticky top-0 z-50">
         <div class="font-bold text-xl tracking-tight text-hb-olive flex items-center gap-2 text-left">
             <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-8 w-auto">
@@ -107,7 +105,6 @@
                 <h1 id="welcome-title" class="text-2xl md:text-4xl font-extrabold tracking-tight text-hb-offblack text-left">Lade...</h1>
             </div>
             
-            <!-- Profil Dropdown -->
             <div class="relative dropdown-container">
                 <button onclick="toggleUserDropdown(event)" class="flex items-center gap-3 bg-white p-2 pr-4 rounded-full shadow-sm border border-gray-200 hover:border-hb-olive transition-colors focus:outline-none">
                     <div id="user-avatar" class="w-10 h-10 bg-hb-olive text-white rounded-full flex items-center justify-center font-bold text-base uppercase">?</div>
@@ -1384,6 +1381,70 @@
 
 
         // === START: MODUL TICKETS ===
+        async function loadTickets() {
+            const container = document.getElementById('content-area');
+            const isAdmin = userProfile.role === 'admin';
+            showingCompletedTickets = false; 
+
+            if (isAdmin) {
+                container.innerHTML = `
+                    <div class="flex justify-between items-center mb-8">
+                        <h2 class="text-3xl font-extrabold text-hb-offblack">Ticket Board</h2>
+                        <button onclick="openNewTicketModal()" class="btn-primary px-8 py-3 text-base shadow-md">+ Neues Ticket</button>
+                    </div>
+                    <div class="flex flex-col lg:flex-row gap-8 items-start">
+                        <div class="w-full lg:w-1/3 flex flex-col">
+                            <div class="mb-5 flex items-center justify-between px-2">
+                                <h3 class="text-sm font-extrabold text-gray-500 uppercase tracking-widest">Offen</h3>
+                                <span id="count-new" class="bg-red-100 text-red-600 text-xs px-3 py-1 font-bold rounded-full">0</span>
+                            </div>
+                            <div id="board-new" class="space-y-5">Lade...</div>
+                        </div>
+                        <div class="w-full lg:w-1/3 flex flex-col">
+                            <div class="mb-5 flex items-center justify-between px-2">
+                                <h3 class="text-sm font-extrabold text-gray-500 uppercase tracking-widest">In Arbeit</h3>
+                                <span id="count-progress" class="bg-orange-100 text-hb-orange text-xs px-3 py-1 font-bold rounded-full">0</span>
+                            </div>
+                            <div id="board-progress" class="space-y-5"></div>
+                        </div>
+                        <div class="w-full lg:w-1/3 flex flex-col">
+                            <div class="mb-5 flex items-center justify-between px-2">
+                                <h3 class="text-sm font-extrabold text-gray-500 uppercase tracking-widest">Wartend</h3>
+                                <span id="count-hold" class="bg-gray-200 text-gray-600 text-xs px-3 py-1 font-bold rounded-full">0</span>
+                            </div>
+                            <div id="board-hold" class="space-y-5"></div>
+                        </div>
+                    </div>
+                    <div class="mt-16 border-t border-gray-200 pt-10">
+                        <button onclick="toggleCompletedTickets()" class="text-base font-extrabold text-gray-500 hover:text-hb-olive flex items-center gap-3 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M19 9l-7 7-7-7" /></svg>
+                            Abgeschlossene Meldungen anzeigen
+                        </button>
+                        <div id="completed-tickets-list" class="hidden mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="card p-8 md:p-12">
+                        <div class="flex justify-between items-center mb-8">
+                            <h2 class="text-2xl font-extrabold text-hb-offblack flex items-center gap-3">${icons.tickets} Meine Tickets</h2>
+                            <button onclick="openNewTicketModal()" class="btn-primary px-8 py-3 text-base shadow-md">+ Meldung erstellen</button>
+                        </div>
+                        <div id="tenant-ticket-list" class="space-y-6">Lade...</div>
+                        
+                        <div class="mt-12 border-t border-gray-100 pt-10">
+                            <button onclick="toggleCompletedTickets()" class="text-base font-extrabold text-gray-500 hover:text-hb-olive flex items-center gap-3 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M19 9l-7 7-7-7" /></svg>
+                                Erledigte Tickets einblenden
+                            </button>
+                            <div id="completed-tickets-list" class="hidden mt-8 space-y-6"></div>
+                        </div>
+                    </div>
+                `;
+            }
+            fetchTicketsBoard();
+        }
+
         async function fetchTicketsBoard() {
             const isAdmin = userProfile.role === 'admin';
             
