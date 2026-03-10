@@ -29,13 +29,12 @@
     <style>
         body { background-color: #F9FAF8; font-size: 16px; color: #373737; }
         #sidebar { transition: transform 0.3s ease-in-out; }
-        .nav-link { border-radius: 12px; transition: all 0.2s; cursor: pointer; }
+        .nav-link { border-radius: 12px; transition: all 0.2s; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 12px 16px; font-size: 14px; font-weight: 600; color: #373737; }
         .nav-link:hover { background-color: #f3f4f6; color: #687451; }
-        .active-link { background-color: #687451 !important; color: white !important; font-weight: 600; }
+        .active-link { background-color: #687451 !important; color: white !important; }
+        .nav-section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 800; color: #9ca3af; padding: 24px 16px 8px 16px; }
         
         .card { background: white; border-radius: 15px; box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03); border: 1px solid rgba(0,0,0,0.02); }
-        .btn-primary { background-color: #687451; color: white; border-radius: 12px; transition: all 0.2s; font-weight: 600; padding: 12px 24px; cursor: pointer; }
-        
         .dropdown-open { display: block !important; animation: fadeIn 0.15s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
     </style>
@@ -43,10 +42,10 @@
 <body class="font-sans min-h-screen flex flex-col md:flex-row text-left relative overflow-hidden" onclick="closeDropdowns(event)">
 
     <!-- === START: UI BASIS ELEMENTE === -->
-    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none"></div>
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none text-left"></div>
 
     <!-- Mobile Header -->
-    <div class="md:hidden bg-white border-b border-gray-100 p-4 flex justify-between items-center sticky top-0 z-50">
+    <div class="md:hidden bg-white border-b border-gray-100 p-4 flex justify-between items-center sticky top-0 z-50 text-left">
         <div class="font-bold text-xl tracking-tight text-hb-olive flex items-center gap-2">
             <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-8 w-auto">
             Mieterportal
@@ -58,15 +57,15 @@
     <!-- === END: UI BASIS ELEMENTE === -->
 
     <!-- === START: MODUL SIDEBAR === -->
-    <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-40 w-72 bg-white border-r border-gray-100 flex-shrink-0 h-screen flex flex-col shadow-soft">
+    <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-40 w-72 bg-white border-r border-gray-100 flex-shrink-0 h-screen flex flex-col shadow-soft text-left">
         <div class="p-8 pb-4 hidden md:block text-center border-b border-gray-50 mb-4">
             <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-10 w-auto mx-auto mb-2">
             <div class="font-extrabold text-xl tracking-tighter text-hb-olive">Mieterportal</div>
             <p class="text-[10px] uppercase tracking-widest font-bold text-gray-400">HB Verwaltung</p>
         </div>
-        <div class="flex-grow p-4 overflow-y-auto">
+        <div class="flex-grow p-4 overflow-y-auto chat-scroll">
             <ul class="space-y-1" id="nav-links">
-                <!-- Navigations-Links werden per JavaScript eingefügt -->
+                <!-- Navigations-Links werden per renderNav() eingefügt -->
             </ul>
         </div>
     </nav>
@@ -74,29 +73,29 @@
     <!-- === END: MODUL SIDEBAR === -->
 
     <!-- === START: MAIN VIEWPORT === -->
-    <main class="flex-grow h-screen overflow-y-auto relative flex flex-col">
+    <main class="flex-grow h-screen overflow-y-auto relative flex flex-col text-left">
         <!-- Header -->
-        <header class="p-6 md:p-10 flex justify-between items-center sticky top-0 bg-hb-ultralight/80 backdrop-blur-md z-30">
+        <header class="p-6 md:p-10 flex justify-between items-center sticky top-0 bg-hb-ultralight/80 backdrop-blur-md z-30 text-left">
             <div class="text-left">
                 <p id="role-label" class="text-[10px] uppercase tracking-widest font-bold text-hb-orange mb-1"></p>
                 <h1 id="welcome-title" class="text-2xl md:text-3xl font-extrabold tracking-tight">Lade...</h1>
             </div>
             
             <!-- User Menu -->
-            <div class="relative dropdown-container">
+            <div class="relative dropdown-container text-left">
                 <button onclick="toggleUserDropdown(event)" class="flex items-center gap-3 bg-white p-1.5 pr-3 rounded-full border border-gray-200 shadow-sm hover:border-hb-olive transition-colors">
                     <div id="user-avatar" class="w-9 h-9 bg-hb-olive text-white rounded-full flex items-center justify-center font-bold text-sm uppercase">?</div>
                     <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </button>
-                <div id="user-dropdown" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-100 z-50 overflow-hidden">
-                    <div class="p-4 border-b border-gray-50">
-                        <p class="text-sm font-bold truncate" id="dropdown-name">Name</p>
-                        <p class="text-xs text-gray-400 truncate" id="dropdown-email">email</p>
+                <div id="user-dropdown" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-100 z-50 overflow-hidden text-left">
+                    <div class="p-4 border-b border-gray-50 text-left">
+                        <p class="text-sm font-bold truncate text-left" id="dropdown-name">Name</p>
+                        <p class="text-xs text-gray-400 truncate text-left" id="dropdown-email">email</p>
                     </div>
-                    <button onclick="loadProfile();" class="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-3">
+                    <button onclick="loadProfile();" class="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-3 transition-colors">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> Profil bearbeiten
                     </button>
-                    <button onclick="logout()" class="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 flex items-center gap-3 border-t border-gray-50">
+                    <button onclick="logout()" class="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 flex items-center gap-3 border-t border-gray-50 transition-colors">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg> Abmelden
                     </button>
                 </div>
@@ -126,12 +125,15 @@
             users: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path></svg>`,
             buildings: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M3 21h18"></path><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"></path></svg>`,
             docs: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>`,
-            contact: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>`
+            contact: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>`,
+            finance: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3z"></path><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z"></path></svg>`,
+            settings: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><circle cx="12" cy="12" r="3"></circle></svg>`
         };
 
         function toggleUserDropdown(e) { e.stopPropagation(); document.getElementById('user-dropdown').classList.toggle('hidden'); }
         function closeDropdowns(e) { if(!e.target.closest('.dropdown-container')) document.getElementById('user-dropdown').classList.add('hidden'); }
         function logout() { _supabase.auth.signOut().then(() => window.location.href = 'index.html'); }
+        function toggleMenu() { document.getElementById('sidebar').classList.toggle('-translate-x-full'); document.getElementById('overlay').classList.toggle('hidden'); }
         // === END: SETUP & GLOBALE VARIABLEN ===
 
         // === START: INIT & NAVIGATION ===
@@ -146,7 +148,11 @@
                 userProfile = profile;
 
                 document.getElementById('welcome-title').textContent = "Hallo, " + profile.full_name.split(' ')[0] + "!";
-                document.getElementById('role-label').textContent = profile.role === 'admin' ? 'Vermieter Cockpit' : 'Mieter Portal';
+                
+                // Rollen-Label Anzeige
+                const roleLabels = { 'admin': 'Verwalter Cockpit', 'manager': 'Objektbetreuer', 'owner': 'Eigentümer Cockpit', 'tenant': 'Mieter Portal' };
+                document.getElementById('role-label').textContent = roleLabels[profile.role] || 'Nutzer Portal';
+                
                 document.getElementById('user-avatar').textContent = profile.full_name.charAt(0).toUpperCase();
                 document.getElementById('dropdown-name').textContent = profile.full_name;
                 document.getElementById('dropdown-email').textContent = profile.email;
@@ -158,36 +164,52 @@
 
         function renderNav(role) {
             const nav = document.getElementById('nav-links');
-            const itemClass = "nav-link flex items-center gap-4 p-3.5 text-sm font-semibold text-hb-offblack";
-            const sectionClass = "pt-6 pb-2 px-4 text-[10px] uppercase tracking-widest font-extrabold text-gray-400 text-left";
-            
-            if (role === 'admin') {
-                nav.innerHTML = `
-                    <li><a onclick="loadDashboard(); setActiveNav('nav-dash')" id="nav-dash" class="${itemClass} active-link">${icons.dashboard} Dashboard</a></li>
-                    <li class="${sectionClass}">Kommunikation</li>
-                    <li><a onclick="loadNews(); setActiveNav('nav-news')" id="nav-news" class="${itemClass}">${icons.news} Schwarzes Brett</a></li>
-                    <li><a onclick="loadTickets(); setActiveNav('nav-tickets')" id="nav-tickets" class="${itemClass}">${icons.tickets} Mieter-Tickets</a></li>
-                    <li class="${sectionClass}">Verwaltung</li>
-                    <li><a onclick="loadUserManagement(); setActiveNav('nav-users')" id="nav-users" class="${itemClass}">${icons.users} Mieter</a></li>
-                    <li><a onclick="loadTenants(); setActiveNav('nav-apartments')" id="nav-apartments" class="${itemClass}">${icons.buildings} Objekte</a></li>
-                    <li><a onclick="loadDocuments(); setActiveNav('nav-docs')" id="nav-docs" class="${itemClass}">${icons.docs} Dokumente</a></li>
-                    <li><a onclick="loadContacts(); setActiveNav('nav-contact')" id="nav-contact" class="${itemClass}">${icons.contact} Kontaktbuch</a></li>
-                `;
-            } else {
-                nav.innerHTML = `
-                    <li><a onclick="loadDashboard(); setActiveNav('nav-dash')" id="nav-dash" class="${itemClass} active-link">${icons.dashboard} Dashboard</a></li>
-                    <li><a onclick="loadNews(); setActiveNav('nav-news')" id="nav-news" class="${itemClass}">${icons.news} Schwarzes Brett</a></li>
-                    <li><a onclick="loadTickets(); setActiveNav('nav-tickets')" id="nav-tickets" class="${itemClass}">${icons.tickets} Meine Tickets</a></li>
-                    <li><a onclick="loadDocuments(); setActiveNav('nav-docs')" id="nav-docs" class="${itemClass}">${icons.docs} Meine Dokumente</a></li>
-                    <li><a onclick="loadContacts(); setActiveNav('nav-contact')" id="nav-contact" class="${itemClass}">${icons.contact} Kontaktbuch</a></li>
-                `;
+            let html = `<li><a onclick="loadDashboard(); setActiveNav(this)" class="nav-link active-link">${icons.dashboard} Dashboard</a></li>`;
+
+            if (role === 'admin' || role === 'manager') {
+                html += `<li class="nav-section-title">Kommunikation</li>`;
+                html += `<li><a onclick="loadNews(); setActiveNav(this)" class="nav-link">${icons.news} Schwarzes Brett</a></li>`;
+                html += `<li><a onclick="loadTickets(); setActiveNav(this)" class="nav-link">${icons.tickets} Ticket System</a></li>`;
+
+                html += `<li class="nav-section-title">Verwaltung</li>`;
+                html += `<li><a onclick="loadUserManagement(); setActiveNav(this)" class="nav-link">${icons.users} Personen</a></li>`;
+                html += `<li><a onclick="loadTenants(); setActiveNav(this)" class="nav-link">${icons.buildings} Bestands-Objekte</a></li>`;
+
+                html += `<li class="nav-section-title">Finanzen</li>`;
+                html += `<li><a onclick="loadFinance(); setActiveNav(this)" class="nav-link">${icons.finance} Abrechnungen</a></li>`;
+
+                html += `<li class="nav-section-title">Service & Dokumente</li>`;
+                html += `<li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Dokumenten Cloud</a></li>`;
+                html += `<li><a onclick="loadContacts(); setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li>`;
+                html += `<li><a onclick="loadSettings(); setActiveNav(this)" class="nav-link">${icons.settings} Einstellungen</a></li>`;
+            } 
+            else if (role === 'owner') {
+                html += `<li class="nav-section-title">Mein Asset</li>`;
+                html += `<li><a onclick="loadMyUnits(); setActiveNav(this)" class="nav-link">${icons.buildings} Meine Einheiten</a></li>`;
+                html += `<li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Dokumente</a></li>`;
+                html += `<li><a onclick="loadTickets(); setActiveNav(this)" class="nav-link">${icons.tickets} Meine Tickets</a></li>`;
+                
+                // (Optional: Vermieter-Zusatzfunktionen)
+                html += `<li class="nav-section-title">Vermieter-Bereich</li>`;
+                html += `<li><a onclick="loadMyTenants(); setActiveNav(this)" class="nav-link">${icons.users} Meine Mieter</a></li>`;
+                html += `<li><a onclick="loadContacts(); setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li>`;
+            } 
+            else { // role === 'tenant'
+                html += `<li class="nav-section-title">Kommunikation</li>`;
+                html += `<li><a onclick="loadNews(); setActiveNav(this)" class="nav-link">${icons.news} Schwarzes Brett</a></li>`;
+                html += `<li><a onclick="loadTickets(); setActiveNav(this)" class="nav-link">${icons.tickets} Meine Meldungen</a></li>`;
+
+                html += `<li class="nav-section-title">Service & Dokumente</li>`;
+                html += `<li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Meine Dokumente</a></li>`;
+                html += `<li><a onclick="loadContacts(); setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li>`;
             }
+
+            nav.innerHTML = html;
         }
 
-        function setActiveNav(id) {
-            document.querySelectorAll('#nav-links a').forEach(el => el.classList.remove('active-link'));
-            const activeEl = document.getElementById(id);
-            if (activeEl) activeEl.classList.add('active-link');
+        function setActiveNav(el) {
+            document.querySelectorAll('#nav-links a').forEach(a => a.classList.remove('active-link'));
+            el.classList.add('active-link');
             if(window.innerWidth < 768) toggleMenu();
         }
         // === END: INIT & NAVIGATION ===
@@ -207,51 +229,70 @@
         // === START: MODUL TICKETS ===
         async function loadTickets() {
             const container = document.getElementById('content-area');
-            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Tickets</h2><p class="text-gray-400 italic">Modul wird neu aufgebaut...</p>`;
+            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Tickets</h2><p class="text-gray-400 italic">Hier wird als nächstes das Zammad-System aufgebaut...</p>`;
         }
         // === END: MODUL TICKETS ===
 
         // === START: MODUL NEWS ===
         async function loadNews() {
             const container = document.getElementById('content-area');
-            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Schwarzes Brett</h2><p class="text-gray-400 italic">Modul wird neu aufgebaut...</p>`;
+            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Schwarzes Brett</h2><p class="text-gray-400 italic">Wird in Kürze implementiert...</p>`;
         }
         // === END: MODUL NEWS ===
 
         // === START: MODUL DOKUMENTE ===
         async function loadDocuments() {
             const container = document.getElementById('content-area');
-            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Dokumente</h2><p class="text-gray-400 italic">Modul wird neu aufgebaut...</p>`;
+            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Dokumente</h2><p class="text-gray-400 italic">Hier kommt das neue Dateisystem-Design hin...</p>`;
         }
         // === END: MODUL DOKUMENTE ===
 
         // === START: MODUL OBJEKTE ===
         async function loadTenants() {
             const container = document.getElementById('content-area');
-            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Objekte & Einheiten</h2><p class="text-gray-400 italic">Modul wird neu aufgebaut...</p>`;
+            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Objekte & Einheiten</h2><p class="text-gray-400 italic">Hier werden Gebäude und Einheiten verwaltet...</p>`;
+        }
+        async function loadMyUnits() {
+            const container = document.getElementById('content-area');
+            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Meine Einheiten</h2><p class="text-gray-400 italic">Übersicht der eigenen Einheiten für Eigentümer...</p>`;
         }
         // === END: MODUL OBJEKTE ===
 
         // === START: MODUL MIETER ===
         async function loadUserManagement() {
             const container = document.getElementById('content-area');
-            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Mieterverwaltung</h2><p class="text-gray-400 italic">Modul wird neu aufgebaut...</p>`;
+            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Personen & Mieter</h2><p class="text-gray-400 italic">Nutzerverwaltung und Rollenzuweisung...</p>`;
+        }
+        async function loadMyTenants() {
+            const container = document.getElementById('content-area');
+            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Meine Mieter</h2><p class="text-gray-400 italic">Vermieter-Bereich zur Verwaltung eigener Mieter...</p>`;
         }
         // === END: MODUL MIETER ===
+
+        // === START: MODUL FINANZEN ===
+        async function loadFinance() {
+            const container = document.getElementById('content-area');
+            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Finanzen</h2><p class="text-gray-400 italic">Platzhalter für zukünftige Buchhaltungsfunktionen...</p>`;
+        }
+        // === END: MODUL FINANZEN ===
 
         // === START: MODUL KONTAKTE ===
         async function loadContacts() {
             const container = document.getElementById('content-area');
-            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Kontaktbuch</h2><p class="text-gray-400 italic">Modul wird neu aufgebaut...</p>`;
+            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Kontaktbuch</h2><p class="text-gray-400 italic">Wird in Kürze implementiert...</p>`;
         }
         // === END: MODUL KONTAKTE ===
 
-        // === START: MODUL PROFIL ===
+        // === START: MODUL PROFIL & EINSTELLUNGEN ===
         async function loadProfile() {
             const container = document.getElementById('content-area');
-            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Mein Profil</h2><p class="text-gray-400 italic">Modul wird neu aufgebaut...</p>`;
+            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Mein Profil</h2><p class="text-gray-400 italic">Hier kannst du deine persönlichen Daten bearbeiten...</p>`;
         }
-        // === END: MODUL PROFIL ===
+        async function loadSettings() {
+            const container = document.getElementById('content-area');
+            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Einstellungen</h2><p class="text-gray-400 italic">Globale Einstellungen, Kategorien und Vorlagen...</p>`;
+        }
+        // === END: MODUL PROFIL & EINSTELLUNGEN ===
 
         init();
     </script>
