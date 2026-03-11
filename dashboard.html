@@ -386,9 +386,10 @@
                         <div>
                             <h2 class="text-2xl font-extrabold text-hb-offblack tracking-tight">${building.name}</h2>
                             <p class="text-sm text-gray-500 mt-1">${building.address || 'Keine Adresse hinterlegt'}</p>
-                            <div class="flex gap-4 mt-3 text-xs font-bold text-gray-400 uppercase tracking-widest">
+                            <div class="flex flex-wrap gap-4 mt-3 text-xs font-bold text-gray-400 uppercase tracking-widest">
                                 <span>Baujahr: ${building.construction_year || '-'}</span>
                                 <span>Heizung: ${building.heating_type || '-'}</span>
+                                <span>Trinkwasserprüfung: ${building.drinking_water_analysis_due ? new Date(building.drinking_water_analysis_due).toLocaleDateString() : '-'}</span>
                             </div>
                         </div>
                         <button onclick="showBuildingForm(${building.id})" class="text-xs font-bold text-hb-olive hover:underline bg-hb-ultralight px-3 py-1.5 rounded-lg">Gebäude bearbeiten</button>
@@ -430,10 +431,11 @@
                     </div>
                     <h4 class="text-lg font-extrabold text-hb-offblack">${apt.apartment_number}</h4>
                     <p class="text-sm font-medium text-gray-500 mt-1">${apt.floor ? apt.floor + ' • ' : ''}${apt.rooms ? apt.rooms + ' Zi. • ' : ''}${apt.sq_meters || 0} m²</p>
+                    <p class="text-xs text-gray-400 mt-1">Status: ${apt.tenant_status || 'Unbekannt'}</p>
                     
                     <div class="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-gray-50">
-                        <div><p class="text-[10px] uppercase font-bold text-gray-400">Kaltmiete</p><p class="text-sm font-semibold">${apt.rent_amount || 0} €</p></div>
-                        <div><p class="text-[10px] uppercase font-bold text-gray-400">Nebenkosten</p><p class="text-sm font-semibold">${apt.utilities_amount || 0} €</p></div>
+                        <div><p class="text-[10px] uppercase font-bold text-gray-400">Hausgeld (WEG)</p><p class="text-sm font-semibold">${apt.hausgeld || 0} €</p></div>
+                        <div><p class="text-[10px] uppercase font-bold text-gray-400">Miete</p><p class="text-sm font-semibold">${apt.rent_amount || 0} €</p></div>
                         <div><p class="text-[10px] uppercase font-bold text-gray-400">MEA</p><p class="text-sm font-semibold">${apt.mea || '-'}</p></div>
                     </div>
                 </div>
@@ -475,6 +477,10 @@
                                 <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Heizungsart</label>
                                 <input type="text" id="b_form_heating" value="${b.heating_type || ''}" placeholder="z.B. Gas-Zentralheizung">
                             </div>
+                            <div class="space-y-2 md:col-span-2">
+                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Fälligkeit nächste Trinkwasseruntersuchung</label>
+                                <input type="date" id="b_form_drinking_water" value="${b.drinking_water_analysis_due || ''}">
+                            </div>
                         </div>
 
                         <div class="space-y-2">
@@ -492,11 +498,13 @@
 
             document.getElementById('building-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
+                const waterDate = document.getElementById('b_form_drinking_water').value;
                 const payload = {
                     name: document.getElementById('b_form_name').value,
                     address: document.getElementById('b_form_address').value,
                     construction_year: document.getElementById('b_form_year').value || null,
                     heating_type: document.getElementById('b_form_heating').value,
+                    drinking_water_analysis_due: waterDate ? waterDate : null,
                     notes: document.getElementById('b_form_notes').value
                 };
 
@@ -542,7 +550,8 @@
                     <!-- Tab Navigation -->
                     <div class="flex overflow-x-auto border-b border-gray-200 mb-6 gap-8 hide-scrollbar flex-shrink-0">
                         <button type="button" id="btn-tab-base" onclick="switchAptTab('base')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-hb-olive text-hb-olive">Stammdaten</button>
-                        <button type="button" id="btn-tab-finance" onclick="switchAptTab('finance')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Finanzen</button>
+                        <button type="button" id="btn-tab-weg_finance" onclick="switchAptTab('weg_finance')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">WEG-Finanzen</button>
+                        <button type="button" id="btn-tab-rent_info" onclick="switchAptTab('rent_info')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Mietinformationen</button>
                         <button type="button" id="btn-tab-apportionment" onclick="switchAptTab('apportionment')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Umlageschlüssel</button>
                         <button type="button" id="btn-tab-meters" onclick="switchAptTab('meters')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Zähler</button>
                     </div>
@@ -555,12 +564,8 @@
                             <div id="tab-base" class="apt-tab-content space-y-6">
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                                     <div class="space-y-1">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Nummer / Lage *</label>
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Nummer / Bezeichnung *</label>
                                         <input type="text" id="apt_form_no" value="${apt.apartment_number || ''}" placeholder="z.B. WE 01" required>
-                                    </div>
-                                    <div class="space-y-1">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Etage</label>
-                                        <input type="text" id="apt_form_floor" value="${apt.floor || ''}" placeholder="z.B. 1. OG Links">
                                     </div>
                                     <div class="space-y-1">
                                         <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Nutzungsart</label>
@@ -571,26 +576,79 @@
                                         </select>
                                     </div>
                                     <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Etage</label>
+                                        <input type="text" id="apt_form_floor" value="${apt.floor || ''}" placeholder="z.B. 1. OG">
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Lage im Gebäude</label>
+                                        <input type="text" id="apt_form_location" value="${apt.location_in_building || ''}" placeholder="z.B. links, Hofseite">
+                                    </div>
+                                    <div class="space-y-1">
                                         <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Zimmer</label>
                                         <input type="number" id="apt_form_rooms" value="${apt.rooms || ''}" step="0.5" placeholder="z.B. 2.5">
+                                    </div>
+                                    <div class="space-y-1 md:col-span-2">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Ausstattung / Besonderheiten</label>
+                                        <textarea id="apt_form_equip" rows="2" placeholder="z.B. Balkon, Einbauküche, Fußbodenheizung...">${apt.equipment_features || ''}</textarea>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- TAB: FINANZEN -->
-                            <div id="tab-finance" class="apt-tab-content hidden space-y-6">
+                            <!-- TAB: WEG-FINANZEN -->
+                            <div id="tab-weg_finance" class="apt-tab-content hidden space-y-6">
+                                <div class="bg-gray-50 p-5 rounded-xl border border-gray-100 mb-4 text-sm text-gray-600">
+                                    Relevante Zahlungen der Eigentümer an die WEG (laut aktuellem Wirtschaftsplan).
+                                </div>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Hausgeld / Vorauszahlung (€)</label>
+                                        <input type="number" id="apt_form_hausgeld" value="${apt.hausgeld || ''}" step="0.01" placeholder="0.00" oninput="calcWegTotal()">
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Zuführung Instandhaltungsrücklage (€)</label>
+                                        <input type="number" id="apt_form_ruecklage" value="${apt.ruecklage || ''}" step="0.01" placeholder="0.00" oninput="calcWegTotal()">
+                                    </div>
+                                </div>
+                                <div class="mt-6 pt-4 border-t border-gray-200">
+                                    <p class="text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Gesamtzahlung (Monatlich)</p>
+                                    <p class="text-2xl font-black text-hb-offblack" id="weg_total_display">0,00 €</p>
+                                </div>
+                            </div>
+
+                            <!-- TAB: MIETINFORMATIONEN -->
+                            <div id="tab-rent_info" class="apt-tab-content hidden space-y-6">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Aktueller Status</label>
+                                        <select id="apt_form_status">
+                                            <option value="Vermietet" ${apt.tenant_status === 'Vermietet' ? 'selected' : ''}>Vermietet</option>
+                                            <option value="Leerstand" ${apt.tenant_status === 'Leerstand' ? 'selected' : ''}>Leerstand</option>
+                                            <option value="Eigennutzung" ${apt.tenant_status === 'Eigennutzung' ? 'selected' : ''}>Eigennutzung</option>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Einzugsdatum</label>
+                                        <input type="date" id="apt_form_movein" value="${apt.move_in_date || ''}">
+                                    </div>
+                                    
+                                    <div class="space-y-1 border-t border-gray-100 pt-4 mt-2">
                                         <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Aktuelle Kaltmiete (€)</label>
                                         <input type="number" id="apt_form_rent" value="${apt.rent_amount || ''}" step="0.01">
                                     </div>
-                                    <div class="space-y-1">
+                                    <div class="space-y-1 border-t border-gray-100 pt-4 mt-2">
                                         <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Nebenkosten-Vorauszahlung (€)</label>
                                         <input type="number" id="apt_form_utils" value="${apt.utilities_amount || ''}" step="0.01">
                                     </div>
-                                    <div class="space-y-1 md:col-span-2 border-t border-gray-100 pt-4 mt-2">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Hausgeld / Vorauszahlung WEG (€)</label>
-                                        <input type="number" id="apt_form_hausgeld" value="${apt.hausgeld || ''}" step="0.01" placeholder="Relevant für Eigentümer/WEG">
+
+                                    <div class="space-y-1 border-t border-gray-100 pt-4 mt-2">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Kaution vereinbart (€)</label>
+                                        <input type="number" id="apt_form_deposit" value="${apt.deposit_amount || ''}" step="0.01">
+                                    </div>
+                                    <div class="space-y-1 border-t border-gray-100 pt-4 mt-2 flex flex-col justify-center">
+                                        <div class="flex items-center gap-3 mt-4">
+                                            <input type="checkbox" id="apt_form_deposit_paid" ${apt.deposit_paid ? 'checked' : ''}>
+                                            <label for="apt_form_deposit_paid" class="text-sm font-bold text-gray-700 cursor-pointer">Kaution wurde vollständig bezahlt</label>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -598,7 +656,7 @@
                             <!-- TAB: UMLAGESCHLÜSSEL -->
                             <div id="tab-apportionment" class="apt-tab-content hidden space-y-6">
                                 <div class="bg-blue-50/50 border border-blue-100 p-4 rounded-xl mb-4 text-sm text-blue-800">
-                                    Diese Werte dienen als Basis (Verteilerschlüssel) für die jährliche Nebenkosten- und Hausgeldabrechnung.
+                                    Verteilerschlüssel für die jährliche Nebenkosten- und Hausgeldabrechnung.
                                 </div>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div class="space-y-1">
@@ -617,31 +675,42 @@
                                         <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Personenanzahl (Aktuell)</label>
                                         <input type="number" id="apt_form_persons" value="${apt.persons_count || '1'}" step="1" min="0">
                                     </div>
-                                    <div class="space-y-1">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Festumlage / Direktkosten (€)</label>
-                                        <input type="number" id="apt_form_fixed_app" value="${apt.fixed_apportionment || ''}" step="0.01">
+                                    <div class="space-y-1 md:col-span-2 border-t border-gray-100 pt-4 mt-2">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Abrechnung über Festumlage / Direktkosten</label>
+                                        <input type="text" id="apt_form_fixed_details" value="${apt.fixed_apportionment_details || ''}" placeholder="z.B. Gartenpflege, Kaltwasser">
+                                        <p class="text-[10px] text-gray-400 mt-1">Tragen Sie hier Kostenarten ein, die dieser Einheit direkt oder zu 100% zugewiesen werden.</p>
                                     </div>
                                 </div>
                                 <div class="mt-6 p-4 border border-gray-200 rounded-xl bg-gray-50 flex items-center gap-3">
                                     <input type="checkbox" id="apt_form_ext_bill" ${apt.has_external_billing ? 'checked' : ''}>
-                                    <label for="apt_form_ext_bill" class="text-sm font-bold text-gray-700 cursor-pointer">Heiz- und Warmwasserkosten werden durch externen Dienstleister (z.B. Techem, Brunata) abgerechnet.</label>
+                                    <label for="apt_form_ext_bill" class="text-sm font-bold text-gray-700 cursor-pointer">Heiz- und Warmwasserkosten werden durch externen Dienstleister (z.B. Techem) abgerechnet.</label>
                                 </div>
                             </div>
 
                             <!-- TAB: ZÄHLER -->
                             <div id="tab-meters" class="apt-tab-content hidden space-y-6">
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div class="space-y-1">
+                                    <div class="space-y-1 md:col-span-2">
                                         <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Stromzähler-Nr.</label>
                                         <input type="text" id="apt_form_elec" value="${apt.meter_electricity || ''}">
                                     </div>
-                                    <div class="space-y-1">
+                                    
+                                    <div class="space-y-1 border-t border-gray-100 pt-4">
                                         <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Wasserzähler-Nr.</label>
                                         <input type="text" id="apt_form_water" value="${apt.meter_water || ''}">
                                     </div>
-                                    <div class="space-y-1">
+                                    <div class="space-y-1 border-t border-gray-100 pt-4">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Wasser: Eichfrist bis</label>
+                                        <input type="date" id="apt_form_water_cal" value="${apt.meter_water_calibration_until || ''}">
+                                    </div>
+
+                                    <div class="space-y-1 border-t border-gray-100 pt-4">
                                         <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Wärmemengenzähler-Nr.</label>
                                         <input type="text" id="apt_form_heat" value="${apt.meter_heating || ''}">
+                                    </div>
+                                    <div class="space-y-1 border-t border-gray-100 pt-4">
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Wärme: Eichfrist bis</label>
+                                        <input type="date" id="apt_form_heat_cal" value="${apt.meter_heating_calibration_until || ''}">
                                     </div>
                                 </div>
                             </div>
@@ -656,32 +725,57 @@
                 </div>
             `;
 
+            // Helper function for UI total calculation
+            window.calcWegTotal = function() {
+                const hg = parseFloat(document.getElementById('apt_form_hausgeld').value) || 0;
+                const rl = parseFloat(document.getElementById('apt_form_ruecklage').value) || 0;
+                document.getElementById('weg_total_display').innerText = (hg + rl).toFixed(2).replace('.', ',') + ' €';
+            };
+            if(isEdit) calcWegTotal();
+
             document.getElementById('apartment-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
+                
+                // Dates format handling
+                const moveIn = document.getElementById('apt_form_movein').value;
+                const waterCal = document.getElementById('apt_form_water_cal').value;
+                const heatCal = document.getElementById('apt_form_heat_cal').value;
+
                 const payload = {
                     building_id: selectedBuildingId,
                     apartment_number: document.getElementById('apt_form_no').value,
                     floor: document.getElementById('apt_form_floor').value,
+                    location_in_building: document.getElementById('apt_form_location').value,
                     type: document.getElementById('apt_form_type').value,
                     rooms: document.getElementById('apt_form_rooms').value || null,
+                    equipment_features: document.getElementById('apt_form_equip').value,
                     
-                    // Finanzen
+                    // WEG-Finanzen
+                    hausgeld: document.getElementById('apt_form_hausgeld').value || 0,
+                    ruecklage: document.getElementById('apt_form_ruecklage').value || 0,
+                    
+                    // Mietinformationen
+                    tenant_status: document.getElementById('apt_form_status').value,
+                    move_in_date: moveIn ? moveIn : null,
                     rent_amount: document.getElementById('apt_form_rent').value || 0,
                     utilities_amount: document.getElementById('apt_form_utils').value || 0,
-                    hausgeld: document.getElementById('apt_form_hausgeld').value || 0,
+                    deposit_amount: document.getElementById('apt_form_deposit').value || 0,
+                    deposit_paid: document.getElementById('apt_form_deposit_paid').checked,
                     
                     // Umlagen
                     sq_meters: document.getElementById('apt_form_sqm').value || null,
                     mea: document.getElementById('apt_form_mea').value || null,
                     distribution_units: document.getElementById('apt_form_dist_units').value || 1,
                     persons_count: document.getElementById('apt_form_persons').value || 1,
-                    fixed_apportionment: document.getElementById('apt_form_fixed_app').value || 0,
+                    fixed_apportionment_details: document.getElementById('apt_form_fixed_details').value,
                     has_external_billing: document.getElementById('apt_form_ext_bill').checked,
                     
                     // Zähler
                     meter_electricity: document.getElementById('apt_form_elec').value,
                     meter_water: document.getElementById('apt_form_water').value,
-                    meter_heating: document.getElementById('apt_form_heat').value
+                    meter_water_calibration_until: waterCal ? waterCal : null,
+                    meter_heating: document.getElementById('apt_form_heat').value,
+                    meter_heating_calibration_until: heatCal ? heatCal : null
                 };
 
                 const fId = document.getElementById('apt_form_id').value;
