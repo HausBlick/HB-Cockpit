@@ -131,11 +131,12 @@
 
         let currentUser = null;
         let userProfile = null;
-
-        // Globale Variablen für das Objekte-Modul
         let currentBuildings = [];
         let selectedBuildingId = null;
         let currentApartments = [];
+        let currentActiveTenancy = null;
+        let currentActiveTenant = null;
+
 
         const icons = {
             dashboard: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>`,
@@ -180,6 +181,30 @@
                 activeBtn.classList.add('border-hb-olive', 'text-hb-olive');
             }
         };
+        async function loadActiveTenancy(apartmentId) {
+          const { data, error } = await supabase
+            .from('tenancies')
+            .select(`
+              id,
+              tenant_id,
+              apartment_id,
+              rent_amount,
+              utilities_amount,
+              deposit_amount,
+              deposit_paid,
+              start_date,
+              end_date,
+              status
+            `)
+            .eq('apartment_id', apartmentId)
+            .eq('status', 'Aktiv')
+            .order('start_date', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    }
         // === END: SETUP & GLOBALE VARIABLEN ===
 
         // === START: INIT & NAVIGATION ===
@@ -535,10 +560,16 @@
         }
 
         // --- Formular: Einheit (Neu / Edit) mit TABS ---
-        function showApartmentForm(id = null) {
+        async function showApartmentForm(id = null) {
             const area = document.getElementById('units-area');
             let apt = id ? currentApartments.find(x => x.id === id) : {};
             const isEdit = !!id;
+            let activeTenancy = null;
+
+            if (isEdit && apt?.id) {
+              activeTenancy = await loadActiveTenancy(apt.id);
+            }
+
 
             area.innerHTML = `
                 <div class="card p-8 h-full overflow-y-auto border border-gray-100 shadow-sm flex flex-col">
@@ -558,7 +589,8 @@
                     
                     <form id="apartment-form" class="flex-grow flex flex-col justify-between">
                         <input type="hidden" id="apt_form_id" value="${apt.id || ''}">
-                        
+                        <input type="hidden" id="activeTenancyId" value="${activeTenancy?.id || ''}">
+                        <input type="hidden" id="activeTenantId" value="${activeTenancy?.tenant_id || ''}">
                         <div class="flex-grow">
                             <!-- TAB: STAMMDATEN -->
                             <div id="tab-base" class="apt-tab-content space-y-6">
@@ -755,13 +787,8 @@
                     ruecklage: document.getElementById('apt_form_ruecklage').value || 0,
                     
                     // Mietinformationen
-                    tenant_status: document.getElementById('apt_form_status').value,
-                    move_in_date: moveIn ? moveIn : null,
-                    rent_amount: document.getElementById('apt_form_rent').value || 0,
-                    utilities_amount: document.getElementById('apt_form_utils').value || 0,
-                    deposit_amount: document.getElementById('apt_form_deposit').value || 0,
-                    deposit_paid: document.getElementById('apt_form_deposit_paid').checked,
                     
+
                     // Umlagen
                     sq_meters: document.getElementById('apt_form_sqm').value || null,
                     mea: document.getElementById('apt_form_mea').value || null,
