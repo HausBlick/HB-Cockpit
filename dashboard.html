@@ -37,10 +37,10 @@
         .dropdown-open { display: block !important; animation: fadeIn 0.15s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
         
-        /* Formular Styling */
+        /* Formular Styling - Entzerrt und optimiert */
         input, select, textarea { border-radius: 12px; background-color: #F9FAF8; border: 1px solid #e5e7eb; transition: all 0.2s; padding: 12px 16px; width: 100%; font-size: 14px; }
         input:focus, select:focus, textarea:focus { background-color: white; border-color: #687451; outline: none; box-shadow: 0 0 0 3px rgba(104, 116, 81, 0.1); }
-        input[type="checkbox"] { width: auto; accent-color: #687451; width: 1.2rem; height: 1.2rem; cursor: pointer; }
+        input[type="checkbox"] { width: auto; accent-color: #687451; width: 1.2rem; height: 1.2rem; cursor: pointer; border-radius: 4px; }
         
         .btn-primary { background-color: #687451; color: white; border-radius: 12px; transition: all 0.2s; font-weight: 600; padding: 12px 24px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
         .btn-primary:hover { background-color: #555f42; transform: translateY(-1px); }
@@ -320,22 +320,22 @@
                             
                             <!-- TAB: STAMMDATEN -->
                             <div id="bldg-tab-base" class="bldg-tab-content space-y-6">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Objektname / Bezeichnung *</label><input type="text" id="b_name" value="${b.name || ''}" placeholder="z.B. WEG Sonnenschein" required></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Interne Aktennummer</label><input type="text" id="b_file_number" value="${b.file_number || ''}"></div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Objektname / Bezeichnung *</label><input type="text" id="b_name" value="${b.name || ''}" placeholder="z.B. WEG Sonnenschein" required></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Interne Aktennummer</label><input type="text" id="b_file_number" value="${b.file_number || ''}"></div>
                                     
-                                    <div class="space-y-1 md:col-span-2 border-t border-gray-100 pt-4"><h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">Adresse</h3></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Straße</label><input type="text" id="b_street" value="${b.street || ''}"></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Hausnummer</label><input type="text" id="b_house_number" value="${b.house_number || ''}"></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">PLZ</label><input type="text" id="b_zip_code" value="${b.zip_code || ''}"></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Ort</label><input type="text" id="b_city" value="${b.city || ''}"></div>
+                                    <div class="space-y-2 md:col-span-2 border-t border-gray-100 pt-4"><h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">Adresse</h3></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Straße</label><input type="text" id="b_street" value="${b.street || ''}"></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Hausnummer</label><input type="text" id="b_house_number" value="${b.house_number || ''}"></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">PLZ</label><input type="text" id="b_zip_code" value="${b.zip_code || ''}"></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Ort</label><input type="text" id="b_city" value="${b.city || ''}"></div>
                                     
-                                    <div class="space-y-1 md:col-span-2 border-t border-gray-100 pt-4">
-                                        <label class="text-[10px] uppercase font-bold text-gray-500">Verwaltungsstatus</label>
+                                    <div class="space-y-2 md:col-span-2 border-t border-gray-100 pt-4">
+                                        <label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Verwaltungsstatus</label>
                                         <select id="b_status"><option value="aktiv" ${b.status !== 'inaktiv' ? 'selected' : ''}>Aktiv (In Verwaltung)</option><option value="inaktiv" ${b.status === 'inaktiv' ? 'selected' : ''}>Inaktiv (Gekündigt/Archiv)</option></select>
                                     </div>
-                                    <div class="space-y-1 md:col-span-2">
-                                        <label class="text-[10px] uppercase font-bold text-gray-500">Interne Notizen</label>
+                                    <div class="space-y-2 md:col-span-2">
+                                        <label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Interne Notizen</label>
                                         <textarea id="b_notes" rows="3" placeholder="Besonderheiten, Zugangscodes etc.">${b.notes || ''}</textarea>
                                     </div>
                                 </div>
@@ -343,30 +343,30 @@
 
                             <!-- TAB: GRUNDBUCH & RECHT -->
                             <div id="bldg-tab-legal" class="bldg-tab-content hidden space-y-6">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Zuständiges Grundbuchamt</label><input type="text" id="b_land_registry" value="${b.land_registry || ''}"></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Gemarkung</label><input type="text" id="b_district" value="${b.district || ''}"></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Flur</label><input type="text" id="b_parcel" value="${b.parcel || ''}"></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Flurstück(e)</label><input type="text" id="b_parcel_number" value="${b.parcel_number || ''}"></div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Zuständiges Grundbuchamt</label><input type="text" id="b_land_registry" value="${b.land_registry || ''}"></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Gemarkung</label><input type="text" id="b_district" value="${b.district || ''}"></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Flur</label><input type="text" id="b_parcel" value="${b.parcel || ''}"></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Flurstück(e)</label><input type="text" id="b_parcel_number" value="${b.parcel_number || ''}"></div>
                                     
-                                    <div class="space-y-1 border-t border-gray-100 pt-4 md:col-span-2"><h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">Teilungserklärung</h3></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Datum Teilungserklärung</label><input type="date" id="b_decl_div_date" value="${b.declaration_of_division_date || ''}"></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Datum letzter Nachtrag</label><input type="date" id="b_decl_amen_date" value="${b.declaration_last_amendment_date || ''}"></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Notar</label><input type="text" id="b_notary" value="${b.notary_name || ''}"></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Gesamt-MEA der Anlage</label><input type="number" id="b_total_mea" value="${b.total_mea || ''}" step="0.0001" placeholder="z.B. 1000.0000"></div>
+                                    <div class="space-y-2 border-t border-gray-100 pt-4 md:col-span-2"><h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">Teilungserklärung</h3></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Datum Teilungserklärung</label><input type="date" id="b_decl_div_date" value="${b.declaration_of_division_date || ''}"></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Datum letzter Nachtrag</label><input type="date" id="b_decl_amen_date" value="${b.declaration_last_amendment_date || ''}"></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Notar</label><input type="text" id="b_notary" value="${b.notary_name || ''}"></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Gesamt-MEA der Anlage</label><input type="number" id="b_total_mea" value="${b.total_mea || ''}" step="0.0001" placeholder="z.B. 1000.0000"></div>
                                 </div>
                             </div>
 
                             <!-- TAB: FINANZEN & BANKEN -->
                             <div id="bldg-tab-finance" class="bldg-tab-content hidden space-y-6">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Wirtschaftsjahr Start (MM-DD)</label><input type="text" id="b_fiscal_start" value="${b.fiscal_year_start || '01-01'}" placeholder="01-01"></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Wirtschaftsjahr Ende (MM-DD)</label><input type="text" id="b_fiscal_end" value="${b.fiscal_year_end || '12-31'}" placeholder="12-31"></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Steuernummer (WEG)</label><input type="text" id="b_tax_number" value="${b.tax_number || ''}"></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Gläubiger-ID (SEPA)</label><input type="text" id="b_creditor_id" value="${b.creditor_id || ''}"></div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Wirtschaftsjahr Start (MM-DD)</label><input type="text" id="b_fiscal_start" value="${b.fiscal_year_start || '01-01'}" placeholder="01-01"></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Wirtschaftsjahr Ende (MM-DD)</label><input type="text" id="b_fiscal_end" value="${b.fiscal_year_end || '12-31'}" placeholder="12-31"></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Steuernummer (WEG)</label><input type="text" id="b_tax_number" value="${b.tax_number || ''}"></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Gläubiger-ID (SEPA)</label><input type="text" id="b_creditor_id" value="${b.creditor_id || ''}"></div>
                                     
-                                    <!-- Placeholder for Bank Accounts List (To be fully implemented later) -->
-                                    <div class="space-y-1 border-t border-gray-100 pt-4 md:col-span-2">
+                                    <!-- Placeholder for Bank Accounts List -->
+                                    <div class="space-y-2 border-t border-gray-100 pt-4 md:col-span-2">
                                         <h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">Bankkonten der WEG</h3>
                                         <div class="bg-gray-50 border border-dashed border-gray-200 rounded-xl p-4 text-center">
                                             <p class="text-sm text-gray-500">Die detaillierte Kontenverwaltung (Giro, Rücklage) wird in Kürze hier verfügbar sein.</p>
@@ -377,33 +377,33 @@
 
                             <!-- TAB: TECHNIK & ZÄHLER -->
                             <div id="bldg-tab-tech" class="bldg-tab-content hidden space-y-6">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Baujahr (Gebäude)</label><input type="number" id="b_construction_year" value="${b.construction_year || ''}" placeholder="YYYY"></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Anzahl Aufzüge</label><input type="number" id="b_elevator_count" value="${b.elevator_count || '0'}"></div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Baujahr (Gebäude)</label><input type="number" id="b_construction_year" value="${b.construction_year || ''}" placeholder="YYYY"></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Anzahl Aufzüge</label><input type="number" id="b_elevator_count" value="${b.elevator_count || '0'}"></div>
                                     
-                                    <div class="space-y-1 border-t border-gray-100 pt-4 md:col-span-2"><h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">TGA (Heizung & Schließanlage)</h3></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Energieträger (z.B. Gas, Fernwärme)</label><input type="text" id="b_energy_source" value="${b.energy_source || ''}"></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Baujahr Heizanlage</label><input type="number" id="b_heating_year" value="${b.heating_system_year || ''}" placeholder="YYYY"></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Schließanlagen-Nummer</label><input type="text" id="b_locking_system" value="${b.locking_system_id || ''}"></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Hauptwasserzähler-Nr. (Stadt)</label><input type="text" id="b_main_water" value="${b.main_water_meter_id || ''}"></div>
+                                    <div class="space-y-2 border-t border-gray-100 pt-4 md:col-span-2"><h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">TGA (Heizung & Schließanlage)</h3></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Energieträger (z.B. Gas, Fernwärme)</label><input type="text" id="b_energy_source" value="${b.energy_source || ''}"></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Baujahr Heizanlage</label><input type="number" id="b_heating_year" value="${b.heating_system_year || ''}" placeholder="YYYY"></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Schließanlagen-Nummer</label><input type="text" id="b_locking_system" value="${b.locking_system_id || ''}"></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Hauptwasserzähler-Nr. (Stadt)</label><input type="text" id="b_main_water" value="${b.main_water_meter_id || ''}"></div>
                                 </div>
                             </div>
 
                             <!-- TAB: FRISTEN & COMPLIANCE -->
                             <div id="bldg-tab-compliance" class="bldg-tab-content hidden space-y-6">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Energieausweis Typ</label><select id="b_energy_cert_type"><option value="">- Bitte wählen -</option><option value="Verbrauch" ${b.energy_certificate_type === 'Verbrauch' ? 'selected' : ''}>Verbrauchsausweis</option><option value="Bedarf" ${b.energy_certificate_type === 'Bedarf' ? 'selected' : ''}>Bedarfsausweis</option></select></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Ablauf Energieausweis</label><input type="date" id="b_energy_cert_expiry" value="${b.energy_certificate_expiry || ''}"></div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Energieausweis Typ</label><select id="b_energy_cert_type"><option value="">- Bitte wählen -</option><option value="Verbrauch" ${b.energy_certificate_type === 'Verbrauch' ? 'selected' : ''}>Verbrauchsausweis</option><option value="Bedarf" ${b.energy_certificate_type === 'Bedarf' ? 'selected' : ''}>Bedarfsausweis</option></select></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Ablauf Energieausweis</label><input type="date" id="b_energy_cert_expiry" value="${b.energy_certificate_expiry || ''}"></div>
                                     
-                                    <div class="space-y-1 border-t border-gray-100 pt-4 md:col-span-2 flex items-center gap-3">
+                                    <div class="space-y-2 border-t border-gray-100 pt-4 md:col-span-2 flex items-center gap-3">
                                         <input type="checkbox" id="b_legionella_req" ${b.legionella_check_required ? 'checked' : ''}>
                                         <label for="b_legionella_req" class="text-sm font-bold text-gray-700">Gebäude ist Legionellen-prüfpflichtig</label>
                                     </div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Letzte Legionellenprüfung</label><input type="date" id="b_legionella_last" value="${b.last_legionella_check || ''}"></div>
-                                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Prüfintervall (Monate)</label><input type="number" id="b_legionella_interval" value="${b.legionella_check_interval_months || '36'}"></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Letzte Legionellenprüfung</label><input type="date" id="b_legionella_last" value="${b.last_legionella_check || ''}"></div>
+                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Prüfintervall (Monate)</label><input type="number" id="b_legionella_interval" value="${b.legionella_check_interval_months || '36'}"></div>
                                     
-                                    <div class="space-y-1 border-t border-gray-100 pt-4 md:col-span-2">
-                                        <label class="text-[10px] uppercase font-bold text-gray-500">Nächste Brandschutzprüfung / Feuerstättenschau</label>
+                                    <div class="space-y-2 border-t border-gray-100 pt-4 md:col-span-2">
+                                        <label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Nächste Brandschutzprüfung / Feuerstättenschau</label>
                                         <input type="date" id="b_fire_safety" value="${b.next_fire_safety_check || ''}">
                                     </div>
                                 </div>
@@ -474,15 +474,19 @@
             };
         }
 
-        // --- EINHEITEN UI ---
+        // --- EINHEITEN UI (PROFI) ---
         async function fetchApartmentsForBuilding(bId) {
             const list = document.getElementById('apartments-list');
             const { data } = await _supabase.from('apartments').select('*').eq('building_id', bId).order('apartment_number');
             currentApartments = data || [];
             list.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">` + currentApartments.map(apt => `
                 <div onclick="showApartmentForm(${apt.id})" class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:border-hb-olive cursor-pointer transition-colors group text-left">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="bg-gray-100 text-gray-600 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md">${apt.type || 'Wohnen'}</span>
+                        <span class="text-[10px] font-bold text-gray-400 uppercase">${apt.tenant_status || 'Leerstand'}</span>
+                    </div>
                     <h4 class="text-lg font-extrabold text-hb-offblack">${apt.apartment_number}</h4>
-                    <p class="text-sm text-gray-500">${apt.sq_meters || 0} m² • ${apt.tenant_status || 'Leerstand'}</p>
+                    <p class="text-sm font-medium text-gray-500 mt-1">${apt.floor ? apt.floor + ' • ' : ''}${apt.rooms ? apt.rooms + ' Zi. • ' : ''}${apt.sq_meters || 0} m²</p>
                 </div>`).join('') + `</div>`;
         }
 
@@ -494,73 +498,146 @@
 
             area.innerHTML = `
                 <div class="card p-8 h-full overflow-y-auto border border-gray-100 shadow-sm flex flex-col text-left">
-                    <div class="flex justify-between items-center mb-6 text-left"><h2 class="text-2xl font-extrabold">${isEdit ? 'Einheit bearbeiten' : 'Neue Einheit'}</h2><button onclick="selectBuilding(selectedBuildingId)" class="text-xs font-bold text-gray-400 uppercase">Abbrechen</button></div>
+                    <div class="flex justify-between items-center mb-6 text-left">
+                        <h2 class="text-2xl font-extrabold">${isEdit ? 'Einheit bearbeiten' : 'Neue Einheit anlegen'}</h2>
+                        <button onclick="selectBuilding(selectedBuildingId)" class="text-xs font-bold text-gray-400 uppercase tracking-widest hover:text-hb-orange">Zurück</button>
+                    </div>
                     
-                    <div class="flex overflow-x-auto border-b border-gray-200 mb-6 gap-8 hide-scrollbar">
-                        <button type="button" id="btn-tab-base" onclick="switchAptTab('base')" class="apt-tab-btn pb-3 border-b-2 font-bold text-sm border-hb-olive text-hb-olive">Stammdaten</button>
-                        <button type="button" id="btn-tab-weg" onclick="switchAptTab('weg')" class="apt-tab-btn pb-3 border-b-2 font-bold text-sm border-transparent text-gray-500">WEG-Finanzen</button>
-                        <button type="button" id="btn-tab-rent" onclick="switchAptTab('rent')" class="apt-tab-btn pb-3 border-b-2 font-bold text-sm border-transparent text-gray-500">Miet-Infos</button>
-                        <button type="button" id="btn-tab-meters" onclick="switchAptTab('meters')" class="apt-tab-btn pb-3 border-b-2 font-bold text-sm border-transparent text-gray-500">Zähler</button>
+                    <div class="flex overflow-x-auto border-b border-gray-200 mb-6 gap-8 hide-scrollbar flex-shrink-0">
+                        <button type="button" id="btn-tab-base" onclick="switchAptTab('base')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm border-hb-olive text-hb-olive transition-colors">Stammdaten</button>
+                        <button type="button" id="btn-tab-legal_weg" onclick="switchAptTab('legal_weg')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm border-transparent text-gray-500 transition-colors">Eigentümer & WEG</button>
+                        <button type="button" id="btn-tab-tenancy" onclick="switchAptTab('tenancy')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm border-transparent text-gray-500 transition-colors">Mieter & Vertrag</button>
+                        <button type="button" id="btn-tab-meters" onclick="switchAptTab('meters')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm border-transparent text-gray-500 transition-colors">Zähler & Fristen</button>
                     </div>
 
                     <form id="apartment-form" class="flex-grow flex flex-col text-left">
                         <input type="hidden" id="apt_form_id" value="${apt.id || ''}">
                         
                         <div class="flex-grow text-left">
+                            
                             <!-- TAB: STAMMDATEN -->
-                            <div id="tab-base" class="apt-tab-content space-y-4">
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Nr. *</label><input type="text" id="apt_form_no" value="${apt.apartment_number || ''}" required></div>
-                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Typ</label><select id="apt_form_type"><option value="Wohnen" ${apt.type === 'Wohnen' ? 'selected' : ''}>Wohnen</option><option value="Gewerbe" ${apt.type === 'Gewerbe' ? 'selected' : ''}>Gewerbe</option><option value="Stellplatz" ${apt.type === 'Stellplatz' ? 'selected' : ''}>Stellplatz</option></select></div>
-                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">m²</label><input type="number" id="apt_form_sqm" value="${apt.sq_meters || ''}" step="0.01"></div>
-                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Zimmer</label><input type="number" id="apt_form_rooms" value="${apt.rooms || ''}" step="0.5"></div>
+                            <div id="tab-base" class="apt-tab-content space-y-6">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Nummer / Bezeichnung *</label><input type="text" id="apt_form_no" value="${apt.apartment_number || ''}" placeholder="z.B. WE 01" required></div>
+                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Typ der Einheit</label><select id="apt_form_type"><option value="Wohnen" ${apt.type === 'Wohnen' ? 'selected' : ''}>Wohnen</option><option value="Gewerbe" ${apt.type === 'Gewerbe' ? 'selected' : ''}>Gewerbe</option><option value="Stellplatz" ${apt.type === 'Stellplatz' ? 'selected' : ''}>Stellplatz / Garage</option></select></div>
+                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Wohn-/Nutzfläche (m²)</label><input type="number" id="apt_form_sqm" value="${apt.sq_meters || ''}" step="0.01"></div>
+                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Anzahl Zimmer</label><input type="number" id="apt_form_rooms" value="${apt.rooms || ''}" step="0.5"></div>
+                                    
+                                    <div class="space-y-2 border-t border-gray-100 pt-4 md:col-span-2"><h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">Räumliche Lage & Details</h3></div>
+                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Etage</label><input type="text" id="apt_form_floor" value="${apt.floor || ''}" placeholder="z.B. 1. OG"></div>
+                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Genaue Lage im Gebäude</label><input type="text" id="apt_form_location" value="${apt.location_in_building || ''}" placeholder="z.B. links, Hofseite"></div>
+                                    <div class="space-y-2 text-left md:col-span-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Ausstattungsmerkmale</label><textarea id="apt_form_equip" rows="2" placeholder="Balkon, Einbauküche, Fußbodenheizung...">${apt.equipment_features || ''}</textarea></div>
                                 </div>
                             </div>
 
-                            <!-- TAB: WEG-FINANZEN -->
-                            <div id="tab-weg" class="apt-tab-content hidden space-y-4 text-left">
-                                <div class="grid grid-cols-2 gap-4 text-left">
-                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Hausgeld (€)</label><input type="number" id="apt_form_hausgeld" value="${apt.hausgeld || ''}" step="0.01"></div>
-                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Rücklage (€)</label><input type="number" id="apt_form_ruecklage" value="${apt.ruecklage || ''}" step="0.01"></div>
-                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">MEA</label><input type="number" id="apt_form_mea" value="${apt.mea || ''}" step="0.0001"></div>
+                            <!-- TAB: EIGENTÜMER & WEG -->
+                            <div id="tab-legal_weg" class="apt-tab-content hidden space-y-6 text-left">
+                                <div class="bg-gray-50 border border-dashed border-gray-200 rounded-xl p-4 text-center mb-4">
+                                    <p class="text-sm text-gray-500">Die Zuweisung eines konkreten Eigentümers (Profil) erfolgt im Modul <strong>Personenverwaltung</strong>.</p>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Miteigentumsanteile (MEA)</label><input type="number" id="apt_form_mea" value="${apt.mea || ''}" step="0.0001" placeholder="z.B. 125.0000"></div>
+                                    <div class="space-y-2 text-left"></div> <!-- Empty grid cell for alignment -->
+                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Hausgeld (Monatlich, €)</label><input type="number" id="apt_form_hausgeld" value="${apt.hausgeld || ''}" step="0.01"></div>
+                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Rücklagenzuführung (Monatlich, €)</label><input type="number" id="apt_form_ruecklage" value="${apt.ruecklage || ''}" step="0.01"></div>
+                                    
+                                    <div class="space-y-2 border-t border-gray-100 pt-4 md:col-span-2"><h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">Rechtliche Besonderheiten (laut TE)</h3></div>
+                                    <div class="space-y-2 text-left md:col-span-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Sondernutzungsrechte</label><input type="text" id="apt_form_special_use" value="${apt.special_use_rights || ''}" placeholder="z.B. Gartenanteil Süd, KFZ-Stellplatz Nr. 4"></div>
+                                    <div class="space-y-2 text-left md:col-span-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Abweichende Kostentragungspflichten</label><textarea id="apt_form_dev_cost" rows="2" placeholder="z.B. Fenster und Rollläden sind Instandhaltungspflicht des Sondereigentümers">${apt.deviating_cost_bearing || ''}</textarea></div>
                                 </div>
                             </div>
 
-                            <!-- TAB: MIET-INFORMATIONEN -->
-                            <div id="tab-rent" class="apt-tab-content hidden space-y-4 text-left">
-                                <div class="grid grid-cols-2 gap-4 text-left">
-                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Status</label><select id="apt_form_status"><option value="Leerstand" ${apt.tenant_status === 'Leerstand' ? 'selected' : ''}>Leerstand</option><option value="Vermietet" ${apt.tenant_status === 'Vermietet' ? 'selected' : ''}>Vermietet</option></select></div>
-                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Einzug</label><input type="date" id="apt_form_movein" value="${apt.move_in_date || activeTenancy?.start_date || ''}"></div>
-                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Kaltmiete (€)</label><input type="number" id="apt_form_rent" value="${apt.rent_amount || activeTenancy?.rent_amount || ''}" step="0.01"></div>
-                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Nebenkosten (€)</label><input type="number" id="apt_form_utils" value="${apt.utilities_amount || activeTenancy?.utilities_amount || ''}" step="0.01"></div>
-                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Kaution (€)</label><input type="number" id="apt_form_deposit" value="${apt.deposit_amount || activeTenancy?.deposit_amount || ''}" step="0.01"></div>
-                                    <div class="flex items-center gap-2 pt-4 text-left"><input type="checkbox" id="apt_form_deposit_paid" ${apt.deposit_paid || activeTenancy?.deposit_paid ? 'checked' : ''}><label class="text-xs font-bold text-gray-700">Kaution bezahlt</label></div>
+                            <!-- TAB: MIETER & VERTRAG -->
+                            <div id="tab-tenancy" class="apt-tab-content hidden space-y-6 text-left">
+                                <div class="bg-gray-50 border border-dashed border-gray-200 rounded-xl p-4 text-center mb-4">
+                                    <p class="text-sm text-gray-500">Die Einladung eines konkreten Mieters (Profil) erfolgt im Modul <strong>Personenverwaltung</strong>. Hier pflegen Sie die Vertragsdaten.</p>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Aktueller Status</label><select id="apt_form_status"><option value="Leerstand" ${apt.tenant_status === 'Leerstand' ? 'selected' : ''}>Leerstand</option><option value="Vermietet" ${apt.tenant_status === 'Vermietet' ? 'selected' : ''}>Vermietet</option></select></div>
+                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Mietbeginn / Einzug</label><input type="date" id="apt_form_movein" value="${apt.move_in_date || activeTenancy?.start_date || ''}"></div>
+                                    
+                                    <div class="space-y-2 border-t border-gray-100 pt-4 md:col-span-2"><h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">Finanzen (Mieter)</h3></div>
+                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Aktuelle Kaltmiete (€)</label><input type="number" id="apt_form_rent" value="${apt.rent_amount || activeTenancy?.rent_amount || ''}" step="0.01"></div>
+                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Nebenkosten-Vorauszahlung (€)</label><input type="number" id="apt_form_utils" value="${apt.utilities_amount || activeTenancy?.utilities_amount || ''}" step="0.01"></div>
+                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Vereinbarte Kaution (€)</label><input type="number" id="apt_form_deposit" value="${apt.deposit_amount || activeTenancy?.deposit_amount || ''}" step="0.01"></div>
+                                    <div class="flex items-center gap-3 pt-6 text-left"><input type="checkbox" id="apt_form_deposit_paid" ${apt.deposit_paid || activeTenancy?.deposit_paid ? 'checked' : ''}><label for="apt_form_deposit_paid" class="text-sm font-bold text-gray-700">Kaution wurde vollständig bezahlt</label></div>
                                 </div>
                             </div>
 
-                            <!-- TAB: ZÄHLER -->
-                            <div id="tab-meters" class="apt-tab-content hidden space-y-4 text-left">
-                                <div class="grid grid-cols-2 gap-4 text-left">
-                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Wasserzähler-Nr.</label><input type="text" id="apt_form_meter_water" value="${apt.meter_water || ''}"></div>
-                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Eichfrist Wasser</label><input type="date" id="apt_form_cal_water" value="${apt.meter_water_calibration_until || ''}"></div>
-                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Wärme-Nr.</label><input type="text" id="apt_form_meter_heat" value="${apt.meter_heating || ''}"></div>
-                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Eichfrist Wärme</label><input type="date" id="apt_form_cal_heat" value="${apt.meter_heating_calibration_until || ''}"></div>
+                            <!-- TAB: ZÄHLER & FRISTEN -->
+                            <div id="tab-meters" class="apt-tab-content hidden space-y-6 text-left">
+                                <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 text-center mb-4">
+                                    <p class="text-sm text-blue-800">Eine dynamische Zähler-Historie inkl. Ablesedaten ist für ein zukünftiges Update geplant. Bitte hinterlegen Sie hier vorab die Hauptzähler der Einheit.</p>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Wasserzähler-Nr. (Kalt/Warm)</label><input type="text" id="apt_form_meter_water" value="${apt.meter_water || ''}"></div>
+                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Ablauf Eichfrist Wasser</label><input type="date" id="apt_form_cal_water" value="${apt.meter_water_calibration_until || ''}"></div>
+                                    
+                                    <div class="space-y-2 border-t border-gray-100 pt-4 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Wärmemengenzähler-Nr.</label><input type="text" id="apt_form_meter_heat" value="${apt.meter_heating || ''}"></div>
+                                    <div class="space-y-2 border-t border-gray-100 pt-4 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Ablauf Eichfrist Wärme</label><input type="date" id="apt_form_cal_heat" value="${apt.meter_heating_calibration_until || ''}"></div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="pt-6 mt-6 border-t border-gray-100 flex gap-4 text-left">
-                            <button type="submit" class="btn-primary">Speichern</button>
-                            ${isEdit ? `<button type="button" onclick="deleteApartment(${apt.id})" class="text-red-500 font-bold px-4 hover:bg-red-50 rounded-lg transition-colors">Löschen</button>` : ''}
+                        <div class="pt-6 mt-6 border-t border-gray-100 flex gap-4 text-left flex-shrink-0">
+                            <button type="submit" class="btn-primary">Einheit & Vertrag speichern</button>
+                            ${isEdit ? `<button type="button" onclick="deleteApartment(${apt.id})" class="btn-secondary text-red-500 font-bold px-6 hover:bg-red-50 hover:border-red-100 bg-white">Einheit löschen</button>` : ''}
                         </div>
                     </form>
                 </div>`;
 
             document.getElementById('apartment-form').onsubmit = async (e) => {
                 e.preventDefault();
-                // ... same logic as before ...
-                showToast("Speichern der Einheit erfolgt im nächsten Schritt.", "success");
-                selectBuilding(selectedBuildingId);
+                const aptId = document.getElementById('apt_form_id').value;
+                const payload = {
+                    building_id: selectedBuildingId,
+                    apartment_number: document.getElementById('apt_form_no').value,
+                    type: document.getElementById('apt_form_type').value,
+                    sq_meters: document.getElementById('apt_form_sqm').value || 0,
+                    rooms: document.getElementById('apt_form_rooms').value || 0,
+                    floor: document.getElementById('apt_form_floor').value,
+                    location_in_building: document.getElementById('apt_form_location').value,
+                    equipment_features: document.getElementById('apt_form_equip').value,
+                    special_use_rights: document.getElementById('apt_form_special_use').value,
+                    deviating_cost_bearing: document.getElementById('apt_form_dev_cost').value,
+                    
+                    hausgeld: document.getElementById('apt_form_hausgeld').value || 0,
+                    ruecklage: document.getElementById('apt_form_ruecklage').value || 0,
+                    mea: document.getElementById('apt_form_mea').value || 0,
+                    
+                    tenant_status: document.getElementById('apt_form_status').value,
+                    rent_amount: document.getElementById('apt_form_rent').value || 0,
+                    utilities_amount: document.getElementById('apt_form_utils').value || 0,
+                    deposit_amount: document.getElementById('apt_form_deposit').value || 0,
+                    deposit_paid: document.getElementById('apt_form_deposit_paid').checked,
+                    move_in_date: document.getElementById('apt_form_movein').value || null,
+                    
+                    meter_water: document.getElementById('apt_form_meter_water').value,
+                    meter_water_calibration_until: document.getElementById('apt_form_cal_water').value || null,
+                    meter_heating: document.getElementById('apt_form_meter_heat').value,
+                    meter_heating_calibration_until: document.getElementById('apt_form_cal_heat').value || null
+                };
+
+                // Speichern in apartments
+                let res = aptId ? await _supabase.from('apartments').update(payload).eq('id', aptId) : await _supabase.from('apartments').insert([payload]).select().single();
+                
+                // Synchronisation mit tenancies (ERP)
+                if (!res.error) {
+                    const savedId = aptId || res.data.id;
+                    const tenancyData = {
+                        apartment_id: savedId,
+                        rent_amount: payload.rent_amount,
+                        utilities_amount: payload.utilities_amount,
+                        deposit_amount: payload.deposit_amount,
+                        deposit_paid: payload.deposit_paid,
+                        start_date: payload.move_in_date,
+                        status: payload.tenant_status === 'Vermietet' ? 'Aktiv' : 'Historisch'
+                    };
+                    if (activeTenancy) await _supabase.from('tenancies').update(tenancyData).eq('id', activeTenancy.id);
+                    else if (payload.tenant_status === 'Vermietet') await _supabase.from('tenancies').insert([tenancyData]);
+                    
+                    showToast("Einheit & Vertrag gespeichert"); selectBuilding(selectedBuildingId);
+                } else { showToast(res.error.message, "error"); }
             };
         }
 
