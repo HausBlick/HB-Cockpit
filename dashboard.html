@@ -55,7 +55,6 @@
 </head>
 <body class="font-sans min-h-screen flex flex-col md:flex-row text-left relative overflow-hidden" onclick="closeDropdowns(event)">
 
-    <!-- === START: UI BASIS ELEMENTE === -->
     <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none text-left"></div>
 
     <!-- Mobile Header -->
@@ -68,34 +67,29 @@
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" /></svg>
         </button>
     </div>
-    <!-- === END: UI BASIS ELEMENTE === -->
 
-    <!-- === START: MODUL SIDEBAR === -->
+    <!-- === SIDEBAR === -->
     <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-40 w-72 bg-white border-r border-gray-100 flex-shrink-0 h-screen flex flex-col shadow-soft text-left">
         <div class="p-8 pb-4 hidden md:block text-center border-b border-gray-50 mb-4">
             <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-10 w-auto mx-auto mb-2">
             <div class="font-extrabold text-xl tracking-tighter text-hb-olive">Mieterportal</div>
             <p class="text-[10px] uppercase tracking-widest font-bold text-gray-400">HB Verwaltung</p>
         </div>
-        <div class="flex-grow p-4 overflow-y-auto chat-scroll">
-            <ul class="space-y-1" id="nav-links">
-                <!-- Navigations-Links werden per renderNav() eingefügt -->
-            </ul>
+        <div class="flex-grow p-4 overflow-y-auto">
+            <ul class="space-y-1" id="nav-links"></ul>
         </div>
     </nav>
     <div id="overlay" onclick="toggleMenu()" class="fixed inset-0 bg-hb-offblack/20 backdrop-blur-sm z-30 hidden text-left"></div>
-    <!-- === END: MODUL SIDEBAR === -->
 
-    <!-- === START: MAIN VIEWPORT === -->
+    <!-- === MAIN VIEWPORT === -->
     <main class="flex-grow h-screen overflow-y-auto relative flex flex-col text-left">
-        <!-- Header -->
         <header class="p-6 md:p-10 flex justify-between items-center sticky top-0 bg-hb-ultralight/80 backdrop-blur-md z-30 text-left">
             <div class="text-left">
                 <p id="role-label" class="text-[10px] uppercase tracking-widest font-bold text-hb-orange mb-1"></p>
                 <h1 id="welcome-title" class="text-2xl md:text-3xl font-extrabold tracking-tight">Lade...</h1>
             </div>
             
-            <!-- User Menu -->
+            <!-- User Dropdown -->
             <div class="relative dropdown-container text-left">
                 <button onclick="toggleUserDropdown(event)" class="flex items-center gap-3 bg-white p-1.5 pr-3 rounded-full border border-gray-200 shadow-sm hover:border-hb-olive transition-colors">
                     <div id="user-avatar" class="w-9 h-9 bg-hb-olive text-white rounded-full flex items-center justify-center font-bold text-sm uppercase">?</div>
@@ -116,12 +110,8 @@
             </div>
         </header>
 
-        <!-- Dynamic Content Area -->
-        <div id="content-area" class="flex-grow px-6 md:px-10 pb-20 overflow-y-auto text-left">
-            <!-- Inhalte werden hier geladen -->
-        </div>
+        <div id="content-area" class="flex-grow px-6 md:px-10 pb-20 overflow-y-auto text-left"></div>
     </main>
-    <!-- === END: MAIN VIEWPORT === -->
 
     <script>
         // === START: SETUP & GLOBALE VARIABLEN ===
@@ -134,9 +124,6 @@
         let currentBuildings = [];
         let selectedBuildingId = null;
         let currentApartments = [];
-        let currentActiveTenancy = null;
-        let currentActiveTenant = null;
-
 
         const icons = {
             dashboard: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>`,
@@ -166,45 +153,22 @@
         function logout() { _supabase.auth.signOut().then(() => window.location.href = 'index.html'); }
         function toggleMenu() { document.getElementById('sidebar').classList.toggle('-translate-x-full'); document.getElementById('overlay').classList.toggle('hidden'); }
         
-        // Globale Funktion für die Tabs in der Einheiten-Maske
         window.switchAptTab = function(tabId) {
             document.querySelectorAll('.apt-tab-content').forEach(el => el.classList.add('hidden'));
             document.querySelectorAll('.apt-tab-btn').forEach(el => {
                 el.classList.remove('border-hb-olive', 'text-hb-olive');
                 el.classList.add('border-transparent', 'text-gray-500');
             });
-            
             document.getElementById('tab-' + tabId).classList.remove('hidden');
-            const activeBtn = document.getElementById('btn-tab-' + tabId);
-            if(activeBtn) {
-                activeBtn.classList.remove('border-transparent', 'text-gray-500');
-                activeBtn.classList.add('border-hb-olive', 'text-hb-olive');
-            }
+            const btn = document.getElementById('btn-tab-' + tabId);
+            if(btn) { btn.classList.remove('border-transparent', 'text-gray-500'); btn.classList.add('border-hb-olive', 'text-hb-olive'); }
         };
-        async function loadActiveTenancy(apartmentId) {
-          const { data, error } = await supabase
-            .from('tenancies')
-            .select(`
-              id,
-              tenant_id,
-              apartment_id,
-              rent_amount,
-              utilities_amount,
-              deposit_amount,
-              deposit_paid,
-              start_date,
-              end_date,
-              status
-            `)
-            .eq('apartment_id', apartmentId)
-            .eq('status', 'Aktiv')
-            .order('start_date', { ascending: false })
-            .limit(1)
-            .maybeSingle();
 
-      if (error) throw error;
-      return data;
-    }
+        // Hilfsfunktion für das neue Datenmodell
+        async function loadActiveTenancy(apartmentId) {
+            const { data, error } = await _supabase.from('tenancies').select('*').eq('apartment_id', apartmentId).eq('status', 'Aktiv').maybeSingle();
+            return data || null;
+        }
         // === END: SETUP & GLOBALE VARIABLEN ===
 
         // === START: INIT & NAVIGATION ===
@@ -213,21 +177,15 @@
                 const { data: { user } } = await _supabase.auth.getUser();
                 if (!user) { window.location.href = 'index.html'; return; }
                 currentUser = user;
-
                 const { data: profile } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
                 if (!profile) return;
                 userProfile = profile;
-
                 document.getElementById('welcome-title').textContent = "Hallo, " + profile.full_name.split(' ')[0] + "!";
-                
-                // Rollen-Label Anzeige
                 const roleLabels = { 'admin': 'Verwalter Cockpit', 'manager': 'Objektbetreuer', 'owner': 'Eigentümer Cockpit', 'tenant': 'Mieter Portal' };
                 document.getElementById('role-label').textContent = roleLabels[profile.role] || 'Nutzer Portal';
-                
                 document.getElementById('user-avatar').textContent = profile.full_name.charAt(0).toUpperCase();
                 document.getElementById('dropdown-name').textContent = profile.full_name;
                 document.getElementById('dropdown-email').textContent = profile.email;
-
                 renderNav(profile.role);
                 loadDashboard(); 
             } catch (err) { console.error(err); }
@@ -236,45 +194,18 @@
         function renderNav(role) {
             const nav = document.getElementById('nav-links');
             let html = `<li><a onclick="loadDashboard(); setActiveNav(this)" class="nav-link active-link">${icons.dashboard} Dashboard</a></li>`;
-
             if (role === 'admin' || role === 'manager') {
-                html += `<li class="nav-section-title">Kommunikation</li>`;
-                html += `<li><a onclick="loadNews(); setActiveNav(this)" class="nav-link">${icons.news} Schwarzes Brett</a></li>`;
-                html += `<li><a onclick="loadTickets(); setActiveNav(this)" class="nav-link">${icons.tickets} Ticket System</a></li>`;
-
-                html += `<li class="nav-section-title">Verwaltung</li>`;
-                html += `<li><a onclick="loadUserManagement(); setActiveNav(this)" class="nav-link">${icons.users} Personen</a></li>`;
-                html += `<li><a onclick="loadTenants(); setActiveNav(this)" class="nav-link">${icons.buildings} Bestands-Objekte</a></li>`;
-
-                html += `<li class="nav-section-title">Finanzen</li>`;
-                html += `<li><a onclick="loadFinance(); setActiveNav(this)" class="nav-link">${icons.finance} Abrechnungen</a></li>`;
-
-                html += `<li class="nav-section-title">Service & Dokumente</li>`;
-                html += `<li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Dokumenten Cloud</a></li>`;
-                html += `<li><a onclick="loadContacts(); setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li>`;
-                html += `<li><a onclick="loadSettings(); setActiveNav(this)" class="nav-link">${icons.settings} Einstellungen</a></li>`;
-            } 
-            else if (role === 'owner') {
-                html += `<li class="nav-section-title">Mein Asset</li>`;
-                html += `<li><a onclick="loadMyUnits(); setActiveNav(this)" class="nav-link">${icons.buildings} Meine Einheiten</a></li>`;
-                html += `<li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Dokumente</a></li>`;
-                html += `<li><a onclick="loadTickets(); setActiveNav(this)" class="nav-link">${icons.tickets} Meine Tickets</a></li>`;
-                
-                // (Optional: Vermieter-Zusatzfunktionen)
-                html += `<li class="nav-section-title">Vermieter-Bereich</li>`;
-                html += `<li><a onclick="loadMyTenants(); setActiveNav(this)" class="nav-link">${icons.users} Meine Mieter</a></li>`;
-                html += `<li><a onclick="loadContacts(); setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li>`;
-            } 
-            else { // role === 'tenant'
-                html += `<li class="nav-section-title">Kommunikation</li>`;
-                html += `<li><a onclick="loadNews(); setActiveNav(this)" class="nav-link">${icons.news} Schwarzes Brett</a></li>`;
-                html += `<li><a onclick="loadTickets(); setActiveNav(this)" class="nav-link">${icons.tickets} Meine Meldungen</a></li>`;
-
-                html += `<li class="nav-section-title">Service & Dokumente</li>`;
-                html += `<li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Meine Dokumente</a></li>`;
-                html += `<li><a onclick="loadContacts(); setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li>`;
+                html += `<li class="nav-section-title">Kommunikation</li><li><a onclick="loadNews(); setActiveNav(this)" class="nav-link">${icons.news} Schwarzes Brett</a></li><li><a onclick="loadTickets(); setActiveNav(this)" class="nav-link">${icons.tickets} Ticket System</a></li>`;
+                html += `<li class="nav-section-title">Verwaltung</li><li><a onclick="loadUserManagement(); setActiveNav(this)" class="nav-link">${icons.users} Personen</a></li><li><a onclick="loadTenants(); setActiveNav(this)" class="nav-link">${icons.buildings} Bestands-Objekte</a></li>`;
+                html += `<li class="nav-section-title">Finanzen</li><li><a onclick="loadFinance(); setActiveNav(this)" class="nav-link">${icons.finance} Abrechnungen</a></li>`;
+                html += `<li class="nav-section-title">Service & Dokumente</li><li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Dokumenten Cloud</a></li><li><a onclick="loadContacts(); setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li><li><a onclick="loadSettings(); setActiveNav(this)" class="nav-link">${icons.settings} Einstellungen</a></li>`;
+            } else if (role === 'owner') {
+                html += `<li class="nav-section-title">Mein Asset</li><li><a onclick="loadMyUnits(); setActiveNav(this)" class="nav-link">${icons.buildings} Meine Einheiten</a></li><li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Dokumente</a></li><li><a onclick="loadTickets(); setActiveNav(this)" class="nav-link">${icons.tickets} Meine Tickets</a></li>`;
+                html += `<li class="nav-section-title">Vermieter-Bereich</li><li><a onclick="loadMyTenants(); setActiveNav(this)" class="nav-link">${icons.users} Meine Mieter</a></li><li><a onclick="loadContacts(); setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li>`;
+            } else { 
+                html += `<li class="nav-section-title">Kommunikation</li><li><a onclick="loadNews(); setActiveNav(this)" class="nav-link">${icons.news} Schwarzes Brett</a></li><li><a onclick="loadTickets(); setActiveNav(this)" class="nav-link">${icons.tickets} Meine Meldungen</a></li>`;
+                html += `<li class="nav-section-title">Service & Dokumente</li><li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Meine Dokumente</a></li><li><a onclick="loadContacts(); setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li>`;
             }
-
             nav.innerHTML = html;
         }
 
@@ -288,64 +219,26 @@
         // === START: MODUL DASHBOARD ===
         async function loadDashboard() {
             const container = document.getElementById('content-area');
-            container.innerHTML = `
-                <div class="p-10 card text-center">
-                    <h2 class="text-xl font-bold mb-2">Willkommen im Dashboard</h2>
-                    <p class="text-gray-500">Wähle einen Menüpunkt aus der Sidebar, um zu starten.</p>
-                </div>
-            `;
+            container.innerHTML = `<div class="p-10 card text-center"><h2 class="text-xl font-bold mb-2">Willkommen im Dashboard</h2><p class="text-gray-500">Wähle einen Menüpunkt aus der Sidebar, um zu starten.</p></div>`;
         }
         // === END: MODUL DASHBOARD ===
-
-        // === START: MODUL TICKETS ===
-        async function loadTickets() {
-            const container = document.getElementById('content-area');
-            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Tickets</h2><p class="text-gray-400 italic">Hier wird als nächstes das Zammad-System aufgebaut...</p>`;
-        }
-        // === END: MODUL TICKETS ===
-
-        // === START: MODUL NEWS ===
-        async function loadNews() {
-            const container = document.getElementById('content-area');
-            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Schwarzes Brett</h2><p class="text-gray-400 italic">Wird in Kürze implementiert...</p>`;
-        }
-        // === END: MODUL NEWS ===
-
-        // === START: MODUL DOKUMENTE ===
-        async function loadDocuments() {
-            const container = document.getElementById('content-area');
-            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Dokumente</h2><p class="text-gray-400 italic">Hier kommt das neue Dateisystem-Design hin...</p>`;
-        }
-        // === END: MODUL DOKUMENTE ===
 
         // === START: MODUL OBJEKTE ===
         async function loadTenants() {
             const container = document.getElementById('content-area');
             container.innerHTML = `
                 <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)]">
-                    
-                    <!-- Linke Spalte: Gebäude-Liste -->
                     <div class="w-full lg:w-1/3 flex flex-col gap-4 h-full">
                         <div class="card flex flex-col h-full overflow-hidden border border-gray-100">
                             <div class="p-5 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
                                 <h2 class="text-sm font-black uppercase tracking-widest text-gray-500">Immobilienbestand</h2>
-                                <button onclick="showBuildingForm()" class="bg-hb-olive text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-opacity-80 shadow-sm transition-transform hover:scale-105" title="Neues Gebäude anlegen">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 4v16m8-8H4"></path></svg>
-                                </button>
+                                <button onclick="showBuildingForm()" class="bg-hb-olive text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-opacity-80 shadow-sm transition-transform hover:scale-105">+ </button>
                             </div>
-                            <div id="buildings-list" class="flex-grow overflow-y-auto p-3 space-y-2 chat-scroll">
-                                <p class="text-sm text-gray-400 italic text-center mt-10">Lade Gebäude...</p>
-                            </div>
+                            <div id="buildings-list" class="flex-grow overflow-y-auto p-3 space-y-2"></div>
                         </div>
                     </div>
-
-                    <!-- Rechte Spalte: Gebäude-Details & Einheiten -->
                     <div class="w-full lg:w-2/3 flex flex-col h-full" id="units-area">
-                        <div class="card p-10 flex flex-col items-center justify-center text-gray-400 h-full border border-gray-100 bg-gray-50/20">
-                            <svg class="w-16 h-16 text-gray-200 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-                            <p class="font-medium text-lg text-gray-500">Bitte wähle links ein Objekt aus</p>
-                            <p class="text-sm mt-2">oder erstelle ein neues Gebäude über das Plus-Symbol.</p>
-                        </div>
+                        <div class="card p-10 flex flex-col items-center justify-center text-gray-400 h-full">Bitte wähle ein Objekt aus.</div>
                     </div>
                 </div>
             `;
@@ -354,82 +247,34 @@
 
         async function fetchBuildingsList() {
             const list = document.getElementById('buildings-list');
-            const { data, error } = await _supabase.from('buildings').select('*').order('name');
-            
-            if (error) {
-                list.innerHTML = `<p class="text-red-500 text-sm p-4">Fehler: ${error.message}</p>`;
-                return;
-            }
-            
+            const { data } = await _supabase.from('buildings').select('*').order('name');
             currentBuildings = data || [];
-            
-            if (currentBuildings.length === 0) {
-                list.innerHTML = `<p class="text-sm text-gray-400 italic text-center mt-10">Keine Objekte angelegt.</p>`;
-                return;
-            }
-
-            list.innerHTML = currentBuildings.map(b => `
-                <div onclick="selectBuilding(${b.id})" id="b-item-${b.id}" class="p-4 rounded-xl cursor-pointer transition-all border border-transparent hover:border-gray-200 hover:bg-gray-50">
-                    <h3 class="font-bold text-hb-offblack">${b.name}</h3>
-                    <p class="text-xs text-gray-500 truncate mt-1">${b.address || 'Keine Adresse'}</p>
-                </div>
-            `).join('');
-
-            // Falls bereits ein Objekt markiert war, Markierung beibehalten
+            list.innerHTML = currentBuildings.map(b => `<div onclick="selectBuilding(${b.id})" id="b-item-${b.id}" class="p-4 rounded-xl cursor-pointer border border-transparent hover:bg-gray-50">
+                <h3 class="font-bold text-hb-offblack">${b.name}</h3><p class="text-xs text-gray-500">${b.address || '-'}</p></div>`).join('');
             if(selectedBuildingId) highlightSelectedBuilding(selectedBuildingId);
         }
 
         function highlightSelectedBuilding(id) {
-            document.querySelectorAll('[id^="b-item-"]').forEach(el => {
-                el.classList.remove('bg-hb-olive', 'text-white', 'hover:bg-hb-olive');
-                el.classList.add('hover:bg-gray-50');
-                const title = el.querySelector('h3');
-                const subtitle = el.querySelector('p');
-                if(title) title.classList.replace('text-white', 'text-hb-offblack');
-                if(subtitle) subtitle.classList.replace('text-white/80', 'text-gray-500');
-            });
-
-            const selected = document.getElementById(`b-item-${id}`);
-            if (selected) {
-                selected.classList.remove('hover:bg-gray-50', 'border-transparent');
-                selected.classList.add('bg-hb-olive', 'shadow-md');
-                selected.querySelector('h3').classList.replace('text-hb-offblack', 'text-white');
-                selected.querySelector('p').classList.replace('text-gray-500', 'text-white/80');
-            }
+            document.querySelectorAll('[id^="b-item-"]').forEach(el => el.classList.remove('bg-hb-olive', 'text-white'));
+            const sel = document.getElementById(`b-item-${id}`);
+            if (sel) sel.classList.add('bg-hb-olive', 'text-white');
         }
 
         async function selectBuilding(id) {
             selectedBuildingId = id;
             highlightSelectedBuilding(id);
-            const building = currentBuildings.find(b => b.id === id);
-            const area = document.getElementById('units-area');
-
-            area.innerHTML = `
-                <div class="card h-full flex flex-col border border-gray-100 shadow-sm overflow-hidden">
-                    <!-- Gebäude Header -->
+            const b = currentBuildings.find(x => x.id === id);
+            document.getElementById('units-area').innerHTML = `
+                <div class="card h-full flex flex-col overflow-hidden">
                     <div class="p-6 border-b border-gray-50 bg-white flex justify-between items-start">
-                        <div>
-                            <h2 class="text-2xl font-extrabold text-hb-offblack tracking-tight">${building.name}</h2>
-                            <p class="text-sm text-gray-500 mt-1">${building.address || 'Keine Adresse hinterlegt'}</p>
-                            <div class="flex flex-wrap gap-4 mt-3 text-xs font-bold text-gray-400 uppercase tracking-widest">
-                                <span>Baujahr: ${building.construction_year || '-'}</span>
-                                <span>Heizung: ${building.heating_type || '-'}</span>
-                                <span>Trinkwasserprüfung: ${building.drinking_water_analysis_due ? new Date(building.drinking_water_analysis_due).toLocaleDateString() : '-'}</span>
-                            </div>
-                        </div>
-                        <button onclick="showBuildingForm(${building.id})" class="text-xs font-bold text-hb-olive hover:underline bg-hb-ultralight px-3 py-1.5 rounded-lg">Gebäude bearbeiten</button>
+                        <div><h2 class="text-2xl font-extrabold text-hb-offblack">${b.name}</h2><p class="text-sm text-gray-500">${b.address || '-'}</p></div>
+                        <button onclick="showBuildingForm(${b.id})" class="text-xs font-bold text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg">Bearbeiten</button>
                     </div>
-                    
-                    <!-- Einheiten Toolbar -->
                     <div class="px-6 py-4 bg-gray-50/50 border-b border-gray-50 flex justify-between items-center">
-                        <h3 class="text-sm font-black uppercase tracking-widest text-gray-500">Zugehörige Einheiten</h3>
-                        <button onclick="showApartmentForm()" class="btn-primary py-2 px-4 text-xs shadow-sm">+ Einheit hinzufügen</button>
+                        <h3 class="text-sm font-black uppercase tracking-widest text-gray-500">Einheiten</h3>
+                        <button onclick="showApartmentForm()" class="btn-primary py-2 px-4 text-xs">+ Einheit</button>
                     </div>
-
-                    <!-- Einheiten Liste -->
-                    <div class="flex-grow overflow-y-auto p-6 bg-[#f4f5f1] chat-scroll" id="apartments-list">
-                        <p class="text-sm text-gray-400 italic text-center mt-10">Lade Einheiten...</p>
-                    </div>
+                    <div class="flex-grow overflow-y-auto p-6 bg-[#f4f5f1]" id="apartments-list"></div>
                 </div>
             `;
             await fetchApartmentsForBuilding(id);
@@ -437,434 +282,74 @@
 
         async function fetchApartmentsForBuilding(bId) {
             const list = document.getElementById('apartments-list');
-            const { data, error } = await _supabase.from('apartments').select('*').eq('building_id', bId).order('apartment_number');
-            
-            if (error) { list.innerHTML = `<p class="text-red-500 text-sm">Fehler: ${error.message}</p>`; return; }
-            
+            const { data } = await _supabase.from('apartments').select('*').eq('building_id', bId).order('apartment_number');
             currentApartments = data || [];
-
-            if (currentApartments.length === 0) {
-                list.innerHTML = `<p class="text-sm text-gray-400 italic text-center mt-10">Diesem Gebäude sind noch keine Einheiten zugeordnet.</p>`;
-                return;
-            }
-
             list.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">` + currentApartments.map(apt => `
-                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:border-hb-olive transition-colors relative group">
-                    <div class="flex justify-between items-start mb-3">
-                        <span class="bg-gray-100 text-gray-600 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md">${apt.type || 'Wohnen'}</span>
-                        <button onclick="showApartmentForm(${apt.id})" class="text-xs font-bold text-hb-olive opacity-0 group-hover:opacity-100 transition-opacity hover:underline">Bearbeiten</button>
-                    </div>
+                <div onclick="showApartmentForm(${apt.id})" class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:border-hb-olive cursor-pointer transition-colors">
                     <h4 class="text-lg font-extrabold text-hb-offblack">${apt.apartment_number}</h4>
-                    <p class="text-sm font-medium text-gray-500 mt-1">${apt.floor ? apt.floor + ' • ' : ''}${apt.rooms ? apt.rooms + ' Zi. • ' : ''}${apt.sq_meters || 0} m²</p>
-                    <p class="text-xs text-gray-400 mt-1">Status: ${apt.tenant_status || 'Unbekannt'}</p>
-                    
-                    <div class="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-gray-50">
-                        <div><p class="text-[10px] uppercase font-bold text-gray-400">Hausgeld (WEG)</p><p class="text-sm font-semibold">${apt.hausgeld || 0} €</p></div>
-                        <div><p class="text-[10px] uppercase font-bold text-gray-400">Miete</p><p class="text-sm font-semibold">${apt.rent_amount || 0} €</p></div>
-                        <div><p class="text-[10px] uppercase font-bold text-gray-400">MEA</p><p class="text-sm font-semibold">${apt.mea || '-'}</p></div>
-                    </div>
-                </div>
-            `).join('') + `</div>`;
+                    <p class="text-sm text-gray-500">${apt.sq_meters || 0} m² • ${apt.tenant_status || 'Leerstand'}</p>
+                </div>`).join('') + `</div>`;
         }
 
-        // --- Formular: Gebäude (Neu / Edit) ---
-        function showBuildingForm(id = null) {
-            const area = document.getElementById('units-area');
-            let b = id ? currentBuildings.find(x => x.id === id) : {};
-            const isEdit = !!id;
-
-            area.innerHTML = `
-                <div class="card p-8 h-full overflow-y-auto border border-gray-100 shadow-sm">
-                    <div class="flex justify-between items-center mb-8">
-                        <h2 class="text-2xl font-extrabold text-hb-offblack tracking-tight">${isEdit ? 'Gebäude bearbeiten' : 'Neues Gebäude anlegen'}</h2>
-                        <button onclick="selectedBuildingId ? selectBuilding(selectedBuildingId) : loadTenants()" class="text-xs font-bold text-gray-400 uppercase tracking-widest hover:text-hb-orange">Abbrechen</button>
-                    </div>
-                    
-                    <form id="building-form" class="space-y-6 max-w-2xl">
-                        <input type="hidden" id="b_form_id" value="${b.id || ''}">
-                        
-                        <div class="space-y-2">
-                            <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Bezeichnung des Objekts *</label>
-                            <input type="text" id="b_form_name" value="${b.name || ''}" placeholder="z.B. Seestraße 10" required>
-                        </div>
-                        
-                        <div class="space-y-2">
-                            <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Vollständige Adresse</label>
-                            <input type="text" id="b_form_address" value="${b.address || ''}" placeholder="Musterstraße 1, 12345 Musterstadt">
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="space-y-2">
-                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Baujahr</label>
-                                <input type="number" id="b_form_year" value="${b.construction_year || ''}" placeholder="YYYY">
-                            </div>
-                            <div class="space-y-2">
-                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Heizungsart</label>
-                                <input type="text" id="b_form_heating" value="${b.heating_type || ''}" placeholder="z.B. Gas-Zentralheizung">
-                            </div>
-                            <div class="space-y-2 md:col-span-2">
-                                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Fälligkeit nächste Trinkwasseruntersuchung</label>
-                                <input type="date" id="b_form_drinking_water" value="${b.drinking_water_analysis_due || ''}">
-                            </div>
-                        </div>
-
-                        <div class="space-y-2">
-                            <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Interne Notizen (Nur Verwaltung)</label>
-                            <textarea id="b_form_notes" rows="4" placeholder="Besonderheiten, Hausmeister-Infos...">${b.notes || ''}</textarea>
-                        </div>
-
-                        <div class="pt-6 flex gap-4">
-                            <button type="submit" class="btn-primary w-full md:w-auto">Gebäude speichern</button>
-                            ${isEdit ? `<button type="button" onclick="deleteBuilding(${b.id})" class="btn-secondary text-red-500 hover:bg-red-50 hover:text-red-600 bg-white border border-red-100">Gebäude löschen</button>` : ''}
-                        </div>
-                    </form>
-                </div>
-            `;
-
-            document.getElementById('building-form').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const waterDate = document.getElementById('b_form_drinking_water').value;
-                const payload = {
-                    name: document.getElementById('b_form_name').value,
-                    address: document.getElementById('b_form_address').value,
-                    construction_year: document.getElementById('b_form_year').value || null,
-                    heating_type: document.getElementById('b_form_heating').value,
-                    drinking_water_analysis_due: waterDate ? waterDate : null,
-                    notes: document.getElementById('b_form_notes').value
-                };
-
-                const fId = document.getElementById('b_form_id').value;
-                let res;
-                if (fId) res = await _supabase.from('buildings').update(payload).eq('id', fId);
-                else res = await _supabase.from('buildings').insert([payload]).select('id').single();
-
-                if (res.error) { showToast(res.error.message, "error"); } 
-                else { 
-                    showToast("Gebäude erfolgreich gespeichert!"); 
-                    await fetchBuildingsList();
-                    selectBuilding(fId ? fId : res.data.id);
-                }
-            });
-        }
-
-        async function deleteBuilding(id) {
-            if(confirm("Möchten Sie dieses Gebäude wirklich löschen? ACHTUNG: Alle zugehörigen Einheiten werden ebenfalls gelöscht!")) {
-                const {error} = await _supabase.from('buildings').delete().eq('id', id);
-                if(error) showToast(error.message, "error");
-                else {
-                    showToast("Gebäude gelöscht");
-                    selectedBuildingId = null;
-                    loadTenants();
-                }
-            }
-        }
-
-        // --- Formular: Einheit (Neu / Edit) mit TABS ---
         async function showApartmentForm(id = null) {
             const area = document.getElementById('units-area');
             let apt = id ? currentApartments.find(x => x.id === id) : {};
             const isEdit = !!id;
-            let activeTenancy = null;
-
-            if (isEdit && apt?.id) {
-              activeTenancy = await loadActiveTenancy(apt.id);
-            }
-
+            const activeTenancy = isEdit ? await loadActiveTenancy(apt.id) : null;
 
             area.innerHTML = `
                 <div class="card p-8 h-full overflow-y-auto border border-gray-100 shadow-sm flex flex-col">
-                    <div class="flex justify-between items-center mb-6 flex-shrink-0">
-                        <h2 class="text-2xl font-extrabold text-hb-offblack tracking-tight">${isEdit ? 'Einheit bearbeiten' : 'Neue Einheit anlegen'}</h2>
-                        <button onclick="selectBuilding(selectedBuildingId)" class="text-xs font-bold text-gray-400 uppercase tracking-widest hover:text-hb-orange">Zurück zur Übersicht</button>
+                    <div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-extrabold">${isEdit ? 'Bearbeiten' : 'Neu'}</h2><button onclick="selectBuilding(selectedBuildingId)" class="text-xs font-bold text-gray-400">Abbrechen</button></div>
+                    <div class="flex overflow-x-auto border-b border-gray-200 mb-6 gap-8 hide-scrollbar">
+                        <button type="button" id="btn-tab-base" onclick="switchAptTab('base')" class="apt-tab-btn pb-3 border-b-2 font-bold text-sm border-hb-olive text-hb-olive">Stammdaten</button>
+                        <button type="button" id="btn-tab-weg" onclick="switchAptTab('weg')" class="apt-tab-btn pb-3 border-b-2 font-bold text-sm border-transparent text-gray-500">WEG-Finanzen</button>
+                        <button type="button" id="btn-tab-rent" onclick="switchAptTab('rent')" class="apt-tab-btn pb-3 border-b-2 font-bold text-sm border-transparent text-gray-500">Miet-Infos</button>
                     </div>
-
-                    <!-- Tab Navigation -->
-                    <div class="flex overflow-x-auto border-b border-gray-200 mb-6 gap-8 hide-scrollbar flex-shrink-0">
-                        <button type="button" id="btn-tab-base" onclick="switchAptTab('base')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-hb-olive text-hb-olive">Stammdaten</button>
-                        <button type="button" id="btn-tab-weg_finance" onclick="switchAptTab('weg_finance')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">WEG-Finanzen</button>
-                        <button type="button" id="btn-tab-rent_info" onclick="switchAptTab('rent_info')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Mietinformationen</button>
-                        <button type="button" id="btn-tab-apportionment" onclick="switchAptTab('apportionment')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Umlageschlüssel</button>
-                        <button type="button" id="btn-tab-meters" onclick="switchAptTab('meters')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Zähler</button>
-                    </div>
-                    
-                    <form id="apartment-form" class="flex-grow flex flex-col justify-between">
+                    <form id="apartment-form" class="flex-grow flex flex-col">
                         <input type="hidden" id="apt_form_id" value="${apt.id || ''}">
-                        <input type="hidden" id="activeTenancyId" value="${activeTenancy?.id || ''}">
-                        <input type="hidden" id="activeTenantId" value="${activeTenancy?.tenant_id || ''}">
-                        <div class="flex-grow">
-                            <!-- TAB: STAMMDATEN -->
-                            <div id="tab-base" class="apt-tab-content space-y-6">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                    <div class="space-y-1">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Nummer / Bezeichnung *</label>
-                                        <input type="text" id="apt_form_no" value="${apt.apartment_number || ''}" placeholder="z.B. WE 01" required>
-                                    </div>
-                                    <div class="space-y-1">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Nutzungsart</label>
-                                        <select id="apt_form_type">
-                                            <option value="Wohnen" ${apt.type === 'Wohnen' ? 'selected' : ''}>Wohnen</option>
-                                            <option value="Gewerbe" ${apt.type === 'Gewerbe' ? 'selected' : ''}>Gewerbe</option>
-                                            <option value="Stellplatz" ${apt.type === 'Stellplatz' ? 'selected' : ''}>Stellplatz/Garage</option>
-                                        </select>
-                                    </div>
-                                    <div class="space-y-1">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Etage</label>
-                                        <input type="text" id="apt_form_floor" value="${apt.floor || ''}" placeholder="z.B. 1. OG">
-                                    </div>
-                                    <div class="space-y-1">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Lage im Gebäude</label>
-                                        <input type="text" id="apt_form_location" value="${apt.location_in_building || ''}" placeholder="z.B. links, Hofseite">
-                                    </div>
-                                    <div class="space-y-1">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Zimmer</label>
-                                        <input type="number" id="apt_form_rooms" value="${apt.rooms || ''}" step="0.5" placeholder="z.B. 2.5">
-                                    </div>
-                                    <div class="space-y-1 md:col-span-2">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Ausstattung / Besonderheiten</label>
-                                        <textarea id="apt_form_equip" rows="2" placeholder="z.B. Balkon, Einbauküche, Fußbodenheizung...">${apt.equipment_features || ''}</textarea>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- TAB: WEG-FINANZEN -->
-                            <div id="tab-weg_finance" class="apt-tab-content hidden space-y-6">
-                                <div class="bg-gray-50 p-5 rounded-xl border border-gray-100 mb-4 text-sm text-gray-600">
-                                    Relevante Zahlungen der Eigentümer an die WEG (laut aktuellem Wirtschaftsplan).
-                                </div>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div class="space-y-1">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Hausgeld / Vorauszahlung (€)</label>
-                                        <input type="number" id="apt_form_hausgeld" value="${apt.hausgeld || ''}" step="0.01" placeholder="0.00" oninput="calcWegTotal()">
-                                    </div>
-                                    <div class="space-y-1">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Zuführung Instandhaltungsrücklage (€)</label>
-                                        <input type="number" id="apt_form_ruecklage" value="${apt.ruecklage || ''}" step="0.01" placeholder="0.00" oninput="calcWegTotal()">
-                                    </div>
-                                </div>
-                                <div class="mt-6 pt-4 border-t border-gray-200">
-                                    <p class="text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Gesamtzahlung (Monatlich)</p>
-                                    <p class="text-2xl font-black text-hb-offblack" id="weg_total_display">0,00 €</p>
-                                </div>
-                            </div>
-
-                            <!-- TAB: MIETINFORMATIONEN -->
-                            <div id="tab-rent_info" class="apt-tab-content hidden space-y-6">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div class="space-y-1">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Aktueller Status</label>
-                                        <select id="apt_form_status">
-                                            <option value="Vermietet" ${apt.tenant_status === 'Vermietet' ? 'selected' : ''}>Vermietet</option>
-                                            <option value="Leerstand" ${apt.tenant_status === 'Leerstand' ? 'selected' : ''}>Leerstand</option>
-                                            <option value="Eigennutzung" ${apt.tenant_status === 'Eigennutzung' ? 'selected' : ''}>Eigennutzung</option>
-                                        </select>
-                                    </div>
-                                    <div class="space-y-1">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Einzugsdatum</label>
-                                        <input type="date" id="apt_form_movein" value="${apt.move_in_date || ''}">
-                                    </div>
-                                    
-                                    <div class="space-y-1 border-t border-gray-100 pt-4 mt-2">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Aktuelle Kaltmiete (€)</label>
-                                        <input type="number" id="apt_form_rent" value="${apt.rent_amount || ''}" step="0.01">
-                                    </div>
-                                    <div class="space-y-1 border-t border-gray-100 pt-4 mt-2">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Nebenkosten-Vorauszahlung (€)</label>
-                                        <input type="number" id="apt_form_utils" value="${apt.utilities_amount || ''}" step="0.01">
-                                    </div>
-
-                                    <div class="space-y-1 border-t border-gray-100 pt-4 mt-2">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Kaution vereinbart (€)</label>
-                                        <input type="number" id="apt_form_deposit" value="${apt.deposit_amount || ''}" step="0.01">
-                                    </div>
-                                    <div class="space-y-1 border-t border-gray-100 pt-4 mt-2 flex flex-col justify-center">
-                                        <div class="flex items-center gap-3 mt-4">
-                                            <input type="checkbox" id="apt_form_deposit_paid" ${apt.deposit_paid ? 'checked' : ''}>
-                                            <label for="apt_form_deposit_paid" class="text-sm font-bold text-gray-700 cursor-pointer">Kaution wurde vollständig bezahlt</label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- TAB: UMLAGESCHLÜSSEL -->
-                            <div id="tab-apportionment" class="apt-tab-content hidden space-y-6">
-                                <div class="bg-blue-50/50 border border-blue-100 p-4 rounded-xl mb-4 text-sm text-blue-800">
-                                    Verteilerschlüssel für die jährliche Nebenkosten- und Hausgeldabrechnung.
-                                </div>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div class="space-y-1">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Wohn-/Nutzfläche (m²)</label>
-                                        <input type="number" id="apt_form_sqm" value="${apt.sq_meters || ''}" step="0.01">
-                                    </div>
-                                    <div class="space-y-1">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">MEA (Miteigentumsanteile)</label>
-                                        <input type="number" id="apt_form_mea" value="${apt.mea || ''}" step="0.0001" placeholder="z.B. 125.5">
-                                    </div>
-                                    <div class="space-y-1">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Einheiten (Verteilerschlüssel)</label>
-                                        <input type="number" id="apt_form_dist_units" value="${apt.distribution_units || '1'}" step="0.0001" placeholder="Standard: 1">
-                                    </div>
-                                    <div class="space-y-1">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Personenanzahl (Aktuell)</label>
-                                        <input type="number" id="apt_form_persons" value="${apt.persons_count || '1'}" step="1" min="0">
-                                    </div>
-                                    <div class="space-y-1 md:col-span-2 border-t border-gray-100 pt-4 mt-2">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Abrechnung über Festumlage / Direktkosten</label>
-                                        <input type="text" id="apt_form_fixed_details" value="${apt.fixed_apportionment_details || ''}" placeholder="z.B. Gartenpflege, Kaltwasser">
-                                        <p class="text-[10px] text-gray-400 mt-1">Tragen Sie hier Kostenarten ein, die dieser Einheit direkt oder zu 100% zugewiesen werden.</p>
-                                    </div>
-                                </div>
-                                <div class="mt-6 p-4 border border-gray-200 rounded-xl bg-gray-50 flex items-center gap-3">
-                                    <input type="checkbox" id="apt_form_ext_bill" ${apt.has_external_billing ? 'checked' : ''}>
-                                    <label for="apt_form_ext_bill" class="text-sm font-bold text-gray-700 cursor-pointer">Heiz- und Warmwasserkosten werden durch externen Dienstleister (z.B. Techem) abgerechnet.</label>
-                                </div>
-                            </div>
-
-                            <!-- TAB: ZÄHLER -->
-                            <div id="tab-meters" class="apt-tab-content hidden space-y-6">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div class="space-y-1 md:col-span-2">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Stromzähler-Nr.</label>
-                                        <input type="text" id="apt_form_elec" value="${apt.meter_electricity || ''}">
-                                    </div>
-                                    
-                                    <div class="space-y-1 border-t border-gray-100 pt-4">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Wasserzähler-Nr.</label>
-                                        <input type="text" id="apt_form_water" value="${apt.meter_water || ''}">
-                                    </div>
-                                    <div class="space-y-1 border-t border-gray-100 pt-4">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Wasser: Eichfrist bis</label>
-                                        <input type="date" id="apt_form_water_cal" value="${apt.meter_water_calibration_until || ''}">
-                                    </div>
-
-                                    <div class="space-y-1 border-t border-gray-100 pt-4">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Wärmemengenzähler-Nr.</label>
-                                        <input type="text" id="apt_form_heat" value="${apt.meter_heating || ''}">
-                                    </div>
-                                    <div class="space-y-1 border-t border-gray-100 pt-4">
-                                        <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest">Wärme: Eichfrist bis</label>
-                                        <input type="date" id="apt_form_heat_cal" value="${apt.meter_heating_calibration_until || ''}">
-                                    </div>
-                                </div>
-                            </div>
+                        <div id="tab-base" class="apt-tab-content space-y-4">
+                            <input type="text" id="apt_form_no" value="${apt.apartment_number || ''}" placeholder="Nr. *" required>
+                            <input type="number" id="apt_form_sqm" value="${apt.sq_meters || ''}" placeholder="m²">
                         </div>
-
-                        <!-- Buttons Container am Ende -->
-                        <div class="pt-6 mt-6 border-t border-gray-100 flex gap-4 flex-shrink-0">
-                            <button type="submit" class="btn-primary w-full md:w-auto">Einheit speichern</button>
-                            ${isEdit ? `<button type="button" onclick="deleteApartment(${apt.id})" class="btn-secondary text-red-500 hover:bg-red-50 hover:text-red-600 bg-white border border-red-100">Einheit löschen</button>` : ''}
+                        <div id="tab-weg" class="apt-tab-content hidden space-y-4">
+                            <input type="number" id="apt_form_hausgeld" value="${apt.hausgeld || ''}" placeholder="Hausgeld">
+                        </div>
+                        <div id="tab-rent" class="apt-tab-content hidden space-y-4">
+                            <select id="apt_form_status"><option value="Leerstand">Leerstand</option><option value="Vermietet" ${apt.tenant_status === 'Vermietet' ? 'selected' : ''}>Vermietet</option></select>
+                            <input type="number" id="apt_form_rent" value="${activeTenancy?.rent_amount || ''}" placeholder="Kaltmiete">
+                        </div>
+                        <div class="pt-6 mt-auto border-t border-gray-100 flex gap-4">
+                            <button type="submit" class="btn-primary">Speichern</button>
+                            ${isEdit ? `<button type="button" onclick="deleteApartment(${apt.id})" class="text-red-500">Löschen</button>` : ''}
                         </div>
                     </form>
-                </div>
-            `;
+                </div>`;
 
-            // Helper function for UI total calculation
-            window.calcWegTotal = function() {
-                const hg = parseFloat(document.getElementById('apt_form_hausgeld').value) || 0;
-                const rl = parseFloat(document.getElementById('apt_form_ruecklage').value) || 0;
-                document.getElementById('weg_total_display').innerText = (hg + rl).toFixed(2).replace('.', ',') + ' €';
-            };
-            if(isEdit) calcWegTotal();
-
-            document.getElementById('apartment-form').addEventListener('submit', async (e) => {
+            document.getElementById('apartment-form').onsubmit = async (e) => {
                 e.preventDefault();
-                
-                // Dates format handling
-                const moveIn = document.getElementById('apt_form_movein').value;
-                const waterCal = document.getElementById('apt_form_water_cal').value;
-                const heatCal = document.getElementById('apt_form_heat_cal').value;
-
                 const payload = {
                     building_id: selectedBuildingId,
                     apartment_number: document.getElementById('apt_form_no').value,
-                    floor: document.getElementById('apt_form_floor').value,
-                    location_in_building: document.getElementById('apt_form_location').value,
-                    type: document.getElementById('apt_form_type').value,
-                    rooms: document.getElementById('apt_form_rooms').value || null,
-                    equipment_features: document.getElementById('apt_form_equip').value,
-                    
-                    // WEG-Finanzen
-                    hausgeld: document.getElementById('apt_form_hausgeld').value || 0,
-                    ruecklage: document.getElementById('apt_form_ruecklage').value || 0,
-                    
-                    // Mietinformationen
-                    
-
-                    // Umlagen
-                    sq_meters: document.getElementById('apt_form_sqm').value || null,
-                    mea: document.getElementById('apt_form_mea').value || null,
-                    distribution_units: document.getElementById('apt_form_dist_units').value || 1,
-                    persons_count: document.getElementById('apt_form_persons').value || 1,
-                    fixed_apportionment_details: document.getElementById('apt_form_fixed_details').value,
-                    has_external_billing: document.getElementById('apt_form_ext_bill').checked,
-                    
-                    // Zähler
-                    meter_electricity: document.getElementById('apt_form_elec').value,
-                    meter_water: document.getElementById('apt_form_water').value,
-                    meter_water_calibration_until: waterCal ? waterCal : null,
-                    meter_heating: document.getElementById('apt_form_heat').value,
-                    meter_heating_calibration_until: heatCal ? heatCal : null
+                    sq_meters: document.getElementById('apt_form_sqm').value || 0,
+                    tenant_status: document.getElementById('apt_form_status').value,
+                    hausgeld: document.getElementById('apt_form_hausgeld').value || 0
                 };
-
                 const fId = document.getElementById('apt_form_id').value;
-                let res;
-                if (fId) res = await _supabase.from('apartments').update(payload).eq('id', fId);
-                else res = await _supabase.from('apartments').insert([payload]);
-
-                if (res.error) { showToast(res.error.message, "error"); } 
-                else { 
-                    showToast("Einheit erfolgreich gespeichert!"); 
-                    selectBuilding(selectedBuildingId); // Zurück zur Übersicht
-                }
-            });
-        }
-
-        async function deleteApartment(id) {
-            if(confirm("Möchten Sie diese Einheit wirklich löschen?")) {
-                const {error} = await _supabase.from('apartments').delete().eq('id', id);
-                if(error) showToast(error.message, "error");
-                else {
-                    showToast("Einheit gelöscht");
-                    selectBuilding(selectedBuildingId);
-                }
-            }
+                const { error } = fId ? await _supabase.from('apartments').update(payload).eq('id', fId) : await _supabase.from('apartments').insert([payload]);
+                if (!error) { showToast("Gespeichert"); selectBuilding(selectedBuildingId); }
+            };
         }
         // === END: MODUL OBJEKTE ===
 
-        // === START: MODUL MIETER ===
-        async function loadUserManagement() {
-            const container = document.getElementById('content-area');
-            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Personen & Mieter</h2><p class="text-gray-400 italic">Nutzerverwaltung und Rollenzuweisung...</p>`;
-        }
-        async function loadMyTenants() {
-            const container = document.getElementById('content-area');
-            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Meine Mieter</h2><p class="text-gray-400 italic">Vermieter-Bereich zur Verwaltung eigener Mieter...</p>`;
-        }
-        // === END: MODUL MIETER ===
-
-        // === START: MODUL FINANZEN ===
-        async function loadFinance() {
-            const container = document.getElementById('content-area');
-            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Finanzen</h2><p class="text-gray-400 italic">Platzhalter für zukünftige Buchhaltungsfunktionen...</p>`;
-        }
-        // === END: MODUL FINANZEN ===
-
-        // === START: MODUL KONTAKTE ===
-        async function loadContacts() {
-            const container = document.getElementById('content-area');
-            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Kontaktbuch</h2><p class="text-gray-400 italic">Wird in Kürze implementiert...</p>`;
-        }
-        // === END: MODUL KONTAKTE ===
-
-        // === START: MODUL PROFIL & EINSTELLUNGEN ===
-        async function loadProfile() {
-            const container = document.getElementById('content-area');
-            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Mein Profil</h2><p class="text-gray-400 italic">Hier kannst du deine persönlichen Daten bearbeiten...</p>`;
-        }
-        async function loadSettings() {
-            const container = document.getElementById('content-area');
-            container.innerHTML = `<h2 class="text-2xl font-extrabold mb-6">Einstellungen</h2><p class="text-gray-400 italic">Globale Einstellungen, Kategorien und Vorlagen...</p>`;
-        }
-        // === END: MODUL PROFIL & EINSTELLUNGEN ===
+        // Platzhalter für weitere Module
+        async function loadNews() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold">News</h2>'; }
+        async function loadTickets() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold">Tickets</h2>'; }
+        async function loadUserManagement() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold">Personen</h2>'; }
+        async function loadFinance() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold">Abrechnungen</h2>'; }
+        async function loadDocuments() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold">Dokumente</h2>'; }
+        async function loadContacts() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold">Kontakte</h2>'; }
+        async function loadSettings() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold">Einstellungen</h2>'; }
+        async function loadProfile() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold">Profil</h2>'; }
 
         init();
     </script>
