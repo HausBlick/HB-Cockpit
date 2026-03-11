@@ -33,22 +33,20 @@
         .nav-link:hover { background-color: #f3f4f6; color: #687451; }
         .active-link { background-color: #687451 !important; color: white !important; }
         .nav-section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 800; color: #9ca3af; padding: 24px 16px 8px 16px; }
-        
         .card { background: white; border-radius: 15px; box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03); border: 1px solid rgba(0,0,0,0.02); }
         .dropdown-open { display: block !important; animation: fadeIn 0.15s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* Form Elements */
+        
+        /* Formular Styling */
         input, select, textarea { border-radius: 12px; background-color: #F9FAF8; border: 1px solid #e5e7eb; transition: all 0.2s; padding: 12px 16px; width: 100%; font-size: 14px; }
         input:focus, select:focus, textarea:focus { background-color: white; border-color: #687451; outline: none; box-shadow: 0 0 0 3px rgba(104, 116, 81, 0.1); }
-        input[type="checkbox"] { width: auto; accent-color: #687451; width: 1.2rem; height: 1.2rem; cursor: pointer; border-radius: 4px; }
+        input[type="checkbox"] { width: auto; accent-color: #687451; width: 1.2rem; height: 1.2rem; cursor: pointer; }
         
         .btn-primary { background-color: #687451; color: white; border-radius: 12px; transition: all 0.2s; font-weight: 600; padding: 12px 24px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
         .btn-primary:hover { background-color: #555f42; transform: translateY(-1px); }
-        .btn-secondary { background-color: #e5e7eb; color: #374151; border-radius: 12px; transition: all 0.2s; font-weight: 600; padding: 12px 24px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
-        .btn-secondary:hover { background-color: #d1d5db; }
-
-        /* Hide scrollbar for tabs but keep functionality */
+        .btn-secondary { background-color: #e5e7eb; color: #374151; border-radius: 12px; transition: all 0.2s; font-weight: 600; padding: 12px 24px; cursor: pointer; }
+        
+        /* Scrollbars verstecken für Tabs */
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
@@ -58,9 +56,8 @@
     <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none text-left"></div>
 
     <!-- Mobile Header -->
-    <div class="md:hidden bg-white border-b border-gray-100 p-4 flex justify-between items-center sticky top-0 z-50 text-left">
+    <div class="md:hidden bg-white border-b border-gray-100 p-4 flex justify-between items-center sticky top-0 z-50">
         <div class="font-bold text-xl tracking-tight text-hb-olive flex items-center gap-2">
-            <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-8 w-auto">
             Mieterportal
         </div>
         <button onclick="toggleMenu()" class="text-hb-olive p-2 bg-gray-50 rounded-lg">
@@ -68,20 +65,19 @@
         </button>
     </div>
 
-    <!-- === SIDEBAR === -->
+    <!-- Haupt-Sidebar -->
     <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-40 w-72 bg-white border-r border-gray-100 flex-shrink-0 h-screen flex flex-col shadow-soft text-left">
         <div class="p-8 pb-4 hidden md:block text-center border-b border-gray-50 mb-4">
-            <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-10 w-auto mx-auto mb-2">
             <div class="font-extrabold text-xl tracking-tighter text-hb-olive">Mieterportal</div>
             <p class="text-[10px] uppercase tracking-widest font-bold text-gray-400">HB Verwaltung</p>
         </div>
-        <div class="flex-grow p-4 overflow-y-auto">
+        <div class="flex-grow p-4 overflow-y-auto chat-scroll">
             <ul class="space-y-1" id="nav-links"></ul>
         </div>
     </nav>
     <div id="overlay" onclick="toggleMenu()" class="fixed inset-0 bg-hb-offblack/20 backdrop-blur-sm z-30 hidden text-left"></div>
 
-    <!-- === MAIN VIEWPORT === -->
+    <!-- Hauptbereich -->
     <main class="flex-grow h-screen overflow-y-auto relative flex flex-col text-left">
         <header class="p-6 md:p-10 flex justify-between items-center sticky top-0 bg-hb-ultralight/80 backdrop-blur-md z-30 text-left">
             <div class="text-left">
@@ -89,7 +85,7 @@
                 <h1 id="welcome-title" class="text-2xl md:text-3xl font-extrabold tracking-tight">Lade...</h1>
             </div>
             
-            <!-- User Dropdown -->
+            <!-- User Menu -->
             <div class="relative dropdown-container text-left">
                 <button onclick="toggleUserDropdown(event)" class="flex items-center gap-3 bg-white p-1.5 pr-3 rounded-full border border-gray-200 shadow-sm hover:border-hb-olive transition-colors">
                     <div id="user-avatar" class="w-9 h-9 bg-hb-olive text-white rounded-full flex items-center justify-center font-bold text-sm uppercase">?</div>
@@ -110,11 +106,12 @@
             </div>
         </header>
 
+        <!-- Dynamischer Inhalt -->
         <div id="content-area" class="flex-grow px-6 md:px-10 pb-20 overflow-y-auto text-left"></div>
     </main>
 
     <script>
-        // === START: SETUP & GLOBALE VARIABLEN ===
+        // === SETUP & GLOBALE VARIABLEN ===
         const supabaseUrl = 'https://unprrlbvylmzxxhpfisr.supabase.co';
         const supabaseKey = 'sb_publishable_nWYozmRQq8E17z_ljZ2SHA_LUulwUV1';
         const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
@@ -129,12 +126,12 @@
             dashboard: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>`,
             news: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M19 20H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1m2 13a2 2 0 0 1-2-2V7m2 13a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2m-4-3H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"></path></svg>`,
             tickets: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>`,
-            users: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path></svg>`,
+            users: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>`,
             buildings: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M3 21h18"></path><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"></path></svg>`,
             docs: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>`,
             contact: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>`,
-            finance: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3z"></path><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z"></path></svg>`,
-            settings: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><circle cx="12" cy="12" r="3"></circle></svg>`
+            finance: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`,
+            settings: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`
         };
 
         function showToast(message, type = 'success') {
@@ -142,7 +139,7 @@
             const toast = document.createElement('div');
             const bgColor = type === 'error' ? 'bg-hb-orange' : 'bg-hb-olive';
             toast.className = `${bgColor} text-white px-6 py-4 rounded-xl shadow-xl flex items-center gap-3 transform transition-all duration-300 translate-y-10 opacity-0 z-50`;
-            toast.innerHTML = `<span class="text-sm font-bold">${message}</span>`;
+            toast.innerHTML = `<span class="text-sm font-bold text-left">${message}</span>`;
             container.appendChild(toast);
             requestAnimationFrame(() => toast.classList.remove('translate-y-10', 'opacity-0'));
             setTimeout(() => { toast.classList.add('opacity-0'); setTimeout(() => toast.remove(), 300); }, 4000);
@@ -164,12 +161,11 @@
             if(btn) { btn.classList.remove('border-transparent', 'text-gray-500'); btn.classList.add('border-hb-olive', 'text-hb-olive'); }
         };
 
-        // Hilfsfunktion für das neue Datenmodell
         async function loadActiveTenancy(apartmentId) {
             const { data, error } = await _supabase.from('tenancies').select('*').eq('apartment_id', apartmentId).eq('status', 'Aktiv').maybeSingle();
             return data || null;
         }
-        // === END: SETUP & GLOBALE VARIABLEN ===
+        // === END: SETUP ===
 
         // === START: INIT & NAVIGATION ===
         async function init() {
@@ -198,13 +194,11 @@
                 html += `<li class="nav-section-title">Kommunikation</li><li><a onclick="loadNews(); setActiveNav(this)" class="nav-link">${icons.news} Schwarzes Brett</a></li><li><a onclick="loadTickets(); setActiveNav(this)" class="nav-link">${icons.tickets} Ticket System</a></li>`;
                 html += `<li class="nav-section-title">Verwaltung</li><li><a onclick="loadUserManagement(); setActiveNav(this)" class="nav-link">${icons.users} Personen</a></li><li><a onclick="loadTenants(); setActiveNav(this)" class="nav-link">${icons.buildings} Bestands-Objekte</a></li>`;
                 html += `<li class="nav-section-title">Finanzen</li><li><a onclick="loadFinance(); setActiveNav(this)" class="nav-link">${icons.finance} Abrechnungen</a></li>`;
-                html += `<li class="nav-section-title">Service & Dokumente</li><li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Dokumenten Cloud</a></li><li><a onclick="loadContacts(); setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li><li><a onclick="loadSettings(); setActiveNav(this)" class="nav-link">${icons.settings} Einstellungen</a></li>`;
+                html += `<li class="nav-section-title">Service</li><li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Dokumenten Cloud</a></li><li><a onclick="loadContacts(); setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li><li><a onclick="loadSettings(); setActiveNav(this)" class="nav-link">${icons.settings} Einstellungen</a></li>`;
             } else if (role === 'owner') {
                 html += `<li class="nav-section-title">Mein Asset</li><li><a onclick="loadMyUnits(); setActiveNav(this)" class="nav-link">${icons.buildings} Meine Einheiten</a></li><li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Dokumente</a></li><li><a onclick="loadTickets(); setActiveNav(this)" class="nav-link">${icons.tickets} Meine Tickets</a></li>`;
-                html += `<li class="nav-section-title">Vermieter-Bereich</li><li><a onclick="loadMyTenants(); setActiveNav(this)" class="nav-link">${icons.users} Meine Mieter</a></li><li><a onclick="loadContacts(); setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li>`;
             } else { 
-                html += `<li class="nav-section-title">Kommunikation</li><li><a onclick="loadNews(); setActiveNav(this)" class="nav-link">${icons.news} Schwarzes Brett</a></li><li><a onclick="loadTickets(); setActiveNav(this)" class="nav-link">${icons.tickets} Meine Meldungen</a></li>`;
-                html += `<li class="nav-section-title">Service & Dokumente</li><li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Meine Dokumente</a></li><li><a onclick="loadContacts(); setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li>`;
+                html += `<li class="nav-section-title">Service</li><li><a onclick="loadNews(); setActiveNav(this)" class="nav-link">${icons.news} Schwarzes Brett</a></li><li><a onclick="loadTickets(); setActiveNav(this)" class="nav-link">${icons.tickets} Meldungen</a></li><li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Meine Dokumente</a></li>`;
             }
             nav.innerHTML = html;
         }
@@ -214,12 +208,11 @@
             el.classList.add('active-link');
             if(window.innerWidth < 768) toggleMenu();
         }
-        // === END: INIT & NAVIGATION ===
+        // === END: INIT ===
 
         // === START: MODUL DASHBOARD ===
         async function loadDashboard() {
-            const container = document.getElementById('content-area');
-            container.innerHTML = `<div class="p-10 card text-center"><h2 class="text-xl font-bold mb-2">Willkommen im Dashboard</h2><p class="text-gray-500">Wähle einen Menüpunkt aus der Sidebar, um zu starten.</p></div>`;
+            document.getElementById('content-area').innerHTML = `<div class="p-10 card text-center"><h2 class="text-xl font-bold mb-2 text-left">Willkommen im Dashboard</h2><p class="text-gray-500 text-left">Wähle einen Menüpunkt aus der Sidebar.</p></div>`;
         }
         // === END: MODUL DASHBOARD ===
 
@@ -227,21 +220,20 @@
         async function loadTenants() {
             const container = document.getElementById('content-area');
             container.innerHTML = `
-                <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)]">
+                <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)] text-left">
                     <div class="w-full lg:w-1/3 flex flex-col gap-4 h-full">
                         <div class="card flex flex-col h-full overflow-hidden border border-gray-100">
                             <div class="p-5 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
                                 <h2 class="text-sm font-black uppercase tracking-widest text-gray-500">Immobilienbestand</h2>
-                                <button onclick="showBuildingForm()" class="bg-hb-olive text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-opacity-80 shadow-sm transition-transform hover:scale-105">+ </button>
+                                <button onclick="showBuildingForm()" class="bg-hb-olive text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-opacity-80 shadow-sm transition-transform hover:scale-105">+</button>
                             </div>
-                            <div id="buildings-list" class="flex-grow overflow-y-auto p-3 space-y-2"></div>
+                            <div id="buildings-list" class="flex-grow overflow-y-auto p-3 space-y-2 chat-scroll"></div>
                         </div>
                     </div>
-                    <div class="w-full lg:w-2/3 flex flex-col h-full" id="units-area">
+                    <div class="w-full lg:w-2/3 flex flex-col h-full text-left" id="units-area">
                         <div class="card p-10 flex flex-col items-center justify-center text-gray-400 h-full">Bitte wähle ein Objekt aus.</div>
                     </div>
-                </div>
-            `;
+                </div>`;
             await fetchBuildingsList();
         }
 
@@ -249,7 +241,7 @@
             const list = document.getElementById('buildings-list');
             const { data } = await _supabase.from('buildings').select('*').order('name');
             currentBuildings = data || [];
-            list.innerHTML = currentBuildings.map(b => `<div onclick="selectBuilding(${b.id})" id="b-item-${b.id}" class="p-4 rounded-xl cursor-pointer border border-transparent hover:bg-gray-50">
+            list.innerHTML = currentBuildings.map(b => `<div onclick="selectBuilding(${b.id})" id="b-item-${b.id}" class="p-4 rounded-xl cursor-pointer border border-transparent hover:bg-gray-50 transition-all text-left">
                 <h3 class="font-bold text-hb-offblack">${b.name}</h3><p class="text-xs text-gray-500">${b.address || '-'}</p></div>`).join('');
             if(selectedBuildingId) highlightSelectedBuilding(selectedBuildingId);
         }
@@ -265,18 +257,17 @@
             highlightSelectedBuilding(id);
             const b = currentBuildings.find(x => x.id === id);
             document.getElementById('units-area').innerHTML = `
-                <div class="card h-full flex flex-col overflow-hidden">
-                    <div class="p-6 border-b border-gray-50 bg-white flex justify-between items-start">
-                        <div><h2 class="text-2xl font-extrabold text-hb-offblack">${b.name}</h2><p class="text-sm text-gray-500">${b.address || '-'}</p></div>
+                <div class="card h-full flex flex-col overflow-hidden text-left">
+                    <div class="p-6 border-b border-gray-50 bg-white flex justify-between items-start text-left">
+                        <div class="text-left"><h2 class="text-2xl font-extrabold text-hb-offblack">${b.name}</h2><p class="text-sm text-gray-500">${b.address || '-'}</p></div>
                         <button onclick="showBuildingForm(${b.id})" class="text-xs font-bold text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg">Bearbeiten</button>
                     </div>
-                    <div class="px-6 py-4 bg-gray-50/50 border-b border-gray-50 flex justify-between items-center">
-                        <h3 class="text-sm font-black uppercase tracking-widest text-gray-500">Einheiten</h3>
-                        <button onclick="showApartmentForm()" class="btn-primary py-2 px-4 text-xs">+ Einheit</button>
+                    <div class="px-6 py-4 bg-gray-50/50 border-b border-gray-50 flex justify-between items-center text-left">
+                        <h3 class="text-sm font-black uppercase tracking-widest text-gray-500">Zugehörige Einheiten</h3>
+                        <button onclick="showApartmentForm()" class="btn-primary py-2 px-4 text-xs shadow-sm">+ Einheit hinzufügen</button>
                     </div>
-                    <div class="flex-grow overflow-y-auto p-6 bg-[#f4f5f1]" id="apartments-list"></div>
-                </div>
-            `;
+                    <div class="flex-grow overflow-y-auto p-6 bg-[#f4f5f1] chat-scroll text-left" id="apartments-list"></div>
+                </div>`;
             await fetchApartmentsForBuilding(id);
         }
 
@@ -285,7 +276,7 @@
             const { data } = await _supabase.from('apartments').select('*').eq('building_id', bId).order('apartment_number');
             currentApartments = data || [];
             list.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">` + currentApartments.map(apt => `
-                <div onclick="showApartmentForm(${apt.id})" class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:border-hb-olive cursor-pointer transition-colors">
+                <div onclick="showApartmentForm(${apt.id})" class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:border-hb-olive cursor-pointer transition-colors group text-left">
                     <h4 class="text-lg font-extrabold text-hb-offblack">${apt.apartment_number}</h4>
                     <p class="text-sm text-gray-500">${apt.sq_meters || 0} m² • ${apt.tenant_status || 'Leerstand'}</p>
                 </div>`).join('') + `</div>`;
@@ -298,58 +289,176 @@
             const activeTenancy = isEdit ? await loadActiveTenancy(apt.id) : null;
 
             area.innerHTML = `
-                <div class="card p-8 h-full overflow-y-auto border border-gray-100 shadow-sm flex flex-col">
-                    <div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-extrabold">${isEdit ? 'Bearbeiten' : 'Neu'}</h2><button onclick="selectBuilding(selectedBuildingId)" class="text-xs font-bold text-gray-400">Abbrechen</button></div>
+                <div class="card p-8 h-full overflow-y-auto border border-gray-100 shadow-sm flex flex-col text-left">
+                    <div class="flex justify-between items-center mb-6 text-left"><h2 class="text-2xl font-extrabold">${isEdit ? 'Einheit bearbeiten' : 'Neue Einheit'}</h2><button onclick="selectBuilding(selectedBuildingId)" class="text-xs font-bold text-gray-400 uppercase">Abbrechen</button></div>
+                    
                     <div class="flex overflow-x-auto border-b border-gray-200 mb-6 gap-8 hide-scrollbar">
                         <button type="button" id="btn-tab-base" onclick="switchAptTab('base')" class="apt-tab-btn pb-3 border-b-2 font-bold text-sm border-hb-olive text-hb-olive">Stammdaten</button>
                         <button type="button" id="btn-tab-weg" onclick="switchAptTab('weg')" class="apt-tab-btn pb-3 border-b-2 font-bold text-sm border-transparent text-gray-500">WEG-Finanzen</button>
                         <button type="button" id="btn-tab-rent" onclick="switchAptTab('rent')" class="apt-tab-btn pb-3 border-b-2 font-bold text-sm border-transparent text-gray-500">Miet-Infos</button>
+                        <button type="button" id="btn-tab-meters" onclick="switchAptTab('meters')" class="apt-tab-btn pb-3 border-b-2 font-bold text-sm border-transparent text-gray-500">Zähler</button>
                     </div>
-                    <form id="apartment-form" class="flex-grow flex flex-col">
+
+                    <form id="apartment-form" class="flex-grow flex flex-col text-left">
                         <input type="hidden" id="apt_form_id" value="${apt.id || ''}">
-                        <div id="tab-base" class="apt-tab-content space-y-4">
-                            <input type="text" id="apt_form_no" value="${apt.apartment_number || ''}" placeholder="Nr. *" required>
-                            <input type="number" id="apt_form_sqm" value="${apt.sq_meters || ''}" placeholder="m²">
+                        
+                        <div class="flex-grow text-left">
+                            <!-- TAB: STAMMDATEN -->
+                            <div id="tab-base" class="apt-tab-content space-y-4">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Nr. *</label><input type="text" id="apt_form_no" value="${apt.apartment_number || ''}" required></div>
+                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Typ</label><select id="apt_form_type"><option value="Wohnen" ${apt.type === 'Wohnen' ? 'selected' : ''}>Wohnen</option><option value="Gewerbe" ${apt.type === 'Gewerbe' ? 'selected' : ''}>Gewerbe</option><option value="Stellplatz" ${apt.type === 'Stellplatz' ? 'selected' : ''}>Stellplatz</option></select></div>
+                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">m²</label><input type="number" id="apt_form_sqm" value="${apt.sq_meters || ''}" step="0.01"></div>
+                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Zimmer</label><input type="number" id="apt_form_rooms" value="${apt.rooms || ''}" step="0.5"></div>
+                                </div>
+                            </div>
+
+                            <!-- TAB: WEG-FINANZEN -->
+                            <div id="tab-weg" class="apt-tab-content hidden space-y-4 text-left">
+                                <div class="grid grid-cols-2 gap-4 text-left">
+                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Hausgeld (€)</label><input type="number" id="apt_form_hausgeld" value="${apt.hausgeld || ''}" step="0.01"></div>
+                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Rücklage (€)</label><input type="number" id="apt_form_ruecklage" value="${apt.ruecklage || ''}" step="0.01"></div>
+                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">MEA</label><input type="number" id="apt_form_mea" value="${apt.mea || ''}" step="0.0001"></div>
+                                </div>
+                            </div>
+
+                            <!-- TAB: MIET-INFORMATIONEN -->
+                            <div id="tab-rent" class="apt-tab-content hidden space-y-4 text-left">
+                                <div class="grid grid-cols-2 gap-4 text-left">
+                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Status</label><select id="apt_form_status"><option value="Leerstand" ${apt.tenant_status === 'Leerstand' ? 'selected' : ''}>Leerstand</option><option value="Vermietet" ${apt.tenant_status === 'Vermietet' ? 'selected' : ''}>Vermietet</option></select></div>
+                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Einzug</label><input type="date" id="apt_form_movein" value="${apt.move_in_date || activeTenancy?.start_date || ''}"></div>
+                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Kaltmiete (€)</label><input type="number" id="apt_form_rent" value="${apt.rent_amount || activeTenancy?.rent_amount || ''}" step="0.01"></div>
+                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Nebenkosten (€)</label><input type="number" id="apt_form_utils" value="${apt.utilities_amount || activeTenancy?.utilities_amount || ''}" step="0.01"></div>
+                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Kaution (€)</label><input type="number" id="apt_form_deposit" value="${apt.deposit_amount || activeTenancy?.deposit_amount || ''}" step="0.01"></div>
+                                    <div class="flex items-center gap-2 pt-4 text-left"><input type="checkbox" id="apt_form_deposit_paid" ${apt.deposit_paid || activeTenancy?.deposit_paid ? 'checked' : ''}><label class="text-xs font-bold text-gray-700">Kaution bezahlt</label></div>
+                                </div>
+                            </div>
+
+                            <!-- TAB: ZÄHLER -->
+                            <div id="tab-meters" class="apt-tab-content hidden space-y-4 text-left">
+                                <div class="grid grid-cols-2 gap-4 text-left">
+                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Wasserzähler-Nr.</label><input type="text" id="apt_form_meter_water" value="${apt.meter_water || ''}"></div>
+                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Eichfrist Wasser</label><input type="date" id="apt_form_cal_water" value="${apt.meter_water_calibration_until || ''}"></div>
+                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Wärme-Nr.</label><input type="text" id="apt_form_meter_heat" value="${apt.meter_heating || ''}"></div>
+                                    <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Eichfrist Wärme</label><input type="date" id="apt_form_cal_heat" value="${apt.meter_heating_calibration_until || ''}"></div>
+                                </div>
+                            </div>
                         </div>
-                        <div id="tab-weg" class="apt-tab-content hidden space-y-4">
-                            <input type="number" id="apt_form_hausgeld" value="${apt.hausgeld || ''}" placeholder="Hausgeld">
-                        </div>
-                        <div id="tab-rent" class="apt-tab-content hidden space-y-4">
-                            <select id="apt_form_status"><option value="Leerstand">Leerstand</option><option value="Vermietet" ${apt.tenant_status === 'Vermietet' ? 'selected' : ''}>Vermietet</option></select>
-                            <input type="number" id="apt_form_rent" value="${activeTenancy?.rent_amount || ''}" placeholder="Kaltmiete">
-                        </div>
-                        <div class="pt-6 mt-auto border-t border-gray-100 flex gap-4">
+
+                        <div class="pt-6 mt-6 border-t border-gray-100 flex gap-4 text-left">
                             <button type="submit" class="btn-primary">Speichern</button>
-                            ${isEdit ? `<button type="button" onclick="deleteApartment(${apt.id})" class="text-red-500">Löschen</button>` : ''}
+                            ${isEdit ? `<button type="button" onclick="deleteApartment(${apt.id})" class="text-red-500 font-bold px-4 hover:bg-red-50 rounded-lg transition-colors">Löschen</button>` : ''}
                         </div>
                     </form>
                 </div>`;
 
             document.getElementById('apartment-form').onsubmit = async (e) => {
                 e.preventDefault();
+                const aptId = document.getElementById('apt_form_id').value;
                 const payload = {
                     building_id: selectedBuildingId,
                     apartment_number: document.getElementById('apt_form_no').value,
+                    type: document.getElementById('apt_form_type').value,
                     sq_meters: document.getElementById('apt_form_sqm').value || 0,
+                    rooms: document.getElementById('apt_form_rooms').value || 0,
+                    hausgeld: document.getElementById('apt_form_hausgeld').value || 0,
+                    ruecklage: document.getElementById('apt_form_ruecklage').value || 0,
+                    mea: document.getElementById('apt_form_mea').value || 0,
                     tenant_status: document.getElementById('apt_form_status').value,
-                    hausgeld: document.getElementById('apt_form_hausgeld').value || 0
+                    rent_amount: document.getElementById('apt_form_rent').value || 0,
+                    utilities_amount: document.getElementById('apt_form_utils').value || 0,
+                    deposit_amount: document.getElementById('apt_form_deposit').value || 0,
+                    deposit_paid: document.getElementById('apt_form_deposit_paid').checked,
+                    move_in_date: document.getElementById('apt_form_movein').value || null,
+                    meter_water: document.getElementById('apt_form_meter_water').value,
+                    meter_water_calibration_until: document.getElementById('apt_form_cal_water').value || null,
+                    meter_heating: document.getElementById('apt_form_meter_heat').value,
+                    meter_heating_calibration_until: document.getElementById('apt_form_cal_heat').value || null
                 };
-                const fId = document.getElementById('apt_form_id').value;
-                const { error } = fId ? await _supabase.from('apartments').update(payload).eq('id', fId) : await _supabase.from('apartments').insert([payload]);
-                if (!error) { showToast("Gespeichert"); selectBuilding(selectedBuildingId); }
+
+                let res = aptId ? await _supabase.from('apartments').update(payload).eq('id', aptId) : await _supabase.from('apartments').insert([payload]).select().single();
+                
+                if (!res.error) {
+                    const savedId = aptId || res.data.id;
+                    const tenancyData = {
+                        apartment_id: savedId,
+                        rent_amount: payload.rent_amount,
+                        utilities_amount: payload.utilities_amount,
+                        deposit_amount: payload.deposit_amount,
+                        deposit_paid: payload.deposit_paid,
+                        start_date: payload.move_in_date,
+                        status: payload.tenant_status === 'Vermietet' ? 'Aktiv' : 'Historisch'
+                    };
+                    if (activeTenancy) await _supabase.from('tenancies').update(tenancyData).eq('id', activeTenancy.id);
+                    else if (payload.tenant_status === 'Vermietet') await _supabase.from('tenancies').insert([tenancyData]);
+                    
+                    showToast("Einheit & Vertrag gespeichert"); selectBuilding(selectedBuildingId);
+                } else { showToast(res.error.message, "error"); }
             };
         }
+
+        async function showBuildingForm(id = null) {
+            const area = document.getElementById('units-area');
+            let b = id ? currentBuildings.find(x => x.id === id) : {};
+            const isEdit = !!id;
+            area.innerHTML = `
+                <div class="card p-8 h-full overflow-y-auto border border-gray-100 shadow-sm text-left">
+                    <h2 class="text-2xl font-extrabold mb-8 text-left">${isEdit ? 'Gebäude bearbeiten' : 'Neues Gebäude'}</h2>
+                    <form id="building-form" class="space-y-6 text-left">
+                        <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Name *</label><input type="text" id="b_name" value="${b.name || ''}" required></div>
+                        <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Adresse</label><input type="text" id="b_addr" value="${b.address || ''}"></div>
+                        <div class="grid grid-cols-2 gap-4 text-left">
+                            <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Baujahr</label><input type="number" id="b_year" value="${b.construction_year || ''}"></div>
+                            <div class="space-y-1 text-left"><label class="text-[10px] uppercase font-bold text-gray-500">Nächste Trinkwasser-Prüfung</label><input type="date" id="b_water" value="${b.drinking_water_analysis_due || ''}"></div>
+                        </div>
+                        <div class="pt-6 border-t flex gap-4 text-left">
+                            <button type="submit" class="btn-primary">Speichern</button>
+                            <button type="button" onclick="loadTenants()" class="btn-secondary">Abbrechen</button>
+                        </div>
+                    </form>
+                </div>`;
+            document.getElementById('building-form').onsubmit = async (e) => {
+                e.preventDefault();
+                const payload = { name: document.getElementById('b_name').value, address: document.getElementById('b_addr').value, construction_year: document.getElementById('b_year').value || null, drinking_water_analysis_due: document.getElementById('b_water').value || null };
+                let res = isEdit ? await _supabase.from('buildings').update(payload).eq('id', id) : await _supabase.from('buildings').insert([payload]);
+                if (!res.error) { showToast("Gebäude gespeichert"); loadTenants(); }
+            };
+        }
+
+        async function deleteApartment(id) { if(confirm("Einheit wirklich löschen?")) { const { error } = await _supabase.from('apartments').delete().eq('id', id); if(!error) selectBuilding(selectedBuildingId); } }
         // === END: MODUL OBJEKTE ===
 
-        // Platzhalter für weitere Module
-        async function loadNews() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold">News</h2>'; }
-        async function loadTickets() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold">Tickets</h2>'; }
-        async function loadUserManagement() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold">Personen</h2>'; }
-        async function loadFinance() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold">Abrechnungen</h2>'; }
-        async function loadDocuments() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold">Dokumente</h2>'; }
-        async function loadContacts() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold">Kontakte</h2>'; }
-        async function loadSettings() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold">Einstellungen</h2>'; }
-        async function loadProfile() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold">Profil</h2>'; }
+        // === START: MODUL NEWS ===
+        async function loadNews() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold text-left">Schwarzes Brett</h2>'; }
+        // === END: MODUL NEWS ===
+
+        // === START: MODUL TICKETS ===
+        async function loadTickets() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold text-left">Ticketsystem</h2>'; }
+        // === END: MODUL TICKETS ===
+
+        // === START: MODUL PERSONEN ===
+        async function loadUserManagement() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold text-left">Personenverwaltung</h2>'; }
+        // === END: MODUL PERSONEN ===
+
+        // === START: MODUL FINANZEN ===
+        async function loadFinance() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold text-left">Abrechnungen</h2>'; }
+        // === END: MODUL FINANZEN ===
+
+        // === START: MODUL DOKUMENTE ===
+        async function loadDocuments() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold text-left">Dokumenten Cloud</h2>'; }
+        // === END: MODUL DOKUMENTE ===
+
+        // === START: MODUL KONTAKTE ===
+        async function loadContacts() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold text-left">Kontaktbuch</h2>'; }
+        // === END: MODUL KONTAKTE ===
+
+        // === START: MODUL EINSTELLUNGEN ===
+        async function loadSettings() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold text-left">Einstellungen</h2>'; }
+        // === END: MODUL EINSTELLUNGEN ===
+
+        // === START: MODUL PROFIL ===
+        async function loadProfile() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold text-left">Mein Profil</h2>'; }
+        // === END: MODUL PROFIL ===
 
         init();
     </script>
