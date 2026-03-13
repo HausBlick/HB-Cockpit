@@ -32,6 +32,11 @@ async function loadTickets() {
                         <button onclick="showCreateTicketModal()"
                             class="bg-hb-olive text-white w-7 h-7 rounded-full flex items-center justify-center text-lg leading-none hover:bg-opacity-80 transition-transform hover:scale-105">+</button>
                     </div>
+                    <div class="px-2 pt-2 pb-1 flex-shrink-0">
+                        <input type="search" id="ticket-search" placeholder="Suchen…"
+                            oninput="searchTickets(this.value)"
+                            class="w-full text-xs h-8 px-3 rounded-lg border border-gray-200 bg-gray-50 focus:bg-white focus:border-hb-olive outline-none transition-colors">
+                    </div>
                     <div class="flex-grow overflow-y-auto p-2 space-y-0.5" id="ticket-filter-menu"></div>
                 </div>
             </div>
@@ -80,12 +85,12 @@ async function _renderFilterMenu() {
         : '';
 
     const filters = [
-        { id: 'mine',                  label: 'Meine Tickets',    icon: '👤' },
-        { id: 'Offen',                 label: 'Offen',            icon: '🔵' },
-        { id: 'In Bearbeitung',        label: 'In Bearbeitung',   icon: '🟢' },
-        { id: 'Warte auf Rückmeldung', label: 'Warte auf Antwort',icon: '🟡' },
-        { id: 'Wiedervorlage',         label: 'Wiedervorlage',    icon: '🟣' },
-        { id: 'Erledigt',              label: 'Erledigt',         icon: '⚫' },
+        { id: 'mine',                  label: 'Meine Tickets',    icon: '👤', showBadge: true  },
+        { id: 'Offen',                 label: 'Offen',            icon: '🔵', showBadge: true  },
+        { id: 'In Bearbeitung',        label: 'In Bearbeitung',   icon: '🟢', showBadge: true  },
+        { id: 'Warte auf Rückmeldung', label: 'Warte auf Antwort',icon: '🟡', showBadge: true  },
+        { id: 'Wiedervorlage',         label: 'Wiedervorlage',    icon: '🟣', showBadge: true  },
+        { id: 'Erledigt',              label: 'Erledigt',         icon: '⚫', showBadge: false },
     ];
 
     menu.innerHTML = filters.map(f => `
@@ -93,7 +98,7 @@ async function _renderFilterMenu() {
             class="ticket-filter-btn w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold
                    transition-colors flex items-center gap-2 text-gray-600 hover:bg-gray-50
                    ${_ticketFilter === f.id ? 'bg-hb-ultralight text-hb-olive font-bold' : ''}">
-            <span class="text-base leading-none">${f.icon}</span>${f.label}${badge(counts[f.id])}
+            <span class="text-base leading-none">${f.icon}</span>${f.label}${f.showBadge ? badge(counts[f.id]) : ''}
         </button>`).join('') + `<div class="border-t border-gray-100 my-2"></div>
         <p class="text-[10px] uppercase font-bold text-gray-400 px-3 pb-1">Nach Gebäude</p>
         <div id="ticket-building-filters" class="space-y-0.5"></div>`;
@@ -192,6 +197,43 @@ function _ticketRowHtml(t) {
         </div>
     </div>`;
 }
+
+// ─── Suche ────────────────────────────────────────────────────
+window.searchTickets = async (query) => {
+    const q = query.trim().toLowerCase();
+    if (!q) { await _loadTicketView(_ticketFilter); return; }
+
+    const { data, error } = await _supabase.from('tickets')
+        .select(`*, buildings(id, name), apartments(id, apartment_number),
+            creator:profiles!tickets_creator_id_fkey(id, full_name),
+            assignee:profiles!tickets_assigned_to_fkey(id, full_name)`)
+        .order('created_at', { ascending: false });
+
+    if (error) { showToast(error.message, 'error'); return; }
+
+    _ticketsData = (data || []).filter(t =>
+        t.title?.toLowerCase().includes(q) ||
+        t.description?.toLowerCase().includes(q) ||
+        t.creator?.full_name?.toLowerCase().includes(q) ||
+        t.buildings?.name?.toLowerCase().includes(q)
+    );
+
+    const main = document.getElementById('ticket-main');
+    if (!main) return;
+    main.innerHTML = `
+        <div class="card h-full flex flex-col overflow-hidden">
+            <div class="px-5 py-3 border-b border-gray-50 flex justify-between items-center flex-shrink-0">
+                <h3 class="font-bold text-hb-offblack">Suchergebnisse für „${query}"
+                    <span class="ml-2 text-xs font-normal text-gray-400">(${_ticketsData.length})</span>
+                </h3>
+            </div>
+            <div class="flex-grow overflow-y-auto divide-y divide-gray-50">
+                ${_ticketsData.length
+                    ? _ticketsData.map(t => _ticketRowHtml(t)).join('')
+                    : '<p class="text-sm text-gray-400 p-8 text-center">Keine Tickets gefunden.</p>'}
+            </div>
+        </div>`;
+};
 
 // ─── Ticket-Detail ────────────────────────────────────────────
 window.openTicketDetail = async (ticketId) => {
@@ -359,6 +401,28 @@ window.sendTicketMessage = async (ticketId) => {
     input.disabled = false;
     if (error) { showToast(error.message, 'error'); return; }
 
+    // Auto-Reopen: Mieter/Eigentümer-Antwort setzt Status zurück auf "Offen"
+    const role = userProfile?.role;
+    if (role === 'tenant' || role === 'owner') {
+        const { data: ticket } = await _supabase.from('tickets').select('status').eq('id', ticketId).single();
+        const closedStatuses = ['In Bearbeitung', 'Warte auf Rückmeldung', 'Wiedervorlage'];
+        if (ticket && closedStatuses.includes(ticket.status)) {
+            const sysMsg = `${userProfile.full_name} hat geantwortet — Ticket automatisch auf „Offen" gesetzt.`;
+            await Promise.all([
+                _supabase.from('tickets').update({ status: 'Offen', snooze_until: null, updated_at: new Date().toISOString() }).eq('id', ticketId),
+                _supabase.from('ticket_messages').insert([{ ticket_id: ticketId, sender_id: currentUser.id, message: sysMsg, is_system_message: true }]),
+            ]);
+            // Status-Dropdown im UI aktualisieren
+            const sel = document.getElementById('ticket-status-sel');
+            if (sel) sel.value = 'Offen';
+            document.getElementById('snooze-wrap')?.classList.add('hidden');
+        } else {
+            await _supabase.from('tickets').update({ updated_at: new Date().toISOString() }).eq('id', ticketId);
+        }
+    } else {
+        await _supabase.from('tickets').update({ updated_at: new Date().toISOString() }).eq('id', ticketId);
+    }
+
     // Nachrichten neu laden
     const { data } = await _supabase.from('ticket_messages')
         .select('*, sender:profiles!ticket_messages_sender_id_fkey(id, full_name)')
@@ -368,8 +432,6 @@ window.sendTicketMessage = async (ticketId) => {
         chat.innerHTML = (data || []).map(m => _messageBubble(m)).join('');
         chat.scrollTop = chat.scrollHeight;
     }
-    // updated_at updaten
-    await _supabase.from('tickets').update({ updated_at: new Date().toISOString() }).eq('id', ticketId);
 };
 
 // ─── Status-Änderung ──────────────────────────────────────────
