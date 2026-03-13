@@ -22,8 +22,8 @@ window.switchAptTab      = makeTabSwitcher('apt-btn',  'apt-tab');
 // ─── Read-only Feldhelfer ─────────────────────────────────────
 function infoField(label, value, span = '') {
     const v = (value !== null && value !== undefined && value !== '') ? value : '—';
-    return `<div class="${span} space-y-1">
-        <p class="text-[10px] uppercase font-bold text-gray-400 tracking-widest">${label}</p>
+    return `<div class="${span}">
+        <p class="text-[9px] uppercase font-bold text-gray-400 tracking-widest mb-0.5">${label}</p>
         <p class="text-sm font-semibold text-hb-offblack">${v}</p>
     </div>`;
 }
@@ -144,21 +144,21 @@ async function showBuildingInfo(b) {
     area.innerHTML = `
         <div class="card h-full flex flex-col overflow-hidden text-left">
             <!-- Header -->
-            <div class="p-6 border-b border-gray-50 flex justify-between items-start flex-shrink-0">
+            <div class="px-4 py-3 border-b border-gray-50 flex justify-between items-center flex-shrink-0">
                 <div>
-                    <div class="flex items-center gap-2 mb-1">
+                    <div class="flex items-center gap-2 mb-0.5">
                         <span class="bg-gray-100 text-gray-500 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md">${b.status || 'aktiv'}</span>
                         <span class="text-[10px] font-bold text-gray-400">Nr. ${b.file_number || '—'}</span>
                     </div>
-                    <h2 class="text-xl font-extrabold text-hb-offblack">${b.name}</h2>
-                    <p class="text-sm text-gray-500">${addr}</p>
+                    <h2 class="text-base font-extrabold text-hb-offblack leading-tight">${b.name}</h2>
+                    <p class="text-xs text-gray-500">${addr}</p>
                 </div>
                 <button onclick="showBuildingForm(${b.id})"
-                    class="btn-primary text-xs px-4 py-2 flex-shrink-0">Bearbeiten</button>
+                    class="btn-primary text-xs px-3 py-1.5 flex-shrink-0">Bearbeiten</button>
             </div>
 
             <!-- Tabs -->
-            <div class="flex overflow-x-auto border-b border-gray-200 px-6 gap-6 hide-scrollbar flex-shrink-0">
+            <div class="flex overflow-x-auto border-b border-gray-200 px-4 gap-5 hide-scrollbar flex-shrink-0">
                 ${tabNav([
                     {id:'base',    label:'Stammdaten'},
                     {id:'finance', label:'Finanzen'},
@@ -167,10 +167,10 @@ async function showBuildingInfo(b) {
                 ], 'bldg-btn', 'base')}
             </div>
 
-            <div class="flex-grow overflow-y-auto p-6">
+            <div class="overflow-y-auto p-4" style="max-height:40%">
 
                 <!-- TAB 1 -->
-                <div id="bldg-tab-base" class="bldg-tab-content grid grid-cols-2 md:grid-cols-3 gap-5">
+                <div id="bldg-tab-base" class="bldg-tab-content grid grid-cols-2 md:grid-cols-3 gap-3">
                     ${infoField('Akten-Nr.', b.file_number)}
                     ${infoField('Status', b.status)}
                     ${infoField('Baujahr', b.construction_year)}
