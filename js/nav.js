@@ -46,7 +46,7 @@ function renderNav(role) {
 
             <li class="nav-section-title">Verwaltung</li>
             <li><a onclick="loadUserManagement(); setActiveNav(this)" class="nav-link">${icons.users}     Personen</a></li>
-            <li><a onclick="loadTenants();        setActiveNav(this)" class="nav-link">${icons.buildings} Bestands-Objekte</a></li>
+            <li><a onclick="loadTenants();        setActiveNav(this)" class="nav-link">${icons.buildings} Gebäude &amp; Einheiten</a></li>
 
             <li class="nav-section-title">Finanzen</li>
             <li><a onclick="loadFinance();        setActiveNav(this)" class="nav-link">${icons.finance}   Abrechnungen</a></li>
