@@ -1,0 +1,516 @@
+// ============================================================
+// HB-Mieterportal | mod-tickets.js
+// Modul: Ticket-System — Mangelmeldungen im Zammad-Stil
+// ============================================================
+
+let _ticketFilter    = 'mine';
+let _ticketsData     = [];
+let _currentTicketId = null;
+
+const TICKET_STATUSES = ['Offen', 'In Bearbeitung', 'Warte auf Rückmeldung', 'Wiedervorlage', 'Erledigt'];
+
+const STATUS_STYLE = {
+    'Offen':                  'bg-blue-100 text-blue-700',
+    'In Bearbeitung':         'bg-hb-olive/10 text-hb-olive',
+    'Warte auf Rückmeldung':  'bg-yellow-100 text-yellow-700',
+    'Wiedervorlage':          'bg-purple-100 text-purple-700',
+    'Erledigt':               'bg-gray-100 text-gray-500',
+};
+
+// ─── Haupteinstieg ────────────────────────────────────────────
+async function loadTickets() {
+    await _checkSnoozedTickets();
+
+    const container = document.getElementById('content-area');
+    container.innerHTML = `
+        <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)] text-left">
+            <!-- Linke Filter-Sidebar -->
+            <div class="w-full lg:w-56 xl:w-64 flex-shrink-0">
+                <div class="card h-full flex flex-col overflow-hidden">
+                    <div class="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
+                        <h2 class="text-xs font-black uppercase tracking-widest text-gray-500">Tickets</h2>
+                        <button onclick="showCreateTicketModal()"
+                            class="bg-hb-olive text-white w-7 h-7 rounded-full flex items-center justify-center text-lg leading-none hover:bg-opacity-80 transition-transform hover:scale-105">+</button>
+                    </div>
+                    <div class="flex-grow overflow-y-auto p-2 space-y-0.5" id="ticket-filter-menu"></div>
+                </div>
+            </div>
+            <!-- Rechter Bereich -->
+            <div class="flex-1 min-w-0 h-full" id="ticket-main">
+                <div class="card h-full flex items-center justify-center text-gray-400 text-sm">
+                    Bitte wähle eine Ansicht aus.
+                </div>
+            </div>
+        </div>`;
+
+    await _renderFilterMenu();
+    await _loadTicketView('mine');
+}
+
+async function _checkSnoozedTickets() {
+    const now = new Date().toISOString();
+    await _supabase.from('tickets')
+        .update({ status: 'Offen', snooze_until: null })
+        .eq('status', 'Wiedervorlage')
+        .lt('snooze_until', now)
+        .or(`creator_id.eq.${currentUser.id},assigned_to.eq.${currentUser.id}`);
+}
+
+// ─── Filter-Menü ──────────────────────────────────────────────
+async function _renderFilterMenu() {
+    const menu = document.getElementById('ticket-filter-menu');
+    if (!menu) return;
+
+    const filters = [
+        { id: 'mine',           label: 'Meine Tickets',           icon: '👤' },
+        { id: 'Offen',          label: 'Offen',                   icon: '🔵' },
+        { id: 'In Bearbeitung', label: 'In Bearbeitung',          icon: '🟢' },
+        { id: 'Warte auf Rückmeldung', label: 'Warte auf Antwort',icon: '🟡' },
+        { id: 'Wiedervorlage',  label: 'Wiedervorlage',           icon: '🟣' },
+        { id: 'Erledigt',       label: 'Erledigt',                icon: '⚫' },
+    ];
+
+    menu.innerHTML = filters.map(f => `
+        <button onclick="setTicketFilter('${f.id}')" id="tf-${f.id.replace(/\s/g,'-')}"
+            class="ticket-filter-btn w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold
+                   transition-colors flex items-center gap-2 text-gray-600 hover:bg-gray-50
+                   ${_ticketFilter === f.id ? 'bg-hb-ultralight text-hb-olive font-bold' : ''}">
+            <span class="text-base leading-none">${f.icon}</span>${f.label}
+        </button>`).join('') + `<div class="border-t border-gray-100 my-2"></div>
+        <p class="text-[10px] uppercase font-bold text-gray-400 px-3 pb-1">Nach Gebäude</p>
+        <div id="ticket-building-filters" class="space-y-0.5"></div>`;
+
+    // Gebäude-Filter
+    const { data: buildings } = await _supabase.from('buildings').select('id, name').order('name');
+    const bDiv = document.getElementById('ticket-building-filters');
+    if (bDiv && buildings) {
+        bDiv.innerHTML = buildings.map(b => `
+            <button onclick="setTicketFilter('building-${b.id}')" id="tf-building-${b.id}"
+                class="ticket-filter-btn w-full text-left px-3 py-2 rounded-lg text-xs font-semibold
+                       text-gray-500 hover:bg-gray-50 transition-colors truncate">
+                ${b.name}
+            </button>`).join('');
+    }
+}
+
+window.setTicketFilter = async (filterId) => {
+    _ticketFilter = filterId;
+    document.querySelectorAll('.ticket-filter-btn').forEach(el => {
+        const active = el.id === `tf-${filterId.replace(/\s/g,'-')}` || el.id === `tf-${filterId}`;
+        el.classList.toggle('bg-hb-ultralight', active);
+        el.classList.toggle('text-hb-olive', active);
+        el.classList.toggle('font-bold', active);
+    });
+    await _loadTicketView(filterId);
+};
+
+// ─── Ticket-Liste laden ───────────────────────────────────────
+async function _loadTicketView(filterId) {
+    const main = document.getElementById('ticket-main');
+    if (!main) return;
+    main.innerHTML = `<div class="card h-full flex items-center justify-center">
+        <div class="w-8 h-8 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div>
+    </div>`;
+
+    let query = _supabase.from('tickets')
+        .select(`*, buildings(id, name), apartments(id, apartment_number),
+            creator:profiles!tickets_creator_id_fkey(id, full_name),
+            assignee:profiles!tickets_assigned_to_fkey(id, full_name)`)
+        .order('created_at', { ascending: false });
+
+    if (filterId === 'mine') {
+        query = query.or(`creator_id.eq.${currentUser.id},assigned_to.eq.${currentUser.id}`);
+    } else if (filterId.startsWith('building-')) {
+        const bId = filterId.replace('building-', '');
+        query = query.eq('building_id', bId).neq('status', 'Erledigt');
+    } else {
+        query = query.eq('status', filterId);
+    }
+
+    const { data, error } = await query;
+    if (error) { showToast(error.message, 'error'); return; }
+    _ticketsData = data || [];
+    _renderTicketList(filterId);
+}
+
+function _renderTicketList(filterId) {
+    const main = document.getElementById('ticket-main');
+    if (!main) return;
+
+    const title = filterId === 'mine' ? 'Meine Tickets'
+        : filterId.startsWith('building-') ? 'Gebäude-Tickets'
+        : filterId;
+
+    main.innerHTML = `
+        <div class="card h-full flex flex-col overflow-hidden">
+            <div class="px-5 py-3 border-b border-gray-50 flex justify-between items-center flex-shrink-0">
+                <h3 class="font-bold text-hb-offblack">${title}
+                    <span class="ml-2 text-xs font-normal text-gray-400">(${_ticketsData.length})</span>
+                </h3>
+            </div>
+            <div class="flex-grow overflow-y-auto divide-y divide-gray-50">
+                ${_ticketsData.length
+                    ? _ticketsData.map(t => _ticketRowHtml(t)).join('')
+                    : '<p class="text-sm text-gray-400 p-8 text-center">Keine Tickets vorhanden.</p>'}
+            </div>
+        </div>`;
+}
+
+function _ticketRowHtml(t) {
+    const stCls = STATUS_STYLE[t.status] || 'bg-gray-100 text-gray-500';
+    const date  = new Date(t.created_at).toLocaleDateString('de-DE', { day:'2-digit', month:'short' });
+    return `<div onclick="openTicketDetail('${t.id}')"
+        class="px-5 py-4 hover:bg-gray-50 cursor-pointer transition-colors flex justify-between items-start gap-3">
+        <div class="min-w-0 flex-1">
+            <p class="font-bold text-sm text-hb-offblack truncate">${t.title}</p>
+            <p class="text-xs text-gray-400 mt-0.5">${t.category || 'Allgemein'} · ${t.buildings?.name || '—'} · ${t.creator?.full_name || '—'}</p>
+        </div>
+        <div class="flex flex-col items-end gap-1 flex-shrink-0">
+            <span class="${stCls} text-[10px] font-bold px-2 py-0.5 rounded-full">${t.status}</span>
+            <span class="text-[10px] text-gray-400">${date}</span>
+        </div>
+    </div>`;
+}
+
+// ─── Ticket-Detail ────────────────────────────────────────────
+window.openTicketDetail = async (ticketId) => {
+    _currentTicketId = ticketId;
+    const main = document.getElementById('ticket-main');
+    if (!main) return;
+
+    const [ticketRes, messagesRes, managersRes] = await Promise.all([
+        _supabase.from('tickets')
+            .select(`*, buildings(id, name), apartments(id, apartment_number),
+                creator:profiles!tickets_creator_id_fkey(id, full_name),
+                assignee:profiles!tickets_assigned_to_fkey(id, full_name)`)
+            .eq('id', ticketId).single(),
+        _supabase.from('ticket_messages')
+            .select('*, sender:profiles!ticket_messages_sender_id_fkey(id, full_name)')
+            .eq('ticket_id', ticketId).order('created_at'),
+        _supabase.from('profiles').select('id, full_name').in('role', ['admin', 'manager']),
+    ]);
+
+    const t        = ticketRes.data;
+    const messages = messagesRes.data || [];
+    const managers = managersRes.data || [];
+    if (!t) { showToast('Ticket nicht gefunden.', 'error'); return; }
+
+    const role    = userProfile?.role;
+    const isAdmin = role === 'admin' || role === 'manager';
+    const isOwner = role === 'owner';
+    const stCls   = STATUS_STYLE[t.status] || 'bg-gray-100 text-gray-500';
+
+    main.innerHTML = `
+        <div class="card h-full flex overflow-hidden">
+            <!-- Chat-Bereich (links, 2/3) -->
+            <div class="flex-1 flex flex-col min-w-0 border-r border-gray-100">
+                <div class="px-5 py-3 border-b border-gray-50 flex justify-between items-center flex-shrink-0">
+                    <div>
+                        <button onclick="setTicketFilter('${_ticketFilter}')"
+                            class="text-xs font-bold text-hb-olive hover:underline">← Zurück</button>
+                        <p class="font-bold text-hb-offblack mt-0.5">${t.title}</p>
+                    </div>
+                </div>
+                <!-- Chat -->
+                <div class="flex-grow overflow-y-auto p-4 space-y-3 bg-gray-50/30" id="ticket-chat">
+                    ${messages.map(m => _messageBubble(m)).join('')}
+                    ${!messages.length ? '<p class="text-center text-sm text-gray-400 py-8">Noch keine Nachrichten.</p>' : ''}
+                </div>
+                <!-- Eingabe -->
+                <div class="p-4 border-t border-gray-100 flex-shrink-0 flex gap-3 items-end">
+                    <textarea id="ticket-reply-input" rows="2" placeholder="Antwort schreiben…"
+                        class="flex-grow resize-none text-sm"
+                        onkeydown="if(event.key==='Enter'&&event.ctrlKey)sendTicketMessage('${t.id}')"></textarea>
+                    <button onclick="sendTicketMessage('${t.id}')"
+                        class="btn-primary px-4 py-2 text-sm flex-shrink-0">Senden</button>
+                </div>
+            </div>
+
+            <!-- Info-Sidebar (rechts, ~280px) -->
+            <div class="w-64 xl:w-72 flex-shrink-0 overflow-y-auto p-5 space-y-5 text-left">
+                <!-- Status -->
+                <div class="space-y-2">
+                    <p class="text-[10px] uppercase font-bold text-gray-400">Status</p>
+                    ${isAdmin ? `
+                        <select id="ticket-status-sel" onchange="updateTicketStatus('${t.id}', this.value)"
+                            class="text-sm h-9 px-2">
+                            ${TICKET_STATUSES.map(s => `<option value="${s}" ${t.status===s?'selected':''}>${s}</option>`).join('')}
+                        </select>
+                        <div id="snooze-wrap" class="${t.status === 'Wiedervorlage' ? '' : 'hidden'} space-y-1 mt-1">
+                            <label class="text-[10px] uppercase font-bold text-gray-400">Wiedervorlage Datum</label>
+                            <input type="date" id="snooze-date" value="${t.snooze_until ? t.snooze_until.split('T')[0] : ''}"
+                                onchange="saveSnoozeDate('${t.id}', this.value)">
+                        </div>` : `<span class="${stCls} text-xs font-bold px-3 py-1 rounded-full">${t.status}</span>`}
+                </div>
+
+                <!-- Kategorie -->
+                <div class="space-y-1">
+                    <p class="text-[10px] uppercase font-bold text-gray-400">Kategorie</p>
+                    <p class="text-sm font-semibold">${t.category || '—'}</p>
+                </div>
+
+                <!-- Gebäude Deep-Link -->
+                ${t.buildings ? `<div class="space-y-1">
+                    <p class="text-[10px] uppercase font-bold text-gray-400">Gebäude</p>
+                    <button onclick="navigateToBuilding(${t.buildings.id})"
+                        class="text-sm font-bold text-hb-olive hover:underline">${t.buildings.name}</button>
+                </div>` : ''}
+
+                <!-- Einheit Deep-Link -->
+                ${t.apartments ? `<div class="space-y-1">
+                    <p class="text-[10px] uppercase font-bold text-gray-400">Einheit</p>
+                    <button onclick="navigateToApartment(${t.buildings?.id}, ${t.apartments.id})"
+                        class="text-sm font-bold text-hb-olive hover:underline">Wohnung ${t.apartments.apartment_number}</button>
+                </div>` : ''}
+
+                <!-- Ersteller -->
+                <div class="space-y-1">
+                    <p class="text-[10px] uppercase font-bold text-gray-400">Erstellt von</p>
+                    ${isAdmin
+                        ? `<button onclick="navigateToPersonByProfile('${t.creator?.id}')"
+                            class="text-sm font-bold text-hb-olive hover:underline">${t.creator?.full_name || '—'}</button>`
+                        : `<p class="text-sm font-semibold">${t.creator?.full_name || '—'}</p>`}
+                </div>
+
+                <!-- Zugewiesen an -->
+                <div class="space-y-2">
+                    <p class="text-[10px] uppercase font-bold text-gray-400">Zugewiesen an</p>
+                    ${isAdmin ? `
+                        <select onchange="assignTicket('${t.id}', this.value)" class="text-sm h-9 px-2">
+                            <option value="">— Niemand —</option>
+                            ${managers.map(m => `<option value="${m.id}" ${t.assigned_to===m.id?'selected':''}>${m.full_name}</option>`).join('')}
+                        </select>` : `<p class="text-sm font-semibold">${t.assignee?.full_name || '—'}</p>`}
+                </div>
+
+                <!-- Eskalation (nur owner) -->
+                ${isOwner && t.status !== 'Erledigt' ? `
+                    <div class="border-t pt-4">
+                        <button onclick="escalateTicket('${t.id}')"
+                            class="btn-secondary w-full text-xs py-2">An Verwalter weiterleiten</button>
+                    </div>` : ''}
+
+                <!-- Priorität -->
+                <div class="space-y-1 border-t pt-4">
+                    <p class="text-[10px] uppercase font-bold text-gray-400">Erstellt am</p>
+                    <p class="text-xs text-gray-500">${new Date(t.created_at).toLocaleString('de-DE')}</p>
+                </div>
+            </div>
+        </div>`;
+
+    // Chat ans Ende scrollen
+    setTimeout(() => {
+        const chat = document.getElementById('ticket-chat');
+        if (chat) chat.scrollTop = chat.scrollHeight;
+    }, 50);
+};
+
+function _messageBubble(m) {
+    if (m.is_system_message) {
+        return `<div class="text-center text-xs italic text-gray-400 py-1">${m.message}</div>`;
+    }
+    const isOwn  = m.sender_id === currentUser.id;
+    const name   = m.sender?.full_name || '—';
+    const time   = new Date(m.created_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    return `<div class="flex ${isOwn ? 'justify-end' : 'justify-start'}">
+        <div class="max-w-[75%] space-y-1">
+            ${!isOwn ? `<p class="text-[10px] font-bold text-gray-400 px-1">${name}</p>` : ''}
+            <div class="${isOwn ? 'bg-hb-olive text-white' : 'bg-white border border-gray-100'} rounded-2xl px-4 py-2.5 text-sm shadow-sm">
+                ${m.message}
+            </div>
+            <p class="text-[10px] text-gray-300 px-1 ${isOwn ? 'text-right' : ''}">${time}</p>
+        </div>
+    </div>`;
+}
+
+// ─── Nachricht senden ─────────────────────────────────────────
+window.sendTicketMessage = async (ticketId) => {
+    const input = document.getElementById('ticket-reply-input');
+    const msg   = input?.value?.trim();
+    if (!msg) return;
+    input.value = '';
+    input.disabled = true;
+
+    const { error } = await _supabase.from('ticket_messages').insert([{
+        ticket_id: ticketId,
+        sender_id: currentUser.id,
+        message:   msg,
+    }]);
+    input.disabled = false;
+    if (error) { showToast(error.message, 'error'); return; }
+
+    // Nachrichten neu laden
+    const { data } = await _supabase.from('ticket_messages')
+        .select('*, sender:profiles!ticket_messages_sender_id_fkey(id, full_name)')
+        .eq('ticket_id', ticketId).order('created_at');
+    const chat = document.getElementById('ticket-chat');
+    if (chat) {
+        chat.innerHTML = (data || []).map(m => _messageBubble(m)).join('');
+        chat.scrollTop = chat.scrollHeight;
+    }
+    // updated_at updaten
+    await _supabase.from('tickets').update({ updated_at: new Date().toISOString() }).eq('id', ticketId);
+};
+
+// ─── Status-Änderung ──────────────────────────────────────────
+window.updateTicketStatus = async (ticketId, newStatus) => {
+    const snoozeWrap = document.getElementById('snooze-wrap');
+    if (snoozeWrap) snoozeWrap.classList.toggle('hidden', newStatus !== 'Wiedervorlage');
+
+    const payload = { status: newStatus };
+    if (newStatus !== 'Wiedervorlage') payload.snooze_until = null;
+
+    const { error } = await _supabase.from('tickets').update(payload).eq('id', ticketId);
+    if (error) showToast(error.message, 'error');
+    else showToast('Status aktualisiert.', 'success');
+};
+
+window.saveSnoozeDate = async (ticketId, date) => {
+    await _supabase.from('tickets').update({ snooze_until: date ? new Date(date).toISOString() : null }).eq('id', ticketId);
+};
+
+// ─── Zuweisung ────────────────────────────────────────────────
+window.assignTicket = async (ticketId, userId) => {
+    await _supabase.from('tickets').update({ assigned_to: userId || null }).eq('id', ticketId);
+    showToast('Zuweisung gespeichert.', 'success');
+};
+
+// ─── Eskalation (owner → Verwalter) ──────────────────────────
+window.escalateTicket = async (ticketId) => {
+    // Manager für das Gebäude finden
+    const ticketData = await _supabase.from('tickets').select('building_id, creator:profiles!tickets_creator_id_fkey(full_name)').eq('id', ticketId).single();
+    const bId = ticketData.data?.building_id;
+    let managerId = null;
+    if (bId) {
+        const { data: mgmt } = await _supabase.from('management_assignments').select('manager_id').eq('building_id', bId).limit(1).single();
+        managerId = mgmt?.manager_id || null;
+    }
+    const senderName = userProfile?.full_name || 'Eigentümer';
+    const sysMsg = `${senderName} hat dieses Ticket an den Verwalter weitergeleitet.`;
+
+    await Promise.all([
+        _supabase.from('tickets').update({ assigned_to: managerId, status: 'Offen' }).eq('id', ticketId),
+        _supabase.from('ticket_messages').insert([{ ticket_id: ticketId, sender_id: currentUser.id, message: sysMsg, is_system_message: true }]),
+    ]);
+    showToast('Ticket weitergeleitet.', 'success');
+    await openTicketDetail(ticketId);
+};
+
+// ─── Ticket erstellen ─────────────────────────────────────────
+window.showCreateTicketModal = async () => {
+    const { data: buildings } = await _supabase.from('buildings').select('id, name').order('name');
+    const bList = buildings || [];
+
+    document.getElementById('create-ticket-modal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'create-ticket-modal';
+    modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
+    modal.innerHTML = `
+        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-lg p-8 space-y-5" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center">
+                <h3 class="text-xl font-extrabold text-hb-offblack">Neues Ticket</h3>
+                <button onclick="document.getElementById('create-ticket-modal').remove()" class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
+            </div>
+            <div class="space-y-2">
+                <label class="text-[10px] uppercase font-bold text-gray-500">Betreff *</label>
+                <input type="text" id="tkt_title" placeholder="Kurze Beschreibung des Problems">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-2">
+                    <label class="text-[10px] uppercase font-bold text-gray-500">Kategorie</label>
+                    <select id="tkt_cat">
+                        <option>Sonstiges</option>
+                        <option>Heizung</option>
+                        <option>Wasser</option>
+                        <option>Elektro</option>
+                    </select>
+                </div>
+                <div class="space-y-2">
+                    <label class="text-[10px] uppercase font-bold text-gray-500">Gebäude</label>
+                    <select id="tkt_building" onchange="loadApartmentsForTicket(this.value)">
+                        <option value="">— Bitte wählen —</option>
+                        ${bList.map(b => `<option value="${b.id}">${b.name}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+            <div class="space-y-2">
+                <label class="text-[10px] uppercase font-bold text-gray-500">Einheit (optional)</label>
+                <select id="tkt_apt"><option value="">— Erst Gebäude wählen —</option></select>
+            </div>
+            <div class="space-y-2">
+                <label class="text-[10px] uppercase font-bold text-gray-500">Beschreibung *</label>
+                <textarea id="tkt_desc" rows="4" placeholder="Beschreibe das Problem so genau wie möglich…"></textarea>
+            </div>
+            <!-- Anhang Platzhalter -->
+            <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center text-sm text-gray-400">
+                <svg class="w-6 h-6 mx-auto mb-1 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                </svg>
+                Dateianhang (folgt in nächster Version)
+            </div>
+            <button onclick="saveTicket()" class="btn-primary w-full">Ticket erstellen</button>
+        </div>`;
+    modal.addEventListener('click', () => modal.remove());
+    document.body.appendChild(modal);
+
+    // Vorausfüllen wenn Profil apartment_id hat
+    if (userProfile?.apartment_id) {
+        const { data: apt } = await _supabase.from('apartments').select('id, building_id, apartment_number').eq('id', userProfile.apartment_id).single();
+        if (apt) {
+            const bSel = document.getElementById('tkt_building');
+            if (bSel) bSel.value = apt.building_id;
+            await loadApartmentsForTicket(apt.building_id, apt.id);
+        }
+    }
+};
+
+window.loadApartmentsForTicket = async (bId, preselect = null) => {
+    const sel = document.getElementById('tkt_apt');
+    if (!sel || !bId) return;
+    const { data } = await _supabase.from('apartments').select('id, apartment_number').eq('building_id', bId).order('apartment_number');
+    sel.innerHTML = '<option value="">— Keine Einheit —</option>'
+        + (data || []).map(a => `<option value="${a.id}" ${a.id === preselect ? 'selected' : ''}>Wohnung ${a.apartment_number}</option>`).join('');
+};
+
+window.saveTicket = async () => {
+    const title = document.getElementById('tkt_title')?.value?.trim();
+    const desc  = document.getElementById('tkt_desc')?.value?.trim();
+    if (!title || !desc) { showToast('Betreff und Beschreibung sind Pflichtfelder.', 'error'); return; }
+
+    const bId   = parseInt(document.getElementById('tkt_building')?.value) || null;
+    const aptId = parseInt(document.getElementById('tkt_apt')?.value) || null;
+
+    const { error } = await _supabase.from('tickets').insert([{
+        title,
+        description:  desc,
+        category:     document.getElementById('tkt_cat')?.value || 'Sonstiges',
+        status:       'Offen',
+        building_id:  bId,
+        apartment_id: aptId,
+        creator_id:   currentUser.id,
+        tenant_id:    currentUser.id,
+    }]);
+    if (error) { showToast(error.message, 'error'); return; }
+    document.getElementById('create-ticket-modal')?.remove();
+    showToast('Ticket erstellt.', 'success');
+    await _loadTicketView(_ticketFilter);
+};
+
+// ─── Deep-Links ───────────────────────────────────────────────
+window.navigateToBuilding = async (buildingId) => {
+    document.querySelector('[onclick*="loadTenants"]')?.click();
+    await loadTenants();
+    if (buildingId) selectBuilding(buildingId);
+};
+
+window.navigateToApartment = async (buildingId, apartmentId) => {
+    await navigateToBuilding(buildingId);
+    // Nach dem Laden der Einheitenliste die Info-Ansicht öffnen
+    setTimeout(() => { if (apartmentId) showApartmentInfo(apartmentId); }, 300);
+};
+
+window.navigateToPersonByProfile = async (profileId) => {
+    if (!profileId) return;
+    const { data } = await _supabase.from('persons').select('id').eq('auth_user_id', profileId).single();
+    if (data?.id) showPersonForm(data.id);
+    else showToast('Kein CRM-Profil verknüpft.', 'error');
+};
