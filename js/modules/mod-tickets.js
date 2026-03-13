@@ -3,9 +3,10 @@
 // Modul: Ticket-System — Mangelmeldungen im Zammad-Stil
 // ============================================================
 
-let _ticketFilter    = 'mine';
-let _ticketsData     = [];
-let _currentTicketId = null;
+let _ticketFilter         = 'mine';
+let _ticketsData          = [];
+let _currentTicketId      = null;
+let _ticketRealtimeChannel = null;
 
 const TICKET_STATUSES = ['Offen', 'In Bearbeitung', 'Warte auf Rückmeldung', 'Wiedervorlage', 'Erledigt'];
 
@@ -19,14 +20,20 @@ const STATUS_STYLE = {
 
 // ─── Haupteinstieg ────────────────────────────────────────────
 async function loadTickets() {
+    // Realtime-Kanal beim Modul-Reload sauber schließen
+    if (_ticketRealtimeChannel) {
+        _supabase.removeChannel(_ticketRealtimeChannel);
+        _ticketRealtimeChannel = null;
+    }
+
     await _checkSnoozedTickets();
 
     const container = document.getElementById('content-area');
     container.innerHTML = `
-        <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)] text-left">
+        <div class="flex flex-col lg:flex-row gap-6 lg:h-[calc(100vh-140px)] text-left">
             <!-- Linke Filter-Sidebar -->
-            <div class="w-full lg:w-56 xl:w-64 flex-shrink-0">
-                <div class="card h-full flex flex-col overflow-hidden">
+            <div id="ticket-sidebar" class="w-full lg:w-56 xl:w-64 flex-shrink-0">
+                <div class="card lg:h-full flex flex-col overflow-hidden">
                     <div class="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
                         <h2 class="text-xs font-black uppercase tracking-widest text-gray-500">Tickets</h2>
                         <button onclick="showCreateTicketModal()"
@@ -41,15 +48,20 @@ async function loadTickets() {
                 </div>
             </div>
             <!-- Rechter Bereich -->
-            <div class="flex-1 min-w-0 h-full" id="ticket-main">
-                <div class="card h-full flex items-center justify-center text-gray-400 text-sm">
+            <div class="flex-1 min-w-0 lg:h-full" id="ticket-main">
+                <div class="card lg:h-full flex items-center justify-center text-gray-400 text-sm">
                     Bitte wähle eine Ansicht aus.
                 </div>
             </div>
         </div>`;
 
     await _renderFilterMenu();
-    await _loadTicketView('mine');
+    // Mobile: ticket-main erst nach Auswahl sichtbar
+    if (window.innerWidth < 1024) {
+        document.getElementById('ticket-main').style.display = 'none';
+    } else {
+        await _loadTicketView('mine');
+    }
 }
 
 async function _checkSnoozedTickets() {
@@ -120,8 +132,38 @@ async function _renderFilterMenu() {
     }
 }
 
+// Mobile: zurück zur Sidebar/Liste
+window._backToList = () => {
+    if (_ticketRealtimeChannel) {
+        _supabase.removeChannel(_ticketRealtimeChannel);
+        _ticketRealtimeChannel = null;
+    }
+    const sidebar = document.getElementById('ticket-sidebar');
+    const main    = document.getElementById('ticket-main');
+    if (window.innerWidth < 1024 && sidebar) {
+        sidebar.style.display = '';
+        if (main) main.style.display = 'none';
+    }
+    setTicketFilter(_ticketFilter);
+};
+
+// Mobile: Info-Sidebar ein-/ausklappen
+window._toggleMobileInfo = () => {
+    const info = document.getElementById('ticket-info-sidebar');
+    if (!info) return;
+    info.classList.toggle('hidden');
+    info.classList.toggle('block');
+};
+
 window.setTicketFilter = async (filterId) => {
     _ticketFilter = filterId;
+    // Mobile: Sidebar wieder einblenden, Hauptbereich ausblenden bis Ticket gewählt
+    if (window.innerWidth < 1024) {
+        const sidebar = document.getElementById('ticket-sidebar');
+        const main    = document.getElementById('ticket-main');
+        if (sidebar) sidebar.style.display = '';
+        if (main)    main.style.display    = 'none';
+    }
     document.querySelectorAll('.ticket-filter-btn').forEach(el => {
         const active = el.id === `tf-${filterId.replace(/\s/g,'-')}` || el.id === `tf-${filterId}`;
         el.classList.toggle('bg-hb-ultralight', active);
@@ -284,34 +326,44 @@ window.openTicketDetail = async (ticketId) => {
     const isOwner = role === 'owner';
     const stCls   = STATUS_STYLE[t.status] || 'bg-gray-100 text-gray-500';
 
+    // Mobile: Sidebar ausblenden, Hauptbereich vollflächig einblenden
+    if (window.innerWidth < 1024) {
+        document.getElementById('ticket-sidebar').style.display = 'none';
+        main.style.display = 'block';
+    }
+
     main.innerHTML = `
-        <div class="card h-full flex overflow-hidden">
-            <!-- Chat-Bereich (links, 2/3) -->
-            <div class="flex-1 flex flex-col min-w-0 border-r border-gray-100">
-                <div class="px-5 py-3 border-b border-gray-50 flex justify-between items-center flex-shrink-0">
-                    <div>
-                        <button onclick="setTicketFilter('${_ticketFilter}')"
+        <div class="card lg:h-full flex flex-col lg:flex-row lg:overflow-hidden">
+            <!-- Chat-Bereich -->
+            <div class="flex-1 flex flex-col min-w-0 lg:border-r border-gray-100">
+                <div class="px-4 py-3 border-b border-gray-50 flex justify-between items-center flex-shrink-0">
+                    <div class="min-w-0">
+                        <button onclick="_backToList()"
                             class="text-xs font-bold text-hb-olive hover:underline">← Zurück</button>
-                        <p class="font-bold text-hb-offblack mt-0.5">${t.title}</p>
+                        <p class="font-bold text-hb-offblack mt-0.5 truncate">${t.title}</p>
                     </div>
+                    <!-- Mobile: Info-Toggle -->
+                    <button onclick="_toggleMobileInfo()" class="lg:hidden flex-shrink-0 ml-2 text-xs font-bold text-gray-400 border border-gray-200 rounded-lg px-2 py-1">
+                        Info ▾
+                    </button>
                 </div>
                 <!-- Chat -->
-                <div class="flex-grow overflow-y-auto p-4 space-y-3 bg-gray-50/30" id="ticket-chat">
+                <div class="flex-grow overflow-y-auto p-4 space-y-3 bg-gray-50/30" id="ticket-chat" style="min-height:200px">
                     ${messages.map(m => _messageBubble(m)).join('')}
                     ${!messages.length ? '<p class="text-center text-sm text-gray-400 py-8">Noch keine Nachrichten.</p>' : ''}
                 </div>
                 <!-- Eingabe -->
-                <div class="p-4 border-t border-gray-100 flex-shrink-0 flex gap-3 items-end">
+                <div class="p-3 border-t border-gray-100 flex-shrink-0 flex gap-2 items-end bg-white">
                     <textarea id="ticket-reply-input" rows="2" placeholder="Antwort schreiben…"
                         class="flex-grow resize-none text-sm"
                         onkeydown="if(event.key==='Enter'&&event.ctrlKey)sendTicketMessage('${t.id}')"></textarea>
                     <button onclick="sendTicketMessage('${t.id}')"
-                        class="btn-primary px-4 py-2 text-sm flex-shrink-0">Senden</button>
+                        class="btn-primary px-3 py-2 text-sm flex-shrink-0">Senden</button>
                 </div>
             </div>
 
-            <!-- Info-Sidebar (rechts, ~280px) -->
-            <div class="w-64 xl:w-72 flex-shrink-0 overflow-y-auto p-5 space-y-5 text-left">
+            <!-- Info-Sidebar (Desktop: rechts fest | Mobile: ausklappbar) -->
+            <div id="ticket-info-sidebar" class="hidden lg:block w-full lg:w-64 xl:w-72 flex-shrink-0 overflow-y-auto p-5 space-y-5 text-left border-t lg:border-t-0">
                 <!-- Status -->
                 <div class="space-y-2">
                     <p class="text-[10px] uppercase font-bold text-gray-400">Status</p>
@@ -386,6 +438,33 @@ window.openTicketDetail = async (ticketId) => {
         const chat = document.getElementById('ticket-chat');
         if (chat) chat.scrollTop = chat.scrollHeight;
     }, 50);
+
+    // ─── Realtime: neue Nachrichten anderer User live empfangen ───
+    if (_ticketRealtimeChannel) _supabase.removeChannel(_ticketRealtimeChannel);
+    _ticketRealtimeChannel = _supabase
+        .channel(`ticket-messages-${ticketId}`)
+        .on('postgres_changes', {
+            event:  'INSERT',
+            schema: 'public',
+            table:  'ticket_messages',
+            filter: `ticket_id=eq.${ticketId}`,
+        }, async (payload) => {
+            // Eigene Nachrichten werden direkt in sendTicketMessage() angezeigt
+            if (payload.new.sender_id === currentUser.id) return;
+            const { data: msg } = await _supabase
+                .from('ticket_messages')
+                .select('*, sender:profiles!ticket_messages_sender_id_fkey(id, full_name)')
+                .eq('id', payload.new.id).single();
+            const chat = document.getElementById('ticket-chat');
+            if (chat && msg) {
+                // Platzhalter "Noch keine Nachrichten" entfernen
+                chat.querySelector('p.text-center')?.remove();
+                chat.innerHTML += _messageBubble(msg);
+                chat.scrollTop = chat.scrollHeight;
+            }
+            refreshNavBadges?.();
+        })
+        .subscribe();
 };
 
 function _messageBubble(m) {
@@ -444,13 +523,14 @@ window.sendTicketMessage = async (ticketId) => {
         await _supabase.from('tickets').update({ updated_at: new Date().toISOString() }).eq('id', ticketId);
     }
 
-    // Nachrichten neu laden
-    const { data } = await _supabase.from('ticket_messages')
-        .select('*, sender:profiles!ticket_messages_sender_id_fkey(id, full_name)')
-        .eq('ticket_id', ticketId).order('created_at');
+    // Eigene Nachricht sofort im Chat anzeigen (Realtime übernimmt fremde)
     const chat = document.getElementById('ticket-chat');
     if (chat) {
-        chat.innerHTML = (data || []).map(m => _messageBubble(m)).join('');
+        chat.querySelector('p.text-center')?.remove();
+        const fakeMsg = { id: Date.now(), sender_id: currentUser.id, message: msg,
+            created_at: new Date().toISOString(), is_system_message: false,
+            sender: { full_name: userProfile?.full_name } };
+        chat.innerHTML += _messageBubble(fakeMsg);
         chat.scrollTop = chat.scrollHeight;
     }
 };

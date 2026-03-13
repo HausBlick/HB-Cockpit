@@ -122,7 +122,8 @@ function _setNavBadge(id, count) {
     if (!el) return;
     if (count > 0) {
         el.textContent = count > 99 ? '99+' : count;
-        el.className = 'nav-badge ml-auto text-[9px] font-black bg-hb-orange text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none';
+        el.className = 'nav-badge ml-auto text-[9px] font-black bg-hb-orange text-white rounded-md flex items-center justify-center'
+            + ' min-w-[18px] h-[18px] px-1';
     } else {
         el.textContent = '';
         el.className = 'nav-badge';
