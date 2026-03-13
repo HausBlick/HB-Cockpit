@@ -72,7 +72,7 @@ async function _renderFilterMenu() {
     const all = allTickets || [];
 
     const counts = {
-        mine:                    all.filter(t => t.creator_id === currentUser.id || t.assigned_to === currentUser.id).length,
+        mine:                    all.filter(t => (t.creator_id === currentUser.id || t.assigned_to === currentUser.id) && t.status !== 'Erledigt').length,
         'Offen':                 all.filter(t => t.status === 'Offen').length,
         'In Bearbeitung':        all.filter(t => t.status === 'In Bearbeitung').length,
         'Warte auf Rückmeldung': all.filter(t => t.status === 'Warte auf Rückmeldung').length,
@@ -85,12 +85,13 @@ async function _renderFilterMenu() {
         : '';
 
     const filters = [
-        { id: 'mine',                  label: 'Meine Tickets',    icon: '👤', showBadge: true  },
-        { id: 'Offen',                 label: 'Offen',            icon: '🔵', showBadge: true  },
-        { id: 'In Bearbeitung',        label: 'In Bearbeitung',   icon: '🟢', showBadge: true  },
-        { id: 'Warte auf Rückmeldung', label: 'Warte auf Antwort',icon: '🟡', showBadge: true  },
-        { id: 'Wiedervorlage',         label: 'Wiedervorlage',    icon: '🟣', showBadge: true  },
-        { id: 'Erledigt',              label: 'Erledigt',         icon: '⚫', showBadge: false },
+        { id: 'mine',                  label: 'Meine Tickets',          icon: '👤', showBadge: true  },
+        { id: 'mine-done',             label: 'Meine erledigten',       icon: '✅', showBadge: false },
+        { id: 'Offen',                 label: 'Offen',                  icon: '🔵', showBadge: true  },
+        { id: 'In Bearbeitung',        label: 'In Bearbeitung',         icon: '🟢', showBadge: true  },
+        { id: 'Warte auf Rückmeldung', label: 'Warte auf Antwort',      icon: '🟡', showBadge: true  },
+        { id: 'Wiedervorlage',         label: 'Wiedervorlage',          icon: '🟣', showBadge: true  },
+        { id: 'Erledigt',              label: 'Alle erledigten',        icon: '⚫', showBadge: false },
     ];
 
     menu.innerHTML = filters.map(f => `
@@ -145,7 +146,11 @@ async function _loadTicketView(filterId) {
         .order('created_at', { ascending: false });
 
     if (filterId === 'mine') {
-        query = query.or(`creator_id.eq.${currentUser.id},assigned_to.eq.${currentUser.id}`);
+        query = query.or(`creator_id.eq.${currentUser.id},assigned_to.eq.${currentUser.id}`)
+                     .neq('status', 'Erledigt');
+    } else if (filterId === 'mine-done') {
+        query = query.or(`creator_id.eq.${currentUser.id},assigned_to.eq.${currentUser.id}`)
+                     .eq('status', 'Erledigt');
     } else if (filterId.startsWith('building-')) {
         const bId = filterId.replace('building-', '');
         query = query.eq('building_id', bId).neq('status', 'Erledigt');
