@@ -37,7 +37,7 @@
         .dropdown-open { display: block !important; animation: fadeIn 0.15s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
         
-        /* Formular Styling - Entzerrt und optimiert */
+        /* Formular Styling */
         input, select, textarea { border-radius: 12px; background-color: #F9FAF8; border: 1px solid #e5e7eb; transition: all 0.2s; padding: 12px 16px; width: 100%; font-size: 14px; }
         input:focus, select:focus, textarea:focus { background-color: white; border-color: #687451; outline: none; box-shadow: 0 0 0 3px rgba(104, 116, 81, 0.1); }
         input[type="checkbox"] { width: auto; accent-color: #687451; width: 1.2rem; height: 1.2rem; cursor: pointer; border-radius: 4px; }
@@ -45,8 +45,13 @@
         .btn-primary { background-color: #687451; color: white; border-radius: 12px; transition: all 0.2s; font-weight: 600; padding: 12px 24px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
         .btn-primary:hover { background-color: #555f42; transform: translateY(-1px); }
         .btn-secondary { background-color: #e5e7eb; color: #374151; border-radius: 12px; transition: all 0.2s; font-weight: 600; padding: 12px 24px; cursor: pointer; }
+
+        /* Rollen Badges */
+        .badge-eigentuemer { background-color: #e0e7ff; color: #1e40af; border-color: #c7d2fe; }
+        .badge-mieter { background-color: #dcfce7; color: #166534; border-color: #bbf7d0; }
+        .badge-dienstleister { background-color: #fef3c7; color: #92400e; border-color: #fde68a; }
+        .badge-beirat { background-color: #f3e8ff; color: #7e22ce; border-color: #e9d5ff; }
         
-        /* Scrollbars verstecken für Tabs */
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
@@ -57,15 +62,13 @@
 
     <!-- Mobile Header -->
     <div class="md:hidden bg-white border-b border-gray-100 p-4 flex justify-between items-center sticky top-0 z-50">
-        <div class="font-bold text-xl tracking-tight text-hb-olive flex items-center gap-2">
-            Mieterportal
-        </div>
+        <div class="font-bold text-xl tracking-tight text-hb-olive flex items-center gap-2">Mieterportal</div>
         <button onclick="toggleMenu()" class="text-hb-olive p-2 bg-gray-50 rounded-lg">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" /></svg>
         </button>
     </div>
 
-    <!-- Haupt-Sidebar -->
+    <!-- Sidebar -->
     <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-40 w-72 bg-white border-r border-gray-100 flex-shrink-0 h-screen flex flex-col shadow-soft text-left">
         <div class="p-8 pb-4 hidden md:block text-center border-b border-gray-50 mb-4">
             <div class="font-extrabold text-xl tracking-tighter text-hb-olive">Mieterportal</div>
@@ -77,7 +80,7 @@
     </nav>
     <div id="overlay" onclick="toggleMenu()" class="fixed inset-0 bg-hb-offblack/20 backdrop-blur-sm z-30 hidden text-left"></div>
 
-    <!-- Hauptbereich -->
+    <!-- Main -->
     <main class="flex-grow h-screen overflow-y-auto relative flex flex-col text-left">
         <header class="p-6 md:p-10 flex justify-between items-center sticky top-0 bg-hb-ultralight/80 backdrop-blur-md z-30 text-left">
             <div class="text-left">
@@ -85,7 +88,6 @@
                 <h1 id="welcome-title" class="text-2xl md:text-3xl font-extrabold tracking-tight">Lade...</h1>
             </div>
             
-            <!-- User Menu -->
             <div class="relative dropdown-container text-left">
                 <button onclick="toggleUserDropdown(event)" class="flex items-center gap-3 bg-white p-1.5 pr-3 rounded-full border border-gray-200 shadow-sm hover:border-hb-olive transition-colors">
                     <div id="user-avatar" class="w-9 h-9 bg-hb-olive text-white rounded-full flex items-center justify-center font-bold text-sm uppercase">?</div>
@@ -106,7 +108,6 @@
             </div>
         </header>
 
-        <!-- Dynamischer Inhalt -->
         <div id="content-area" class="flex-grow px-6 md:px-10 pb-20 overflow-y-auto text-left"></div>
     </main>
 
@@ -128,8 +129,8 @@
             tickets: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>`,
             users: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>`,
             buildings: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M3 21h18"></path><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"></path></svg>`,
-            docs: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>`,
-            contact: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>`,
+            docs: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path></svg>`,
+            contact: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path></svg>`,
             finance: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`,
             settings: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`
         };
@@ -150,82 +151,6 @@
         function logout() { _supabase.auth.signOut().then(() => window.location.href = 'index.html'); }
         function toggleMenu() { document.getElementById('sidebar').classList.toggle('-translate-x-full'); document.getElementById('overlay').classList.toggle('hidden'); }
         
-        window.switchAptTab = function(tabId) {
-            document.querySelectorAll('.apt-tab-content').forEach(el => el.classList.add('hidden'));
-            document.querySelectorAll('.apt-tab-btn').forEach(el => {
-                el.classList.remove('border-hb-olive', 'text-hb-olive');
-                el.classList.add('border-transparent', 'text-gray-500');
-            });
-            document.getElementById('tab-' + tabId).classList.remove('hidden');
-            const btn = document.getElementById('btn-tab-' + tabId);
-            if(btn) { btn.classList.remove('border-transparent', 'text-gray-500'); btn.classList.add('border-hb-olive', 'text-hb-olive'); }
-        };
-
-        window.switchBuildingTab = function(tabId) {
-            document.querySelectorAll('.bldg-tab-content').forEach(el => el.classList.add('hidden'));
-            document.querySelectorAll('.bldg-tab-btn').forEach(el => {
-                el.classList.remove('border-hb-olive', 'text-hb-olive');
-                el.classList.add('border-transparent', 'text-gray-500');
-            });
-            document.getElementById('bldg-tab-' + tabId).classList.remove('hidden');
-            const btn = document.getElementById('bldg-btn-tab-' + tabId);
-            if(btn) { btn.classList.remove('border-transparent', 'text-gray-500'); btn.classList.add('border-hb-olive', 'text-hb-olive'); }
-        };
-
-        async function loadActiveTenancy(apartmentId) {
-            const { data, error } = await _supabase.from('tenancies').select('*').eq('apartment_id', apartmentId).eq('status', 'Aktiv').maybeSingle();
-            return data || null;
-        }
-        // === END: SETUP ===
-
-        // === START: INIT & NAVIGATION ===
-        async function init() {
-            try {
-                const { data: { user } } = await _supabase.auth.getUser();
-                if (!user) { window.location.href = 'index.html'; return; }
-                currentUser = user;
-                const { data: profile } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
-                if (!profile) return;
-                userProfile = profile;
-                document.getElementById('welcome-title').textContent = "Hallo, " + profile.full_name.split(' ')[0] + "!";
-                const roleLabels = { 'admin': 'Verwalter Cockpit', 'manager': 'Objektbetreuer', 'owner': 'Eigentümer Cockpit', 'tenant': 'Mieter Portal' };
-                document.getElementById('role-label').textContent = roleLabels[profile.role] || 'Nutzer Portal';
-                document.getElementById('user-avatar').textContent = profile.full_name.charAt(0).toUpperCase();
-                document.getElementById('dropdown-name').textContent = profile.full_name;
-                document.getElementById('dropdown-email').textContent = profile.email;
-                renderNav(profile.role);
-                loadDashboard(); 
-            } catch (err) { console.error(err); }
-        }
-
-        function renderNav(role) {
-            const nav = document.getElementById('nav-links');
-            let html = `<li><a onclick="loadDashboard(); setActiveNav(this)" class="nav-link active-link">${icons.dashboard} Dashboard</a></li>`;
-            if (role === 'admin' || role === 'manager') {
-                html += `<li class="nav-section-title">Kommunikation</li><li><a onclick="loadNews(); setActiveNav(this)" class="nav-link">${icons.news} Schwarzes Brett</a></li><li><a onclick="loadTickets(); setActiveNav(this)" class="nav-link">${icons.tickets} Ticket System</a></li>`;
-                html += `<li class="nav-section-title">Verwaltung</li><li><a onclick="loadUserManagement(); setActiveNav(this)" class="nav-link">${icons.users} Personen</a></li><li><a onclick="loadTenants(); setActiveNav(this)" class="nav-link">${icons.buildings} Bestands-Objekte</a></li>`;
-                html += `<li class="nav-section-title">Finanzen</li><li><a onclick="loadFinance(); setActiveNav(this)" class="nav-link">${icons.finance} Abrechnungen</a></li>`;
-                html += `<li class="nav-section-title">Service</li><li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Dokumenten Cloud</a></li><li><a onclick="loadContacts(); setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li><li><a onclick="loadSettings(); setActiveNav(this)" class="nav-link">${icons.settings} Einstellungen</a></li>`;
-            } else if (role === 'owner') {
-                html += `<li class="nav-section-title">Mein Asset</li><li><a onclick="loadMyUnits(); setActiveNav(this)" class="nav-link">${icons.buildings} Meine Einheiten</a></li><li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Dokumente</a></li><li><a onclick="loadTickets(); setActiveNav(this)" class="nav-link">${icons.tickets} Meine Tickets</a></li>`;
-            } else { 
-                html += `<li class="nav-section-title">Service</li><li><a onclick="loadNews(); setActiveNav(this)" class="nav-link">${icons.news} Schwarzes Brett</a></li><li><a onclick="loadTickets(); setActiveNav(this)" class="nav-link">${icons.tickets} Meldungen</a></li><li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Meine Dokumente</a></li>`;
-            }
-            nav.innerHTML = html;
-        }
-
-        function setActiveNav(el) {
-            document.querySelectorAll('#nav-links a').forEach(a => a.classList.remove('active-link'));
-            el.classList.add('active-link');
-            if(window.innerWidth < 768) toggleMenu();
-        }
-
-        // === START: MODUL DASHBOARD ===
-        async function loadDashboard() {
-            document.getElementById('content-area').innerHTML = `<div class="p-10 card text-center"><h2 class="text-xl font-bold mb-2 text-left">Willkommen im Dashboard</h2><p class="text-gray-500 text-left">Wähle einen Menüpunkt aus der Sidebar.</p></div>`;
-        }
-        // === END: MODUL DASHBOARD ===
-
         // === START: MODUL OBJEKTE ===
         async function loadTenants() {
             const container = document.getElementById('content-area');
@@ -282,18 +207,28 @@
                             <h2 class="text-2xl font-extrabold text-hb-offblack">${b.name}</h2>
                             <p class="text-sm text-gray-500">${addressStr}</p>
                         </div>
-                        <button onclick="showBuildingForm(${b.id})" class="text-xs font-bold text-hb-olive bg-hb-ultralight px-4 py-2 rounded-xl hover:bg-gray-100 transition-colors shadow-sm">Gebäude Details & Bearbeiten</button>
+                        <button onclick="showBuildingForm(${b.id})" class="text-xs font-bold text-hb-olive bg-hb-ultralight px-4 py-2 rounded-xl hover:bg-gray-100 transition-colors shadow-sm">Details</button>
                     </div>
                     <div class="px-6 py-4 bg-gray-50/50 border-b border-gray-50 flex justify-between items-center text-left">
                         <h3 class="text-sm font-black uppercase tracking-widest text-gray-500">Zugehörige Einheiten</h3>
-                        <button onclick="showApartmentForm()" class="btn-primary py-2 px-4 text-xs shadow-sm">+ Einheit hinzufügen</button>
+                        <button onclick="showApartmentForm()" class="btn-primary py-2 px-4 text-xs shadow-sm">+ Einheit</button>
                     </div>
                     <div class="flex-grow overflow-y-auto p-6 bg-[#f4f5f1] chat-scroll text-left" id="apartments-list"></div>
                 </div>`;
             await fetchApartmentsForBuilding(id);
         }
 
-        // --- GEBÄUDE UI (PROFI) ---
+        window.switchBuildingTab = function(tabId) {
+            document.querySelectorAll('.bldg-tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.bldg-tab-btn').forEach(el => {
+                el.classList.remove('border-hb-olive', 'text-hb-olive');
+                el.classList.add('border-transparent', 'text-gray-500');
+            });
+            document.getElementById('bldg-tab-' + tabId).classList.remove('hidden');
+            const btn = document.getElementById('bldg-btn-tab-' + tabId);
+            if(btn) { btn.classList.remove('border-transparent', 'text-gray-500'); btn.classList.add('border-hb-olive', 'text-hb-olive'); }
+        };
+
         async function showBuildingForm(id = null) {
             const area = document.getElementById('units-area');
             let b = id ? currentBuildings.find(x => x.id === id) : {};
@@ -302,357 +237,177 @@
             area.innerHTML = `
                 <div class="card p-8 h-full overflow-y-auto border border-gray-100 shadow-sm flex flex-col text-left">
                     <div class="flex justify-between items-center mb-6 text-left">
-                        <h2 class="text-2xl font-extrabold text-hb-offblack tracking-tight">${isEdit ? 'Gebäude bearbeiten' : 'Neues Gebäude / WEG anlegen'}</h2>
+                        <h2 class="text-2xl font-extrabold text-hb-offblack tracking-tight">${isEdit ? 'Gebäude bearbeiten' : 'Neues Gebäude'}</h2>
                         <button onclick="selectedBuildingId ? selectBuilding(selectedBuildingId) : loadTenants()" class="text-xs font-bold text-gray-400 uppercase tracking-widest hover:text-hb-orange">Zurück</button>
                     </div>
 
-                    <!-- Building Tabs Navigation -->
                     <div class="flex overflow-x-auto border-b border-gray-200 mb-6 gap-8 hide-scrollbar flex-shrink-0">
                         <button type="button" id="bldg-btn-tab-base" onclick="switchBuildingTab('base')" class="bldg-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-hb-olive text-hb-olive">Stammdaten</button>
-                        <button type="button" id="bldg-btn-tab-legal" onclick="switchBuildingTab('legal')" class="bldg-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Grundbuch & Recht</button>
-                        <button type="button" id="bldg-btn-tab-finance" onclick="switchBuildingTab('finance')" class="bldg-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Finanzen & Banken</button>
-                        <button type="button" id="bldg-btn-tab-tech" onclick="switchBuildingTab('tech')" class="bldg-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Technik & Zähler</button>
-                        <button type="button" id="bldg-btn-tab-compliance" onclick="switchBuildingTab('compliance')" class="bldg-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Fristen & Compliance</button>
+                        <button type="button" id="bldg-btn-tab-legal" onclick="switchBuildingTab('legal')" class="bldg-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Grundbuch</button>
+                        <button type="button" id="bldg-btn-tab-tech" onclick="switchBuildingTab('tech')" class="bldg-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Technik</button>
                     </div>
 
-                    <form id="building-form" class="flex-grow flex flex-col justify-between text-left">
-                        <div class="flex-grow text-left">
-                            
-                            <!-- TAB: STAMMDATEN -->
-                            <div id="bldg-tab-base" class="bldg-tab-content space-y-6">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Objektname / Bezeichnung *</label><input type="text" id="b_name" value="${b.name || ''}" placeholder="z.B. WEG Sonnenschein" required></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Interne Aktennummer</label><input type="text" id="b_file_number" value="${b.file_number || ''}"></div>
-                                    
-                                    <div class="space-y-2 md:col-span-2 border-t border-gray-100 pt-4"><h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">Adresse</h3></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Straße</label><input type="text" id="b_street" value="${b.street || ''}"></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Hausnummer</label><input type="text" id="b_house_number" value="${b.house_number || ''}"></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">PLZ</label><input type="text" id="b_zip_code" value="${b.zip_code || ''}"></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Ort</label><input type="text" id="b_city" value="${b.city || ''}"></div>
-                                    
-                                    <div class="space-y-2 md:col-span-2 border-t border-gray-100 pt-4">
-                                        <label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Verwaltungsstatus</label>
-                                        <select id="b_status"><option value="aktiv" ${b.status !== 'inaktiv' ? 'selected' : ''}>Aktiv (In Verwaltung)</option><option value="inaktiv" ${b.status === 'inaktiv' ? 'selected' : ''}>Inaktiv (Gekündigt/Archiv)</option></select>
-                                    </div>
-                                    <div class="space-y-2 md:col-span-2">
-                                        <label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Interne Notizen</label>
-                                        <textarea id="b_notes" rows="3" placeholder="Besonderheiten, Zugangscodes etc.">${b.notes || ''}</textarea>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- TAB: GRUNDBUCH & RECHT -->
-                            <div id="bldg-tab-legal" class="bldg-tab-content hidden space-y-6">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Zuständiges Grundbuchamt</label><input type="text" id="b_land_registry" value="${b.land_registry || ''}"></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Gemarkung</label><input type="text" id="b_district" value="${b.district || ''}"></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Flur</label><input type="text" id="b_parcel" value="${b.parcel || ''}"></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Flurstück(e)</label><input type="text" id="b_parcel_number" value="${b.parcel_number || ''}"></div>
-                                    
-                                    <div class="space-y-2 border-t border-gray-100 pt-4 md:col-span-2"><h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">Teilungserklärung</h3></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Datum Teilungserklärung</label><input type="date" id="b_decl_div_date" value="${b.declaration_of_division_date || ''}"></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Datum letzter Nachtrag</label><input type="date" id="b_decl_amen_date" value="${b.declaration_last_amendment_date || ''}"></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Notar</label><input type="text" id="b_notary" value="${b.notary_name || ''}"></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Gesamt-MEA der Anlage</label><input type="number" id="b_total_mea" value="${b.total_mea || ''}" step="0.0001" placeholder="z.B. 1000.0000"></div>
-                                </div>
-                            </div>
-
-                            <!-- TAB: FINANZEN & BANKEN -->
-                            <div id="bldg-tab-finance" class="bldg-tab-content hidden space-y-6">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Wirtschaftsjahr Start (MM-DD)</label><input type="text" id="b_fiscal_start" value="${b.fiscal_year_start || '01-01'}" placeholder="01-01"></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Wirtschaftsjahr Ende (MM-DD)</label><input type="text" id="b_fiscal_end" value="${b.fiscal_year_end || '12-31'}" placeholder="12-31"></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Steuernummer (WEG)</label><input type="text" id="b_tax_number" value="${b.tax_number || ''}"></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Gläubiger-ID (SEPA)</label><input type="text" id="b_creditor_id" value="${b.creditor_id || ''}"></div>
-                                    
-                                    <!-- Placeholder for Bank Accounts List -->
-                                    <div class="space-y-2 border-t border-gray-100 pt-4 md:col-span-2">
-                                        <h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">Bankkonten der WEG</h3>
-                                        <div class="bg-gray-50 border border-dashed border-gray-200 rounded-xl p-4 text-center">
-                                            <p class="text-sm text-gray-500">Die detaillierte Kontenverwaltung (Giro, Rücklage) wird in Kürze hier verfügbar sein.</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- TAB: TECHNIK & ZÄHLER -->
-                            <div id="bldg-tab-tech" class="bldg-tab-content hidden space-y-6">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Baujahr (Gebäude)</label><input type="number" id="b_construction_year" value="${b.construction_year || ''}" placeholder="YYYY"></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Anzahl Aufzüge</label><input type="number" id="b_elevator_count" value="${b.elevator_count || '0'}"></div>
-                                    
-                                    <div class="space-y-2 border-t border-gray-100 pt-4 md:col-span-2"><h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">TGA (Heizung & Schließanlage)</h3></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Energieträger (z.B. Gas, Fernwärme)</label><input type="text" id="b_energy_source" value="${b.energy_source || ''}"></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Baujahr Heizanlage</label><input type="number" id="b_heating_year" value="${b.heating_system_year || ''}" placeholder="YYYY"></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Schließanlagen-Nummer</label><input type="text" id="b_locking_system" value="${b.locking_system_id || ''}"></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Hauptwasserzähler-Nr. (Stadt)</label><input type="text" id="b_main_water" value="${b.main_water_meter_id || ''}"></div>
-                                </div>
-                            </div>
-
-                            <!-- TAB: FRISTEN & COMPLIANCE -->
-                            <div id="bldg-tab-compliance" class="bldg-tab-content hidden space-y-6">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Energieausweis Typ</label><select id="b_energy_cert_type"><option value="">- Bitte wählen -</option><option value="Verbrauch" ${b.energy_certificate_type === 'Verbrauch' ? 'selected' : ''}>Verbrauchsausweis</option><option value="Bedarf" ${b.energy_certificate_type === 'Bedarf' ? 'selected' : ''}>Bedarfsausweis</option></select></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Ablauf Energieausweis</label><input type="date" id="b_energy_cert_expiry" value="${b.energy_certificate_expiry || ''}"></div>
-                                    
-                                    <div class="space-y-2 border-t border-gray-100 pt-4 md:col-span-2 flex items-center gap-3">
-                                        <input type="checkbox" id="b_legionella_req" ${b.legionella_check_required ? 'checked' : ''}>
-                                        <label for="b_legionella_req" class="text-sm font-bold text-gray-700">Gebäude ist Legionellen-prüfpflichtig</label>
-                                    </div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Letzte Legionellenprüfung</label><input type="date" id="b_legionella_last" value="${b.last_legionella_check || ''}"></div>
-                                    <div class="space-y-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Prüfintervall (Monate)</label><input type="number" id="b_legionella_interval" value="${b.legionella_check_interval_months || '36'}"></div>
-                                    
-                                    <div class="space-y-2 border-t border-gray-100 pt-4 md:col-span-2">
-                                        <label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Nächste Brandschutzprüfung / Feuerstättenschau</label>
-                                        <input type="date" id="b_fire_safety" value="${b.next_fire_safety_check || ''}">
-                                    </div>
-                                </div>
-                            </div>
+                    <form id="building-form" class="flex-grow flex flex-col justify-between text-left space-y-6">
+                        <div id="bldg-tab-base" class="bldg-tab-content grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Name *</label><input type="text" id="b_name" value="${b.name || ''}" required></div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Akten-Nr.</label><input type="text" id="b_file" value="${b.file_number || ''}"></div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Straße</label><input type="text" id="b_street" value="${b.street || ''}"></div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Haus-Nr.</label><input type="text" id="b_nr" value="${b.house_number || ''}"></div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">PLZ</label><input type="text" id="b_zip" value="${b.zip_code || ''}"></div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Ort</label><input type="text" id="b_city" value="${b.city || ''}"></div>
                         </div>
-
-                        <div class="pt-6 mt-6 border-t border-gray-100 flex gap-4 text-left flex-shrink-0">
-                            <button type="submit" class="btn-primary">Gebäude speichern</button>
-                            ${isEdit ? `<button type="button" onclick="if(confirm('Achtung: Komplettes Gebäude löschen?')) { /* TODO Delete Logic */ }" class="btn-secondary text-red-500 hover:bg-red-50 bg-white">Löschen</button>` : ''}
+                        <div id="bldg-tab-legal" class="bldg-tab-content hidden grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Grundbuchamt</label><input type="text" id="b_registry" value="${b.land_registry || ''}"></div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Gesamt-MEA</label><input type="number" id="b_total_mea" value="${b.total_mea || ''}" step="0.0001"></div>
+                        </div>
+                        <div id="bldg-tab-tech" class="bldg-tab-content hidden grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Baujahr</label><input type="number" id="b_year" value="${b.construction_year || ''}"></div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Heizung</label><input type="text" id="b_heat" value="${b.energy_source || ''}"></div>
+                        </div>
+                        <div class="pt-6 border-t flex gap-4">
+                            <button type="submit" class="btn-primary">Speichern</button>
                         </div>
                     </form>
                 </div>`;
-
+            
             document.getElementById('building-form').onsubmit = async (e) => {
                 e.preventDefault();
-                
-                // Helfer zum sauberen Konvertieren von leeren Datumsfeldern zu NULL für Supabase
-                const getVal = (id) => document.getElementById(id).value || null;
-                
                 const payload = { 
-                    name: getVal('b_name'),
-                    file_number: getVal('b_file_number'),
-                    street: getVal('b_street'),
-                    house_number: getVal('b_house_number'),
-                    zip_code: getVal('b_zip_code'),
-                    city: getVal('b_city'),
-                    status: getVal('b_status'),
-                    notes: getVal('b_notes'),
-                    
-                    land_registry: getVal('b_land_registry'),
-                    district: getVal('b_district'),
-                    parcel: getVal('b_parcel'),
-                    parcel_number: getVal('b_parcel_number'),
-                    total_mea: getVal('b_total_mea'),
-                    declaration_of_division_date: getVal('b_decl_div_date'),
-                    declaration_last_amendment_date: getVal('b_decl_amen_date'),
-                    notary_name: getVal('b_notary'),
-                    
-                    fiscal_year_start: getVal('b_fiscal_start'),
-                    fiscal_year_end: getVal('b_fiscal_end'),
-                    tax_number: getVal('b_tax_number'),
-                    creditor_id: getVal('b_creditor_id'),
-                    
-                    construction_year: getVal('b_construction_year'),
-                    elevator_count: getVal('b_elevator_count') || 0,
-                    energy_source: getVal('b_energy_source'),
-                    heating_system_year: getVal('b_heating_year'),
-                    locking_system_id: getVal('b_locking_system'),
-                    main_water_meter_id: getVal('b_main_water'),
-                    
-                    energy_certificate_type: getVal('b_energy_cert_type'),
-                    energy_certificate_expiry: getVal('b_energy_cert_expiry'),
-                    legionella_check_required: document.getElementById('b_legionella_req').checked,
-                    last_legionella_check: getVal('b_legionella_last'),
-                    legionella_check_interval_months: getVal('b_legionella_interval') || 36,
-                    next_fire_safety_check: getVal('b_fire_safety')
+                    name: document.getElementById('b_name').value,
+                    file_number: document.getElementById('b_file').value,
+                    street: document.getElementById('b_street').value,
+                    house_number: document.getElementById('b_nr').value,
+                    zip_code: document.getElementById('b_zip').value,
+                    city: document.getElementById('b_city').value,
+                    total_mea: document.getElementById('b_total_mea').value || 0,
+                    construction_year: document.getElementById('b_year').value || null,
+                    energy_source: document.getElementById('b_heat').value
                 };
-
-                let res = isEdit ? await _supabase.from('buildings').update(payload).eq('id', id) : await _supabase.from('buildings').insert([payload]).select().single();
-                
-                if (!res.error) { 
-                    showToast("Gebäude erfolgreich gespeichert"); 
-                    await fetchBuildingsList();
-                    selectBuilding(isEdit ? id : res.data.id);
-                } else {
-                    showToast(res.error.message, "error");
-                }
+                let res = isEdit ? await _supabase.from('buildings').update(payload).eq('id', id) : await _supabase.from('buildings').insert([payload]);
+                if (!res.error) { showToast("Gespeichert"); loadTenants(); }
             };
         }
-
-        // --- EINHEITEN UI (PROFI) ---
-        async function fetchApartmentsForBuilding(bId) {
-            const list = document.getElementById('apartments-list');
-            const { data } = await _supabase.from('apartments').select('*').eq('building_id', bId).order('apartment_number');
-            currentApartments = data || [];
-            list.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">` + currentApartments.map(apt => `
-                <div onclick="showApartmentForm(${apt.id})" class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:border-hb-olive cursor-pointer transition-colors group text-left">
-                    <div class="flex justify-between items-start mb-2">
-                        <span class="bg-gray-100 text-gray-600 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md">${apt.type || 'Wohnen'}</span>
-                        <span class="text-[10px] font-bold text-gray-400 uppercase">${apt.tenant_status || 'Leerstand'}</span>
-                    </div>
-                    <h4 class="text-lg font-extrabold text-hb-offblack">${apt.apartment_number}</h4>
-                    <p class="text-sm font-medium text-gray-500 mt-1">${apt.floor ? apt.floor + ' • ' : ''}${apt.rooms ? apt.rooms + ' Zi. • ' : ''}${apt.sq_meters || 0} m²</p>
-                </div>`).join('') + `</div>`;
-        }
-
-        async function showApartmentForm(id = null) {
-            const area = document.getElementById('units-area');
-            let apt = id ? currentApartments.find(x => x.id === id) : {};
-            const isEdit = !!id;
-            const activeTenancy = isEdit ? await loadActiveTenancy(apt.id) : null;
-
-            area.innerHTML = `
-                <div class="card p-8 h-full overflow-y-auto border border-gray-100 shadow-sm flex flex-col text-left">
-                    <div class="flex justify-between items-center mb-6 text-left">
-                        <h2 class="text-2xl font-extrabold">${isEdit ? 'Einheit bearbeiten' : 'Neue Einheit anlegen'}</h2>
-                        <button onclick="selectBuilding(selectedBuildingId)" class="text-xs font-bold text-gray-400 uppercase tracking-widest hover:text-hb-orange">Zurück</button>
-                    </div>
-                    
-                    <div class="flex overflow-x-auto border-b border-gray-200 mb-6 gap-8 hide-scrollbar flex-shrink-0">
-                        <button type="button" id="btn-tab-base" onclick="switchAptTab('base')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm border-hb-olive text-hb-olive transition-colors">Stammdaten</button>
-                        <button type="button" id="btn-tab-legal_weg" onclick="switchAptTab('legal_weg')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm border-transparent text-gray-500 transition-colors">Eigentümer & WEG</button>
-                        <button type="button" id="btn-tab-tenancy" onclick="switchAptTab('tenancy')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm border-transparent text-gray-500 transition-colors">Mieter & Vertrag</button>
-                        <button type="button" id="btn-tab-meters" onclick="switchAptTab('meters')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm border-transparent text-gray-500 transition-colors">Zähler & Fristen</button>
-                    </div>
-
-                    <form id="apartment-form" class="flex-grow flex flex-col text-left">
-                        <input type="hidden" id="apt_form_id" value="${apt.id || ''}">
-                        
-                        <div class="flex-grow text-left">
-                            
-                            <!-- TAB: STAMMDATEN -->
-                            <div id="tab-base" class="apt-tab-content space-y-6">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Nummer / Bezeichnung *</label><input type="text" id="apt_form_no" value="${apt.apartment_number || ''}" placeholder="z.B. WE 01" required></div>
-                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Typ der Einheit</label><select id="apt_form_type"><option value="Wohnen" ${apt.type === 'Wohnen' ? 'selected' : ''}>Wohnen</option><option value="Gewerbe" ${apt.type === 'Gewerbe' ? 'selected' : ''}>Gewerbe</option><option value="Stellplatz" ${apt.type === 'Stellplatz' ? 'selected' : ''}>Stellplatz / Garage</option></select></div>
-                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Wohn-/Nutzfläche (m²)</label><input type="number" id="apt_form_sqm" value="${apt.sq_meters || ''}" step="0.01"></div>
-                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Anzahl Zimmer</label><input type="number" id="apt_form_rooms" value="${apt.rooms || ''}" step="0.5"></div>
-                                    
-                                    <div class="space-y-2 border-t border-gray-100 pt-4 md:col-span-2"><h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">Räumliche Lage & Details</h3></div>
-                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Etage</label><input type="text" id="apt_form_floor" value="${apt.floor || ''}" placeholder="z.B. 1. OG"></div>
-                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Genaue Lage im Gebäude</label><input type="text" id="apt_form_location" value="${apt.location_in_building || ''}" placeholder="z.B. links, Hofseite"></div>
-                                    <div class="space-y-2 text-left md:col-span-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Ausstattungsmerkmale</label><textarea id="apt_form_equip" rows="2" placeholder="Balkon, Einbauküche, Fußbodenheizung...">${apt.equipment_features || ''}</textarea></div>
-                                </div>
-                            </div>
-
-                            <!-- TAB: EIGENTÜMER & WEG -->
-                            <div id="tab-legal_weg" class="apt-tab-content hidden space-y-6 text-left">
-                                <div class="bg-gray-50 border border-dashed border-gray-200 rounded-xl p-4 text-center mb-4">
-                                    <p class="text-sm text-gray-500">Die Zuweisung eines konkreten Eigentümers (Profil) erfolgt im Modul <strong>Personenverwaltung</strong>.</p>
-                                </div>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
-                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Miteigentumsanteile (MEA)</label><input type="number" id="apt_form_mea" value="${apt.mea || ''}" step="0.0001" placeholder="z.B. 125.0000"></div>
-                                    <div class="space-y-2 text-left"></div> <!-- Empty grid cell for alignment -->
-                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Hausgeld (Monatlich, €)</label><input type="number" id="apt_form_hausgeld" value="${apt.hausgeld || ''}" step="0.01"></div>
-                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Rücklagenzuführung (Monatlich, €)</label><input type="number" id="apt_form_ruecklage" value="${apt.ruecklage || ''}" step="0.01"></div>
-                                    
-                                    <div class="space-y-2 border-t border-gray-100 pt-4 md:col-span-2"><h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">Rechtliche Besonderheiten (laut TE)</h3></div>
-                                    <div class="space-y-2 text-left md:col-span-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Sondernutzungsrechte</label><input type="text" id="apt_form_special_use" value="${apt.special_use_rights || ''}" placeholder="z.B. Gartenanteil Süd, KFZ-Stellplatz Nr. 4"></div>
-                                    <div class="space-y-2 text-left md:col-span-2"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Abweichende Kostentragungspflichten</label><textarea id="apt_form_dev_cost" rows="2" placeholder="z.B. Fenster und Rollläden sind Instandhaltungspflicht des Sondereigentümers">${apt.deviating_cost_bearing || ''}</textarea></div>
-                                </div>
-                            </div>
-
-                            <!-- TAB: MIETER & VERTRAG -->
-                            <div id="tab-tenancy" class="apt-tab-content hidden space-y-6 text-left">
-                                <div class="bg-gray-50 border border-dashed border-gray-200 rounded-xl p-4 text-center mb-4">
-                                    <p class="text-sm text-gray-500">Die Einladung eines konkreten Mieters (Profil) erfolgt im Modul <strong>Personenverwaltung</strong>. Hier pflegen Sie die Vertragsdaten.</p>
-                                </div>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
-                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Aktueller Status</label><select id="apt_form_status"><option value="Leerstand" ${apt.tenant_status === 'Leerstand' ? 'selected' : ''}>Leerstand</option><option value="Vermietet" ${apt.tenant_status === 'Vermietet' ? 'selected' : ''}>Vermietet</option></select></div>
-                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Mietbeginn / Einzug</label><input type="date" id="apt_form_movein" value="${apt.move_in_date || activeTenancy?.start_date || ''}"></div>
-                                    
-                                    <div class="space-y-2 border-t border-gray-100 pt-4 md:col-span-2"><h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">Finanzen (Mieter)</h3></div>
-                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Aktuelle Kaltmiete (€)</label><input type="number" id="apt_form_rent" value="${apt.rent_amount || activeTenancy?.rent_amount || ''}" step="0.01"></div>
-                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Nebenkosten-Vorauszahlung (€)</label><input type="number" id="apt_form_utils" value="${apt.utilities_amount || activeTenancy?.utilities_amount || ''}" step="0.01"></div>
-                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Vereinbarte Kaution (€)</label><input type="number" id="apt_form_deposit" value="${apt.deposit_amount || activeTenancy?.deposit_amount || ''}" step="0.01"></div>
-                                    <div class="flex items-center gap-3 pt-6 text-left"><input type="checkbox" id="apt_form_deposit_paid" ${apt.deposit_paid || activeTenancy?.deposit_paid ? 'checked' : ''}><label for="apt_form_deposit_paid" class="text-sm font-bold text-gray-700">Kaution wurde vollständig bezahlt</label></div>
-                                </div>
-                            </div>
-
-                            <!-- TAB: ZÄHLER & FRISTEN -->
-                            <div id="tab-meters" class="apt-tab-content hidden space-y-6 text-left">
-                                <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 text-center mb-4">
-                                    <p class="text-sm text-blue-800">Eine dynamische Zähler-Historie inkl. Ablesedaten ist für ein zukünftiges Update geplant. Bitte hinterlegen Sie hier vorab die Hauptzähler der Einheit.</p>
-                                </div>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
-                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Wasserzähler-Nr. (Kalt/Warm)</label><input type="text" id="apt_form_meter_water" value="${apt.meter_water || ''}"></div>
-                                    <div class="space-y-2 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Ablauf Eichfrist Wasser</label><input type="date" id="apt_form_cal_water" value="${apt.meter_water_calibration_until || ''}"></div>
-                                    
-                                    <div class="space-y-2 border-t border-gray-100 pt-4 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Wärmemengenzähler-Nr.</label><input type="text" id="apt_form_meter_heat" value="${apt.meter_heating || ''}"></div>
-                                    <div class="space-y-2 border-t border-gray-100 pt-4 text-left"><label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Ablauf Eichfrist Wärme</label><input type="date" id="apt_form_cal_heat" value="${apt.meter_heating_calibration_until || ''}"></div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="pt-6 mt-6 border-t border-gray-100 flex gap-4 text-left flex-shrink-0">
-                            <button type="submit" class="btn-primary">Einheit & Vertrag speichern</button>
-                            ${isEdit ? `<button type="button" onclick="deleteApartment(${apt.id})" class="btn-secondary text-red-500 font-bold px-6 hover:bg-red-50 hover:border-red-100 bg-white">Einheit löschen</button>` : ''}
-                        </div>
-                    </form>
-                </div>`;
-
-            document.getElementById('apartment-form').onsubmit = async (e) => {
-                e.preventDefault();
-                const aptId = document.getElementById('apt_form_id').value;
-                const payload = {
-                    building_id: selectedBuildingId,
-                    apartment_number: document.getElementById('apt_form_no').value,
-                    type: document.getElementById('apt_form_type').value,
-                    sq_meters: document.getElementById('apt_form_sqm').value || 0,
-                    rooms: document.getElementById('apt_form_rooms').value || 0,
-                    floor: document.getElementById('apt_form_floor').value,
-                    location_in_building: document.getElementById('apt_form_location').value,
-                    equipment_features: document.getElementById('apt_form_equip').value,
-                    special_use_rights: document.getElementById('apt_form_special_use').value,
-                    deviating_cost_bearing: document.getElementById('apt_form_dev_cost').value,
-                    
-                    hausgeld: document.getElementById('apt_form_hausgeld').value || 0,
-                    ruecklage: document.getElementById('apt_form_ruecklage').value || 0,
-                    mea: document.getElementById('apt_form_mea').value || 0,
-                    
-                    tenant_status: document.getElementById('apt_form_status').value,
-                    rent_amount: document.getElementById('apt_form_rent').value || 0,
-                    utilities_amount: document.getElementById('apt_form_utils').value || 0,
-                    deposit_amount: document.getElementById('apt_form_deposit').value || 0,
-                    deposit_paid: document.getElementById('apt_form_deposit_paid').checked,
-                    move_in_date: document.getElementById('apt_form_movein').value || null,
-                    
-                    meter_water: document.getElementById('apt_form_meter_water').value,
-                    meter_water_calibration_until: document.getElementById('apt_form_cal_water').value || null,
-                    meter_heating: document.getElementById('apt_form_meter_heat').value,
-                    meter_heating_calibration_until: document.getElementById('apt_form_cal_heat').value || null
-                };
-
-                // Speichern in apartments
-                let res = aptId ? await _supabase.from('apartments').update(payload).eq('id', aptId) : await _supabase.from('apartments').insert([payload]).select().single();
-                
-                // Synchronisation mit tenancies (ERP)
-                if (!res.error) {
-                    const savedId = aptId || res.data.id;
-                    const tenancyData = {
-                        apartment_id: savedId,
-                        rent_amount: payload.rent_amount,
-                        utilities_amount: payload.utilities_amount,
-                        deposit_amount: payload.deposit_amount,
-                        deposit_paid: payload.deposit_paid,
-                        start_date: payload.move_in_date,
-                        status: payload.tenant_status === 'Vermietet' ? 'Aktiv' : 'Historisch'
-                    };
-                    if (activeTenancy) await _supabase.from('tenancies').update(tenancyData).eq('id', activeTenancy.id);
-                    else if (payload.tenant_status === 'Vermietet') await _supabase.from('tenancies').insert([tenancyData]);
-                    
-                    showToast("Einheit & Vertrag gespeichert"); selectBuilding(selectedBuildingId);
-                } else { showToast(res.error.message, "error"); }
-            };
-        }
-
-        async function deleteApartment(id) { if(confirm("Einheit wirklich löschen?")) { const { error } = await _supabase.from('apartments').delete().eq('id', id); if(!error) selectBuilding(selectedBuildingId); } }
         // === END: MODUL OBJEKTE ===
 
-        // Platzhalter Module
-        async function loadNews() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold text-left">Schwarzes Brett</h2>'; }
-        async function loadTickets() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold text-left">Ticketsystem</h2>'; }
-        async function loadUserManagement() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold text-left">Personenverwaltung</h2>'; }
-        async function loadFinance() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold text-left">Abrechnungen</h2>'; }
-        async function loadDocuments() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold text-left">Dokumenten Cloud</h2>'; }
-        async function loadContacts() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold text-left">Kontaktbuch</h2>'; }
-        async function loadSettings() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold text-left">Einstellungen</h2>'; }
-        async function loadProfile() { document.getElementById('content-area').innerHTML = '<h2 class="text-2xl font-bold text-left">Mein Profil</h2>'; }
+        // === START: MODUL PERSONEN ===
+        let mockPersons = [
+            { id: '1', first_name: 'Max', last_name: 'Müller', email: 'max@mueller.de', phone: '0151-1234567', city: 'Friedrichshafen', is_registered: true, roles: ['Eigentümer', 'Beirat'], contact_type: 'Privatperson' },
+            { id: '2', first_name: 'Sabine', last_name: 'Schmidt', email: 'sabine.s@gmx.de', phone: '07541-98765', city: 'Ravensburg', is_registered: false, roles: ['Mieter'], contact_type: 'Privatperson' },
+            { id: '3', first_name: '', last_name: 'Sanitär Huber GmbH', email: 'info@huber-sanitaer.de', phone: '07541-112233', city: 'Friedrichshafen', is_registered: false, roles: ['Dienstleister'], contact_type: 'Firma' }
+        ];
+
+        let currentPersonFilter = 'Alle';
+        let personSearchQuery = '';
+
+        async function loadUserManagement() {
+            const container = document.getElementById('content-area');
+            container.innerHTML = `
+                <div class="flex justify-between items-end mb-6 text-left">
+                    <div>
+                        <h2 class="text-2xl font-extrabold text-hb-offblack tracking-tight">Globales Adressbuch</h2>
+                        <p class="text-sm text-gray-500 mt-1">Verwalten Sie Eigentümer, Mieter und Dienstleister zentral.</p>
+                    </div>
+                    <button onclick="showPersonForm()" class="btn-primary flex items-center gap-2 text-sm shadow-sm">+ Person</button>
+                </div>
+                <div class="card flex flex-col overflow-hidden text-left">
+                    <div class="p-5 border-b border-gray-100 bg-white flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="setPersonFilter('Alle')" class="filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-hb-offblack text-white">Alle</button>
+                            <button onclick="setPersonFilter('Eigentümer')" class="filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-white text-gray-500">Eigentümer</button>
+                            <button onclick="setPersonFilter('Mieter')" class="filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-white text-gray-500">Mieter</button>
+                        </div>
+                        <input type="text" onkeyup="handlePersonSearch(event)" placeholder="Suchen..." class="md:w-64">
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead><tr class="bg-gray-50 text-[10px] uppercase font-bold text-gray-400 border-b border-gray-100"><th class="p-4">Name</th><th class="p-4">Kontakt</th><th class="p-4">Rollen</th><th class="p-4 text-right">Aktion</th></tr></thead>
+                            <tbody id="persons-table-body" class="text-sm divide-y divide-gray-50"></tbody>
+                        </table>
+                    </div>
+                </div>`;
+            renderPersonsTable();
+        }
+
+        window.setPersonFilter = (filter) => { currentPersonFilter = filter; renderPersonsTable(); };
+        window.handlePersonSearch = (e) => { personSearchQuery = e.target.value.toLowerCase(); renderPersonsTable(); };
+
+        function renderPersonsTable() {
+            const tbody = document.getElementById('persons-table-body');
+            let filtered = mockPersons.filter(p => {
+                const matchesFilter = currentPersonFilter === 'Alle' || p.roles.includes(currentPersonFilter);
+                const matchesSearch = (p.first_name + ' ' + p.last_name).toLowerCase().includes(personSearchQuery);
+                return matchesFilter && matchesSearch;
+            });
+            tbody.innerHTML = filtered.map(p => `
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="p-4 font-bold">${p.first_name} ${p.last_name}</td>
+                    <td class="p-4 text-gray-500">${p.email}</td>
+                    <td class="p-4">${p.roles.map(r => `<span class="border text-[9px] font-black uppercase px-2 py-0.5 rounded-md inline-block mr-1">${r}</span>`).join('')}</td>
+                    <td class="p-4 text-right"><button onclick="showPersonForm('${p.id}')" class="text-hb-olive font-bold">Bearbeiten</button></td>
+                </tr>`).join('');
+        }
+
+        window.switchPersonTab = (tabId) => {
+            document.querySelectorAll('.person-tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById('person-tab-' + tabId).classList.remove('hidden');
+        };
+
+        function showPersonForm(id = null) {
+            const container = document.getElementById('content-area');
+            let p = id ? mockPersons.find(x => x.id === id) : { roles: [] };
+            container.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-extrabold">${id ? 'Bearbeiten' : 'Neu'}</h2>
+                    <button onclick="loadUserManagement()" class="text-xs font-bold text-gray-400">Zurück</button>
+                </div>
+                <div class="card p-8 text-left">
+                    <div class="flex border-b mb-6 gap-6">
+                        <button onclick="switchPersonTab('base')" class="pb-3 border-b-2 border-hb-olive font-bold text-sm">Stammdaten</button>
+                        <button onclick="switchPersonTab('finance')" class="pb-3 border-b-2 border-transparent text-gray-500 font-bold text-sm">Finanzen & SEPA</button>
+                    </div>
+                    <form id="person-form" class="space-y-6">
+                        <div id="person-tab-base" class="person-tab-content grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Vorname</label><input type="text" id="p_first" value="${p.first_name || ''}"></div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Nachname *</label><input type="text" id="p_last" value="${p.last_name || ''}" required></div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">E-Mail</label><input type="email" id="p_email" value="${p.email || ''}"></div>
+                        </div>
+                        <div id="person-tab-finance" class="person-tab-content hidden grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">IBAN</label><input type="text" placeholder="DE..."></div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Mandats-Referenz</label><input type="text"></div>
+                        </div>
+                        <div class="pt-6 border-t"><button type="submit" class="btn-primary">Kontakt speichern</button></div>
+                    </form>
+                </div>`;
+        }
+        // === END: MODUL PERSONEN ===
+
+        // === START: INIT ===
+        async function init() {
+            const { data: { user } } = await _supabase.auth.getUser();
+            if (!user) { window.location.href = 'index.html'; return; }
+            currentUser = user;
+            const { data: profile } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
+            if (!profile) return;
+            userProfile = profile;
+            document.getElementById('welcome-title').textContent = "Hallo, " + profile.full_name.split(' ')[0] + "!";
+            document.getElementById('role-label').textContent = profile.role === 'admin' ? 'Verwalter Cockpit' : 'Nutzer Portal';
+            renderNav(profile.role);
+            loadDashboard(); 
+        }
+
+        function renderNav(role) {
+            const nav = document.getElementById('nav-links');
+            let html = `<li><a onclick="loadDashboard(); setActiveNav(this)" class="nav-link active-link">${icons.dashboard} Dashboard</a></li>`;
+            if (role === 'admin' || role === 'manager') {
+                html += `<li class="nav-section-title">Verwaltung</li><li><a onclick="loadUserManagement(); setActiveNav(this)" class="nav-link">${icons.users} Personen</a></li><li><a onclick="loadTenants(); setActiveNav(this)" class="nav-link">${icons.buildings} Objekte</a></li>`;
+            }
+            nav.innerHTML = html;
+        }
+
+        function setActiveNav(el) {
+            document.querySelectorAll('#nav-links a').forEach(a => a.classList.remove('active-link'));
+            el.classList.add('active-link');
+        }
 
         init();
     </script>
