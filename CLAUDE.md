@@ -227,3 +227,23 @@ js/
 | 8 | Ticket-Badges: Anzahl je Filter-Eintrag, „Erledigt" und „Meine erledigten" ohne Badge |
 | 9 | „Meine erledigten Tickets": eigene Sidebar-Gruppe, „Meine Tickets" zeigt nur noch aktive |
 | 10 | Bugfix: `mod-placeholder.js` hat `loadNews()` / `loadTickets()` überschrieben — beide Funktionen entfernt |
+
+---
+
+### Phase 4 — Post-Launch Feinschliff
+**Commits:** `28aa1f9`, `5ff7ad5`, `(aktuell)`
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | Personen-Infokarte: Tabellenzeile klickbar → read-only Modal mit Avatar, Rollen, Kontakt, Bankdaten, Portal-Status; „Bearbeiten"-Button im Modal öffnet Formular |
+| 2 | Bugfix RLS: `is_admin()` prüfte nur `role='admin'` — Manager konnten Personen/Bankkonten nicht lesen; separate SELECT-Policies für Manager ergänzt |
+| 3 | Badge-Farben CI-konform: `badge-eigentuemer/mieter/dienstleister/beirat` auf HB-Olive/Orange angepasst |
+| 4 | Nav-Badges: „Schwarzes Brett" zeigt Anzahl ungelesener + seit letztem Lesen aktualisierter Einträge; „Tickets" zeigt offene Tickets; Badges quadratisch, Zahl zentriert |
+| 5 | Bugfix Tailwind CDN: Klassen in JS-Strings werden nicht generiert → explizite CSS-Klassen `.ts-*` / `.nc-*` in `dashboard.html` definiert |
+| 6 | Schwarzes Brett „Bearbeiten": Edit-Modal vorausgefüllt, `updated_at` wird gesetzt; Leser sehen „Update"-Badge (HB-Olive) statt „Neu" wenn Eintrag nach letztem Lesen bearbeitet wurde |
+| 7 | Rich-Text-Editor im News-Erstell- und Bearbeiten-Modal: Toolbar mit B, I, H2, Absatz, Aufzählung, Nummerierung via `execCommand`; Inhalt wird als HTML gespeichert |
+| 8 | Realtime-Chat in Tickets: `postgres_changes` INSERT-Subscription; eigene Nachrichten sofort lokal angehängt (kein Doppelpost); Channel wird bei Modulwechsel sauber geschlossen |
+| 9 | Mobile Navigation Tickets: 3-Zustands-Flow (Filter-Sidebar → Liste → Detail) mit „← Filter" und „← Zurück" Buttons; Info-Sidebar per „Info ▾" ein-/ausklappbar |
+| 10 | Bugfix Mobile: `setTicketFilter()` zeigte Sidebar statt Liste — Logik invertiert korrigiert |
+| 11 | Filter-Icons: Emoji-Punkte (🔵🟢🟡🟣) durch einheitliche SVG-Icons in HB-Olive ersetzt |
+| 12 | Logo/Titel klickbar: Klick auf Logo + „Mieterportal" (Desktop-Sidebar & Mobile-Header) lädt Dashboard |
