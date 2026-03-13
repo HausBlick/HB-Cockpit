@@ -61,13 +61,31 @@ async function _renderFilterMenu() {
     const menu = document.getElementById('ticket-filter-menu');
     if (!menu) return;
 
+    // Counts laden (ein Query, client-side aggregieren)
+    const { data: allTickets } = await _supabase
+        .from('tickets').select('id, status, building_id, creator_id, assigned_to');
+    const all = allTickets || [];
+
+    const counts = {
+        mine:                    all.filter(t => t.creator_id === currentUser.id || t.assigned_to === currentUser.id).length,
+        'Offen':                 all.filter(t => t.status === 'Offen').length,
+        'In Bearbeitung':        all.filter(t => t.status === 'In Bearbeitung').length,
+        'Warte auf Rückmeldung': all.filter(t => t.status === 'Warte auf Rückmeldung').length,
+        'Wiedervorlage':         all.filter(t => t.status === 'Wiedervorlage').length,
+        'Erledigt':              all.filter(t => t.status === 'Erledigt').length,
+    };
+
+    const badge = (n) => n > 0
+        ? `<span class="ml-auto text-[10px] font-bold bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full min-w-[18px] text-center">${n}</span>`
+        : '';
+
     const filters = [
-        { id: 'mine',           label: 'Meine Tickets',           icon: '👤' },
-        { id: 'Offen',          label: 'Offen',                   icon: '🔵' },
-        { id: 'In Bearbeitung', label: 'In Bearbeitung',          icon: '🟢' },
+        { id: 'mine',                  label: 'Meine Tickets',    icon: '👤' },
+        { id: 'Offen',                 label: 'Offen',            icon: '🔵' },
+        { id: 'In Bearbeitung',        label: 'In Bearbeitung',   icon: '🟢' },
         { id: 'Warte auf Rückmeldung', label: 'Warte auf Antwort',icon: '🟡' },
-        { id: 'Wiedervorlage',  label: 'Wiedervorlage',           icon: '🟣' },
-        { id: 'Erledigt',       label: 'Erledigt',                icon: '⚫' },
+        { id: 'Wiedervorlage',         label: 'Wiedervorlage',    icon: '🟣' },
+        { id: 'Erledigt',              label: 'Erledigt',         icon: '⚫' },
     ];
 
     menu.innerHTML = filters.map(f => `
@@ -75,21 +93,24 @@ async function _renderFilterMenu() {
             class="ticket-filter-btn w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold
                    transition-colors flex items-center gap-2 text-gray-600 hover:bg-gray-50
                    ${_ticketFilter === f.id ? 'bg-hb-ultralight text-hb-olive font-bold' : ''}">
-            <span class="text-base leading-none">${f.icon}</span>${f.label}
+            <span class="text-base leading-none">${f.icon}</span>${f.label}${badge(counts[f.id])}
         </button>`).join('') + `<div class="border-t border-gray-100 my-2"></div>
         <p class="text-[10px] uppercase font-bold text-gray-400 px-3 pb-1">Nach Gebäude</p>
         <div id="ticket-building-filters" class="space-y-0.5"></div>`;
 
-    // Gebäude-Filter
+    // Gebäude-Filter mit Counts
     const { data: buildings } = await _supabase.from('buildings').select('id, name').order('name');
     const bDiv = document.getElementById('ticket-building-filters');
     if (bDiv && buildings) {
-        bDiv.innerHTML = buildings.map(b => `
+        bDiv.innerHTML = buildings.map(b => {
+            const n = all.filter(t => t.building_id === b.id && t.status !== 'Erledigt').length;
+            return `
             <button onclick="setTicketFilter('building-${b.id}')" id="tf-building-${b.id}"
                 class="ticket-filter-btn w-full text-left px-3 py-2 rounded-lg text-xs font-semibold
-                       text-gray-500 hover:bg-gray-50 transition-colors truncate">
-                ${b.name}
-            </button>`).join('');
+                       text-gray-500 hover:bg-gray-50 transition-colors flex items-center gap-2">
+                <span class="truncate flex-1">${b.name}</span>${badge(n)}
+            </button>`;
+        }).join('');
     }
 }
 
