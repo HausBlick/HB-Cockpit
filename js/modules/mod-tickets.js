@@ -96,14 +96,25 @@ async function _renderFilterMenu() {
         ? `<span class="ml-auto text-[10px] font-bold bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full min-w-[18px] text-center">${n}</span>`
         : '';
 
+    const s = 'width="16" height="16" fill="none" stroke="#687451" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="flex-shrink:0"';
+    const svgIcons = {
+        person:      `<svg ${s}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+        checkSquare: `<svg ${s}><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`,
+        circle:      `<svg ${s}><circle cx="12" cy="12" r="9"/></svg>`,
+        tool:        `<svg ${s}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
+        clock:       `<svg ${s}><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>`,
+        repeat:      `<svg ${s}><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`,
+        checkCircle: `<svg ${s}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
+    };
+
     const filters = [
-        { id: 'mine',                  label: 'Meine Tickets',          icon: '👤', showBadge: true  },
-        { id: 'mine-done',             label: 'Meine erledigten',       icon: '✅', showBadge: false },
-        { id: 'Offen',                 label: 'Offen',                  icon: '🔵', showBadge: true  },
-        { id: 'In Bearbeitung',        label: 'In Bearbeitung',         icon: '🟢', showBadge: true  },
-        { id: 'Warte auf Rückmeldung', label: 'Warte auf Antwort',      icon: '🟡', showBadge: true  },
-        { id: 'Wiedervorlage',         label: 'Wiedervorlage',          icon: '🟣', showBadge: true  },
-        { id: 'Erledigt',              label: 'Alle erledigten',        icon: '⚫', showBadge: false },
+        { id: 'mine',                  label: 'Meine Tickets',     icon: svgIcons.person,      showBadge: true  },
+        { id: 'mine-done',             label: 'Meine erledigten',  icon: svgIcons.checkSquare, showBadge: false },
+        { id: 'Offen',                 label: 'Offen',             icon: svgIcons.circle,      showBadge: true  },
+        { id: 'In Bearbeitung',        label: 'In Bearbeitung',    icon: svgIcons.tool,        showBadge: true  },
+        { id: 'Warte auf Rückmeldung', label: 'Warte auf Antwort', icon: svgIcons.clock,       showBadge: true  },
+        { id: 'Wiedervorlage',         label: 'Wiedervorlage',     icon: svgIcons.repeat,      showBadge: true  },
+        { id: 'Erledigt',              label: 'Alle erledigten',   icon: svgIcons.checkCircle, showBadge: false },
     ];
 
     menu.innerHTML = filters.map(f => `
@@ -111,7 +122,7 @@ async function _renderFilterMenu() {
             class="ticket-filter-btn w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold
                    transition-colors flex items-center gap-2 text-gray-600 hover:bg-gray-50
                    ${_ticketFilter === f.id ? 'bg-hb-ultralight text-hb-olive font-bold' : ''}">
-            <span class="text-base leading-none">${f.icon}</span>${f.label}${f.showBadge ? badge(counts[f.id]) : ''}
+            ${f.icon}${f.label}${f.showBadge ? badge(counts[f.id]) : ''}
         </button>`).join('') + `<div class="border-t border-gray-100 my-2"></div>
         <p class="text-[10px] uppercase font-bold text-gray-400 px-3 pb-1">Nach Gebäude</p>
         <div id="ticket-building-filters" class="space-y-0.5"></div>`;
