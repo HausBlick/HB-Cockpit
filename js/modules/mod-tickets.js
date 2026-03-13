@@ -11,11 +11,11 @@ let _ticketRealtimeChannel = null;
 const TICKET_STATUSES = ['Offen', 'In Bearbeitung', 'Warte auf Rückmeldung', 'Wiedervorlage', 'Erledigt'];
 
 const STATUS_STYLE = {
-    'Offen':                  'bg-hb-orange/10 text-hb-orange',
-    'In Bearbeitung':         'bg-hb-olive/10 text-hb-olive',
-    'Warte auf Rückmeldung':  'bg-hb-orange/15 text-[#c4601e]',
-    'Wiedervorlage':          'bg-hb-olive/15 text-[#4a5337]',
-    'Erledigt':               'bg-gray-100 text-gray-400',
+    'Offen':                  'ts-offen',
+    'In Bearbeitung':         'ts-bearbeitung',
+    'Warte auf Rückmeldung':  'ts-warte',
+    'Wiedervorlage':          'ts-wiedervorlage',
+    'Erledigt':               'ts-erledigt',
 };
 
 // ─── Haupteinstieg ────────────────────────────────────────────
