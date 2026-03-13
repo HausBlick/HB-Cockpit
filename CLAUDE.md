@@ -107,13 +107,12 @@ js/
 - 2.3 Person bearbeiten — 4-Tab-Formular (Stammdaten / Rollen / Portal / SEPA) ✅
 - 2.4 Einladungscode generieren 💡 (folgt später)
 
-### 🟡 Phase 3 — Objekte & Zuweisungen (IN ABNAHME)
+### ✅ Phase 3 — Objekte & Zuweisungen (ABGESCHLOSSEN)
 - 3.1 Eigentümer-Zuweisung (`ownerships`) ✅
 - 3.2 Mieter-Zuweisung (`tenancies`) ✅
 - 3.3 Gebäude-Detail: 4 Tabs (Stammdaten / Finanzen / Grundbuch / Technik & Fristen) ✅
 - 3.4 Einheiten-Detail: 5 Tabs + Breadcrumb + Tabellen-Ansicht ✅
 - 3.5 Zählerstände UI 💡 (folgt später)
-- **🔴 Offen:** Layout-Bug — Gebäude Info-Ansicht zu hoch, Einheitenliste nicht sofort sichtbar
 
 ### 📋 Phase 4 — Kommunikation (Schwarzes Brett, Tickets)
 ### 💡 Phase 5 — Dokumente, Kontakte, Dashboard
@@ -196,5 +195,4 @@ js/
 | 6 | Einheiten von Cards auf Tabelle umgestellt (Spalten: Nr., Typ, Lage, m², Hausgeld, Status) |
 | 7 | Gebäude-Sidebar schmaler (30-40%), Hover-Highlighting statt dauerhaftem Grün, Live-Suchfeld ergänzt |
 | 8 | Menüpunkt umbenannt: "Bestandsobjekte" → "Gebäude & Einheiten" |
-| 9 | Layout-Optimierung: Header kompakter, Tab-Content `max-height: 25vh`, Einheitenliste `flex-grow` |
-| 🔴 | **Offen:** Gebäude Info-Ansicht noch zu hoch — Einheitenliste nicht ohne Scrollen sichtbar |
+| 9 | Layout-Optimierung: Header kompakter, Tab-Content `max-height: 25vh`, Einheitenliste `flex-grow` — Einheitenliste ist jetzt ohne Scrollen sichtbar ✅ |
