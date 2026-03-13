@@ -4,16 +4,6 @@
 // Jedes wird in seiner eigenen Datei landen, sobald es gebaut wird
 // ============================================================
 
-async function loadNews() {
-    document.getElementById('content-area').innerHTML =
-        '<div class="p-10 card text-center"><h2 class="text-xl font-bold mb-2">Schwarzes Brett</h2><p class="text-gray-500">Demnächst verfügbar.</p></div>';
-}
-
-async function loadTickets() {
-    document.getElementById('content-area').innerHTML =
-        '<div class="p-10 card text-center"><h2 class="text-xl font-bold mb-2">Ticketsystem</h2><p class="text-gray-500">Demnächst verfügbar.</p></div>';
-}
-
 async function loadFinance() {
     document.getElementById('content-area').innerHTML =
         '<div class="p-10 card text-center"><h2 class="text-xl font-bold mb-2">Abrechnungen</h2><p class="text-gray-500">Demnächst verfügbar.</p></div>';
