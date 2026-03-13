@@ -58,10 +58,11 @@ async function _loadNewsContext() {
 async function _loadLikedAndRead() {
     const [likedRes, readRes] = await Promise.all([
         _supabase.from('news_likes').select('news_id').eq('user_id', currentUser.id),
-        _supabase.from('news_reads').select('news_id').eq('user_id', currentUser.id),
+        _supabase.from('news_reads').select('news_id, read_at').eq('user_id', currentUser.id),
     ]);
     _newsLiked = new Set((likedRes.data || []).map(r => r.news_id));
-    _newsRead  = new Set((readRes.data  || []).map(r => r.news_id));
+    // Map: news_id → read_at (Date-Objekt oder null)
+    _newsRead  = new Map((readRes.data || []).map(r => [r.news_id, r.read_at ? new Date(r.read_at) : new Date(0)]));
 }
 
 async function _fetchAndRenderNews() {
@@ -97,8 +98,16 @@ function _renderGrid() {
     grid.innerHTML = filtered.map(n => _newsCardHtml(n)).join('');
 }
 
+function _newsBadge(n) {
+    const readAt    = _newsRead.get(n.id); // undefined = nie gelesen
+    const updatedAt = n.updated_at ? new Date(n.updated_at) : null;
+    const wasEdited = updatedAt && (updatedAt - new Date(n.created_at)) > 60_000;
+    if (!readAt) return `<span class="absolute top-4 right-4 bg-hb-orange text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full">Neu</span>`;
+    if (wasEdited && updatedAt > readAt) return `<span class="absolute top-4 right-4 bg-blue-500 text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full">Update</span>`;
+    return '';
+}
+
 function _newsCardHtml(n) {
-    const isNew    = !_newsRead.has(n.id);
     const liked    = _newsLiked.has(n.id);
     const catColor = { Ankündigung: 'bg-blue-100 text-blue-700', Wartung: 'bg-hb-orange/10 text-hb-orange', Allgemein: 'bg-gray-100 text-gray-600' }[n.category] || 'bg-gray-100 text-gray-600';
     const preview  = (n.content || '').replace(/<[^>]+>/g, '').substring(0, 120);
@@ -107,7 +116,7 @@ function _newsCardHtml(n) {
     return `
         <div onclick="openNewsModal(${n.id})"
             class="card p-5 cursor-pointer hover:shadow-md transition-shadow flex flex-col gap-3 text-left relative">
-            ${isNew ? `<span class="absolute top-4 right-4 bg-hb-orange text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full">Neu</span>` : ''}
+            ${_newsBadge(n)}
             <div class="flex items-center gap-2">
                 <span class="${catColor} text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md">${n.category || 'Allgemein'}</span>
                 ${n.buildings?.name ? `<span class="text-[10px] text-gray-400">${n.buildings.name}</span>` : ''}
@@ -146,14 +155,13 @@ window.openNewsModal = async (newsId) => {
     const item = _newsData.find(n => n.id === newsId);
     if (!item) return;
 
-    // Gelesen markieren
-    if (!_newsRead.has(newsId)) {
-        await _supabase.from('news_reads').upsert({ news_id: newsId, user_id: currentUser.id });
-        _newsRead.add(newsId);
-        // "Neu"-Badge entfernen
-        const card = document.querySelector(`[onclick="openNewsModal(${newsId})"]`);
-        card?.querySelector('.bg-hb-orange.text-white')?.remove();
-    }
+    // Gelesen markieren (immer upsert mit aktuellem Timestamp → Update-Badge verschwindet)
+    const now = new Date();
+    await _supabase.from('news_reads').upsert({ news_id: newsId, user_id: currentUser.id, read_at: now.toISOString() });
+    _newsRead.set(newsId, now);
+    // Badge auf Karte entfernen
+    const card = document.querySelector(`[onclick="openNewsModal(${newsId})"]`);
+    card?.querySelector('.absolute.top-4.right-4')?.remove();
 
     const liked   = _newsLiked.has(newsId);
     const canEdit = userProfile?.role === 'admin' || userProfile?.role === 'manager'
@@ -175,8 +183,11 @@ window.openNewsModal = async (newsId) => {
                         ${item.buildings?.name ? ` · ${item.buildings.name}` : ''}</p>
                 </div>
                 <div class="flex gap-2 items-center flex-shrink-0 ml-4">
-                    ${canEdit ? `<button onclick="deleteNews(${newsId})"
-                        class="text-xs text-red-400 hover:text-red-600 font-bold px-3 py-1.5 rounded-lg hover:bg-red-50">Löschen</button>` : ''}
+                    ${canEdit ? `
+                        <button onclick="showEditNewsModal(${newsId})"
+                            class="text-xs text-hb-olive hover:text-hb-offblack font-bold px-3 py-1.5 rounded-lg hover:bg-gray-100">Bearbeiten</button>
+                        <button onclick="deleteNews(${newsId})"
+                            class="text-xs text-red-400 hover:text-red-600 font-bold px-3 py-1.5 rounded-lg hover:bg-red-50">Löschen</button>` : ''}
                     <button onclick="document.getElementById('news-modal').remove()"
                         class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
                 </div>
@@ -248,6 +259,116 @@ window.deleteNews = async (newsId) => {
     showToast('Beitrag gelöscht.', 'success');
     _newsData = _newsData.filter(n => n.id !== newsId);
     _renderGrid();
+};
+
+// ─── News bearbeiten ──────────────────────────────────────────
+window.showEditNewsModal = async (newsId) => {
+    const item = _newsData.find(n => n.id === newsId);
+    if (!item) return;
+
+    const { data: buildings } = await _supabase.from('buildings').select('id, name').order('name');
+    const bList = buildings || [];
+    const role  = userProfile?.role;
+
+    document.getElementById('news-modal')?.remove();
+    document.getElementById('edit-news-modal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'edit-news-modal';
+    modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
+    modal.innerHTML = `
+        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-2xl p-8 space-y-5" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center">
+                <h3 class="text-xl font-extrabold text-hb-offblack">Beitrag bearbeiten</h3>
+                <button onclick="document.getElementById('edit-news-modal').remove()" class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
+            </div>
+            <div class="space-y-2">
+                <label class="text-[10px] uppercase font-bold text-gray-500">Titel *</label>
+                <input type="text" id="edit_news_title" value="${item.title || ''}" placeholder="Betreff des Beitrags">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-2">
+                    <label class="text-[10px] uppercase font-bold text-gray-500">Kategorie</label>
+                    <select id="edit_news_cat">
+                        ${['Allgemein','Ankündigung','Wartung'].map(c => `<option value="${c}" ${item.category===c?'selected':''}>${c}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="space-y-2">
+                    <label class="text-[10px] uppercase font-bold text-gray-500">Sichtbarkeit</label>
+                    <select id="edit_news_scope" onchange="handleEditNewsScopeChange(this.value)">
+                        ${role === 'admin' || role === 'manager' ? `<option value="global" ${item.visibility_scope==='global'?'selected':''}>Global</option>` : ''}
+                        <option value="building" ${item.visibility_scope==='building'?'selected':''}>Gebäude</option>
+                        ${role === 'owner' ? `<option value="unit" ${item.visibility_scope==='unit'?'selected':''}>Einheit</option>` : ''}
+                    </select>
+                </div>
+            </div>
+            <div id="edit_news_building_wrap" class="space-y-2 ${item.visibility_scope==='global'?'hidden':''}">
+                <label class="text-[10px] uppercase font-bold text-gray-500">Gebäude</label>
+                <select id="edit_news_building_id">
+                    <option value="">— Bitte wählen —</option>
+                    ${bList.map(b => `<option value="${b.id}" ${item.building_id===b.id?'selected':''}>${b.name}</option>`).join('')}
+                </select>
+            </div>
+            <div class="space-y-2">
+                <label class="text-[10px] uppercase font-bold text-gray-500">Inhalt *</label>
+                <div class="flex flex-wrap gap-1 p-2 bg-gray-50 border border-gray-200 rounded-t-lg border-b-0">
+                    <button type="button" onclick="document.execCommand('bold')"
+                        class="rte-btn w-7 h-7 rounded font-bold text-sm hover:bg-gray-200 transition-colors" title="Fett">B</button>
+                    <button type="button" onclick="document.execCommand('italic')"
+                        class="rte-btn w-7 h-7 rounded italic text-sm hover:bg-gray-200 transition-colors" title="Kursiv">I</button>
+                    <div class="w-px bg-gray-200 mx-0.5 self-stretch"></div>
+                    <button type="button" onclick="document.execCommand('formatBlock', false, 'h3')"
+                        class="rte-btn px-2 h-7 rounded text-xs font-bold hover:bg-gray-200 transition-colors" title="Überschrift">H</button>
+                    <button type="button" onclick="document.execCommand('formatBlock', false, 'p')"
+                        class="rte-btn px-2 h-7 rounded text-xs hover:bg-gray-200 transition-colors" title="Normaler Text">¶</button>
+                    <div class="w-px bg-gray-200 mx-0.5 self-stretch"></div>
+                    <button type="button" onclick="document.execCommand('insertUnorderedList')"
+                        class="rte-btn px-2 h-7 rounded text-sm hover:bg-gray-200 transition-colors" title="Aufzählung">• —</button>
+                    <button type="button" onclick="document.execCommand('insertOrderedList')"
+                        class="rte-btn px-2 h-7 rounded text-sm hover:bg-gray-200 transition-colors" title="Nummerierung">1. —</button>
+                </div>
+                <div id="edit_news_content"
+                    contenteditable="true"
+                    class="min-h-[180px] p-3 border border-gray-200 rounded-b-lg bg-white text-sm text-gray-700
+                           focus:outline-none focus:border-hb-olive leading-relaxed
+                           [&_h3]:text-base [&_h3]:font-bold [&_h3]:mb-1
+                           [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1
+                           [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1"></div>
+            </div>
+            <button onclick="updateNews(${newsId})" class="btn-primary w-full">Änderungen speichern</button>
+        </div>`;
+    modal.addEventListener('click', () => modal.remove());
+    document.body.appendChild(modal);
+    document.getElementById('edit_news_content').innerHTML = item.content || '';
+};
+
+window.handleEditNewsScopeChange = (scope) => {
+    document.getElementById('edit_news_building_wrap').classList.toggle('hidden', scope === 'global');
+};
+
+window.updateNews = async (newsId) => {
+    const title   = document.getElementById('edit_news_title')?.value?.trim();
+    const editor  = document.getElementById('edit_news_content');
+    const content = editor?.innerHTML?.trim();
+    const isEmpty = !content || content === '<br>' || content === '<p><br></p>';
+    if (!title || isEmpty) { showToast('Titel und Inhalt sind Pflichtfelder.', 'error'); return; }
+
+    const scope = document.getElementById('edit_news_scope')?.value;
+    const bId   = parseInt(document.getElementById('edit_news_building_id')?.value) || null;
+
+    const { error } = await _supabase.from('news').update({
+        title,
+        content,
+        category:         document.getElementById('edit_news_cat')?.value || 'Allgemein',
+        visibility_scope: scope || 'building',
+        building_id:      scope !== 'global' ? bId : null,
+        updated_at:       new Date().toISOString(),
+    }).eq('id', newsId);
+
+    if (error) { showToast(error.message, 'error'); return; }
+    document.getElementById('edit-news-modal')?.remove();
+    showToast('Beitrag aktualisiert.', 'success');
+    await _loadLikedAndRead();
+    await _fetchAndRenderNews();
 };
 
 // ─── News erstellen ───────────────────────────────────────────
