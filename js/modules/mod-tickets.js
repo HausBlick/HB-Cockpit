@@ -132,19 +132,21 @@ async function _renderFilterMenu() {
     }
 }
 
-// Mobile: zurück zur Sidebar/Liste
+// Mobile: von Detail zurück zur Ticket-Liste (nicht zur Sidebar)
 window._backToList = () => {
     if (_ticketRealtimeChannel) {
         _supabase.removeChannel(_ticketRealtimeChannel);
         _ticketRealtimeChannel = null;
     }
+    setTicketFilter(_ticketFilter);
+};
+
+// Mobile: von Ticket-Liste zurück zur Filter-Sidebar
+window._backToSidebar = () => {
     const sidebar = document.getElementById('ticket-sidebar');
     const main    = document.getElementById('ticket-main');
-    if (window.innerWidth < 1024 && sidebar) {
-        sidebar.style.display = '';
-        if (main) main.style.display = 'none';
-    }
-    setTicketFilter(_ticketFilter);
+    if (sidebar) sidebar.style.display = '';
+    if (main)    main.style.display    = 'none';
 };
 
 // Mobile: Info-Sidebar ein-/ausklappen
@@ -157,12 +159,12 @@ window._toggleMobileInfo = () => {
 
 window.setTicketFilter = async (filterId) => {
     _ticketFilter = filterId;
-    // Mobile: Sidebar wieder einblenden, Hauptbereich ausblenden bis Ticket gewählt
+    // Mobile: Sidebar ausblenden, Ticket-Liste einblenden
     if (window.innerWidth < 1024) {
         const sidebar = document.getElementById('ticket-sidebar');
         const main    = document.getElementById('ticket-main');
-        if (sidebar) sidebar.style.display = '';
-        if (main)    main.style.display    = 'none';
+        if (sidebar) sidebar.style.display = 'none';
+        if (main)    main.style.display    = 'block';
     }
     document.querySelectorAll('.ticket-filter-btn').forEach(el => {
         const active = el.id === `tf-${filterId.replace(/\s/g,'-')}` || el.id === `tf-${filterId}`;
@@ -215,13 +217,14 @@ function _renderTicketList(filterId) {
         : filterId;
 
     main.innerHTML = `
-        <div class="card h-full flex flex-col overflow-hidden">
-            <div class="px-5 py-3 border-b border-gray-50 flex justify-between items-center flex-shrink-0">
+        <div class="card lg:h-full flex flex-col overflow-hidden">
+            <div class="px-4 py-3 border-b border-gray-50 flex items-center gap-3 flex-shrink-0">
+                <button onclick="_backToSidebar()" class="lg:hidden text-hb-olive font-bold text-xs flex-shrink-0">← Filter</button>
                 <h3 class="font-bold text-hb-offblack">${title}
                     <span class="ml-2 text-xs font-normal text-gray-400">(${_ticketsData.length})</span>
                 </h3>
             </div>
-            <div class="flex-grow overflow-y-auto divide-y divide-gray-50">
+            <div class="overflow-y-auto divide-y divide-gray-50">
                 ${_ticketsData.length
                     ? _ticketsData.map(t => _ticketRowHtml(t)).join('')
                     : '<p class="text-sm text-gray-400 p-8 text-center">Keine Tickets vorhanden.</p>'}
