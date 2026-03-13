@@ -109,7 +109,7 @@ function _newsBadge(n) {
 
 function _newsCardHtml(n) {
     const liked    = _newsLiked.has(n.id);
-    const catColor = { Ankündigung: 'bg-hb-olive/10 text-hb-olive', Wartung: 'bg-hb-orange/10 text-hb-orange', Allgemein: 'bg-gray-100 text-gray-500' }[n.category] || 'bg-gray-100 text-gray-500';
+    const catColor = { Ankündigung: 'nc-ankuendigung', Wartung: 'nc-wartung', Allgemein: 'nc-allgemein' }[n.category] || 'nc-allgemein';
     const preview  = (n.content || '').replace(/<[^>]+>/g, '').substring(0, 120);
     const date     = new Date(n.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' });
 
