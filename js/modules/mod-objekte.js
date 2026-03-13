@@ -167,7 +167,8 @@ async function showBuildingInfo(b) {
                 ], 'bldg-btn', 'base')}
             </div>
 
-            <div class="overflow-y-auto p-4" style="max-height:40%">
+            <!-- Tab-Content: nimmt nur so viel wie nötig, max 25vh -->
+            <div class="overflow-y-auto p-3 flex-shrink-0" style="max-height:25vh">
 
                 <!-- TAB 1 -->
                 <div id="bldg-tab-base" class="bldg-tab-content grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -181,30 +182,30 @@ async function showBuildingInfo(b) {
                 </div>
 
                 <!-- TAB 2: FINANZEN -->
-                <div id="bldg-tab-finance" class="bldg-tab-content hidden space-y-5">
-                    <div class="grid grid-cols-2 md:grid-cols-3 gap-5">
+                <div id="bldg-tab-finance" class="bldg-tab-content hidden space-y-3">
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
                         ${infoField('Wirtschaftsjahr', `${b.fiscal_year_start || '01-01'} – ${b.fiscal_year_end || '12-31'}`)}
                         ${infoField('Steuernummer', b.tax_number)}
                         ${infoField('Gläubiger-ID (SEPA)', b.creditor_id)}
                     </div>
-                    <div class="border-t pt-4">
-                        <h3 class="text-xs font-black uppercase tracking-widest text-hb-olive mb-3">Bankkonten</h3>
+                    <div class="border-t pt-3">
+                        <h3 class="text-xs font-black uppercase tracking-widest text-hb-olive mb-2">Bankkonten</h3>
                         ${bankAccounts.length
                             ? `<table class="w-full text-sm">
                                 <thead><tr class="text-[10px] uppercase font-bold text-gray-400 border-b border-gray-100">
-                                    <th class="pb-2 text-left">Typ</th><th class="pb-2 text-left">Bank</th><th class="pb-2 text-left">IBAN</th>
+                                    <th class="pb-1 text-left">Typ</th><th class="pb-1 text-left">Bank</th><th class="pb-1 text-left">IBAN</th>
                                 </tr></thead>
                                 <tbody class="divide-y divide-gray-50">${bankAccounts.map(ba =>
-                                    `<tr><td class="py-2 font-medium">${ba.account_type || '—'}</td>
-                                         <td class="py-2 text-gray-600">${ba.bank_name || '—'}</td>
-                                         <td class="py-2 font-mono text-xs text-gray-600">${ba.iban || '—'}</td></tr>`
+                                    `<tr><td class="py-1.5 font-medium">${ba.account_type || '—'}</td>
+                                         <td class="py-1.5 text-gray-600">${ba.bank_name || '—'}</td>
+                                         <td class="py-1.5 font-mono text-xs text-gray-600">${ba.iban || '—'}</td></tr>`
                                 ).join('')}</tbody></table>`
                             : '<p class="text-sm text-gray-400">Keine Bankkonten hinterlegt.</p>'}
                     </div>
                 </div>
 
                 <!-- TAB 3: GRUNDBUCH -->
-                <div id="bldg-tab-legal" class="bldg-tab-content hidden grid grid-cols-2 md:grid-cols-3 gap-5">
+                <div id="bldg-tab-legal" class="bldg-tab-content hidden grid grid-cols-2 md:grid-cols-3 gap-3">
                     ${infoField('Gesamt-MEA', b.total_mea)}
                     ${infoField('Grundbuchamt', b.land_registry)}
                     ${infoField('Gemarkung', b.district)}
@@ -216,7 +217,7 @@ async function showBuildingInfo(b) {
                 </div>
 
                 <!-- TAB 4: TECHNIK -->
-                <div id="bldg-tab-tech" class="bldg-tab-content hidden grid grid-cols-2 md:grid-cols-3 gap-5">
+                <div id="bldg-tab-tech" class="bldg-tab-content hidden grid grid-cols-2 md:grid-cols-3 gap-3">
                     ${infoField('Heizungsart', b.heating_type)}
                     ${infoField('Energieträger', b.energy_source)}
                     ${infoField('Baujahr Heizung', b.heating_system_year)}
@@ -235,13 +236,13 @@ async function showBuildingInfo(b) {
 
             </div>
 
-            <!-- Einheitenliste -->
-            <div class="border-t border-gray-100 flex-shrink-0">
-                <div class="px-6 py-3 bg-gray-50/50 flex justify-between items-center">
+            <!-- Einheitenliste: nimmt verbleibenden Platz, scrollbar -->
+            <div class="border-t border-gray-100 flex-grow flex flex-col min-h-0">
+                <div class="px-4 py-2 bg-gray-50/50 flex justify-between items-center flex-shrink-0">
                     <h3 class="text-xs font-black uppercase tracking-widest text-gray-500">Einheiten</h3>
-                    <button onclick="showApartmentForm()" class="btn-primary py-1.5 px-3 text-xs">+ Einheit</button>
+                    <button onclick="showApartmentForm()" class="btn-primary py-1 px-3 text-xs">+ Einheit</button>
                 </div>
-                <div id="apartments-list" class="overflow-y-auto max-h-56"></div>
+                <div id="apartments-list" class="flex-grow overflow-y-auto"></div>
             </div>
         </div>`;
 
