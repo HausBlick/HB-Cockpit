@@ -57,28 +57,24 @@ Verknüpfung läuft über `persons.auth_user_id` und `invite_code`.
 
 ## Frontend-Struktur (nach Modularisierung)
 ```
-dashboard.html          # HTML-Shell (~128 Zeilen)
+dashboard.html              # HTML-Shell (~128 Zeilen)
 js/
-  config.js             # Supabase-Client, globale Vars, Icons
-  utils.js              # Toast, Dropdown, Logout, Mobile-Menu
-  nav.js                # init(), renderNav(), setActiveNav()
+  config.js                 # Supabase-Client, globale Vars, Icons
+  utils.js                  # Toast, Dropdown, Logout, Mobile-Menu
+  nav.js                    # init(), renderNav(), setActiveNav()
   modules/
-    mod-dashboard.js    # Dashboard-Modul
-    mod-objekte.js      # Gebäude & Einheiten (CRUD)
-    mod-personen.js     # Globales CRM / Adressbuch
-    mod-placeholder.js  # Platzhalter für kommende Module
+    mod-dashboard.js        # Dashboard-Modul (Platzhalter)
+    mod-objekte.js          # Gebäude & Einheiten (CRUD)
+    mod-personen.js         # Personen-Liste & Supabase-Anbindung
+    mod-persons-edit.js     # Personen bearbeiten (4-Tab-Formular) ← NEU
+    mod-placeholder.js      # Platzhalter für kommende Module
 ```
 
 ---
 
 ## Migrations-Workflow (PFLICHT)
 **Keine direkten SQL-Änderungen im Supabase-Editor.**
-Alle Schema-Änderungen laufen als Migration:
-
-```bash
-# Migration einspielen via Supabase MCP / API
-# Namensformat: YYYYMMDDHHMMSS_beschreibung
-```
+Alle Schema-Änderungen laufen als Migration über Supabase MCP.
 
 **Bisherige Migrationen:**
 | Version | Name |
@@ -87,35 +83,47 @@ Alle Schema-Änderungen laufen als Migration:
 | 20260313111831 | add_missing_fk_indexes |
 | 20260313111841 | fix_function_search_path |
 | 20260313112747 | baseline_schema |
+| (heute) | extend_persons_crm |
+| (heute) | extend_apartments_mea |
 
 ---
 
 ## Projektplan — 6 Phasen
 
 ### ✅ Phase 1 — Tech-Debt & Infrastruktur (KOMPLETT)
-- 1.1 RLS-Policies bereinigt
-- 1.2 Performance-Indexes angelegt
-- 1.3 Security-Warnings behoben
-- 1.4 Migration-Files eingeführt
-- 1.5 Frontend modularisiert
+- 1.1 RLS-Policies bereinigt ✅
+- 1.2 Performance-Indexes angelegt ✅
+- 1.3 Security-Warnings behoben ✅
+- 1.4 Migration-Files eingeführt ✅
+- 1.5 Frontend modularisiert ✅
 
-### 🟡 Phase 2 — Personen-CRM (IN ARBEIT)
-- 2.1 Supabase-Anbindung (Mock-Daten ersetzen) — **📋 Geplant**
-- 2.2 Neue Person anlegen (Formular + INSERT) — **📋 Geplant**
-- 2.3 Person bearbeiten (Tab-UI) — **🔴 Wartet auf Gemini-Konzept**
-- 2.4 Einladungscode generieren — **💡 Idee**
+### ✅ Phase 2 — Personen-CRM (KOMPLETT)
+- 2.1 Supabase-Anbindung (Mock-Daten ersetzt) ✅
+- 2.2 Neue Person anlegen ✅
+- 2.3 Person bearbeiten — 4-Tab-Formular (Stammdaten / Rollen / Portal / SEPA) ✅
+- 2.4 Einladungscode generieren — 💡 Idee (folgt später)
 
-### 📋 Phase 3 — Objekte & Zuweisungen
-- 3.1 Eigentümer-Zuweisung (`ownerships`)
-- 3.2 Mieter-Zuweisung (`tenancies`)
-- 3.3 Gebäude-Detail ausbauen
-- 3.4 Einheiten-Detail ausbauen
-- 3.5 Zählerstände UI
+**Bekannte fehlende Felder im Personen-Formular (für Phase 3 einbauen):**
+- `salutation`, `birthdate`, `tax_id`, `title` — in DB vorhanden, noch kein UI
+
+### 🟡 Phase 3 — Objekte & Zuweisungen (ALS NÄCHSTES)
+- 3.1 Eigentümer-Zuweisung (`ownerships`) — 📋 Wartet auf Gemini-Konzept
+- 3.2 Mieter-Zuweisung (`tenancies`) — 📋 Wartet auf Gemini-Konzept
+- 3.3 Gebäude-Detail ausbauen — 📋 Viele DB-Felder ohne UI:
+  - `fiscal_year_start/end`, `tax_number`, `land_registry`, `district`, `parcel`
+  - `declaration_of_division_date`, `notary_name`, `creditor_id`
+  - `elevator_count`, `energy_certificate_type/expiry`
+  - `legionella_check_required/last/interval`, `next_fire_safety_check`
+- 3.4 Einheiten-Detail ausbauen — 📋 Fehlende Felder:
+  - `floor`, `location_in_building`, `equipment_features`
+  - `move_in_date`, `deposit_amount`, `deposit_paid`
+  - `special_use_rights`, `mea_numerator`, `mea_denominator`
+- 3.5 Zählerstände UI — 💡 Idee
 
 ### 📋 Phase 4 — Kommunikation
-- 4.1 Schwarzes Brett Konzept
+- 4.1 Schwarzes Brett Konzept (Gemini)
 - 4.2 Schwarzes Brett Implementierung
-- 4.3 Ticket-System Konzept
+- 4.3 Ticket-System Konzept (Gemini)
 - 4.4 Ticket-System Implementierung
 
 ### 💡 Phase 5 — Dokumente, Kontakte & Dashboard
@@ -126,7 +134,7 @@ Alle Schema-Änderungen laufen als Migration:
 ## Workflow — Triade
 **Gemini (Architekt)** → Konzepte, DB-Design, UI-Vorgaben
 **Nutzer (Product Owner)** → Steuert, testet, transportiert
-**Claude (Developer)** → Implementierung direkt im Repo via Claude Code
+**Claude Code (Developer)** → Implementierung direkt im Repo via Terminal
 
 **Übergabe-Format (Gemini → Claude):**
 ```
@@ -145,5 +153,6 @@ Alle Schema-Änderungen laufen als Migration:
 - **Fragen:** Immer nur eine Frage auf einmal (iteratives Interview)
 - **Antworten:** Kurz und präzise
 - **Rating:** Jede Antwort mit Konfidenz abschließen, z.B. `Rating: 95%`
-- **Migrations:** Niemals direktes SQL im Supabase-Editor — immer als Migration
+- **Migrations:** Niemals direktes SQL im Supabase-Editor — immer als Migration via MCP
 - **Git:** Nach jeder abgeschlossenen Aufgabe einen sauberen Commit vorschlagen
+- **CLAUDE.md:** Nach jeder abgeschlossenen Phase den Projektstand hier aktualisieren
