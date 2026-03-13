@@ -62,7 +62,10 @@
 
     <!-- Mobile Header -->
     <div class="md:hidden bg-white border-b border-gray-100 p-4 flex justify-between items-center sticky top-0 z-50">
-        <div class="font-bold text-xl tracking-tight text-hb-olive flex items-center gap-2">Mieterportal</div>
+        <div class="font-bold text-xl tracking-tight text-hb-olive flex items-center gap-2">
+            <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-8 w-auto">
+            Mieterportal
+        </div>
         <button onclick="toggleMenu()" class="text-hb-olive p-2 bg-gray-50 rounded-lg">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" /></svg>
         </button>
@@ -71,6 +74,7 @@
     <!-- Sidebar -->
     <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-40 w-72 bg-white border-r border-gray-100 flex-shrink-0 h-screen flex flex-col shadow-soft text-left">
         <div class="p-8 pb-4 hidden md:block text-center border-b border-gray-50 mb-4">
+            <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-10 w-auto mx-auto mb-2">
             <div class="font-extrabold text-xl tracking-tighter text-hb-olive">Mieterportal</div>
             <p class="text-[10px] uppercase tracking-widest font-bold text-gray-400">HB Verwaltung</p>
         </div>
@@ -151,6 +155,17 @@
         function logout() { _supabase.auth.signOut().then(() => window.location.href = 'index.html'); }
         function toggleMenu() { document.getElementById('sidebar').classList.toggle('-translate-x-full'); document.getElementById('overlay').classList.toggle('hidden'); }
         
+        // === START: MODUL DASHBOARD ===
+        async function loadDashboard() {
+            const container = document.getElementById('content-area');
+            container.innerHTML = `
+                <div class="p-10 card text-center">
+                    <h2 class="text-xl font-bold mb-2">Willkommen im Dashboard</h2>
+                    <p class="text-gray-500">Ihre Übersicht wird geladen...</p>
+                </div>`;
+        }
+        // === END: MODUL DASHBOARD ===
+
         // === START: MODUL OBJEKTE ===
         async function loadTenants() {
             const container = document.getElementById('content-area');
@@ -287,6 +302,101 @@
                 if (!res.error) { showToast("Gespeichert"); loadTenants(); }
             };
         }
+
+        window.switchAptTab = function(tabId) {
+            document.querySelectorAll('.apt-tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.apt-tab-btn').forEach(el => {
+                el.classList.remove('border-hb-olive', 'text-hb-olive');
+                el.classList.add('border-transparent', 'text-gray-500');
+            });
+            document.getElementById('tab-' + tabId).classList.remove('hidden');
+            const btn = document.getElementById('btn-tab-' + tabId);
+            if(btn) { btn.classList.remove('border-transparent', 'text-gray-500'); btn.classList.add('border-hb-olive', 'text-hb-olive'); }
+        };
+
+        async function fetchApartmentsForBuilding(bId) {
+            const list = document.getElementById('apartments-list');
+            const { data } = await _supabase.from('apartments').select('*').eq('building_id', bId).order('apartment_number');
+            currentApartments = data || [];
+            list.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">` + currentApartments.map(apt => `
+                <div onclick="showApartmentForm(${apt.id})" class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:border-hb-olive cursor-pointer transition-colors group text-left">
+                    <h4 class="text-lg font-extrabold text-hb-offblack">${apt.apartment_number}</h4>
+                    <p class="text-sm text-gray-500">${apt.sq_meters || 0} m² • ${apt.tenant_status || 'Leerstand'}</p>
+                </div>`).join('') + `</div>`;
+        }
+
+        async function showApartmentForm(id = null) {
+            const area = document.getElementById('units-area');
+            let apt = id ? currentApartments.find(x => x.id === id) : {};
+            const isEdit = !!id;
+
+            area.innerHTML = `
+                <div class="card p-8 h-full overflow-y-auto border border-gray-100 shadow-sm flex flex-col text-left">
+                    <div class="flex justify-between items-center mb-6 text-left">
+                        <h2 class="text-2xl font-extrabold">${isEdit ? 'Einheit bearbeiten' : 'Neue Einheit'}</h2>
+                        <button onclick="selectBuilding(selectedBuildingId)" class="text-xs font-bold text-gray-400 uppercase">Abbrechen</button>
+                    </div>
+                    
+                    <div class="flex overflow-x-auto border-b border-gray-200 mb-6 gap-8 hide-scrollbar flex-shrink-0">
+                        <button type="button" id="btn-tab-base" onclick="switchAptTab('base')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm border-hb-olive text-hb-olive">Stammdaten</button>
+                        <button type="button" id="btn-tab-weg" onclick="switchAptTab('weg')" class="apt-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm border-transparent text-gray-500">Finanzen & WEG</button>
+                    </div>
+
+                    <form id="apartment-form" class="flex-grow flex flex-col text-left space-y-6">
+                        <input type="hidden" id="apt_form_id" value="${apt.id || ''}">
+                        
+                        <div id="tab-base" class="apt-tab-content grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Nr. *</label><input type="text" id="apt_form_no" value="${apt.apartment_number || ''}" required></div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Typ</label>
+                                <select id="apt_form_type">
+                                    <option value="Wohnen" ${apt.type === 'Wohnen' ? 'selected' : ''}>Wohnen</option>
+                                    <option value="Gewerbe" ${apt.type === 'Gewerbe' ? 'selected' : ''}>Gewerbe</option>
+                                    <option value="Stellplatz" ${apt.type === 'Stellplatz' ? 'selected' : ''}>Stellplatz</option>
+                                </select>
+                            </div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">m²</label><input type="number" id="apt_form_sqm" value="${apt.sq_meters || ''}" step="0.01"></div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Zimmer</label><input type="number" id="apt_form_rooms" value="${apt.rooms || ''}" step="0.5"></div>
+                        </div>
+
+                        <div id="tab-weg" class="apt-tab-content hidden grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Hausgeld (€)</label><input type="number" id="apt_form_hausgeld" value="${apt.hausgeld || ''}" step="0.01"></div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">MEA</label><input type="number" id="apt_form_mea" value="${apt.mea || ''}" step="0.0001"></div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Status</label>
+                                <select id="apt_form_status">
+                                    <option value="Leerstand" ${apt.tenant_status === 'Leerstand' ? 'selected' : ''}>Leerstand</option>
+                                    <option value="Vermietet" ${apt.tenant_status === 'Vermietet' ? 'selected' : ''}>Vermietet</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="pt-6 border-t border-gray-100 flex gap-4 text-left">
+                            <button type="submit" class="btn-primary">Speichern</button>
+                            ${isEdit ? `<button type="button" onclick="deleteApartment(${apt.id})" class="text-red-500 font-bold px-4 hover:bg-red-50 rounded-lg transition-colors">Löschen</button>` : ''}
+                        </div>
+                    </form>
+                </div>`;
+
+            document.getElementById('apartment-form').onsubmit = async (e) => {
+                e.preventDefault();
+                const aptId = document.getElementById('apt_form_id').value;
+                const payload = {
+                    building_id: selectedBuildingId,
+                    apartment_number: document.getElementById('apt_form_no').value,
+                    type: document.getElementById('apt_form_type').value,
+                    sq_meters: document.getElementById('apt_form_sqm').value || 0,
+                    rooms: document.getElementById('apt_form_rooms').value || 0,
+                    hausgeld: document.getElementById('apt_form_hausgeld').value || 0,
+                    mea: document.getElementById('apt_form_mea').value || 0,
+                    tenant_status: document.getElementById('apt_form_status').value
+                };
+
+                let res = aptId ? await _supabase.from('apartments').update(payload).eq('id', aptId) : await _supabase.from('apartments').insert([payload]);
+                if (!res.error) { showToast("Einheit gespeichert"); selectBuilding(selectedBuildingId); } 
+                else { showToast(res.error.message, "error"); }
+            };
+        }
+
+        async function deleteApartment(id) { if(confirm("Einheit wirklich löschen?")) { const { error } = await _supabase.from('apartments').delete().eq('id', id); if(!error) selectBuilding(selectedBuildingId); } }
         // === END: MODUL OBJEKTE ===
 
         // === START: MODUL PERSONEN ===
@@ -307,20 +417,25 @@
                         <h2 class="text-2xl font-extrabold text-hb-offblack tracking-tight">Globales Adressbuch</h2>
                         <p class="text-sm text-gray-500 mt-1">Verwalten Sie Eigentümer, Mieter und Dienstleister zentral.</p>
                     </div>
-                    <button onclick="showPersonForm()" class="btn-primary flex items-center gap-2 text-sm shadow-sm">+ Person</button>
+                    <button onclick="showPersonForm()" class="btn-primary flex items-center gap-2 text-sm shadow-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        Neue Person
+                    </button>
                 </div>
                 <div class="card flex flex-col overflow-hidden text-left">
                     <div class="p-5 border-b border-gray-100 bg-white flex flex-col md:flex-row justify-between items-center gap-4">
-                        <div class="flex flex-wrap gap-2">
+                        <div class="flex flex-wrap gap-2" id="person-filters">
                             <button onclick="setPersonFilter('Alle')" class="filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-hb-offblack text-white">Alle</button>
                             <button onclick="setPersonFilter('Eigentümer')" class="filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-white text-gray-500">Eigentümer</button>
                             <button onclick="setPersonFilter('Mieter')" class="filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-white text-gray-500">Mieter</button>
+                            <button onclick="setPersonFilter('Beirat')" class="filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-white text-gray-500">Beiräte</button>
+                            <button onclick="setPersonFilter('Dienstleister')" class="filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-white text-gray-500">Dienstleister</button>
                         </div>
-                        <input type="text" onkeyup="handlePersonSearch(event)" placeholder="Suchen..." class="md:w-64">
+                        <input type="text" onkeyup="handlePersonSearch(event)" placeholder="Name oder E-Mail suchen..." class="md:w-64">
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left">
-                            <thead><tr class="bg-gray-50 text-[10px] uppercase font-bold text-gray-400 border-b border-gray-100"><th class="p-4">Name</th><th class="p-4">Kontakt</th><th class="p-4">Rollen</th><th class="p-4 text-right">Aktion</th></tr></thead>
+                            <thead><tr class="bg-gray-50 text-[10px] uppercase font-bold text-gray-400 border-b border-gray-100"><th class="p-4">Name / Firma</th><th class="p-4">Kontakt</th><th class="p-4">Rollen</th><th class="p-4 text-right">Aktion</th></tr></thead>
                             <tbody id="persons-table-body" class="text-sm divide-y divide-gray-50"></tbody>
                         </table>
                     </div>
@@ -328,85 +443,247 @@
             renderPersonsTable();
         }
 
-        window.setPersonFilter = (filter) => { currentPersonFilter = filter; renderPersonsTable(); };
+        window.setPersonFilter = (filter) => { 
+            currentPersonFilter = filter; 
+            
+            // Update Chip UI colors
+            const chips = document.querySelectorAll('.filter-chip');
+            chips.forEach(el => {
+                if (el.innerText.trim() === filter || (filter === 'Alle' && el.innerText.trim() === 'Alle')) {
+                    el.className = "filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-hb-offblack text-white";
+                } else {
+                    el.className = "filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-white text-gray-500 hover:bg-gray-50 transition-colors";
+                }
+            });
+            renderPersonsTable(); 
+        };
+
         window.handlePersonSearch = (e) => { personSearchQuery = e.target.value.toLowerCase(); renderPersonsTable(); };
+
+        function getRoleBadgeHtml(role) {
+            let badgeClass = 'bg-gray-100 text-gray-600 border-gray-200'; // fallback
+            if (role === 'Eigentümer') badgeClass = 'badge-eigentuemer';
+            if (role === 'Mieter') badgeClass = 'badge-mieter';
+            if (role === 'Dienstleister') badgeClass = 'badge-dienstleister';
+            if (role === 'Beirat') badgeClass = 'badge-beirat';
+            
+            return `<span class="border ${badgeClass} text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md inline-block mr-1 mb-1">${role}</span>`;
+        }
 
         function renderPersonsTable() {
             const tbody = document.getElementById('persons-table-body');
             let filtered = mockPersons.filter(p => {
                 const matchesFilter = currentPersonFilter === 'Alle' || p.roles.includes(currentPersonFilter);
-                const matchesSearch = (p.first_name + ' ' + p.last_name).toLowerCase().includes(personSearchQuery);
+                const matchesSearch = (p.first_name + ' ' + p.last_name).toLowerCase().includes(personSearchQuery) || p.email.toLowerCase().includes(personSearchQuery);
                 return matchesFilter && matchesSearch;
             });
-            tbody.innerHTML = filtered.map(p => `
+            tbody.innerHTML = filtered.map(p => {
+                const isCompany = p.contact_type === 'Firma';
+                const displayName = isCompany ? p.last_name : `${p.first_name || ''} ${p.last_name}`.trim();
+                
+                return `
                 <tr class="hover:bg-gray-50 transition-colors">
-                    <td class="p-4 font-bold">${p.first_name} ${p.last_name}</td>
-                    <td class="p-4 text-gray-500">${p.email}</td>
-                    <td class="p-4">${p.roles.map(r => `<span class="border text-[9px] font-black uppercase px-2 py-0.5 rounded-md inline-block mr-1">${r}</span>`).join('')}</td>
-                    <td class="p-4 text-right"><button onclick="showPersonForm('${p.id}')" class="text-hb-olive font-bold">Bearbeiten</button></td>
-                </tr>`).join('');
+                    <td class="p-4">
+                        <div class="font-bold text-hb-offblack">${displayName}</div>
+                        <div class="text-xs text-gray-500">${p.city || '-'}</div>
+                    </td>
+                    <td class="p-4">
+                        <div class="text-sm text-gray-700">${p.email || '-'}</div>
+                        <div class="text-xs text-gray-500">${p.phone || p.mobile || '-'}</div>
+                    </td>
+                    <td class="p-4">${p.roles.map(r => getRoleBadgeHtml(r)).join('')}</td>
+                    <td class="p-4 text-right"><button onclick="showPersonForm('${p.id}')" class="text-xs font-bold text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Bearbeiten</button></td>
+                </tr>`;
+            }).join('');
         }
 
         window.switchPersonTab = (tabId) => {
             document.querySelectorAll('.person-tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.person-tab-btn').forEach(el => {
+                el.classList.remove('border-hb-olive', 'text-hb-olive');
+                el.classList.add('border-transparent', 'text-gray-500');
+            });
             document.getElementById('person-tab-' + tabId).classList.remove('hidden');
+            const btn = document.getElementById('person-btn-tab-' + tabId);
+            if(btn) { btn.classList.remove('border-transparent', 'text-gray-500'); btn.classList.add('border-hb-olive', 'text-hb-olive'); }
         };
 
         function showPersonForm(id = null) {
             const container = document.getElementById('content-area');
-            let p = id ? mockPersons.find(x => x.id === id) : { roles: [] };
+            let p = id ? mockPersons.find(x => x.id === id) : { roles: [], contact_type: 'Privatperson' };
+            const isEdit = !!id;
+            
             container.innerHTML = `
                 <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-extrabold">${id ? 'Bearbeiten' : 'Neu'}</h2>
-                    <button onclick="loadUserManagement()" class="text-xs font-bold text-gray-400">Zurück</button>
+                    <h2 class="text-2xl font-extrabold">${id ? 'Person bearbeiten' : 'Neuen Kontakt anlegen'}</h2>
+                    <button onclick="loadUserManagement()" class="text-xs font-bold text-gray-400 uppercase tracking-widest hover:text-hb-orange">Zurück zur Liste</button>
                 </div>
                 <div class="card p-8 text-left">
-                    <div class="flex border-b mb-6 gap-6">
-                        <button onclick="switchPersonTab('base')" class="pb-3 border-b-2 border-hb-olive font-bold text-sm">Stammdaten</button>
-                        <button onclick="switchPersonTab('finance')" class="pb-3 border-b-2 border-transparent text-gray-500 font-bold text-sm">Finanzen & SEPA</button>
+                    <div class="flex overflow-x-auto border-b border-gray-200 mb-8 gap-8 hide-scrollbar flex-shrink-0">
+                        <button type="button" id="person-btn-tab-base" onclick="switchPersonTab('base')" class="person-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-hb-olive text-hb-olive">Stammdaten & Adressen</button>
+                        <button type="button" id="person-btn-tab-roles" onclick="switchPersonTab('roles')" class="person-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Rollen & Objekte</button>
+                        <button type="button" id="person-btn-tab-portal" onclick="switchPersonTab('portal')" class="person-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Portal & Rechtliches</button>
+                        <button type="button" id="person-btn-tab-finance" onclick="switchPersonTab('finance')" class="person-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Finanzen & SEPA</button>
                     </div>
+
                     <form id="person-form" class="space-y-6">
+                        <!-- TAB: STAMMDATEN -->
                         <div id="person-tab-base" class="person-tab-content grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
-                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Vorname</label><input type="text" id="p_first" value="${p.first_name || ''}"></div>
-                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Nachname *</label><input type="text" id="p_last" value="${p.last_name || ''}" required></div>
+                            <div class="space-y-2 md:col-span-2">
+                                <label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Kontakt-Typ</label>
+                                <select id="p_type" class="w-full md:w-1/3">
+                                    <option value="Privatperson" ${p.contact_type === 'Privatperson' ? 'selected' : ''}>Privatperson</option>
+                                    <option value="Firma" ${p.contact_type === 'Firma' ? 'selected' : ''}>Firma / Organisation</option>
+                                </select>
+                            </div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Vorname / Titel</label><input type="text" id="p_first" value="${p.first_name || ''}"></div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Nachname / Firmenname *</label><input type="text" id="p_last" value="${p.last_name || ''}" required></div>
                             <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">E-Mail</label><input type="email" id="p_email" value="${p.email || ''}"></div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Telefon</label><input type="text" id="p_phone" value="${p.phone || ''}"></div>
+                            <div class="space-y-2 md:col-span-2 border-t pt-4"><h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">Haupt-Meldeadresse</h3></div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Straße & Hausnr.</label><input type="text" id="p_street"></div>
+                            <div class="space-y-2">
+                                <div class="grid grid-cols-3 gap-2">
+                                    <div class="col-span-1"><label class="text-[10px] uppercase font-bold text-gray-500">PLZ</label><input type="text" id="p_zip"></div>
+                                    <div class="col-span-2"><label class="text-[10px] uppercase font-bold text-gray-500">Ort</label><input type="text" id="p_city" value="${p.city || ''}"></div>
+                                </div>
+                            </div>
                         </div>
+
+                        <!-- TAB: ROLLEN -->
+                        <div id="person-tab-roles" class="person-tab-content hidden space-y-6">
+                            <div class="bg-gray-50 border border-dashed border-gray-200 rounded-xl p-6 text-center mb-4">
+                                <h3 class="text-sm font-bold text-gray-700 mb-2">Rollen Übersicht</h3>
+                                <p class="text-xs text-gray-500 mb-4">Die Zuweisung von Mietern/Eigentümern zu Wohnungen erfolgt direkt über das <strong>Objekte-Modul</strong>.</p>
+                                <div class="flex justify-center gap-4 mt-4">
+                                    <label class="flex items-center gap-2 text-sm font-medium"><input type="checkbox" ${p.roles.includes('Eigentümer') ? 'checked' : ''} disabled> Eigentümer</label>
+                                    <label class="flex items-center gap-2 text-sm font-medium"><input type="checkbox" ${p.roles.includes('Mieter') ? 'checked' : ''} disabled> Mieter</label>
+                                    <label class="flex items-center gap-2 text-sm font-medium"><input type="checkbox" ${p.roles.includes('Beirat') ? 'checked' : ''}> Beirat</label>
+                                    <label class="flex items-center gap-2 text-sm font-medium"><input type="checkbox" ${p.roles.includes('Dienstleister') ? 'checked' : ''}> Dienstleister</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB: PORTAL -->
+                        <div id="person-tab-portal" class="person-tab-content hidden space-y-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="space-y-4 md:col-span-2">
+                                    <h3 class="text-sm font-black uppercase tracking-widest text-hb-olive">Portal-Zugang</h3>
+                                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                        <div>
+                                            <p class="text-sm font-bold text-gray-800">App & Portal Nutzung</p>
+                                            <p class="text-xs text-gray-500">${p.is_registered ? 'Nutzer hat sich registriert und ist aktiv.' : 'Bisher keine Registrierung.'}</p>
+                                        </div>
+                                        ${p.is_registered ? `<button type="button" class="btn-secondary text-xs px-4 py-2">Passwort Reset</button>` : `<button type="button" class="btn-primary text-xs px-4 py-2">Einladung generieren</button>`}
+                                    </div>
+                                </div>
+                                <div class="space-y-2 md:col-span-2">
+                                    <label class="text-[10px] uppercase tracking-widest font-bold text-gray-500">Interne Notizen zur Person</label>
+                                    <textarea id="p_notes" rows="3"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB: FINANZEN -->
                         <div id="person-tab-finance" class="person-tab-content hidden grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Kontoinhaber</label><input type="text"></div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Bankname</label><input type="text"></div>
                             <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">IBAN</label><input type="text" placeholder="DE..."></div>
+                            <div class="space-y-2 border-t pt-4 md:col-span-2"><h3 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">SEPA-Lastschriftmandat</h3></div>
                             <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Mandats-Referenz</label><input type="text"></div>
+                            <div class="space-y-2"><label class="text-[10px] uppercase font-bold text-gray-500">Unterschrift Datum</label><input type="date"></div>
                         </div>
-                        <div class="pt-6 border-t"><button type="submit" class="btn-primary">Kontakt speichern</button></div>
+
+                        <div class="pt-6 border-t flex gap-4">
+                            <button type="submit" class="btn-primary">Kontakt speichern</button>
+                        </div>
                     </form>
                 </div>`;
+                
+            document.getElementById('person-form').onsubmit = (e) => {
+                e.preventDefault();
+                showToast("Speicherlogik folgt.", "success");
+                loadUserManagement();
+            };
         }
         // === END: MODUL PERSONEN ===
 
+        // === START: WEITERE MODULE (Platzhalter) ===
+        async function loadNews() { document.getElementById('content-area').innerHTML = '<div class="p-10 card text-center"><h2 class="text-xl font-bold mb-2">Schwarzes Brett</h2><p class="text-gray-500">Demnächst verfügbar.</p></div>'; }
+        async function loadTickets() { document.getElementById('content-area').innerHTML = '<div class="p-10 card text-center"><h2 class="text-xl font-bold mb-2">Ticketsystem</h2><p class="text-gray-500">Demnächst verfügbar.</p></div>'; }
+        async function loadFinance() { document.getElementById('content-area').innerHTML = '<div class="p-10 card text-center"><h2 class="text-xl font-bold mb-2">Abrechnungen</h2><p class="text-gray-500">Demnächst verfügbar.</p></div>'; }
+        async function loadDocuments() { document.getElementById('content-area').innerHTML = '<div class="p-10 card text-center"><h2 class="text-xl font-bold mb-2">Dokumenten Cloud</h2><p class="text-gray-500">Demnächst verfügbar.</p></div>'; }
+        async function loadContacts() { document.getElementById('content-area').innerHTML = '<div class="p-10 card text-center"><h2 class="text-xl font-bold mb-2">Kontaktbuch</h2><p class="text-gray-500">Demnächst verfügbar.</p></div>'; }
+        async function loadSettings() { document.getElementById('content-area').innerHTML = '<div class="p-10 card text-center"><h2 class="text-xl font-bold mb-2">Einstellungen</h2><p class="text-gray-500">Demnächst verfügbar.</p></div>'; }
+        async function loadProfile() { document.getElementById('content-area').innerHTML = '<div class="p-10 card text-center"><h2 class="text-xl font-bold mb-2">Mein Profil</h2><p class="text-gray-500">Demnächst verfügbar.</p></div>'; }
+        // === END: WEITERE MODULE ===
+
         // === START: INIT ===
         async function init() {
-            const { data: { user } } = await _supabase.auth.getUser();
-            if (!user) { window.location.href = 'index.html'; return; }
-            currentUser = user;
-            const { data: profile } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
-            if (!profile) return;
-            userProfile = profile;
-            document.getElementById('welcome-title').textContent = "Hallo, " + profile.full_name.split(' ')[0] + "!";
-            document.getElementById('role-label').textContent = profile.role === 'admin' ? 'Verwalter Cockpit' : 'Nutzer Portal';
-            renderNav(profile.role);
-            loadDashboard(); 
+            try {
+                const { data: { user } } = await _supabase.auth.getUser();
+                if (!user) { window.location.href = 'index.html'; return; }
+                currentUser = user;
+                const { data: profile } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
+                if (!profile) return;
+                userProfile = profile;
+                document.getElementById('welcome-title').textContent = "Hallo, " + profile.full_name.split(' ')[0] + "!";
+                const roleLabels = { 'admin': 'Verwalter Cockpit', 'manager': 'Objektbetreuer', 'owner': 'Eigentümer Cockpit', 'tenant': 'Mieter Portal' };
+                document.getElementById('role-label').textContent = roleLabels[profile.role] || 'Nutzer Portal';
+                document.getElementById('user-avatar').textContent = profile.full_name.charAt(0).toUpperCase();
+                document.getElementById('dropdown-name').textContent = profile.full_name;
+                document.getElementById('dropdown-email').textContent = profile.email;
+                renderNav(profile.role);
+                loadDashboard(); 
+            } catch (err) { console.error(err); }
         }
 
         function renderNav(role) {
             const nav = document.getElementById('nav-links');
             let html = `<li><a onclick="loadDashboard(); setActiveNav(this)" class="nav-link active-link">${icons.dashboard} Dashboard</a></li>`;
+            
             if (role === 'admin' || role === 'manager') {
-                html += `<li class="nav-section-title">Verwaltung</li><li><a onclick="loadUserManagement(); setActiveNav(this)" class="nav-link">${icons.users} Personen</a></li><li><a onclick="loadTenants(); setActiveNav(this)" class="nav-link">${icons.buildings} Objekte</a></li>`;
+                html += `<li class="nav-section-title">Kommunikation</li>
+                         <li><a onclick="loadNews(); setActiveNav(this)" class="nav-link">${icons.news} Schwarzes Brett</a></li>
+                         <li><a onclick="loadTickets(); setActiveNav(this)" class="nav-link">${icons.tickets} Ticket System</a></li>`;
+                
+                html += `<li class="nav-section-title">Verwaltung</li>
+                         <li><a onclick="loadUserManagement(); setActiveNav(this)" class="nav-link">${icons.users} Personen</a></li>
+                         <li><a onclick="loadTenants(); setActiveNav(this)" class="nav-link">${icons.buildings} Bestands-Objekte</a></li>`;
+                
+                html += `<li class="nav-section-title">Finanzen</li>
+                         <li><a onclick="loadFinance(); setActiveNav(this)" class="nav-link">${icons.finance} Abrechnungen</a></li>`;
+                
+                html += `<li class="nav-section-title">Service & Dokumente</li>
+                         <li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Dokumenten Cloud</a></li>
+                         <li><a onclick="loadContacts(); setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li>
+                         <li><a onclick="loadSettings(); setActiveNav(this)" class="nav-link">${icons.settings} Einstellungen</a></li>`;
+            } else if (role === 'owner') {
+                html += `<li class="nav-section-title">Mein Asset</li>
+                         <li><a onclick="loadMyUnits(); setActiveNav(this)" class="nav-link">${icons.buildings} Meine Einheiten</a></li>
+                         <li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Dokumente</a></li>
+                         <li><a onclick="loadTickets(); setActiveNav(this)" class="nav-link">${icons.tickets} Meine Tickets</a></li>`;
+                
+                html += `<li class="nav-section-title">Vermieter-Bereich</li>
+                         <li><a onclick="loadMyTenants(); setActiveNav(this)" class="nav-link">${icons.users} Meine Mieter</a></li>
+                         <li><a onclick="loadContacts(); setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li>`;
+            } else { 
+                html += `<li class="nav-section-title">Kommunikation</li>
+                         <li><a onclick="loadNews(); setActiveNav(this)" class="nav-link">${icons.news} Schwarzes Brett</a></li>
+                         <li><a onclick="loadTickets(); setActiveNav(this)" class="nav-link">${icons.tickets} Meine Meldungen</a></li>`;
+                
+                html += `<li class="nav-section-title">Service & Dokumente</li>
+                         <li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs} Meine Dokumente</a></li>
+                         <li><a onclick="loadContacts(); setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li>`;
             }
+            
             nav.innerHTML = html;
         }
 
         function setActiveNav(el) {
             document.querySelectorAll('#nav-links a').forEach(a => a.classList.remove('active-link'));
             el.classList.add('active-link');
+            if(window.innerWidth < 768) toggleMenu();
         }
 
         init();
