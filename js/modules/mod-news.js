@@ -181,7 +181,11 @@ window.openNewsModal = async (newsId) => {
                         class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
                 </div>
             </div>
-            <div class="p-6 overflow-y-auto flex-grow text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">${item.content || ''}</div>
+            <div class="p-6 overflow-y-auto flex-grow text-sm text-gray-700 leading-relaxed
+                        [&_h3]:text-base [&_h3]:font-bold [&_h3]:mb-2 [&_h3]:mt-3
+                        [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2
+                        [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2
+                        [&_strong]:font-bold [&_em]:italic [&_p]:mb-2">${item.content || ''}</div>
             <div class="p-4 border-t border-gray-100 flex justify-end flex-shrink-0">
                 <button onclick="toggleNewsLike(event, ${newsId}, true)"
                     id="modal-like-btn-${newsId}"
@@ -258,7 +262,7 @@ window.showCreateNewsModal = async () => {
     modal.id = 'create-news-modal';
     modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
     modal.innerHTML = `
-        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-lg p-8 space-y-5" onclick="event.stopPropagation()">
+        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-2xl p-8 space-y-5" onclick="event.stopPropagation()">
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-extrabold text-hb-offblack">Neuer Beitrag</h3>
                 <button onclick="document.getElementById('create-news-modal').remove()" class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
@@ -300,10 +304,45 @@ window.showCreateNewsModal = async () => {
             </div>
             <div class="space-y-2">
                 <label class="text-[10px] uppercase font-bold text-gray-500">Inhalt *</label>
-                <textarea id="news_content" rows="5" placeholder="Text des Beitrags…"></textarea>
+                <!-- Toolbar -->
+                <div class="flex flex-wrap gap-1 p-2 bg-gray-50 border border-gray-200 rounded-t-lg border-b-0">
+                    <button type="button" onclick="document.execCommand('bold')"
+                        class="rte-btn w-7 h-7 rounded font-bold text-sm hover:bg-gray-200 transition-colors" title="Fett">B</button>
+                    <button type="button" onclick="document.execCommand('italic')"
+                        class="rte-btn w-7 h-7 rounded italic text-sm hover:bg-gray-200 transition-colors" title="Kursiv">I</button>
+                    <div class="w-px bg-gray-200 mx-0.5 self-stretch"></div>
+                    <button type="button" onclick="document.execCommand('formatBlock', false, 'h3')"
+                        class="rte-btn px-2 h-7 rounded text-xs font-bold hover:bg-gray-200 transition-colors" title="Überschrift">H</button>
+                    <button type="button" onclick="document.execCommand('formatBlock', false, 'p')"
+                        class="rte-btn px-2 h-7 rounded text-xs hover:bg-gray-200 transition-colors" title="Normaler Text">¶</button>
+                    <div class="w-px bg-gray-200 mx-0.5 self-stretch"></div>
+                    <button type="button" onclick="document.execCommand('insertUnorderedList')"
+                        class="rte-btn px-2 h-7 rounded text-sm hover:bg-gray-200 transition-colors" title="Aufzählung">• —</button>
+                    <button type="button" onclick="document.execCommand('insertOrderedList')"
+                        class="rte-btn px-2 h-7 rounded text-sm hover:bg-gray-200 transition-colors" title="Nummerierung">1. —</button>
+                </div>
+                <!-- Editor -->
+                <div id="news_content"
+                    contenteditable="true"
+                    class="min-h-[180px] p-3 border border-gray-200 rounded-b-lg bg-white text-sm text-gray-700
+                           focus:outline-none focus:border-hb-olive leading-relaxed
+                           [&_h3]:text-base [&_h3]:font-bold [&_h3]:mb-1
+                           [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1
+                           [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1"
+                    data-placeholder="Text des Beitrags…"></div>
             </div>
             <button onclick="saveNews()" class="btn-primary w-full">Veröffentlichen</button>
         </div>`;
+
+    // Placeholder-Verhalten für contenteditable
+    const editor = modal.querySelector('#news_content');
+    const updatePlaceholder = () => {
+        editor.classList.toggle('text-gray-400', editor.innerHTML === '' || editor.innerHTML === '<br>');
+    };
+    editor.addEventListener('focus', () => { if (editor.innerHTML === '') editor.innerHTML = ''; });
+    editor.addEventListener('input', updatePlaceholder);
+    editor.setAttribute('data-empty', 'true');
+    editor.innerHTML = '';
     modal.addEventListener('click', () => modal.remove());
     document.body.appendChild(modal);
 };
@@ -323,8 +362,10 @@ window.handleNewsBuildingChange = async (bId) => {
 
 window.saveNews = async () => {
     const title   = document.getElementById('news_title')?.value?.trim();
-    const content = document.getElementById('news_content')?.value?.trim();
-    if (!title || !content) { showToast('Titel und Inhalt sind Pflichtfelder.', 'error'); return; }
+    const editor  = document.getElementById('news_content');
+    const content = editor?.innerHTML?.trim();
+    const isEmpty = !content || content === '<br>' || content === '<p><br></p>';
+    if (!title || isEmpty) { showToast('Titel und Inhalt sind Pflichtfelder.', 'error'); return; }
     const scope   = document.getElementById('news_scope')?.value;
     const bId     = parseInt(document.getElementById('news_building_id')?.value) || null;
     const aptId   = parseInt(document.getElementById('news_apartment_id')?.value) || null;
