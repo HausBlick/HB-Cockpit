@@ -128,7 +128,7 @@ function renderPersonsTable() {
             ? (p.company_name || p.last_name || '—')
             : `${p.first_name || ''} ${p.last_name || ''}`.trim() || '—';
         return `
-            <tr class="hover:bg-gray-50 transition-colors">
+            <tr onclick="showPersonInfo('${p.id}')" class="hover:bg-gray-50 transition-colors cursor-pointer">
                 <td class="p-4">
                     <div class="font-bold text-hb-offblack">${displayName}</div>
                     <div class="text-xs text-gray-500">${p.city || '—'}</div>
@@ -138,10 +138,109 @@ function renderPersonsTable() {
                     <div class="text-xs text-gray-500">${p.phone || p.mobile || '—'}</div>
                 </td>
                 <td class="p-4">${p.roles.length ? p.roles.map(r => getRoleBadgeHtml(r)).join('') : '<span class="text-xs text-gray-300">—</span>'}</td>
-                <td class="p-4 text-right">
+                <td class="p-4 text-right" onclick="event.stopPropagation()">
                     <button onclick="showPersonForm('${p.id}')"
                         class="text-xs font-bold text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Bearbeiten</button>
                 </td>
             </tr>`;
     }).join('');
 }
+
+// ─── Person Info-Modal (read-only) ────────────────────────────
+window.showPersonInfo = async (personId) => {
+    const { data: p, error } = await _supabase.from('persons')
+        .select(`*, person_bank_accounts(iban, bic, bank_name, account_holder)`)
+        .eq('id', personId).single();
+    if (error || !p) { showToast('Person nicht gefunden.', 'error'); return; }
+
+    const base = personsData.find(x => x.id === personId);
+    const roles = base?.roles || [];
+
+    const displayName = p.is_company
+        ? (p.company_name || p.last_name || '—')
+        : `${p.salutation ? p.salutation + ' ' : ''}${p.first_name || ''} ${p.last_name || ''}`.trim() || '—';
+
+    const field = (label, value) => value
+        ? `<div class="space-y-0.5">
+               <p class="text-[10px] uppercase font-bold text-gray-400">${label}</p>
+               <p class="text-sm font-semibold text-hb-offblack">${value}</p>
+           </div>`
+        : '';
+
+    const bank = p.person_bank_accounts?.[0];
+
+    document.getElementById('person-info-modal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'person-info-modal';
+    modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
+    modal.innerHTML = `
+        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col" onclick="event.stopPropagation()">
+            <!-- Header -->
+            <div class="p-6 border-b border-gray-100 flex justify-between items-start flex-shrink-0">
+                <div class="space-y-1">
+                    <div class="flex items-center gap-2">
+                        <div class="w-10 h-10 rounded-full bg-hb-olive/10 text-hb-olive font-black flex items-center justify-center text-lg">
+                            ${displayName.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-extrabold text-hb-offblack leading-tight">${displayName}</h2>
+                            <p class="text-xs text-gray-400">${p.is_company ? 'Unternehmen' : 'Privatperson'}${p.city ? ' · ' + p.city : ''}</p>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-1 pt-1">
+                        ${roles.map(r => getRoleBadgeHtml(r)).join('')}
+                        ${!roles.length ? '<span class="text-xs text-gray-300">Keine Rolle</span>' : ''}
+                    </div>
+                </div>
+                <div class="flex gap-2 items-center flex-shrink-0 ml-4">
+                    <button onclick="document.getElementById('person-info-modal').remove(); showPersonForm('${personId}')"
+                        class="text-xs font-bold text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Bearbeiten</button>
+                    <button onclick="document.getElementById('person-info-modal').remove()"
+                        class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
+                </div>
+            </div>
+            <!-- Inhalt -->
+            <div class="p-6 overflow-y-auto flex-grow space-y-6">
+                <!-- Kontakt -->
+                <div>
+                    <p class="text-[10px] uppercase font-bold text-gray-300 mb-3">Kontakt</p>
+                    <div class="grid grid-cols-2 gap-4">
+                        ${field('E-Mail', p.email)}
+                        ${field('Telefon', p.phone)}
+                        ${field('Mobil', p.mobile)}
+                        ${field('Stadt', p.city)}
+                        ${field('Straße', p.street ? p.street + (p.house_number ? ' ' + p.house_number : '') : null)}
+                        ${field('PLZ', p.postal_code)}
+                    </div>
+                </div>
+                ${p.is_company && p.tax_id ? `
+                <div>
+                    <p class="text-[10px] uppercase font-bold text-gray-300 mb-3">Unternehmen</p>
+                    <div class="grid grid-cols-2 gap-4">
+                        ${field('Steuer-ID', p.tax_id)}
+                        ${field('Kontakttyp', p.contact_type)}
+                    </div>
+                </div>` : ''}
+                ${bank ? `
+                <div>
+                    <p class="text-[10px] uppercase font-bold text-gray-300 mb-3">Bankverbindung</p>
+                    <div class="grid grid-cols-2 gap-4">
+                        ${field('Kontoinhaber', bank.account_holder)}
+                        ${field('Bank', bank.bank_name)}
+                        ${field('IBAN', bank.iban)}
+                        ${field('BIC', bank.bic)}
+                    </div>
+                </div>` : ''}
+                <div>
+                    <p class="text-[10px] uppercase font-bold text-gray-300 mb-3">Portal</p>
+                    <div class="grid grid-cols-2 gap-4">
+                        ${field('Einladungscode', p.invite_code)}
+                        ${field('Digital opt-in', p.digital_optin ? 'Ja' : (p.digital_optin === false ? 'Nein' : null))}
+                        ${field('Registriert', p.is_registered ? 'Ja' : 'Nein')}
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    modal.addEventListener('click', () => modal.remove());
+    document.body.appendChild(modal);
+};
