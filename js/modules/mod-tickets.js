@@ -203,19 +203,35 @@ window.searchTickets = async (query) => {
     const q = query.trim().toLowerCase();
     if (!q) { await _loadTicketView(_ticketFilter); return; }
 
-    const { data, error } = await _supabase.from('tickets')
-        .select(`*, buildings(id, name), apartments(id, apartment_number),
-            creator:profiles!tickets_creator_id_fkey(id, full_name),
-            assignee:profiles!tickets_assigned_to_fkey(id, full_name)`)
-        .order('created_at', { ascending: false });
+    // Parallel: alle zugänglichen Tickets + Nachrichten-Treffer (RLS filtert jeweils automatisch)
+    const [ticketsRes, msgRes] = await Promise.all([
+        _supabase.from('tickets')
+            .select(`*, buildings(id, name), apartments(id, apartment_number),
+                creator:profiles!tickets_creator_id_fkey(id, full_name),
+                assignee:profiles!tickets_assigned_to_fkey(id, full_name)`)
+            .order('created_at', { ascending: false }),
+        _supabase.from('ticket_messages')
+            .select('ticket_id')
+            .ilike('message', `%${q}%`)
+            .eq('is_system_message', false),
+    ]);
 
-    if (error) { showToast(error.message, 'error'); return; }
+    if (ticketsRes.error) { showToast(ticketsRes.error.message, 'error'); return; }
 
-    _ticketsData = (data || []).filter(t =>
+    const allAccessible  = ticketsRes.data || [];
+    const accessibleIds  = new Set(allAccessible.map(t => t.id));
+
+    // Nachrichten-Treffer auf Tickets beschränken, die der User sowieso sehen darf
+    const msgMatchedIds  = new Set(
+        (msgRes.data || []).map(m => m.ticket_id).filter(id => accessibleIds.has(id))
+    );
+
+    _ticketsData = allAccessible.filter(t =>
         t.title?.toLowerCase().includes(q) ||
         t.description?.toLowerCase().includes(q) ||
         t.creator?.full_name?.toLowerCase().includes(q) ||
-        t.buildings?.name?.toLowerCase().includes(q)
+        t.buildings?.name?.toLowerCase().includes(q) ||
+        msgMatchedIds.has(t.id)
     );
 
     const main = document.getElementById('ticket-main');
