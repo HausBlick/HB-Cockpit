@@ -103,13 +103,13 @@ function _newsBadge(n) {
     const updatedAt = n.updated_at ? new Date(n.updated_at) : null;
     const wasEdited = updatedAt && (updatedAt - new Date(n.created_at)) > 60_000;
     if (!readAt) return `<span class="absolute top-4 right-4 bg-hb-orange text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full">Neu</span>`;
-    if (wasEdited && updatedAt > readAt) return `<span class="absolute top-4 right-4 bg-blue-500 text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full">Update</span>`;
+    if (wasEdited && updatedAt > readAt) return `<span class="absolute top-4 right-4 bg-hb-olive text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full">Update</span>`;
     return '';
 }
 
 function _newsCardHtml(n) {
     const liked    = _newsLiked.has(n.id);
-    const catColor = { Ankündigung: 'bg-blue-100 text-blue-700', Wartung: 'bg-hb-orange/10 text-hb-orange', Allgemein: 'bg-gray-100 text-gray-600' }[n.category] || 'bg-gray-100 text-gray-600';
+    const catColor = { Ankündigung: 'bg-hb-olive/10 text-hb-olive', Wartung: 'bg-hb-orange/10 text-hb-orange', Allgemein: 'bg-gray-100 text-gray-500' }[n.category] || 'bg-gray-100 text-gray-500';
     const preview  = (n.content || '').replace(/<[^>]+>/g, '').substring(0, 120);
     const date     = new Date(n.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -369,6 +369,7 @@ window.updateNews = async (newsId) => {
     showToast('Beitrag aktualisiert.', 'success');
     await _loadLikedAndRead();
     await _fetchAndRenderNews();
+    refreshNavBadges?.();
 };
 
 // ─── News erstellen ───────────────────────────────────────────
@@ -507,4 +508,5 @@ window.saveNews = async () => {
     showToast('Beitrag veröffentlicht.', 'success');
     await _loadLikedAndRead();
     await _fetchAndRenderNews();
+    refreshNavBadges?.();
 };
