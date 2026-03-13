@@ -10,11 +10,11 @@ let _currentTicketId = null;
 const TICKET_STATUSES = ['Offen', 'In Bearbeitung', 'Warte auf Rückmeldung', 'Wiedervorlage', 'Erledigt'];
 
 const STATUS_STYLE = {
-    'Offen':                  'bg-blue-100 text-blue-700',
+    'Offen':                  'bg-hb-orange/10 text-hb-orange',
     'In Bearbeitung':         'bg-hb-olive/10 text-hb-olive',
-    'Warte auf Rückmeldung':  'bg-yellow-100 text-yellow-700',
-    'Wiedervorlage':          'bg-purple-100 text-purple-700',
-    'Erledigt':               'bg-gray-100 text-gray-500',
+    'Warte auf Rückmeldung':  'bg-hb-orange/15 text-[#c4601e]',
+    'Wiedervorlage':          'bg-hb-olive/15 text-[#4a5337]',
+    'Erledigt':               'bg-gray-100 text-gray-400',
 };
 
 // ─── Haupteinstieg ────────────────────────────────────────────
@@ -465,7 +465,7 @@ window.updateTicketStatus = async (ticketId, newStatus) => {
 
     const { error } = await _supabase.from('tickets').update(payload).eq('id', ticketId);
     if (error) showToast(error.message, 'error');
-    else showToast('Status aktualisiert.', 'success');
+    else { showToast('Status aktualisiert.', 'success'); refreshNavBadges?.(); }
 };
 
 window.saveSnoozeDate = async (ticketId, date) => {
@@ -596,6 +596,7 @@ window.saveTicket = async () => {
     if (error) { showToast(error.message, 'error'); return; }
     document.getElementById('create-ticket-modal')?.remove();
     showToast('Ticket erstellt.', 'success');
+    refreshNavBadges?.();
     await _loadTicketView(_ticketFilter);
 };
 
