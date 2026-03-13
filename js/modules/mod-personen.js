@@ -148,10 +148,17 @@ function renderPersonsTable() {
 
 // ─── Person Info-Modal (read-only) ────────────────────────────
 window.showPersonInfo = async (personId) => {
-    const { data: p, error } = await _supabase.from('persons')
-        .select(`*, person_bank_accounts(iban, bic, bank_name, account_holder)`)
-        .eq('id', personId).single();
-    if (error || !p) { showToast('Person nicht gefunden.', 'error'); return; }
+    const [personRes, bankRes] = await Promise.all([
+        _supabase.from('persons').select('*').eq('id', personId).maybeSingle(),
+        _supabase.from('person_bank_accounts').select('iban, bic, bank_name, account_holder').eq('person_id', personId).limit(1),
+    ]);
+    if (personRes.error || !personRes.data) {
+        console.error('showPersonInfo error:', personRes.error);
+        showToast('Person nicht gefunden.', 'error');
+        return;
+    }
+    const p    = personRes.data;
+    const bank = bankRes.data?.[0] || null;
 
     const base = personsData.find(x => x.id === personId);
     const roles = base?.roles || [];
@@ -166,8 +173,6 @@ window.showPersonInfo = async (personId) => {
                <p class="text-sm font-semibold text-hb-offblack">${value}</p>
            </div>`
         : '';
-
-    const bank = p.person_bank_accounts?.[0];
 
     document.getElementById('person-info-modal')?.remove();
     const modal = document.createElement('div');
