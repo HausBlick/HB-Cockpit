@@ -52,7 +52,7 @@
 ## 5. Frontend-Struktur
 
 ```
-dashboard.html              # HTML-Shell (~128 Zeilen)
+dashboard.html              # HTML-Shell (~130 Zeilen)
 js/
   config.js                 # Supabase-Client, globale Vars, Icons
   utils.js                  # Toast, Dropdown, Logout, Mobile-Menu
@@ -62,6 +62,8 @@ js/
     mod-objekte.js          # Gebäude & Einheiten (CRUD + Zuweisungen)
     mod-personen.js         # Personen-Liste & Supabase-Anbindung
     mod-persons-edit.js     # Personen bearbeiten (4-Tab-Formular)
+    mod-news.js             # Schwarzes Brett (Feed, Like, Read-Tracking, Erstellen)
+    mod-tickets.js          # Ticket-System (Chat, Status-Flow, Suche, Auto-Reopen)
     mod-placeholder.js      # Platzhalter für kommende Module
 ```
 
@@ -89,6 +91,7 @@ js/
 | Phase 2 | extend_persons_crm | `is_company`, `company_name`, `salutation`, `birthdate`, `tax_id` zu `persons` |
 | Phase 2 | extend_apartments_mea | `mea_numerator`, `mea_denominator` zu `apartments` |
 | Phase 3 | extend_apartments_warm_water_meter | `meter_water_warm`, `meter_water_warm_calibration` zu `apartments` |
+| Phase 4 | phase4_news_and_tickets | `news`-Spalten ergänzt, `news_reads`-Tabelle, `tickets`-Spalten (`snooze_until`, `updated_at`), `ticket_messages.is_system_message`, Status-Default `Offen` |
 
 ---
 
@@ -114,7 +117,17 @@ js/
 - 3.4 Einheiten-Detail: 5 Tabs + Breadcrumb + Tabellen-Ansicht ✅
 - 3.5 Zählerstände UI 💡 (folgt später)
 
-### 📋 Phase 4 — Kommunikation (Schwarzes Brett, Tickets)
+### ✅ Phase 4 — Kommunikation (ABGESCHLOSSEN)
+- 4.1 Schwarzes Brett (`mod-news.js`): News-Feed, Filter-Chips, Neu-Badge, Like-Toggle (optimistisch), Read-Tracking, Erstell-Modal mit Scope/Gebäude/Einheits-Auswahl ✅
+- 4.2 Ticket-System (`mod-tickets.js`): Zwei-Spalten-Layout, Filter-Sidebar mit Badges, Ticket-Detail mit Chat-Bubbles + Info-Sidebar ✅
+- 4.3 Ticket-Status-Flow: Offen → In Bearbeitung → Warte auf Rückmeldung → Wiedervorlage → Erledigt ✅
+- 4.4 Wiedervorlage / Snooze: Client-seitige Prüfung beim Modulstart, automatisches Zurücksetzen auf „Offen" ✅
+- 4.5 Auto-Reopen: Mieter/Eigentümer-Antwort setzt Status automatisch auf „Offen" (mit Systemnachricht) ✅
+- 4.6 Ticket-Suche: durchsucht Betreff, Beschreibung, Ersteller, Gebäude, Chat-Inhalte — RLS-sicher ✅
+- 4.7 Eskalation (owner → Verwalter): findet Manager via `management_assignments`, schreibt Systemnachricht ✅
+- 4.8 Deep-Links: Gebäude, Einheit, Person (via `auth_user_id`) aus Ticket-Detail erreichbar ✅
+- 4.9 „Meine erledigten Tickets": eigene Gruppe in Sidebar, kein Badge; „Meine Tickets" zeigt nur aktive ✅
+
 ### 💡 Phase 5 — Dokumente, Kontakte, Dashboard
 ### 💡 Phase 6 — Finanzen & Abrechnung
 
@@ -196,3 +209,21 @@ js/
 | 7 | Gebäude-Sidebar schmaler (30-40%), Hover-Highlighting statt dauerhaftem Grün, Live-Suchfeld ergänzt |
 | 8 | Menüpunkt umbenannt: "Bestandsobjekte" → "Gebäude & Einheiten" |
 | 9 | Layout-Optimierung: Header kompakter, Tab-Content `max-height: 25vh`, Einheitenliste `flex-grow` — Einheitenliste ist jetzt ohne Scrollen sichtbar ✅ |
+
+---
+
+### Phase 4 — Kommunikation: Schwarzes Brett & Ticket-System
+**Commits:** `9682a6b`, `d103a5f`, `89ae299`, `19a4922`, `2a8a996`, `ed2f907`
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | Migration `phase4_news_and_tickets` angewendet: `news`-Felder, `news_reads`, `tickets.snooze_until`, `ticket_messages.is_system_message` |
+| 2 | `mod-news.js` (neu): News-Feed-Grid (1/2/3 Spalten), Filter-Chips, Neu-Badge (hb-orange), Like-Toggle mit optimistischem UI, Read-Tracking via `news_reads`, Erstell-Modal mit Scope-Auswahl (global/Gebäude/Einheit) |
+| 3 | `mod-tickets.js` (neu): Zwei-Spalten-Layout, Filter-Sidebar, Ticket-Liste als Zeilen, Ticket-Detail mit Chat-Bubbles (eigene rechts hb-olive, andere links grau), Info-Sidebar |
+| 4 | Ticket-Status-Flow vollständig: Offen → In Bearbeitung → Warte auf Rückmeldung → Wiedervorlage (mit Datum) → Erledigt |
+| 5 | Wiedervorlage-Snooze: `_checkSnoozedTickets()` beim Modulstart, automatisches Reset auf `Offen` |
+| 6 | Auto-Reopen: Mieter/Eigentümer-Antwort setzt Status bei `In Bearbeitung`, `Warte auf Rückmeldung`, `Wiedervorlage` automatisch auf `Offen` + Systemnachricht im Chat |
+| 7 | Ticket-Suche: Suchfeld in Sidebar, durchsucht Betreff + Beschreibung + Ersteller-Name + Gebäude + Chat-Inhalte; RLS-sicher (Nachrichten-Treffer werden gegen zugängliche Ticket-IDs geprüft) |
+| 8 | Ticket-Badges: Anzahl je Filter-Eintrag, „Erledigt" und „Meine erledigten" ohne Badge |
+| 9 | „Meine erledigten Tickets": eigene Sidebar-Gruppe, „Meine Tickets" zeigt nur noch aktive |
+| 10 | Bugfix: `mod-placeholder.js` hat `loadNews()` / `loadTickets()` überschrieben — beide Funktionen entfernt |
