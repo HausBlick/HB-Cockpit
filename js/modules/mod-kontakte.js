@@ -101,25 +101,27 @@ function _renderContactsPage(role) {
             </button>` : ''}
         </div>
 
-        <!-- Hinweis-Banner -->
-        <div class="mb-5 bg-hb-ultralight border border-hb-orange rounded-xl p-4">
-            <p class="text-xs font-extrabold uppercase tracking-wide text-hb-orange mb-1">Wichtiger Hinweis</p>
-            <p class="text-xs text-gray-600">Die aufgeführten Dienstleister kennen das Objekt bereits und dienen zur Empfehlung. Bitte beachten Sie: <strong class="text-hb-offblack">Aufträge außerhalb von Kleinreparaturen müssen dringend durch den Vermieter oder die Gemeinschaft freigegeben werden.</strong></p>
-        </div>
-
-        <!-- Suche & Filter -->
-        <div class="card p-4 mb-5">
-            <div class="flex flex-col md:flex-row gap-3 items-start">
-                <input type="text" id="contact-search" placeholder="Firma oder Name suchen…"
-                    oninput="_filterContacts()" class="md:w-64">
-                ${(isAdmin || isOwner) && _myBuildingIds.length > 1 ? `<div id="contact-building-filter-wrap"></div>` : ''}
+        <!-- Suche & Filter + Hinweis-Banner nebeneinander -->
+        <div class="flex flex-col lg:flex-row gap-4 mb-5">
+            <!-- Suche & Filter -->
+            <div class="card p-4 flex-1">
+                <div class="flex flex-col md:flex-row gap-3 items-start">
+                    <input type="text" id="contact-search" placeholder="Firma oder Name suchen…"
+                        oninput="_filterContacts()" class="md:w-64">
+                    ${(isAdmin || isOwner) && _myBuildingIds.length > 1 ? `<div id="contact-building-filter-wrap"></div>` : ''}
+                </div>
+                <div class="flex flex-wrap gap-2 mt-3" id="contact-filter-chips">
+                    <button onclick="_setContactFilter('Alle')" class="contact-chip px-3 py-1.5 text-xs font-bold rounded-full border bg-hb-offblack text-white">Alle</button>
+                    <button onclick="_setContactFilter('Notfälle')" class="contact-chip px-3 py-1.5 text-xs font-bold rounded-full border bg-white text-gray-500 hover:bg-gray-50 transition-colors">Nur Notfälle</button>
+                    ${CAT_ORDER.filter(c => cats.includes(c)).map(c =>
+                        `<button onclick="_setContactFilter('${c}')" class="contact-chip px-3 py-1.5 text-xs font-bold rounded-full border bg-white text-gray-500 hover:bg-gray-50 transition-colors">${c}</button>`
+                    ).join('')}
+                </div>
             </div>
-            <div class="flex flex-wrap gap-2 mt-3" id="contact-filter-chips">
-                <button onclick="_setContactFilter('Alle')" class="contact-chip px-3 py-1.5 text-xs font-bold rounded-full border bg-hb-offblack text-white">Alle</button>
-                <button onclick="_setContactFilter('Notfälle')" class="contact-chip px-3 py-1.5 text-xs font-bold rounded-full border bg-white text-gray-500 hover:bg-gray-50 transition-colors">Nur Notfälle</button>
-                ${CAT_ORDER.filter(c => cats.includes(c)).map(c =>
-                    `<button onclick="_setContactFilter('${c}')" class="contact-chip px-3 py-1.5 text-xs font-bold rounded-full border bg-white text-gray-500 hover:bg-gray-50 transition-colors">${c}</button>`
-                ).join('')}
+            <!-- Hinweis-Banner -->
+            <div class="lg:w-1/2 bg-hb-ultralight border border-hb-orange rounded-xl p-4 flex flex-col justify-center">
+                <p class="text-xs font-extrabold uppercase tracking-wide text-hb-orange mb-1">Wichtiger Hinweis</p>
+                <p class="text-xs text-gray-600">Die aufgeführten Dienstleister kennen das Objekt bereits und dienen zur Empfehlung. Bitte beachten Sie: <strong class="text-hb-offblack">Aufträge außerhalb von Kleinreparaturen müssen dringend durch den Vermieter oder die Gemeinschaft freigegeben werden.</strong></p>
             </div>
         </div>
 
