@@ -91,7 +91,7 @@ js/
 | Phase 2 | extend_persons_crm | `is_company`, `company_name`, `salutation`, `birthdate`, `tax_id` zu `persons` |
 | Phase 2 | extend_apartments_mea | `mea_numerator`, `mea_denominator` zu `apartments` |
 | Phase 3 | extend_apartments_warm_water_meter | `meter_water_warm`, `meter_water_warm_calibration` zu `apartments` |
-| Phase 4 | phase4_news_and_tickets | `news`-Spalten ergänzt, `news_reads`-Tabelle, `tickets`-Spalten (`snooze_until`, `updated_at`), `ticket_messages.is_system_message`, Status-Default `Offen` |
+| Phase 4 | phase4_news_and_tickets | `news`-Spalten, `news_reads`, `tickets.snooze_until`, `ticket_messages.is_system_message` |
 
 ---
 
@@ -118,32 +118,39 @@ js/
 - 3.5 Zählerstände UI 💡 (→ verschoben nach 6.8)
 
 ### ✅ Phase 4 — Kommunikation (ABGESCHLOSSEN)
-- 4.1 Schwarzes Brett (`mod-news.js`): News-Feed, Filter-Chips, Neu-Badge, Like-Toggle (optimistisch), Read-Tracking, Erstell-Modal mit Scope/Gebäude/Einheits-Auswahl ✅
-- 4.2 Ticket-System (`mod-tickets.js`): Zwei-Spalten-Layout, Filter-Sidebar mit Badges, Ticket-Detail mit Chat-Bubbles + Info-Sidebar ✅
-- 4.3 Ticket-Status-Flow: Offen → In Bearbeitung → Warte auf Rückmeldung → Wiedervorlage → Erledigt ✅
-- 4.4 Wiedervorlage / Snooze: Client-seitige Prüfung beim Modulstart, automatisches Zurücksetzen auf „Offen" ✅
-- 4.5 Auto-Reopen: Mieter/Eigentümer-Antwort setzt Status automatisch auf „Offen" (mit Systemnachricht) ✅
-- 4.6 Ticket-Suche: durchsucht Betreff, Beschreibung, Ersteller, Gebäude, Chat-Inhalte — RLS-sicher ✅
-- 4.7 Eskalation (owner → Verwalter): findet Manager via `management_assignments`, schreibt Systemnachricht ✅
-- 4.8 Deep-Links: Gebäude, Einheit, Person (via `auth_user_id`) aus Ticket-Detail erreichbar ✅
-- 4.9 „Meine erledigten Tickets": eigene Gruppe in Sidebar, kein Badge; „Meine Tickets" zeigt nur aktive ✅
+- 4.1 Schwarzes Brett (`mod-news.js`): Feed, Filter-Chips, Neu-Badge, Like-Toggle, Read-Tracking, Erstell-Modal ✅
+- 4.2 Ticket-System (`mod-tickets.js`): Zwei-Spalten-Layout, Chat-Bubbles, Info-Sidebar ✅
+- 4.3 Status-Flow: Offen → In Bearbeitung → Warte auf Rückmeldung → Wiedervorlage → Erledigt ✅
+- 4.4 Wiedervorlage/Snooze mit Auto-Reset ✅
+- 4.5 Auto-Reopen bei Mieter/Eigentümer-Antwort ✅
+- 4.6 Ticket-Suche (RLS-sicher) ✅
+- 4.7 Eskalation owner → Verwalter mit Systemnachricht ✅
+- 4.8 Deep-Links: Gebäude, Einheit, Person aus Ticket-Detail ✅
+- 4.9 Mobile Navigation (3-Zustands-Flow) ✅
 
-### 💡 Phase 5 — Dokumente, Kontakte, Dashboard
-### 💡 Phase 6 — Finanzen & Abrechnung
-- 6.1 Hausgeld-Sollstellung & Buchungsmaske
-- 6.2 Nebenkostenabrechnung (Heizkosten, Betriebskosten)
-- 6.3 WEG-Jahresabrechnung & Wirtschaftsplan
-- 6.4 CSV-Bankimport (Kontoauszüge importieren & Buchungen zuordnen) 💡
-- 6.5 Mahnwesen (Zahlungsrückstände erkennen, Mahnlauf, Mahnschreiben) 💡
-- 6.6 DATEV-Export (Buchungsstapel für Steuerberater) 💡
-- 6.7 Pro-rata-temporis Umlage (unterjährige Mieterwechsel korrekt abrechnen) 💡
-- 6.8 Zählerstände UI (→ verschoben von 3.5, für Abrechnung benötigt) 💡
+### 📋 Phase 5 — Dokumente, Kontakte & Dashboard
+- 5.1 Dokumenten-Cloud — Konzept 📋
+- 5.2 Dokumenten-Cloud — Implementierung (Upload, Download, Lesebestätigung) 📋
+- 5.3 Kontaktbuch (Handwerker, Notfallkontakte, Dienstleister) 📋
+- 5.4 Dashboard KPIs (rollenbasiert, Kennzahlen, Fristen-Widget) 📋
 
-### 💡 Phase 7 — Erweiterte Features
-- 7.1 Umlaufbeschluss-Modul (digitale WEG-Beschlussfassung ohne Präsenzversammlung) 💡
-- 7.2 KI-Belegerfassung (OCR + LLM für automatische Rechnungserkennung & Kontierung) 💡
-- 7.3 Messdienstleister CSV-Import (Zählerstände aus Fremdsystem importieren) 💡
-- 7.4 Einladungscode UI (→ verschoben von 2.4, Mieter/Eigentümer selbst einladen) 💡
+### 📋 Phase 6 — Finanzen & Abrechnung
+*Kernmodul: Wirtschaftsplan, Hausgeldabrechnung, Erhaltungsrücklage.*
+- 6.1 Wirtschaftsplan (Planung laufender Kosten pro WEG) 📋
+- 6.2 Jahresabrechnung / Hausgeldabrechnung (Kostenverteilung nach MEA & Schlüsseln) 📋
+- 6.3 Erhaltungsrücklage (Zuführungen, Entnahmen, Ausweis in Abrechnung) 📋
+- 6.4 **CSV-Bankimport** (MT940/CSV-Upload → Transaktionen einlesen & zuordnen) 📋
+- 6.5 **Mahnwesen** (mehrstufig, automatisch auf Basis offener Posten) 📋
+- 6.6 **DATEV-Export** (CSV/JSON im DATEV-Format für Steuerberater) 📋
+- 6.7 **Pro-rata-temporis Umlage** (zeitanteilige Abrechnung bei Mieterwechsel) 📋
+- 6.8 **Zählerstände UI** (aus Phase 3.5 verschoben, wird für Abrechnung benötigt) 📋
+
+### 💡 Phase 7 — Automatisierung & Erweiterungen
+*Nach Projektabschluss — optionale Nachrüstung.*
+- 7.1 **Umlaufbeschluss-Modul** (digitale Abstimmung ohne Video, Protokoll-PDF) 💡
+- 7.2 **KI-Belegerfassung** (PDF-Upload → OCR via Google Document AI → Buchungsvorschlag) 💡
+- 7.3 **Messdienstleister CSV-Import** (Techem/Ista Ablesewerte als CSV importieren) 💡
+- 7.4 **Einladungscode UI** (aus Phase 2.4 verschoben) 💡
 
 ---
 
@@ -153,11 +160,11 @@ js/
 
 | # | Nicht-Ziel | Begründung |
 |---|---|---|
-| 1 | **PSD2 / Open-Banking-Direktanbindung** | Regulatorischer Aufwand unverhältnismäßig; CSV-Import (6.4) reicht für den Use-Case |
-| 2 | **EBICS-Schnittstelle** | Nur für große Institute relevant; kein Bedarf im WEG-/Mietverwaltungs-Segment |
-| 3 | **Native Mobile Apps (iOS/Android)** | PWA + responsive Web genügt; kein App-Store-Overhead |
-| 4 | **Blockchain / unveränderliche Protokolle** | Kein nachgewiesener Mehrwert für Hausverwaltung; erhöht Komplexität ohne Nutzen |
-| 5 | **Messdienstleister-API (direkter Echtzeit-Datenabruf)** | Proprietäre APIs je Anbieter; CSV-Import (7.3) ist pragmatischer Kompromiss |
+| 1 | **PSD2 / Open-Banking-Direktanbindung** | BaFin-Lizenz erforderlich; CSV-Import (6.4) reicht für die Zielgruppe |
+| 2 | **EBICS-Schnittstelle** | Unverhältnismäßig für Zielgruppe; Bankvertrag + Zertifikate nötig |
+| 3 | **Native Mobile Apps (iOS/Android)** | Web-App ist 100% responsiv — kein App-Store-Overhead |
+| 4 | **Blockchain / unveränderliche Protokolle** | Anderes Geschäftsmodell; erhöht Komplexität ohne nachgewiesenen Nutzen |
+| 5 | **Messdienstleister-API (Techem/Ista)** | Proprietärer ARGE-Standard; CSV-Import (7.3) ist pragmatischer Kompromiss |
 
 ---
 
@@ -215,8 +222,8 @@ js/
 
 | # | Was wurde gemacht |
 |---|---|
-| 1 | Migration: Felder `is_company`, `company_name`, `salutation`, `birthdate`, `tax_id` zu `persons` hinzugefügt |
-| 2 | Migration: Felder `mea_numerator`, `mea_denominator` zu `apartments` hinzugefügt |
+| 1 | Migration: Felder `is_company`, `company_name`, `salutation`, `birthdate`, `tax_id` zu `persons` |
+| 2 | Migration: Felder `mea_numerator`, `mea_denominator` zu `apartments` |
 | 3 | `mod-personen.js`: Mock-Daten durch echte Supabase CRUD-Operationen ersetzt |
 | 4 | `mod-persons-edit.js` (neu): 4-Tab-Formular — Stammdaten, Rollen, Portal-Status, SEPA-Bankdaten |
 | 5 | CLAUDE.md erstellt und ins Repo eingecheckt |
@@ -228,50 +235,32 @@ js/
 
 | # | Was wurde gemacht |
 |---|---|
-| 1 | Migration: `meter_water_warm` + `meter_water_warm_calibration` zu `apartments` ergänzt |
+| 1 | Migration: `meter_water_warm` + `meter_water_warm_calibration` zu `apartments` |
 | 2 | Gebäude-Detail: 4 Tabs (Stammdaten / Finanzen inkl. Bankkonten-CRUD / Grundbuch / Technik & Fristen) |
 | 3 | Einheiten-Detail: 5 Tabs (Stammdaten / Abrechnung MEA / Finanzen / Zähler / Rechtliches & Personen) |
-| 4 | Zuweisungs-Modal: Autocomplete-Suche, Quick-Create (Person inline anlegen), Speichern in `ownerships`/`tenancies`, Deep-Links |
-| 5 | UX-Überarbeitung: Read-only Info-Ansicht für Gebäude & Einheiten, "Bearbeiten"-Button trennt Ansicht von Edit-Modus |
-| 6 | Einheiten von Cards auf Tabelle umgestellt (Spalten: Nr., Typ, Lage, m², Hausgeld, Status) |
-| 7 | Gebäude-Sidebar schmaler (30-40%), Hover-Highlighting statt dauerhaftem Grün, Live-Suchfeld ergänzt |
-| 8 | Menüpunkt umbenannt: "Bestandsobjekte" → "Gebäude & Einheiten" |
-| 9 | Layout-Optimierung: Header kompakter, Tab-Content `max-height: 25vh`, Einheitenliste `flex-grow` — Einheitenliste ist jetzt ohne Scrollen sichtbar ✅ |
+| 4 | Zuweisungs-Modal: Autocomplete-Suche, Quick-Create, Speichern in `ownerships`/`tenancies`, Deep-Links |
+| 5 | UX-Überarbeitung: Read-only Info-Ansicht + "Bearbeiten"-Button trennt Ansicht von Edit-Modus |
+| 6 | Einheiten von Cards auf Tabelle umgestellt (Nr., Typ, Lage, m², Hausgeld, Status) |
+| 7 | Gebäude-Sidebar schmaler, Hover-Highlighting, Live-Suchfeld |
+| 8 | Menüpunkt: "Bestandsobjekte" → "Gebäude & Einheiten" |
+| 9 | Layout-Optimierung: Tab-Content `max-height: 25vh`, Einheitenliste `flex-grow` ✅ |
 
 ---
 
 ### Phase 4 — Kommunikation: Schwarzes Brett & Ticket-System
-**Commits:** `9682a6b`, `d103a5f`, `89ae299`, `19a4922`, `2a8a996`, `ed2f907`
+**Commits:** `9682a6b`, `d103a5f`, `89ae299`, `19a4922`, `2a8a996`, `ed2f907`, `28aa1f9`, `5ff7ad5`
 
 | # | Was wurde gemacht |
 |---|---|
-| 1 | Migration `phase4_news_and_tickets` angewendet: `news`-Felder, `news_reads`, `tickets.snooze_until`, `ticket_messages.is_system_message` |
-| 2 | `mod-news.js` (neu): News-Feed-Grid (1/2/3 Spalten), Filter-Chips, Neu-Badge (hb-orange), Like-Toggle mit optimistischem UI, Read-Tracking via `news_reads`, Erstell-Modal mit Scope-Auswahl (global/Gebäude/Einheit) |
-| 3 | `mod-tickets.js` (neu): Zwei-Spalten-Layout, Filter-Sidebar, Ticket-Liste als Zeilen, Ticket-Detail mit Chat-Bubbles (eigene rechts hb-olive, andere links grau), Info-Sidebar |
-| 4 | Ticket-Status-Flow vollständig: Offen → In Bearbeitung → Warte auf Rückmeldung → Wiedervorlage (mit Datum) → Erledigt |
-| 5 | Wiedervorlage-Snooze: `_checkSnoozedTickets()` beim Modulstart, automatisches Reset auf `Offen` |
-| 6 | Auto-Reopen: Mieter/Eigentümer-Antwort setzt Status bei `In Bearbeitung`, `Warte auf Rückmeldung`, `Wiedervorlage` automatisch auf `Offen` + Systemnachricht im Chat |
-| 7 | Ticket-Suche: Suchfeld in Sidebar, durchsucht Betreff + Beschreibung + Ersteller-Name + Gebäude + Chat-Inhalte; RLS-sicher (Nachrichten-Treffer werden gegen zugängliche Ticket-IDs geprüft) |
-| 8 | Ticket-Badges: Anzahl je Filter-Eintrag, „Erledigt" und „Meine erledigten" ohne Badge |
-| 9 | „Meine erledigten Tickets": eigene Sidebar-Gruppe, „Meine Tickets" zeigt nur noch aktive |
-| 10 | Bugfix: `mod-placeholder.js` hat `loadNews()` / `loadTickets()` überschrieben — beide Funktionen entfernt |
-
----
-
-### Phase 4 — Post-Launch Feinschliff
-**Commits:** `28aa1f9`, `5ff7ad5`, `(aktuell)`
-
-| # | Was wurde gemacht |
-|---|---|
-| 1 | Personen-Infokarte: Tabellenzeile klickbar → read-only Modal mit Avatar, Rollen, Kontakt, Bankdaten, Portal-Status; „Bearbeiten"-Button im Modal öffnet Formular |
-| 2 | Bugfix RLS: `is_admin()` prüfte nur `role='admin'` — Manager konnten Personen/Bankkonten nicht lesen; separate SELECT-Policies für Manager ergänzt |
-| 3 | Badge-Farben CI-konform: `badge-eigentuemer/mieter/dienstleister/beirat` auf HB-Olive/Orange angepasst |
-| 4 | Nav-Badges: „Schwarzes Brett" zeigt Anzahl ungelesener + seit letztem Lesen aktualisierter Einträge; „Tickets" zeigt offene Tickets; Badges quadratisch, Zahl zentriert |
-| 5 | Bugfix Tailwind CDN: Klassen in JS-Strings werden nicht generiert → explizite CSS-Klassen `.ts-*` / `.nc-*` in `dashboard.html` definiert |
-| 6 | Schwarzes Brett „Bearbeiten": Edit-Modal vorausgefüllt, `updated_at` wird gesetzt; Leser sehen „Update"-Badge (HB-Olive) statt „Neu" wenn Eintrag nach letztem Lesen bearbeitet wurde |
-| 7 | Rich-Text-Editor im News-Erstell- und Bearbeiten-Modal: Toolbar mit B, I, H2, Absatz, Aufzählung, Nummerierung via `execCommand`; Inhalt wird als HTML gespeichert |
-| 8 | Realtime-Chat in Tickets: `postgres_changes` INSERT-Subscription; eigene Nachrichten sofort lokal angehängt (kein Doppelpost); Channel wird bei Modulwechsel sauber geschlossen |
-| 9 | Mobile Navigation Tickets: 3-Zustands-Flow (Filter-Sidebar → Liste → Detail) mit „← Filter" und „← Zurück" Buttons; Info-Sidebar per „Info ▾" ein-/ausklappbar |
-| 10 | Bugfix Mobile: `setTicketFilter()` zeigte Sidebar statt Liste — Logik invertiert korrigiert |
-| 11 | Filter-Icons: Emoji-Punkte (🔵🟢🟡🟣) durch einheitliche SVG-Icons in HB-Olive ersetzt |
-| 12 | Logo/Titel klickbar: Klick auf Logo + „Mieterportal" (Desktop-Sidebar & Mobile-Header) lädt Dashboard |
+| 1 | Migration `phase4_news_and_tickets`: `news`-Felder, `news_reads`, `tickets.snooze_until`, `ticket_messages.is_system_message` |
+| 2 | `mod-news.js` (neu): News-Feed-Grid, Filter-Chips, Neu-Badge, Like-Toggle, Read-Tracking, Erstell-Modal |
+| 3 | `mod-tickets.js` (neu): Zwei-Spalten-Layout, Chat-Bubbles (hb-olive / grau), Info-Sidebar |
+| 4 | Status-Flow, Wiedervorlage-Snooze, Auto-Reopen, Ticket-Suche, Eskalation |
+| 5 | Deep-Links: Gebäude, Einheit, Person aus Ticket-Detail erreichbar |
+| 6 | Bugfix: `mod-placeholder.js` hat Module überschrieben — bereinigt |
+| 7 | Personen-Infokarte: klickbare Tabellenzeile → read-only Modal + "Bearbeiten"-Button |
+| 8 | RLS-Bugfix: Manager konnten Personen/Bankkonten nicht lesen — separate Policies ergänzt |
+| 9 | Rich-Text-Editor im News-Modal (B, I, H2, Listen via `execCommand`) |
+| 10 | Realtime-Chat in Tickets via `postgres_changes` INSERT-Subscription |
+| 11 | Mobile Navigation: 3-Zustands-Flow (Sidebar → Liste → Detail) |
+| 12 | Logo/Titel klickbar → navigiert zu Dashboard |
