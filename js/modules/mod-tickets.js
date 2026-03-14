@@ -35,9 +35,9 @@ async function loadTickets() {
             <div id="ticket-sidebar" class="w-full lg:w-56 xl:w-64 flex-shrink-0">
                 <div class="card lg:h-full flex flex-col overflow-hidden">
                     <div class="px-4 py-3 flex justify-between items-center bg-hb-olive">
-                        <h2 class="text-xs font-black uppercase tracking-widest text-white">Tickets</h2>
+                        <h2 class="text-sm font-bold text-white">Tickets</h2>
                         <button onclick="showCreateTicketModal()"
-                            class="bg-white/20 text-white w-7 h-7 rounded-full flex items-center justify-center text-lg leading-none hover:bg-white/30 transition-colors">+</button>
+                            class="bg-white text-hb-olive w-7 h-7 rounded-full flex items-center justify-center text-lg leading-none hover:bg-hb-ultralight transition-colors">+</button>
                     </div>
                     <div class="px-2 pt-2 pb-1 flex-shrink-0">
                         <input type="search" id="ticket-search" placeholder="Suchen…"
