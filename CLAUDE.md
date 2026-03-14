@@ -56,7 +56,7 @@ dashboard.html              # HTML-Shell (~130 Zeilen)
 js/
   config.js                 # Supabase-Client, globale Vars, Icons
   utils.js                  # Toast, Dropdown, Logout, Mobile-Menu
-  nav.js                    # init(), renderNav(), setActiveNav()
+  nav.js                    # init(), renderNav(), setActiveNav(), loadNavBadges()
   modules/
     mod-dashboard.js        # Dashboard-Modul (Platzhalter)
     mod-objekte.js          # Gebäude & Einheiten (CRUD + Zuweisungen)
@@ -64,8 +64,21 @@ js/
     mod-persons-edit.js     # Personen bearbeiten (4-Tab-Formular)
     mod-news.js             # Schwarzes Brett (Feed, Like, Read-Tracking, Erstellen)
     mod-tickets.js          # Ticket-System (Chat, Status-Flow, Suche, Auto-Reopen)
+    mod-dokumente.js        # Dokumenten-Cloud (Upload, Download, Vorschau, Kategorien)
+    mod-kontakte.js         # Kontaktbuch (Handwerker, Notfallkontakte, Dienstleister)
     mod-placeholder.js      # Platzhalter für kommende Module
 ```
+
+### Design-Konventionen (aktuell gültig)
+- **Card-Titelleisten:** `bg-hb-olive`, Text `text-sm font-bold text-white` (kein uppercase), `+`-Buttons `bg-white text-hb-olive`
+- **Tabellen-Header:** `bg-gray-50 text-xs font-bold text-gray-500` (grau, kein uppercase)
+- **Tabellen-Trennlinien:** `divide-y divide-hb-olive/10`
+- **"Bearbeiten"-Buttons:** `text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100`
+- **"Löschen"/"Entfernen"-Buttons:** `text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5`
+- **Card-Border:** `border: 1px solid rgba(104,116,81,0.2)` + `overflow: hidden`
+- **Nav-Links:** Farbe `#687451`, aktiv: `bg-hb-olive text-white`
+- **Filter-Chips auf olive Hintergrund:** aktiv `bg-white text-hb-olive border-white`, inaktiv `text-white border-white/50`
+- **Supabase-Joins mit mehreren FKs:** immer expliziten FK-Hint verwenden, z.B. `profiles!uploaded_by(full_name)`
 
 ---
 
@@ -92,6 +105,7 @@ js/
 | Phase 2 | extend_apartments_mea | `mea_numerator`, `mea_denominator` zu `apartments` |
 | Phase 3 | extend_apartments_warm_water_meter | `meter_water_warm`, `meter_water_warm_calibration` zu `apartments` |
 | Phase 4 | phase4_news_and_tickets | `news`-Spalten, `news_reads`, `tickets.snooze_until`, `ticket_messages.is_system_message` |
+| Phase 5 | phase5_documents | `documents` um 11 Spalten erweitert, `document_reads.downloaded_at`, RLS-Policies, `profiles.role`-Constraint auf 4 Rollen erweitert |
 
 ---
 
@@ -128,10 +142,10 @@ js/
 - 4.8 Deep-Links: Gebäude, Einheit, Person aus Ticket-Detail ✅
 - 4.9 Mobile Navigation (3-Zustands-Flow) ✅
 
-### 📋 Phase 5 — Dokumente, Kontakte & Dashboard
-- 5.1 Dokumenten-Cloud — Konzept 📋
-- 5.2 Dokumenten-Cloud — Implementierung (Upload, Download, Lesebestätigung) 📋
-- 5.3 Kontaktbuch (Handwerker, Notfallkontakte, Dienstleister) 📋
+### ✅ Phase 5 — Dokumente & Kontakte (TEILWEISE ABGESCHLOSSEN)
+- 5.1 Dokumenten-Cloud — Migration `phase5_documents` ✅
+- 5.2 Dokumenten-Cloud — `mod-dokumente.js`: Upload, Download, Vorschau, Kategorien, Read-Tracking, Nav-Badge ✅
+- 5.3 Kontaktbuch — `mod-kontakte.js` ✅
 - 5.4 Dashboard KPIs (rollenbasiert, Kennzahlen, Fristen-Widget) 📋
 
 ### 📋 Phase 6 — Finanzen & Abrechnung
@@ -264,3 +278,25 @@ js/
 | 10 | Realtime-Chat in Tickets via `postgres_changes` INSERT-Subscription |
 | 11 | Mobile Navigation: 3-Zustands-Flow (Sidebar → Liste → Detail) |
 | 12 | Logo/Titel klickbar → navigiert zu Dashboard |
+
+---
+
+### Projekttag 2 — UI-Overhaul & Phase 5
+**Commits:** `(UI-Overhaul)`, `f2ef175`, `9281293`
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Globaler UI-Overhaul:** Card-Borders olive, Card-Titelleisten `bg-hb-olive` in allen Modulen, Nav-Link-Farbe olive, Header-Padding reduziert |
+| 2 | Tabellen-Header zurück auf Grau (`bg-gray-50 text-gray-500`), kein uppercase — konsistent in allen Modulen |
+| 3 | `+`-Buttons auf olive Hintergrund → `bg-white text-hb-olive` |
+| 4 | Tabellen-Trennlinien → `divide-y divide-hb-olive/10`; "Löschen"-Buttons → `text-hb-orange` |
+| 5 | `nav.js`: "Hallo, " entfernt (nur Vorname), "Ticket System" → "Tickets", Kontaktbuch in Kommunikation für alle Rollen |
+| 6 | `mod-news.js`: rollenbasierte Beschreibung, olive Filter-Chips, "Mehr lesen →"-Link, Like-Button ohne Text |
+| 7 | `mod-tickets.js`: Ticket-Liste als Tabelle, "Von mir"/"An mich"-Badges (olive/orange), Filter-Reihenfolge angepasst |
+| 8 | `mod-persons-edit.js`: Beirat + Dienstleister im Rollen-Tab ergänzt |
+| 9 | `mod-kontakte.js`: Hinweis-Banner halbbreitig rechts neben Suche/Filter (zwei-spaltig) |
+| 10 | Migration `phase5_documents` angewendet: `documents`-Tabelle erweitert, RLS-Policies, `profiles.role`-Constraint gefixt |
+| 11 | `mod-dokumente.js` (neu): Zwei-Spalten-Layout, 13 Kategorien (WEG/Miet/Allgemein), Drag & Drop Upload → Supabase Storage, PDF-Vorschau via `<iframe>`, Bearbeiten, Archivieren (Soft-Delete), Read-Tracking, Nav-Badge |
+| 12 | `nav.js`: `nav-badge-docs` in allen Rollen, `loadNavBadges()` um ungelesene Dokumente erweitert |
+| 13 | Bugfix: `documents.uploaded_by` + `tenant_id` → zwei FKs auf `profiles` → Join-Hint `profiles!uploaded_by(full_name)` |
+| 14 | **Manuelle Voraussetzung:** Supabase Storage-Bucket `documents` (privat, RLS) muss im Dashboard angelegt sein |
