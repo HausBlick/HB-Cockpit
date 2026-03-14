@@ -9,10 +9,6 @@ async function loadFinance() {
         '<div class="p-10 card text-center"><h2 class="text-xl font-bold mb-2">Abrechnungen</h2><p class="text-gray-500">Demnächst verfügbar.</p></div>';
 }
 
-async function loadDocuments() {
-    document.getElementById('content-area').innerHTML =
-        '<div class="p-10 card text-center"><h2 class="text-xl font-bold mb-2">Dokumenten Cloud</h2><p class="text-gray-500">Demnächst verfügbar.</p></div>';
-}
 
 async function loadSettings() {
     document.getElementById('content-area').innerHTML =

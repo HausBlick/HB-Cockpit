@@ -54,13 +54,13 @@ function renderNav(role) {
             <li><a onclick="loadFinance();        setActiveNav(this)" class="nav-link">${icons.finance}   Abrechnungen</a></li>
 
             <li class="nav-section-title">Service & Dokumente</li>
-            <li><a onclick="loadDocuments();      setActiveNav(this)" class="nav-link">${icons.docs}      Dokumenten Cloud</a></li>
+            <li><a onclick="loadDocuments();      setActiveNav(this)" class="nav-link">${icons.docs}      Dokumenten Cloud <span id="nav-badge-docs" class="nav-badge"></span></a></li>
             <li><a onclick="loadSettings();       setActiveNav(this)" class="nav-link">${icons.settings}  Einstellungen</a></li>`;
     } else if (role === 'owner') {
         html += `
             <li class="nav-section-title">Mein Asset</li>
             <li><a onclick="loadMyUnits();   setActiveNav(this)" class="nav-link">${icons.buildings} Meine Einheiten</a></li>
-            <li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs}      Dokumente</a></li>
+            <li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs}      Dokumente <span id="nav-badge-docs" class="nav-badge"></span></a></li>
 
             <li class="nav-section-title">Kommunikation</li>
             <li><a onclick="loadTickets();   setActiveNav(this)" class="nav-link">${icons.tickets}   Meine Tickets <span id="nav-badge-tickets" class="nav-badge"></span></a></li>
@@ -77,7 +77,7 @@ function renderNav(role) {
             <li><a onclick="loadContacts();  setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li>
 
             <li class="nav-section-title">Service & Dokumente</li>
-            <li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs}    Meine Dokumente</a></li>`;
+            <li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs}    Meine Dokumente <span id="nav-badge-docs" class="nav-badge"></span></a></li>`;
     }
 
     nav.innerHTML = html;
@@ -95,13 +95,15 @@ async function loadNavBadges() {
     const uid  = currentUser?.id;
     if (!uid) return;
 
-    const [newsRes, readsRes, ticketRes] = await Promise.all([
+    const [newsRes, readsRes, ticketRes, docsRes, docReadsRes] = await Promise.all([
         _supabase.from('news').select('id, created_at, updated_at'),
         _supabase.from('news_reads').select('news_id, read_at').eq('user_id', uid),
         role === 'admin' || role === 'manager'
             ? _supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('status', 'Offen')
             : _supabase.from('tickets').select('id', { count: 'exact', head: true })
                 .or(`creator_id.eq.${uid},assigned_to.eq.${uid}`).eq('status', 'Offen'),
+        _supabase.from('documents').select('id').eq('status', 'active').eq('is_deleted', false),
+        _supabase.from('document_reads').select('document_id').eq('user_id', uid),
     ]);
 
     // News-Badge: ungelesen + seit letztem Lesen aktualisiert
@@ -115,8 +117,12 @@ async function loadNavBadges() {
 
     const ticketCount = ticketRes.count || 0;
 
+    const docReadSet = new Set((docReadsRes.data || []).map(r => r.document_id));
+    const docsCount  = (docsRes.data || []).filter(d => !docReadSet.has(d.id)).length;
+
     _setNavBadge('nav-badge-news',    newsCount);
     _setNavBadge('nav-badge-tickets', ticketCount);
+    _setNavBadge('nav-badge-docs',    docsCount);
 }
 
 function _setNavBadge(id, count) {
