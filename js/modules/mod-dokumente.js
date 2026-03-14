@@ -145,7 +145,7 @@ async function _loadDocsInit() {
 // ─── Daten laden ───────────────────────────────────────────────
 async function _fetchDocs() {
     let q = _supabase.from('documents')
-        .select('id, title, category, file_path, file_type, file_size, year, visibility_scope, status, is_deleted, building_id, apartment_id, uploaded_by, created_at, updated_at, buildings(name), profiles(full_name)')
+        .select('id, title, category, file_path, file_type, file_size, year, visibility_scope, status, is_deleted, building_id, apartment_id, uploaded_by, created_at, updated_at, buildings(name), profiles!uploaded_by(full_name)')
         .neq('status', 'draft')
         .order('created_at', { ascending: false });
 
