@@ -58,9 +58,9 @@ async function loadTenants() {
             <div class="w-full lg:w-56 xl:w-64 flex-shrink-0 flex flex-col gap-3 h-full">
                 <div class="card flex flex-col h-full overflow-hidden">
                     <div class="px-4 py-3 flex justify-between items-center bg-hb-olive">
-                        <h2 class="text-xs font-black uppercase tracking-widest text-white">Objekte</h2>
+                        <h2 class="text-sm font-bold text-white">Objekte</h2>
                         <button onclick="showBuildingForm()"
-                            class="bg-white/20 text-white w-7 h-7 rounded-full flex items-center justify-center hover:bg-white/30 text-lg leading-none transition-colors">+</button>
+                            class="bg-white text-hb-olive w-7 h-7 rounded-full flex items-center justify-center hover:bg-hb-ultralight text-lg leading-none transition-colors">+</button>
                     </div>
                     <!-- Suche -->
                     <div class="px-3 py-2 border-b border-gray-50">
@@ -238,8 +238,8 @@ async function showBuildingInfo(b) {
             <!-- Einheitenliste: nimmt verbleibenden Platz, scrollbar -->
             <div class="border-t border-hb-olive/20 flex-grow flex flex-col min-h-0">
                 <div class="px-4 py-2.5 bg-hb-olive/80 flex justify-between items-center flex-shrink-0">
-                    <h3 class="text-xs font-black uppercase tracking-widest text-white">Einheiten</h3>
-                    <button onclick="showApartmentForm()" class="bg-white/20 text-white text-xs px-3 py-1 rounded-lg hover:bg-white/30 transition-colors font-semibold">+ Einheit</button>
+                    <h3 class="text-sm font-bold text-white">Einheiten</h3>
+                    <button onclick="showApartmentForm()" class="bg-white text-hb-olive text-xs px-3 py-1 rounded-lg hover:bg-hb-ultralight transition-colors font-semibold">+ Einheit</button>
                 </div>
                 <div id="apartments-list" class="flex-grow overflow-y-auto"></div>
             </div>
