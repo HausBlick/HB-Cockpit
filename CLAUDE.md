@@ -108,14 +108,14 @@ js/
 - 2.1 Supabase-Anbindung (Mock-Daten ersetzt) ✅
 - 2.2 Neue Person anlegen ✅
 - 2.3 Person bearbeiten — 4-Tab-Formular (Stammdaten / Rollen / Portal / SEPA) ✅
-- 2.4 Einladungscode generieren 💡 (folgt später)
+- 2.4 Einladungscode generieren 💡 (→ verschoben nach 7.4)
 
 ### ✅ Phase 3 — Objekte & Zuweisungen (ABGESCHLOSSEN)
 - 3.1 Eigentümer-Zuweisung (`ownerships`) ✅
 - 3.2 Mieter-Zuweisung (`tenancies`) ✅
 - 3.3 Gebäude-Detail: 4 Tabs (Stammdaten / Finanzen / Grundbuch / Technik & Fristen) ✅
 - 3.4 Einheiten-Detail: 5 Tabs + Breadcrumb + Tabellen-Ansicht ✅
-- 3.5 Zählerstände UI 💡 (folgt später)
+- 3.5 Zählerstände UI 💡 (→ verschoben nach 6.8)
 
 ### ✅ Phase 4 — Kommunikation (ABGESCHLOSSEN)
 - 4.1 Schwarzes Brett (`mod-news.js`): News-Feed, Filter-Chips, Neu-Badge, Like-Toggle (optimistisch), Read-Tracking, Erstell-Modal mit Scope/Gebäude/Einheits-Auswahl ✅
@@ -130,10 +130,38 @@ js/
 
 ### 💡 Phase 5 — Dokumente, Kontakte, Dashboard
 ### 💡 Phase 6 — Finanzen & Abrechnung
+- 6.1 Hausgeld-Sollstellung & Buchungsmaske
+- 6.2 Nebenkostenabrechnung (Heizkosten, Betriebskosten)
+- 6.3 WEG-Jahresabrechnung & Wirtschaftsplan
+- 6.4 CSV-Bankimport (Kontoauszüge importieren & Buchungen zuordnen) 💡
+- 6.5 Mahnwesen (Zahlungsrückstände erkennen, Mahnlauf, Mahnschreiben) 💡
+- 6.6 DATEV-Export (Buchungsstapel für Steuerberater) 💡
+- 6.7 Pro-rata-temporis Umlage (unterjährige Mieterwechsel korrekt abrechnen) 💡
+- 6.8 Zählerstände UI (→ verschoben von 3.5, für Abrechnung benötigt) 💡
+
+### 💡 Phase 7 — Erweiterte Features
+- 7.1 Umlaufbeschluss-Modul (digitale WEG-Beschlussfassung ohne Präsenzversammlung) 💡
+- 7.2 KI-Belegerfassung (OCR + LLM für automatische Rechnungserkennung & Kontierung) 💡
+- 7.3 Messdienstleister CSV-Import (Zählerstände aus Fremdsystem importieren) 💡
+- 7.4 Einladungscode UI (→ verschoben von 2.4, Mieter/Eigentümer selbst einladen) 💡
 
 ---
 
-## 9. Kommunikationsprotokoll (Triade)
+## 9. Bewusste Nicht-Ziele
+
+> Funktionen, die bewusst aus dem Scope ausgeschlossen wurden — um Komplexität zu begrenzen und den Fokus auf den Kernnutzen zu halten.
+
+| # | Nicht-Ziel | Begründung |
+|---|---|---|
+| 1 | **PSD2 / Open-Banking-Direktanbindung** | Regulatorischer Aufwand unverhältnismäßig; CSV-Import (6.4) reicht für den Use-Case |
+| 2 | **EBICS-Schnittstelle** | Nur für große Institute relevant; kein Bedarf im WEG-/Mietverwaltungs-Segment |
+| 3 | **Native Mobile Apps (iOS/Android)** | PWA + responsive Web genügt; kein App-Store-Overhead |
+| 4 | **Blockchain / unveränderliche Protokolle** | Kein nachgewiesener Mehrwert für Hausverwaltung; erhöht Komplexität ohne Nutzen |
+| 5 | **Messdienstleister-API (direkter Echtzeit-Datenabruf)** | Proprietäre APIs je Anbieter; CSV-Import (7.3) ist pragmatischer Kompromiss |
+
+---
+
+## 10. Kommunikationsprotokoll (Triade)
 
 | Rolle | Aufgabe |
 |---|---|
@@ -153,7 +181,7 @@ js/
 
 ---
 
-## 10. Interaktionsstil (Regeln für Claude)
+## 11. Interaktionsstil (Regeln für Claude)
 
 - **Eine Frage auf einmal** — iteratives Interview-Verfahren bei Unklarheiten
 - **Kurz & präzise** — kein unnötiges Ausholen
@@ -162,7 +190,7 @@ js/
 
 ---
 
-## 11. Projekt-Tagebuch (Changelog)
+## 12. Projekt-Tagebuch (Changelog)
 
 > Kurze, chronologische Dokumentation aller durchgeführten Änderungen.
 > Ziel: Für Gemini, Claude und den Nutzer jederzeit nachvollziehbar was wann gebaut wurde.
