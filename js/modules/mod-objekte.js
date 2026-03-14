@@ -261,7 +261,7 @@ async function fetchApartmentsForBuilding(bId) {
     }
     list.innerHTML = `
         <table class="w-full text-left text-sm">
-            <thead class="text-[10px] uppercase font-bold text-white bg-hb-olive/60 border-b border-hb-olive/20">
+            <thead class="text-xs font-bold text-gray-500 bg-gray-50 border-b border-gray-100">
                 <tr>
                     <th class="px-4 py-2">Nr.</th>
                     <th class="px-4 py-2">Typ</th>

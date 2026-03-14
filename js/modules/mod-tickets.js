@@ -237,7 +237,7 @@ function _renderTicketList(filterId) {
             </div>
             <div class="overflow-y-auto flex-grow">
                 <table class="w-full text-left text-sm">
-                    <thead class="text-[10px] uppercase font-bold text-white bg-hb-olive/80 border-b border-hb-olive/20 sticky top-0">
+                    <thead class="text-xs font-bold text-gray-500 bg-gray-50 border-b border-gray-100 sticky top-0">
                         <tr>
                             <th class="px-4 py-2">Betreff</th>
                             <th class="px-4 py-2 hidden md:table-cell">Kategorie</th>
@@ -326,7 +326,7 @@ window.searchTickets = async (query) => {
             </div>
             <div class="flex-grow overflow-y-auto">
                 <table class="w-full text-left text-sm">
-                    <thead class="text-[10px] uppercase font-bold text-white bg-hb-olive/80 border-b border-hb-olive/20">
+                    <thead class="text-xs font-bold text-gray-500 bg-gray-50 border-b border-gray-100">
                         <tr>
                             <th class="px-4 py-2">Betreff</th>
                             <th class="px-4 py-2 hidden md:table-cell">Kategorie</th>

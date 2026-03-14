@@ -64,7 +64,7 @@ async function loadUserManagement() {
             <div class="overflow-x-auto">
                 <table class="w-full text-left">
                     <thead>
-                        <tr class="bg-hb-olive/80 text-[10px] uppercase font-bold text-white border-b border-hb-olive/20">
+                        <tr class="bg-gray-50 text-xs font-bold text-gray-500 border-b border-gray-100">
                             <th class="p-4">Name / Firma</th>
                             <th class="p-4">Kontakt</th>
                             <th class="p-4">Rollen</th>
