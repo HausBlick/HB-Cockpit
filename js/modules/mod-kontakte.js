@@ -246,7 +246,7 @@ function _contactCardHtml(c) {
                 <div class="flex-1 min-w-0">
                     <div class="flex items-start justify-between gap-1">
                         <h3 class="font-bold text-hb-offblack text-sm leading-snug truncate">${name}</h3>
-                        ${canEdit ? `<button onclick="event.stopPropagation(); showContactForm(${c.id})" class="text-xs font-bold text-hb-olive bg-hb-ultralight px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0">Bearbeiten</button>` : ''}
+                        ${canEdit ? `<button onclick="event.stopPropagation(); showContactForm(${c.id})" class="text-xs text-hb-olive bg-hb-ultralight px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0">Bearbeiten</button>` : ''}
                     </div>
                     <div class="flex flex-wrap gap-1 mt-1">
                         <span class="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md" style="background:rgba(104,116,81,.12);color:#687451">${cat}</span>
@@ -340,7 +340,7 @@ window.openContactDetail = async (contactId) => {
                     </div>
                 </div>
                 <div class="flex items-center gap-2 flex-shrink-0 ml-4">
-                    ${canEdit ? `<button onclick="document.getElementById('contact-detail-modal').remove(); showContactForm(${c.id})" class="text-xs font-bold text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Bearbeiten</button>` : ''}
+                    ${canEdit ? `<button onclick="document.getElementById('contact-detail-modal').remove(); showContactForm(${c.id})" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Bearbeiten</button>` : ''}
                     <button onclick="document.getElementById('contact-detail-modal').remove()" class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
                 </div>
             </div>
@@ -476,7 +476,7 @@ window.showContactForm = async (contactId = null) => {
                 </label>
             </div>
             <div class="p-6 border-t border-gray-50 flex justify-between items-center flex-shrink-0">
-                ${isEdit ? `<button onclick="deleteContact(${c.id})" class="text-sm font-bold text-red-500 hover:underline">Löschen</button>` : '<div></div>'}
+                ${isEdit ? `<button onclick="deleteContact(${c.id})" class="text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5 transition-colors">Löschen</button>` : '<div></div>'}
                 <div class="flex gap-3">
                     <button onclick="document.getElementById('contact-form-modal').remove()" class="btn-secondary text-sm">Abbrechen</button>
                     <button onclick="saveContact(${contactId || 'null'})" class="btn-primary text-sm">Speichern</button>

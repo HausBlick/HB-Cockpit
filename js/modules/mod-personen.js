@@ -140,7 +140,7 @@ function renderPersonsTable() {
                 <td class="p-4">${p.roles.length ? p.roles.map(r => getRoleBadgeHtml(r)).join('') : '<span class="text-xs text-gray-300">—</span>'}</td>
                 <td class="p-4 text-right" onclick="event.stopPropagation()">
                     <button onclick="showPersonForm('${p.id}')"
-                        class="text-xs font-bold text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Bearbeiten</button>
+                        class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Bearbeiten</button>
                 </td>
             </tr>`;
     }).join('');
@@ -199,7 +199,7 @@ window.showPersonInfo = async (personId) => {
                 </div>
                 <div class="flex gap-2 items-center flex-shrink-0 ml-4">
                     <button onclick="document.getElementById('person-info-modal').remove(); showPersonForm('${personId}')"
-                        class="text-xs font-bold text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Bearbeiten</button>
+                        class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Bearbeiten</button>
                     <button onclick="document.getElementById('person-info-modal').remove()"
                         class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
                 </div>
