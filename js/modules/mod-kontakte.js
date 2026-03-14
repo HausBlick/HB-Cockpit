@@ -102,9 +102,9 @@ function _renderContactsPage(role) {
         </div>
 
         <!-- Hinweis-Banner -->
-        <div class="mb-5 bg-hb-ultralight border-l-4 border-hb-orange rounded-r-xl p-4">
+        <div class="mb-5 bg-hb-ultralight border border-hb-orange rounded-xl p-4">
             <p class="text-xs font-extrabold uppercase tracking-wide text-hb-orange mb-1">Wichtiger Hinweis</p>
-            <p class="text-sm text-gray-600">Die aufgeführten Dienstleister kennen das Objekt bereits und dienen zur Empfehlung. Bitte beachten Sie: <strong class="text-hb-offblack">Aufträge außerhalb von Kleinreparaturen müssen dringend durch den Vermieter oder die Gemeinschaft freigegeben werden.</strong></p>
+            <p class="text-xs text-gray-600">Die aufgeführten Dienstleister kennen das Objekt bereits und dienen zur Empfehlung. Bitte beachten Sie: <strong class="text-hb-offblack">Aufträge außerhalb von Kleinreparaturen müssen dringend durch den Vermieter oder die Gemeinschaft freigegeben werden.</strong></p>
         </div>
 
         <!-- Suche & Filter -->
