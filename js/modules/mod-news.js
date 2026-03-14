@@ -193,9 +193,9 @@ window.openNewsModal = async (newsId) => {
                 <div class="flex gap-2 items-center flex-shrink-0 ml-4">
                     ${canEdit ? `
                         <button onclick="showEditNewsModal(${newsId})"
-                            class="text-xs text-hb-olive hover:text-hb-offblack font-bold px-3 py-1.5 rounded-lg hover:bg-gray-100">Bearbeiten</button>
+                            class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Bearbeiten</button>
                         <button onclick="deleteNews(${newsId})"
-                            class="text-xs text-red-400 hover:text-red-600 font-bold px-3 py-1.5 rounded-lg hover:bg-red-50">Löschen</button>` : ''}
+                            class="text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5 transition-colors">Löschen</button>` : ''}
                     <button onclick="document.getElementById('news-modal').remove()"
                         class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
                 </div>

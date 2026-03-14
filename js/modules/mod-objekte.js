@@ -153,7 +153,7 @@ async function showBuildingInfo(b) {
                     <p class="text-xs text-gray-500">${addr}</p>
                 </div>
                 <button onclick="showBuildingForm(${b.id})"
-                    class="btn-primary text-xs px-3 py-1.5 flex-shrink-0">Bearbeiten</button>
+                    class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0">Bearbeiten</button>
             </div>
 
             <!-- Tabs -->
@@ -194,7 +194,7 @@ async function showBuildingInfo(b) {
                                 <thead><tr class="text-[10px] uppercase font-bold text-gray-400 border-b border-gray-100">
                                     <th class="pb-1 text-left">Typ</th><th class="pb-1 text-left">Bank</th><th class="pb-1 text-left">IBAN</th>
                                 </tr></thead>
-                                <tbody class="divide-y divide-gray-50">${bankAccounts.map(ba =>
+                                <tbody class="divide-y divide-hb-olive/10">${bankAccounts.map(ba =>
                                     `<tr><td class="py-1.5 font-medium">${ba.account_type || '—'}</td>
                                          <td class="py-1.5 text-gray-600">${ba.bank_name || '—'}</td>
                                          <td class="py-1.5 font-mono text-xs text-gray-600">${ba.iban || '—'}</td></tr>`
@@ -312,7 +312,7 @@ async function showApartmentInfo(id) {
                     <p class="text-sm text-gray-500">${apt.type || 'Wohnen'} · ${apt.sq_meters || 0} m² · ${apt.rooms || 0} Zimmer</p>
                 </div>
                 <button onclick="showApartmentForm(${apt.id})"
-                    class="btn-primary text-xs px-4 py-2 flex-shrink-0">Bearbeiten</button>
+                    class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0">Bearbeiten</button>
             </div>
 
             <!-- Tabs -->
@@ -621,7 +621,7 @@ function bankAccountRowHtml(ba) {
             <button type="button" onclick="saveBankAccount(${selectedBuildingId}, '${ba.id || ''}')"
                 class="btn-primary text-xs px-2 h-9 flex-1">OK</button>
             <button type="button" onclick="deleteBankAccount('${ba.id || ''}')"
-                class="text-red-400 hover:text-red-600 h-9 px-2 font-bold">✕</button>
+                class="text-hb-orange hover:text-hb-orange/70 h-9 px-2">✕</button>
         </div>
     </div>`;
 }
@@ -781,7 +781,7 @@ async function showApartmentForm(id = null) {
                 <div class="pt-4 border-t flex gap-4 flex-shrink-0">
                     <button type="submit" class="btn-primary">Speichern</button>
                     ${isEdit ? `<button type="button" onclick="deleteApartment(${apt.id})"
-                        class="text-red-500 font-bold px-4 hover:bg-red-50 rounded-lg">Löschen</button>` : ''}
+                        class="text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5 transition-colors">Löschen</button>` : ''}
                 </div>
             </form>
         </div>`;
@@ -890,7 +890,7 @@ function renderAssignmentsList({ tenancies, ownerships }) {
                     class="text-sm font-bold text-hb-olive hover:underline truncate">${name}</button>
                 ${period ? `<span class="text-xs text-gray-400 flex-shrink-0">${period}</span>` : ''}
             </div>
-            <button type="button" onclick="${r.rm}" class="text-red-400 hover:text-red-600 text-xs font-bold px-2 flex-shrink-0">Entfernen</button>
+            <button type="button" onclick="${r.rm}" class="text-xs text-hb-orange px-2 flex-shrink-0">Entfernen</button>
         </div>`;
     }).join('');
 }
