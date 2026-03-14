@@ -34,10 +34,10 @@ async function loadTickets() {
             <!-- Linke Filter-Sidebar -->
             <div id="ticket-sidebar" class="w-full lg:w-56 xl:w-64 flex-shrink-0">
                 <div class="card lg:h-full flex flex-col overflow-hidden">
-                    <div class="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
-                        <h2 class="text-xs font-black uppercase tracking-widest text-gray-500">Tickets</h2>
+                    <div class="px-4 py-3 flex justify-between items-center bg-hb-olive">
+                        <h2 class="text-xs font-black uppercase tracking-widest text-white">Tickets</h2>
                         <button onclick="showCreateTicketModal()"
-                            class="bg-hb-olive text-white w-7 h-7 rounded-full flex items-center justify-center text-lg leading-none hover:bg-opacity-80 transition-transform hover:scale-105">+</button>
+                            class="bg-white/20 text-white w-7 h-7 rounded-full flex items-center justify-center text-lg leading-none hover:bg-white/30 transition-colors">+</button>
                     </div>
                     <div class="px-2 pt-2 pb-1 flex-shrink-0">
                         <input type="search" id="ticket-search" placeholder="Suchen…"
@@ -108,13 +108,13 @@ async function _renderFilterMenu() {
     };
 
     const filters = [
-        { id: 'mine',                  label: 'Meine Tickets',     icon: svgIcons.person,      showBadge: true  },
-        { id: 'mine-done',             label: 'Meine erledigten',  icon: svgIcons.checkSquare, showBadge: false },
-        { id: 'Offen',                 label: 'Offen',             icon: svgIcons.circle,      showBadge: true  },
-        { id: 'In Bearbeitung',        label: 'In Bearbeitung',    icon: svgIcons.tool,        showBadge: true  },
-        { id: 'Warte auf Rückmeldung', label: 'Warte auf Antwort', icon: svgIcons.clock,       showBadge: true  },
-        { id: 'Wiedervorlage',         label: 'Wiedervorlage',     icon: svgIcons.repeat,      showBadge: true  },
-        { id: 'Erledigt',              label: 'Alle erledigten',   icon: svgIcons.checkCircle, showBadge: false },
+        { id: 'mine',                  label: 'Meine Tickets',           icon: svgIcons.person,      showBadge: true  },
+        { id: 'Offen',                 label: 'Offen',                   icon: svgIcons.circle,      showBadge: true  },
+        { id: 'In Bearbeitung',        label: 'In Bearbeitung',          icon: svgIcons.tool,        showBadge: true  },
+        { id: 'Warte auf Rückmeldung', label: 'Warte auf Antwort',       icon: svgIcons.clock,       showBadge: true  },
+        { id: 'Wiedervorlage',         label: 'Wiedervorlage',           icon: svgIcons.repeat,      showBadge: true  },
+        { id: 'Erledigt',              label: 'Alle erledigten',         icon: svgIcons.checkCircle, showBadge: false },
+        { id: 'mine-done',             label: 'Meine erledigten Tickets', icon: svgIcons.checkSquare, showBadge: false },
     ];
 
     menu.innerHTML = filters.map(f => `
@@ -229,34 +229,54 @@ function _renderTicketList(filterId) {
 
     main.innerHTML = `
         <div class="card lg:h-full flex flex-col overflow-hidden">
-            <div class="px-4 py-3 border-b border-gray-50 flex items-center gap-3 flex-shrink-0">
-                <button onclick="_backToSidebar()" class="lg:hidden text-hb-olive font-bold text-xs flex-shrink-0">← Filter</button>
-                <h3 class="font-bold text-hb-offblack">${title}
-                    <span class="ml-2 text-xs font-normal text-gray-400">(${_ticketsData.length})</span>
+            <div class="px-4 py-3 flex items-center gap-3 flex-shrink-0 bg-hb-olive">
+                <button onclick="_backToSidebar()" class="lg:hidden text-white font-bold text-xs flex-shrink-0">← Filter</button>
+                <h3 class="font-bold text-white">${title}
+                    <span class="ml-2 text-xs font-normal text-white/70">(${_ticketsData.length})</span>
                 </h3>
             </div>
-            <div class="overflow-y-auto divide-y divide-gray-50">
-                ${_ticketsData.length
-                    ? _ticketsData.map(t => _ticketRowHtml(t)).join('')
-                    : '<p class="text-sm text-gray-400 p-8 text-center">Keine Tickets vorhanden.</p>'}
+            <div class="overflow-y-auto flex-grow">
+                <table class="w-full text-left text-sm">
+                    <thead class="text-[10px] uppercase font-bold text-white bg-hb-olive/80 border-b border-hb-olive/20 sticky top-0">
+                        <tr>
+                            <th class="px-4 py-2">Betreff</th>
+                            <th class="px-4 py-2 hidden md:table-cell">Kategorie</th>
+                            <th class="px-4 py-2 hidden md:table-cell">Ersteller</th>
+                            <th class="px-4 py-2 hidden lg:table-cell">Objekt &amp; Einheit</th>
+                            <th class="px-4 py-2 text-right">Status / Datum</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-hb-olive/10">
+                        ${_ticketsData.length
+                            ? _ticketsData.map(t => _ticketRowHtml(t)).join('')
+                            : '<tr><td colspan="5" class="p-8 text-center text-gray-400 text-sm">Keine Tickets vorhanden.</td></tr>'}
+                    </tbody>
+                </table>
             </div>
         </div>`;
 }
 
 function _ticketRowHtml(t) {
-    const stCls = STATUS_STYLE[t.status] || 'bg-gray-100 text-gray-500';
-    const date  = new Date(t.created_at).toLocaleDateString('de-DE', { day:'2-digit', month:'short' });
-    return `<div onclick="openTicketDetail('${t.id}')"
-        class="px-5 py-4 hover:bg-gray-50 cursor-pointer transition-colors flex justify-between items-start gap-3">
-        <div class="min-w-0 flex-1">
-            <p class="font-bold text-sm text-hb-offblack truncate">${t.title}</p>
-            <p class="text-xs text-gray-400 mt-0.5">${t.category || 'Allgemein'} · ${t.buildings?.name || '—'} · ${t.creator?.full_name || '—'}</p>
-        </div>
-        <div class="flex flex-col items-end gap-1 flex-shrink-0">
+    const stCls   = STATUS_STYLE[t.status] || 'bg-gray-100 text-gray-500';
+    const date    = new Date(t.created_at).toLocaleDateString('de-DE', { day:'2-digit', month:'short' });
+    const isMine  = t.creator_id === currentUser.id;
+    const isAssigned = t.assigned_to === currentUser.id;
+    const dirBadge = isMine
+        ? `<span class="ml-1.5 text-[9px] font-bold bg-hb-olive/10 text-hb-olive px-1.5 py-0.5 rounded">Von mir</span>`
+        : (isAssigned ? `<span class="ml-1.5 text-[9px] font-bold bg-hb-orange/10 text-hb-orange px-1.5 py-0.5 rounded">An mich</span>` : '');
+    const location = [t.buildings?.name, t.apartments?.apartment_number ? `Wohnung ${t.apartments.apartment_number}` : null].filter(Boolean).join(' / ') || '—';
+    return `<tr onclick="openTicketDetail('${t.id}')" class="hover:bg-hb-olive/5 cursor-pointer transition-colors">
+        <td class="px-4 py-3">
+            <span class="font-bold text-hb-offblack">${t.title}</span>${dirBadge}
+        </td>
+        <td class="px-4 py-3 text-gray-500 text-xs hidden md:table-cell">${t.category || '—'}</td>
+        <td class="px-4 py-3 text-gray-500 text-xs hidden md:table-cell">${t.creator?.full_name || '—'}</td>
+        <td class="px-4 py-3 text-gray-500 text-xs hidden lg:table-cell">${location}</td>
+        <td class="px-4 py-3 text-right">
             <span class="${stCls} text-[10px] font-bold px-2 py-0.5 rounded-full">${t.status}</span>
-            <span class="text-[10px] text-gray-400">${date}</span>
-        </div>
-    </div>`;
+            <p class="text-[10px] text-gray-400 mt-0.5">${date}</p>
+        </td>
+    </tr>`;
 }
 
 // ─── Suche ────────────────────────────────────────────────────
@@ -299,15 +319,28 @@ window.searchTickets = async (query) => {
     if (!main) return;
     main.innerHTML = `
         <div class="card h-full flex flex-col overflow-hidden">
-            <div class="px-5 py-3 border-b border-gray-50 flex justify-between items-center flex-shrink-0">
-                <h3 class="font-bold text-hb-offblack">Suchergebnisse für „${query}"
-                    <span class="ml-2 text-xs font-normal text-gray-400">(${_ticketsData.length})</span>
+            <div class="px-5 py-3 flex justify-between items-center flex-shrink-0 bg-hb-olive">
+                <h3 class="font-bold text-white">Suchergebnisse für „${query}"
+                    <span class="ml-2 text-xs font-normal text-white/70">(${_ticketsData.length})</span>
                 </h3>
             </div>
-            <div class="flex-grow overflow-y-auto divide-y divide-gray-50">
-                ${_ticketsData.length
-                    ? _ticketsData.map(t => _ticketRowHtml(t)).join('')
-                    : '<p class="text-sm text-gray-400 p-8 text-center">Keine Tickets gefunden.</p>'}
+            <div class="flex-grow overflow-y-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="text-[10px] uppercase font-bold text-white bg-hb-olive/80 border-b border-hb-olive/20">
+                        <tr>
+                            <th class="px-4 py-2">Betreff</th>
+                            <th class="px-4 py-2 hidden md:table-cell">Kategorie</th>
+                            <th class="px-4 py-2 hidden md:table-cell">Ersteller</th>
+                            <th class="px-4 py-2 hidden lg:table-cell">Objekt &amp; Einheit</th>
+                            <th class="px-4 py-2 text-right">Status / Datum</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-hb-olive/10">
+                        ${_ticketsData.length
+                            ? _ticketsData.map(t => _ticketRowHtml(t)).join('')
+                            : '<tr><td colspan="5" class="p-8 text-center text-gray-400 text-sm">Keine Tickets gefunden.</td></tr>'}
+                    </tbody>
+                </table>
             </div>
         </div>`;
 };

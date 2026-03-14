@@ -51,27 +51,27 @@ async function loadUserManagement() {
             </button>
         </div>
         <div class="card flex flex-col overflow-hidden text-left">
-            <div class="p-5 border-b border-gray-100 bg-white flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="p-4 bg-hb-olive flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="flex flex-wrap gap-2" id="person-filters">
-                    <button onclick="setPersonFilter('Alle')"          class="filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-hb-offblack text-white">Alle</button>
-                    <button onclick="setPersonFilter('Eigentümer')"    class="filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-white text-gray-500">Eigentümer</button>
-                    <button onclick="setPersonFilter('Mieter')"        class="filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-white text-gray-500">Mieter</button>
-                    <button onclick="setPersonFilter('Beirat')"        class="filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-white text-gray-500">Beiräte</button>
-                    <button onclick="setPersonFilter('Dienstleister')" class="filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-white text-gray-500">Dienstleister</button>
+                    <button onclick="setPersonFilter('Alle')"          class="filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-white text-hb-olive border-white">Alle</button>
+                    <button onclick="setPersonFilter('Eigentümer')"    class="filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-transparent text-white border-white/50 hover:border-white">Eigentümer</button>
+                    <button onclick="setPersonFilter('Mieter')"        class="filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-transparent text-white border-white/50 hover:border-white">Mieter</button>
+                    <button onclick="setPersonFilter('Beirat')"        class="filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-transparent text-white border-white/50 hover:border-white">Beiräte</button>
+                    <button onclick="setPersonFilter('Dienstleister')" class="filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-transparent text-white border-white/50 hover:border-white">Dienstleister</button>
                 </div>
-                <input type="text" onkeyup="handlePersonSearch(event)" placeholder="Name oder E-Mail suchen..." class="md:w-64">
+                <input type="text" onkeyup="handlePersonSearch(event)" placeholder="Name oder E-Mail suchen..." class="md:w-64 bg-white/10 border-white/30 text-white placeholder-white/60 focus:bg-white focus:text-hb-offblack">
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left">
                     <thead>
-                        <tr class="bg-gray-50 text-[10px] uppercase font-bold text-gray-400 border-b border-gray-100">
+                        <tr class="bg-hb-olive/80 text-[10px] uppercase font-bold text-white border-b border-hb-olive/20">
                             <th class="p-4">Name / Firma</th>
                             <th class="p-4">Kontakt</th>
                             <th class="p-4">Rollen</th>
                             <th class="p-4 text-right">Aktion</th>
                         </tr>
                     </thead>
-                    <tbody id="persons-table-body" class="text-sm divide-y divide-gray-50">
+                    <tbody id="persons-table-body" class="text-sm divide-y divide-hb-olive/10">
                         <tr><td colspan="4" class="p-8 text-center text-gray-400 text-sm">Lädt...</td></tr>
                     </tbody>
                 </table>
@@ -88,8 +88,8 @@ window.setPersonFilter = (filter) => {
         const chipLabel = el.innerText.trim();
         const isActive  = chipLabel === filter || (filter === 'Alle' && chipLabel === 'Alle');
         el.className = isActive
-            ? 'filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-hb-offblack text-white'
-            : 'filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-white text-gray-500 hover:bg-gray-50 transition-colors';
+            ? 'filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-white text-hb-olive border-white'
+            : 'filter-chip px-4 py-2 text-xs font-bold rounded-full border bg-transparent text-white border-white/50 hover:border-white transition-colors';
     });
     renderPersonsTable();
 };
@@ -134,7 +134,7 @@ function renderPersonsTable() {
                     <div class="text-xs text-gray-500">${p.city || '—'}</div>
                 </td>
                 <td class="p-4">
-                    <div class="text-sm text-gray-700">${p.email || '—'}</div>
+                    <div class="text-sm text-gray-700">${p.email ? `<a href="mailto:${p.email}" onclick="event.stopPropagation()" class="text-hb-olive hover:underline">${p.email}</a>` : '—'}</div>
                     <div class="text-xs text-gray-500">${p.phone || p.mobile || '—'}</div>
                 </td>
                 <td class="p-4">${p.roles.length ? p.roles.map(r => getRoleBadgeHtml(r)).join('') : '<span class="text-xs text-gray-300">—</span>'}</td>
@@ -167,10 +167,10 @@ window.showPersonInfo = async (personId) => {
         ? (p.company_name || p.last_name || '—')
         : `${p.salutation ? p.salutation + ' ' : ''}${p.first_name || ''} ${p.last_name || ''}`.trim() || '—';
 
-    const field = (label, value) => value
+    const field = (label, value, isEmail = false) => value
         ? `<div class="space-y-0.5">
                <p class="text-[10px] uppercase font-bold text-gray-400">${label}</p>
-               <p class="text-sm font-semibold text-hb-offblack">${value}</p>
+               <p class="text-sm font-semibold text-hb-offblack">${isEmail ? `<a href="mailto:${value}" class="text-hb-olive hover:underline">${value}</a>` : value}</p>
            </div>`
         : '';
 
@@ -210,7 +210,7 @@ window.showPersonInfo = async (personId) => {
                 <div>
                     <p class="text-[10px] uppercase font-bold text-gray-300 mb-3">Kontakt</p>
                     <div class="grid grid-cols-2 gap-4">
-                        ${field('E-Mail', p.email)}
+                        ${field('E-Mail', p.email, true)}
                         ${field('Telefon', p.phone)}
                         ${field('Mobil', p.mobile)}
                         ${field('Stadt', p.city)}

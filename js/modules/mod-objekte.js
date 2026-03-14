@@ -57,10 +57,10 @@ async function loadTenants() {
             <!-- Linke Sidebar: schmaler -->
             <div class="w-full lg:w-56 xl:w-64 flex-shrink-0 flex flex-col gap-3 h-full">
                 <div class="card flex flex-col h-full overflow-hidden">
-                    <div class="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
-                        <h2 class="text-xs font-black uppercase tracking-widest text-gray-500">Objekte</h2>
+                    <div class="px-4 py-3 flex justify-between items-center bg-hb-olive">
+                        <h2 class="text-xs font-black uppercase tracking-widest text-white">Objekte</h2>
                         <button onclick="showBuildingForm()"
-                            class="bg-hb-olive text-white w-7 h-7 rounded-full flex items-center justify-center hover:bg-opacity-80 text-lg leading-none transition-transform hover:scale-105">+</button>
+                            class="bg-white/20 text-white w-7 h-7 rounded-full flex items-center justify-center hover:bg-white/30 text-lg leading-none transition-colors">+</button>
                     </div>
                     <!-- Suche -->
                     <div class="px-3 py-2 border-b border-gray-50">
@@ -105,8 +105,8 @@ function renderBuildingsList(query = '') {
 
     list.innerHTML = filtered.map(b => `
         <div onclick="selectBuilding(${b.id})" id="b-item-${b.id}"
-            class="px-3 py-3 rounded-lg cursor-pointer border-l-2 border-transparent
-                   hover:bg-[#f0f2ec] hover:border-hb-olive transition-all text-left group">
+            class="px-3 py-3 rounded-lg cursor-pointer
+                   hover:bg-gray-100 transition-all text-left group">
             <p class="font-bold text-xs text-hb-offblack truncate group-hover:text-hb-olive">${b.name}</p>
             <p class="text-[10px] text-gray-400 truncate">${b.street ? `${b.street} ${b.house_number || ''}` : (b.city || '')}</p>
         </div>`).join('')
@@ -119,11 +119,10 @@ window.filterBuildingsList = (query) => renderBuildingsList(query);
 
 function markSelectedBuilding(id) {
     document.querySelectorAll('[id^="b-item-"]').forEach(el => {
-        el.classList.remove('bg-[#f0f2ec]', 'border-hb-olive');
-        el.classList.add('border-transparent');
+        el.classList.remove('bg-hb-ultralight', 'bg-gray-100');
     });
     const sel = document.getElementById(`b-item-${id}`);
-    if (sel) { sel.classList.add('bg-[#f0f2ec]', 'border-hb-olive'); sel.classList.remove('border-transparent'); }
+    if (sel) { sel.classList.add('bg-hb-ultralight'); }
 }
 
 // ─── Gebäude auswählen → Info-Ansicht ────────────────────────
@@ -237,10 +236,10 @@ async function showBuildingInfo(b) {
             </div>
 
             <!-- Einheitenliste: nimmt verbleibenden Platz, scrollbar -->
-            <div class="border-t border-gray-100 flex-grow flex flex-col min-h-0">
-                <div class="px-4 py-2 bg-gray-50/50 flex justify-between items-center flex-shrink-0">
-                    <h3 class="text-xs font-black uppercase tracking-widest text-gray-500">Einheiten</h3>
-                    <button onclick="showApartmentForm()" class="btn-primary py-1 px-3 text-xs">+ Einheit</button>
+            <div class="border-t border-hb-olive/20 flex-grow flex flex-col min-h-0">
+                <div class="px-4 py-2.5 bg-hb-olive/80 flex justify-between items-center flex-shrink-0">
+                    <h3 class="text-xs font-black uppercase tracking-widest text-white">Einheiten</h3>
+                    <button onclick="showApartmentForm()" class="bg-white/20 text-white text-xs px-3 py-1 rounded-lg hover:bg-white/30 transition-colors font-semibold">+ Einheit</button>
                 </div>
                 <div id="apartments-list" class="flex-grow overflow-y-auto"></div>
             </div>
@@ -262,7 +261,7 @@ async function fetchApartmentsForBuilding(bId) {
     }
     list.innerHTML = `
         <table class="w-full text-left text-sm">
-            <thead class="text-[10px] uppercase font-bold text-gray-400 bg-gray-50 border-b border-gray-100">
+            <thead class="text-[10px] uppercase font-bold text-white bg-hb-olive/60 border-b border-hb-olive/20">
                 <tr>
                     <th class="px-4 py-2">Nr.</th>
                     <th class="px-4 py-2">Typ</th>
@@ -272,7 +271,7 @@ async function fetchApartmentsForBuilding(bId) {
                     <th class="px-4 py-2">Status</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-gray-50">
+            <tbody class="divide-y divide-hb-olive/10">
                 ${currentApartments.map(apt => {
                     const statusCls = apt.tenant_status === 'Vermietet'
                         ? 'bg-emerald-100 text-emerald-700'

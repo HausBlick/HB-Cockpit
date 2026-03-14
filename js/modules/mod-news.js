@@ -13,12 +13,19 @@ let _userBuildingId = null;
 async function loadNews() {
     const container = document.getElementById('content-area');
     const canCreate = ['admin', 'manager', 'owner'].includes(userProfile?.role);
+    const roleDescs = {
+        admin:   'Informieren Sie Ihre Mieter und Eigentümer über aktuelle Themen.',
+        manager: 'Informieren Sie Ihre Mieter und Eigentümer über aktuelle Themen.',
+        owner:   'Neuigkeiten für Ihre Mieter und Ihr Objekt.',
+        tenant:  'Aktuelle Mitteilungen aus Ihrem Haus.',
+    };
+    const desc = roleDescs[userProfile?.role] || 'Aktuelle Mitteilungen und Ankündigungen.';
 
     container.innerHTML = `
         <div class="flex justify-between items-end mb-6">
             <div>
-                <h2 class="text-2xl font-extrabold text-hb-offblack tracking-tight">Schwarzes Brett</h2>
-                <p class="text-sm text-gray-500 mt-1">Ankündigungen, Wartungshinweise und Neuigkeiten.</p>
+                <h2 class="text-2xl font-extrabold text-hb-olive tracking-tight">Schwarzes Brett</h2>
+                <p class="text-sm text-gray-500 mt-1">${desc}</p>
             </div>
             ${canCreate ? `<button onclick="showCreateNewsModal()"
                 class="btn-primary flex items-center gap-2 text-sm shadow-sm">
@@ -32,7 +39,7 @@ async function loadNews() {
             ${['Alle','Ankündigung','Wartung','Allgemein'].map((c, i) =>
                 `<button onclick="setNewsFilter('${c}')"
                     class="news-chip px-4 py-2 text-xs font-bold rounded-full border transition-colors
-                        ${i === 0 ? 'bg-hb-offblack text-white border-hb-offblack' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}">${c}</button>`
+                        ${i === 0 ? 'bg-hb-olive text-white border-hb-olive' : 'bg-white text-gray-500 border-hb-olive/40 hover:bg-hb-olive/5'}">${c}</button>`
             ).join('')}
         </div>
 
@@ -123,6 +130,7 @@ function _newsCardHtml(n) {
             </div>
             <h3 class="font-extrabold text-hb-offblack text-base leading-snug pr-8">${n.title}</h3>
             <p class="text-sm text-gray-500 line-clamp-3 flex-grow">${preview}…</p>
+            <span class="text-xs text-hb-olive font-semibold -mt-1">Mehr lesen →</span>
             <div class="flex justify-between items-center pt-2 border-t border-gray-50 text-xs text-gray-400">
                 <span>${n.author?.full_name || '—'} · ${date}</span>
                 <button onclick="toggleNewsLike(event, ${n.id})"
@@ -144,8 +152,8 @@ window.setNewsFilter = (cat) => {
     document.querySelectorAll('.news-chip').forEach(el => {
         const active = el.textContent.trim() === cat;
         el.className = `news-chip px-4 py-2 text-xs font-bold rounded-full border transition-colors ${active
-            ? 'bg-hb-offblack text-white border-hb-offblack'
-            : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`;
+            ? 'bg-hb-olive text-white border-hb-olive'
+            : 'bg-white text-gray-500 border-hb-olive/40 hover:bg-hb-olive/5'}`;
     });
     _renderGrid();
 };
@@ -206,7 +214,7 @@ window.openNewsModal = async (newsId) => {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
                     </svg>
-                    Gefällt mir (<span id="modal-like-count-${newsId}">${item.likes || 0}</span>)
+                    <span id="modal-like-count-${newsId}">${item.likes || 0}</span>
                 </button>
             </div>
         </div>`;

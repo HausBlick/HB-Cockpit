@@ -45,7 +45,7 @@ window.copyInviteCode = () => {
 
 // --- Daten laden ---
 async function loadPersonForEdit(personId) {
-    const [personRes, bankRes, tenanciesRes, ownershipsRes] = await Promise.all([
+    const [personRes, bankRes, tenanciesRes, ownershipsRes, boardRes, spRes] = await Promise.all([
         _supabase.from('persons').select('*').eq('id', personId).single(),
         _supabase.from('person_bank_accounts').select('*').eq('person_id', personId).maybeSingle(),
         _supabase.from('tenancies')
@@ -54,12 +54,20 @@ async function loadPersonForEdit(personId) {
         _supabase.from('ownerships')
             .select('id, valid_from, valid_to, is_active, apartment_id, apartments(apartment_number, buildings(name))')
             .eq('owner_id', personId),
+        _supabase.from('board_members')
+            .select('id, valid_from, valid_to, buildings(name)')
+            .eq('person_id', personId),
+        _supabase.from('service_providers')
+            .select('id, category, buildings(name)')
+            .eq('person_id', personId),
     ]);
     return {
         person: personRes.data,
         bank: bankRes.data,
         tenancies: tenanciesRes.data || [],
         ownerships: ownershipsRes.data || [],
+        boardMemberships: boardRes.data || [],
+        serviceProviders: spRes.data || [],
     };
 }
 
@@ -127,14 +135,14 @@ async function savePersonData(personId, isNew) {
 }
 
 // --- Rollen-Tab rendern ---
-function renderRolesTab(tenancies, ownerships) {
+function renderRolesTab(tenancies, ownerships, boardMemberships = [], serviceProviders = []) {
     const container = document.getElementById('person-tab-roles');
     const tenancyRows = tenancies.map(t => {
         const apt = t.apartments;
         const label = apt ? `${apt.buildings?.name || '—'} / Wohnung ${apt.apartment_number}` : '—';
         return `<div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
             <span class="text-sm text-gray-700">${label}</span>
-            <span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full">Mieter</span>
+            <span class="badge-mieter border text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md">Mieter</span>
         </div>`;
     }).join('');
     const ownershipRows = ownerships.map(o => {
@@ -142,15 +150,30 @@ function renderRolesTab(tenancies, ownerships) {
         const label = apt ? `${apt.buildings?.name || '—'} / Wohnung ${apt.apartment_number}` : '—';
         return `<div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
             <span class="text-sm text-gray-700">${label}</span>
-            <span class="bg-blue-100 text-blue-800 text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full">Eigentümer</span>
+            <span class="badge-eigentuemer border text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md">Eigentümer</span>
         </div>`;
     }).join('');
+    const boardRows = boardMemberships.map(bm => {
+        const label = bm.buildings?.name || '—';
+        return `<div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+            <span class="text-sm text-gray-700">${label}</span>
+            <span class="badge-beirat border text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md">Beirat</span>
+        </div>`;
+    }).join('');
+    const spRows = serviceProviders.map(sp => {
+        const label = sp.buildings?.name ? `${sp.buildings.name}${sp.category ? ' · ' + sp.category : ''}` : (sp.category || '—');
+        return `<div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+            <span class="text-sm text-gray-700">${label}</span>
+            <span class="badge-dienstleister border text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md">Dienstleister</span>
+        </div>`;
+    }).join('');
+    const allRows = tenancyRows + ownershipRows + boardRows + spRows;
     const empty = '<p class="text-sm text-gray-400 text-center py-4">Keine Zuweisungen vorhanden.</p>';
     container.innerHTML = `
         <div class="space-y-2">
             <p class="text-xs text-gray-400 mb-2">Zuweisungen erfolgen über das <strong>Objekte-Modul</strong>. Diese Ansicht ist schreibgeschützt.</p>
             <div class="bg-white border border-gray-100 rounded-xl p-4">
-                ${(tenancyRows + ownershipRows) || empty}
+                ${allRows || empty}
             </div>
         </div>`;
 }
@@ -164,7 +187,7 @@ async function showPersonForm(id = null) {
         <div class="w-8 h-8 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div>
     </div>`;
 
-    let p = {}, bank = {}, tenancies = [], ownerships = [];
+    let p = {}, bank = {}, tenancies = [], ownerships = [], boardMemberships = [], serviceProviders = [];
     if (!isNew) {
         const data = await loadPersonForEdit(id);
         if (!data.person) { showToast('Person nicht gefunden.', 'error'); loadUserManagement(); return; }
@@ -172,6 +195,8 @@ async function showPersonForm(id = null) {
         bank = data.bank || {};
         tenancies = data.tenancies;
         ownerships = data.ownerships;
+        boardMemberships = data.boardMemberships;
+        serviceProviders = data.serviceProviders;
     }
 
     const isCompany = p.is_company || false;
@@ -382,7 +407,7 @@ async function showPersonForm(id = null) {
         </div>`;
 
     // Rollen-Tab mit echten Daten befüllen
-    renderRolesTab(tenancies, ownerships);
+    renderRolesTab(tenancies, ownerships, boardMemberships, serviceProviders);
 
     // Formular-Submit
     document.getElementById('person-form').onsubmit = async (e) => {
