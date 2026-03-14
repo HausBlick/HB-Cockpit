@@ -14,7 +14,7 @@ async function init() {
         if (!profile) return;
         userProfile = profile;
 
-        document.getElementById('welcome-title').textContent = 'Hallo, ' + profile.full_name.split(' ')[0] + '!';
+        document.getElementById('welcome-title').textContent = profile.full_name.split(' ')[0];
 
         const roleLabels = {
             'admin':   'Verwalter Cockpit',
@@ -43,7 +43,8 @@ function renderNav(role) {
         html += `
             <li class="nav-section-title">Kommunikation</li>
             <li><a onclick="loadNews();           setActiveNav(this)" class="nav-link">${icons.news}      Schwarzes Brett <span id="nav-badge-news"  class="nav-badge"></span></a></li>
-            <li><a onclick="loadTickets();        setActiveNav(this)" class="nav-link">${icons.tickets}   Ticket System   <span id="nav-badge-tickets" class="nav-badge"></span></a></li>
+            <li><a onclick="loadTickets();        setActiveNav(this)" class="nav-link">${icons.tickets}   Tickets         <span id="nav-badge-tickets" class="nav-badge"></span></a></li>
+            <li><a onclick="loadContacts();       setActiveNav(this)" class="nav-link">${icons.contact}   Kontaktbuch</a></li>
 
             <li class="nav-section-title">Verwaltung</li>
             <li><a onclick="loadUserManagement(); setActiveNav(this)" class="nav-link">${icons.users}     Personen</a></li>
@@ -54,28 +55,29 @@ function renderNav(role) {
 
             <li class="nav-section-title">Service & Dokumente</li>
             <li><a onclick="loadDocuments();      setActiveNav(this)" class="nav-link">${icons.docs}      Dokumenten Cloud</a></li>
-            <li><a onclick="loadContacts();       setActiveNav(this)" class="nav-link">${icons.contact}   Kontaktbuch</a></li>
             <li><a onclick="loadSettings();       setActiveNav(this)" class="nav-link">${icons.settings}  Einstellungen</a></li>`;
     } else if (role === 'owner') {
         html += `
             <li class="nav-section-title">Mein Asset</li>
             <li><a onclick="loadMyUnits();   setActiveNav(this)" class="nav-link">${icons.buildings} Meine Einheiten</a></li>
             <li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs}      Dokumente</a></li>
+
+            <li class="nav-section-title">Kommunikation</li>
             <li><a onclick="loadTickets();   setActiveNav(this)" class="nav-link">${icons.tickets}   Meine Tickets <span id="nav-badge-tickets" class="nav-badge"></span></a></li>
+            <li><a onclick="loadContacts();  setActiveNav(this)" class="nav-link">${icons.contact}  Kontaktbuch</a></li>
 
             <li class="nav-section-title">Vermieter-Bereich</li>
-            <li><a onclick="loadMyTenants(); setActiveNav(this)" class="nav-link">${icons.users}    Meine Mieter</a></li>
-            <li><a onclick="loadContacts();  setActiveNav(this)" class="nav-link">${icons.contact}  Kontaktbuch</a></li>`;
+            <li><a onclick="loadMyTenants(); setActiveNav(this)" class="nav-link">${icons.users}    Meine Mieter</a></li>`;
     } else {
         // tenant
         html += `
             <li class="nav-section-title">Kommunikation</li>
             <li><a onclick="loadNews();      setActiveNav(this)" class="nav-link">${icons.news}    Schwarzes Brett <span id="nav-badge-news"  class="nav-badge"></span></a></li>
             <li><a onclick="loadTickets();   setActiveNav(this)" class="nav-link">${icons.tickets} Meine Meldungen <span id="nav-badge-tickets" class="nav-badge"></span></a></li>
+            <li><a onclick="loadContacts();  setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li>
 
             <li class="nav-section-title">Service & Dokumente</li>
-            <li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs}    Meine Dokumente</a></li>
-            <li><a onclick="loadContacts();  setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li>`;
+            <li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs}    Meine Dokumente</a></li>`;
     }
 
     nav.innerHTML = html;
