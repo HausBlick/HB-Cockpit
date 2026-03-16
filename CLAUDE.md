@@ -162,6 +162,7 @@ js/
 - 6-A DB-Fundament: Doppik, Kontenrahmen, Journal, Sollstellungen ✅
 - 6-B Buchhaltung UI (`mod-finanzen.js`): Übersicht, Buchungen, Zählerstände, Sollstellungen, Onboarding ✅
 - 6-C Wirtschaftsplan, Sonderumlagen, Erhaltungsrücklage, Beirat-Belegprüfung ✅
+- 6-D Jahresabrechnung, Mahnwesen, DATEV-Export ✅
 - 6.1 Wirtschaftsplan (Planung laufender Kosten pro WEG) 📋
 - 6.2 Jahresabrechnung / Hausgeldabrechnung (Kostenverteilung nach MEA & Schlüsseln) 📋
 - 6.3 Erhaltungsrücklage (Zuführungen, Entnahmen, Ausweis in Abrechnung) 📋
@@ -362,6 +363,21 @@ js/
 | 6 | **Auto-Naming on Publish** (`_publishDoc`): `generated_filename = [file_number] [apt_number] - [document_title].[ext]` aus `buildings.file_number` + `apartments.apartment_number` |
 | 7 | **document_links-Management** im Bearbeiten-Modal: Personen hinzufügen/entfernen, die Zugriff auf ein Dokument haben |
 | 8 | Anzeige-Name-Priorität in Tabelle: `generated_filename` → `document_title` → `title` |
+
+---
+
+### Phase 6-D — Jahresabrechnung, Mahnwesen, DATEV-Export
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Tab Jahresabrechnung** (5-Schritte-Wizard): Rahmendaten → Ist-Zahlen (journal_entries aggregiert nach Konto) → Umlageschlüssel (MEA/m²/Einheiten/Custom je Aufwandskonto) → Soll-Ist-Abgleich (payment_demands vs. paid) → Abschluss |
+| 2 | Heizkosten Option A (Messdienstleister, manuelle Festbeträge) + Option B (HeizkostenV: 50% Verbrauch / 50% Fläche aus meter_readings, Schätzung mit +10% für fehlende Werte) |
+| 3 | Abschluss: journal_entries.is_locked=true, Nachzahlungs-Demands (demand_type='abrechnungsspitze'), budget_plan status='closed' |
+| 4 | §35a EStG Steuerbescheinigung: Aggregation lohn_anteil_35a pro Einheit/Eigentümer, Tabelle + CSV-Export |
+| 5 | Eigentümerwechsel: Hinweistext Stichtagsprinzip in Schritt 4 (MVP-Entscheidung: kein automatischer Split) |
+| 6 | **Tab Mahnwesen**: Überfällige Sollstellungen mit Checkbox-Auswahl, Mahnlauf (Stufe 1-3, Basiszins 3,37%, Mahngebühr), Zinsberechnung (Tage × Rate × Betrag / 365), INSERT dunning_notices, Status „Bezahlt" setzen |
+| 7 | **Tab DATEV-Export**: DATEV Buchungsstapel-Format (UTF-8 mit BOM, EXTF-Header, SKR03/04), CSV-Download. Separate §35a EStG Steuerbescheinigung als CSV |
+| 8 | Hilfsfunktion `_finDownloadFile()` für Blob-CSV-Downloads |
 
 ---
 

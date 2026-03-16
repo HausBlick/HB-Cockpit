@@ -24,6 +24,9 @@ let _finState = {
     isBeirat:         false,
     beiratBuildingId: null,
     beiratFiscalYear: null,
+    // Jahresabrechnung
+    jabStep:  1,
+    jabData:  {},   // { fy, from, to, entries, accounts, distKeys, heatingMode, heatingManual, sollIst }
     // Onboarding
     onboardStep:      1,
     onboardBankRows:  [],
@@ -95,8 +98,11 @@ function _finRenderShell() {
         { key: 'sollstellung',    label: 'Sollstellungen' },
         { key: 'wirtschaftsplan', label: 'Wirtschaftsplan' },
         { key: 'ruecklage',       label: 'Rücklage' },
-        { key: 'belegpruefung',   label: 'Belegprüfung' },
-        { key: 'onboarding',      label: 'Onboarding' },
+        { key: 'belegpruefung',     label: 'Belegprüfung' },
+        { key: 'jahresabrechnung',  label: 'Jahresabrechnung' },
+        { key: 'mahnwesen',         label: 'Mahnwesen' },
+        { key: 'datev',             label: 'DATEV-Export' },
+        { key: 'onboarding',        label: 'Onboarding' },
     ];
 
     const buildingOpts = _finState.buildings.map(b =>
@@ -151,6 +157,9 @@ async function _finLoadTab(tab) {
     else if (tab === 'wirtschaftsplan')   await _finLoadWirtschaftsplan();
     else if (tab === 'ruecklage')         await _finLoadRuecklage();
     else if (tab === 'belegpruefung')     await _finLoadBelegpruefung();
+    else if (tab === 'jahresabrechnung')  await _finLoadJahresabrechnung();
+    else if (tab === 'mahnwesen')         await _finLoadMahnwesen();
+    else if (tab === 'datev')             await _finLoadDatev();
     else if (tab === 'onboarding')        _finRenderOnboarding();
 }
 
@@ -1717,4 +1726,810 @@ async function _finRenderBeiratView() {
                 </table>
             </div>
         </div>`;
+}
+
+// ============================================================
+// ─── Tab 9: Jahresabrechnung ──────────────────────────────────
+// ============================================================
+
+async function _finLoadJahresabrechnung() {
+    const bid = _finState.buildingId;
+    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-sm">Kein Gebäude gewählt.</p>'; return; }
+    _finRenderJAB();
+}
+
+function _finRenderJAB() {
+    const step = _finState.jabStep;
+    const fy   = _finState.jabData.fy || _finState.fiscalYear;
+
+    const stepDots = [1,2,3,4,5].map(i =>
+        `<div class="flex items-center gap-1">
+            <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 ${i === step ? 'bg-hb-olive text-white border-hb-olive' : i < step ? 'bg-hb-olive/20 text-hb-olive border-hb-olive/30' : 'bg-gray-50 border-gray-200 text-gray-300'}">${i}</div>
+            ${i < 5 ? '<div class="w-4 h-px bg-gray-200"></div>' : ''}
+        </div>`
+    ).join('');
+
+    let content = '';
+    if (step === 1)      content = _finJABStep1Html(fy);
+    else if (step === 2) content = _finJABStep2Html();
+    else if (step === 3) content = _finJABStep3Html();
+    else if (step === 4) content = _finJABStep4Html();
+    else if (step === 5) content = _finJABStep5Html();
+
+    document.getElementById('fin-content').innerHTML = `
+        <div class="card p-6">
+            <div class="flex items-center justify-between mb-5">
+                <div>
+                    <h3 class="text-base font-extrabold text-hb-offblack">Jahresabrechnung / Hausgeldabrechnung</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Geldflussprinzip — nur tatsächliche Zahlungsströme werden abgerechnet.</p>
+                </div>
+                <div class="flex items-center gap-1">${stepDots}</div>
+            </div>
+            ${content}
+        </div>`;
+}
+
+function _finJABStep1Html(fy) {
+    const fyOpts = [fy+1, fy, fy-1, fy-2].map(y => `<option value="${y}" ${y==fy?'selected':''}>${y}</option>`).join('');
+    const hasPlan = _finState.plans.some(p => p.fiscal_year == fy && ['active','approved'].includes(p.status));
+    return `
+        <div class="max-w-lg space-y-4">
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Wirtschaftsjahr</label>
+                    <select id="jab-fy" class="text-sm">${fyOpts}</select></div>
+                <div></div>
+                <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Zeitraum von</label>
+                    <input id="jab-from" type="date" value="${fy}-01-01"></div>
+                <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Zeitraum bis</label>
+                    <input id="jab-to" type="date" value="${fy}-12-31"></div>
+            </div>
+            ${!hasPlan ? `<div class="bg-hb-orange/10 border border-hb-orange/20 rounded-[15px] p-4 text-sm text-hb-orange font-semibold">
+                ⚠ Kein aktiver Wirtschaftsplan für ${fy} gefunden. Die Abrechnung ist trotzdem möglich.
+            </div>` : ''}
+        </div>
+        <div class="flex gap-3 mt-5">
+            <button onclick="_finJABNext(1)" class="btn-primary text-sm px-6 py-2.5">Weiter →</button>
+        </div>`;
+}
+
+function _finJABStep2Html() {
+    const d  = _finState.jabData;
+    const accs = _finState.accounts;
+    const accMap = {};
+    for (const a of accs) accMap[a.id] = a;
+
+    // Aggregiere Buchungen pro Konto
+    const soll = {}, haben = {};
+    for (const e of (d.entries || [])) {
+        soll[e.debit_account_id]   = (soll[e.debit_account_id]  || 0) + Number(e.amount);
+        haben[e.credit_account_id] = (haben[e.credit_account_id] || 0) + Number(e.amount);
+    }
+    const allIds = new Set([...Object.keys(soll), ...Object.keys(haben)].map(Number));
+    const rows = [...allIds].map(id => {
+        const a = accMap[id];
+        const s = soll[id] || 0, h = haben[id] || 0, sal = s - h;
+        return `<tr class="hover:bg-gray-50/60">
+            <td class="px-4 py-3 text-xs font-mono text-gray-500">${a?.account_number||'–'}</td>
+            <td class="px-4 py-3 text-sm">${a?.account_name||'–'}</td>
+            <td class="px-4 py-3 text-sm text-right">${s.toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3 text-sm text-right">${h.toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3 text-sm font-bold text-right ${sal>0?'text-hb-orange':sal<0?'text-green-700':'text-gray-400'}">${sal.toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
+        </tr>`;
+    }).join('');
+
+    return `
+        <p class="text-sm text-gray-500 mb-3">Ist-Buchungen ${d.from} – ${d.to}: <strong>${(d.entries||[]).length}</strong> Buchungen</p>
+        <div class="overflow-x-auto max-h-[400px] overflow-y-auto rounded-lg border border-hb-olive/10">
+            <table class="w-full">
+                <thead class="bg-gray-50 sticky top-0"><tr>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Kto.</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Konto</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Soll-Summe</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Haben-Summe</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Saldo</th>
+                </tr></thead>
+                <tbody class="divide-y divide-hb-olive/10">${rows||'<tr><td colspan="5" class="px-4 py-8 text-center text-sm text-gray-400">Keine Buchungen im Zeitraum.</td></tr>'}</tbody>
+            </table>
+        </div>
+        <div class="flex gap-3 mt-5">
+            <button onclick="_finState.jabStep=1;_finRenderJAB()" class="btn-secondary text-sm px-5 py-2.5">← Zurück</button>
+            <button onclick="_finJABNext(2)" class="btn-primary text-sm px-6 py-2.5">Weiter →</button>
+        </div>`;
+}
+
+function _finJABStep3Html() {
+    const expenseAccs = _finState.accounts.filter(a => a.account_type === 'expense');
+    const distKeys = _finState.jabData.distKeys || {};
+    const rows = expenseAccs.map(a => `
+        <tr class="hover:bg-gray-50/60">
+            <td class="px-4 py-3 text-xs font-mono text-gray-500">${a.account_number}</td>
+            <td class="px-4 py-3 text-sm">${a.account_name}</td>
+            <td class="px-4 py-3">
+                <select data-acc-id="${a.id}" class="jab-dist-key text-sm w-40"
+                    onchange="_finJABDistChange(${a.id},this.value)">
+                    <option value="mea"   ${(distKeys[a.id]||'mea')==='mea'   ?'selected':''}>MEA</option>
+                    <option value="sqm"   ${distKeys[a.id]==='sqm'   ?'selected':''}>Wohnfläche m²</option>
+                    <option value="units" ${distKeys[a.id]==='units' ?'selected':''}>Einheiten</option>
+                    <option value="custom"${distKeys[a.id]==='custom'?'selected':''}>Custom</option>
+                </select>
+            </td>
+        </tr>`).join('');
+
+    return `
+        <div class="mb-4">
+            <h4 class="text-sm font-bold text-hb-offblack mb-1">Umlageschlüssel pro Kostenkonto</h4>
+            <div class="overflow-x-auto rounded-lg border border-hb-olive/10 mb-5">
+                <table class="w-full">
+                    <thead class="bg-gray-50"><tr>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Kto.</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Konto</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Schlüssel</th>
+                    </tr></thead>
+                    <tbody class="divide-y divide-hb-olive/10">${rows||'<tr><td colspan="3" class="px-4 py-6 text-center text-sm text-gray-400">Keine Aufwandskonten.</td></tr>'}</tbody>
+                </table>
+            </div>
+            <h4 class="text-sm font-bold text-hb-offblack mb-2">Heizkosten-Abrechnung</h4>
+            <div class="flex gap-4">
+                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="radio" name="jab-heating" value="A" ${(_finState.jabData.heatingMode||'A')==='A'?'checked':''} onchange="_finState.jabData.heatingMode='A';_finRenderJAB()"> 
+                    Option A — Messdienstleister (manuelle Festbeträge)
+                </label>
+                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="radio" name="jab-heating" value="B" ${_finState.jabData.heatingMode==='B'?'checked':''} onchange="_finState.jabData.heatingMode='B';_finRenderJAB()">
+                    Option B — Selbstabrechner (50% Verbrauch / 50% Fläche, HeizkostenV)
+                </label>
+            </div>
+            ${(_finState.jabData.heatingMode||'A')==='A' ? `
+            <div class="mt-3 p-4 bg-hb-ultralight rounded-lg">
+                <p class="text-xs text-gray-500 mb-2">Heizkosten-Festbetrag pro Einheit eingeben (leer = keine Heizkosten-Abrechnung für diese Einheit):</p>
+                ${(_finState.apartments||[]).map(apt => `
+                    <div class="flex items-center gap-3 mb-1.5">
+                        <span class="text-sm w-24 font-semibold">${apt.apartment_number}</span>
+                        <input type="number" step="0.01" min="0" data-apt-id="${apt.id}" data-heat="A"
+                            value="${_finState.jabData.heatingManual?.[apt.id]||''}"
+                            placeholder="0,00" class="w-28 text-sm text-right rounded-lg border border-gray-200 bg-white px-2 py-1 focus:border-hb-olive focus:outline-none">
+                        <span class="text-xs text-gray-400">€</span>
+                    </div>`).join('')}
+            </div>` : `
+            <div class="mt-3 p-4 bg-hb-ultralight rounded-lg text-sm text-gray-500">
+                Heizkosten werden automatisch aus den Zählerständen berechnet (50% Verbrauch / 50% Wohnfläche nach HeizkostenV).
+                Fehlende Zählerstände werden auf Basis des Vorjahresverbrauchs + 10% geschätzt und auf der Abrechnung ausgewiesen.
+            </div>`}
+        </div>
+        <div class="flex gap-3 mt-5">
+            <button onclick="_finState.jabStep=2;_finRenderJAB()" class="btn-secondary text-sm px-5 py-2.5">← Zurück</button>
+            <button onclick="_finJABNext(3)" class="btn-primary text-sm px-6 py-2.5">Weiter →</button>
+        </div>`;
+}
+
+function _finJABStep4Html() {
+    const d    = _finState.jabData;
+    const rows = (d.sollIst || []).map(row => {
+        const diff = row.soll - row.bezahlt;
+        return `<tr class="hover:bg-gray-50/60">
+            <td class="px-4 py-3 text-sm font-semibold">${row.apt_number}</td>
+            <td class="px-4 py-3 text-sm text-gray-600">${row.owner_name||'–'}</td>
+            <td class="px-4 py-3 text-sm text-right">${row.soll.toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3 text-sm text-right">${row.bezahlt.toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3 text-sm font-bold text-right ${diff>0?'text-hb-orange':diff<0?'text-hb-olive':'text-gray-400'}">
+                ${diff>0?'+':''}${diff.toLocaleString('de-DE',{minimumFractionDigits:2})} €
+                ${diff>0?'<span class="text-[10px] ml-1">Nachzahlung</span>':diff<0?'<span class="text-[10px] ml-1">Guthaben</span>':''}
+            </td>
+        </tr>`;
+    }).join('');
+
+    const sonderRows = (d.sonderIst || []).map(l => `
+        <tr class="hover:bg-gray-50/60">
+            <td class="px-4 py-3 text-sm font-semibold">${l.title}</td>
+            <td class="px-4 py-3 text-sm text-right">${Number(l.total_amount).toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3"><span class="text-xs ${l.status==='active'?'bg-green-50 text-green-700':'bg-gray-100 text-gray-600'} font-semibold px-2 py-0.5 rounded-md">${l.status}</span></td>
+        </tr>`).join('');
+
+    return `
+        <div class="bg-hb-ultralight border border-hb-olive/10 rounded-lg p-3 mb-4 text-xs text-gray-500">
+            Bei Eigentümerwechsel im laufenden Jahr wird das gesamte Wirtschaftsjahr mit dem aktuell im System hinterlegten Eigentümer abgerechnet (Stichtagsprinzip). Interne Ausgleiche zwischen Alt- und Neu-Eigentümer erfolgen manuell.
+        </div>
+        <h4 class="text-sm font-bold text-hb-offblack mb-2">Soll-Ist-Abgleich Hausgeld ${d.fy}</h4>
+        <div class="overflow-x-auto rounded-lg border border-hb-olive/10 mb-5">
+            <table class="w-full">
+                <thead class="bg-gray-50"><tr>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Einheit</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Eigentümer</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Soll-HG</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Bezahlt</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Differenz</th>
+                </tr></thead>
+                <tbody class="divide-y divide-hb-olive/10">${rows||'<tr><td colspan="5" class="px-4 py-8 text-center text-sm text-gray-400">Keine Sollstellungen gefunden.</td></tr>'}</tbody>
+            </table>
+        </div>
+        ${(d.sonderIst||[]).length ? `
+        <h4 class="text-sm font-bold text-hb-offblack mb-2">Sonderumlagen</h4>
+        <div class="overflow-x-auto rounded-lg border border-hb-olive/10 mb-5">
+            <table class="w-full">
+                <thead class="bg-gray-50"><tr>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Titel</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Gesamtbetrag</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Status</th>
+                </tr></thead>
+                <tbody class="divide-y divide-hb-olive/10">${sonderRows}</tbody>
+            </table>
+        </div>` : ''}
+        <div class="flex gap-3 mt-5">
+            <button onclick="_finState.jabStep=3;_finRenderJAB()" class="btn-secondary text-sm px-5 py-2.5">← Zurück</button>
+            <button onclick="_finJABNext(4)" class="btn-primary text-sm px-6 py-2.5">Weiter →</button>
+        </div>`;
+}
+
+function _finJABStep5Html() {
+    const d = _finState.jabData;
+    const total = (d.sollIst||[]).reduce((s,r)=>s+(r.soll-r.bezahlt),0);
+    const nachz = (d.sollIst||[]).filter(r=>r.soll-r.bezahlt>0);
+    const gutschr = (d.sollIst||[]).filter(r=>r.soll-r.bezahlt<0);
+
+    const stRows = (d.steuerbescheinigung||[]).map(r=>`
+        <tr class="hover:bg-gray-50/60">
+            <td class="px-4 py-3 text-sm font-semibold">${r.apt_number}</td>
+            <td class="px-4 py-3 text-sm text-gray-600">${r.owner_name||'–'}</td>
+            <td class="px-4 py-3 text-sm font-bold text-right">${r.lohn35a.toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
+        </tr>`).join('');
+
+    return `
+        <div class="grid grid-cols-3 gap-4 mb-5">
+            <div class="card p-4 text-center">
+                <div class="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">Gesamtabweichung</div>
+                <div class="text-xl font-extrabold ${total>0?'text-hb-orange':total<0?'text-hb-olive':'text-gray-400'}">${total.toLocaleString('de-DE',{minimumFractionDigits:2})} €</div>
+            </div>
+            <div class="card p-4 text-center">
+                <div class="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">Nachzahlungen</div>
+                <div class="text-xl font-extrabold text-hb-orange">${nachz.length} Eigentümer</div>
+            </div>
+            <div class="card p-4 text-center">
+                <div class="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">Gutschriften</div>
+                <div class="text-xl font-extrabold text-hb-olive">${gutschr.length} Eigentümer</div>
+            </div>
+        </div>
+
+        ${stRows ? `
+        <h4 class="text-sm font-bold text-hb-offblack mb-2">§35a EStG Steuerbescheinigung</h4>
+        <div class="overflow-x-auto rounded-lg border border-hb-olive/10 mb-5">
+            <table class="w-full">
+                <thead class="bg-gray-50"><tr>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Einheit</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Eigentümer</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Lohnanteil §35a</th>
+                </tr></thead>
+                <tbody class="divide-y divide-hb-olive/10">${stRows}</tbody>
+            </table>
+        </div>` : ''}
+
+        <div class="flex flex-wrap gap-3 mt-5">
+            <button onclick="_finState.jabStep=4;_finRenderJAB()" class="btn-secondary text-sm px-5 py-2.5">← Zurück</button>
+            <button onclick="_finJABAbschluss()" class="btn-primary text-sm px-6 py-2.5">Abrechnung abschließen & Buchungen sperren</button>
+            <button onclick="_finJABExportCSV()" class="text-xs text-hb-olive bg-hb-ultralight border border-hb-olive/20 px-4 py-2.5 rounded-lg font-semibold hover:bg-gray-100 transition-colors">Als CSV exportieren</button>
+        </div>`;
+}
+
+window._finJABDistChange = (accId, val) => {
+    if (!_finState.jabData.distKeys) _finState.jabData.distKeys = {};
+    _finState.jabData.distKeys[accId] = val;
+};
+
+window._finJABNext = async (fromStep) => {
+    const bid = _finState.buildingId;
+
+    if (fromStep === 1) {
+        const fy   = Number(document.getElementById('jab-fy')?.value);
+        const from = document.getElementById('jab-from')?.value;
+        const to   = document.getElementById('jab-to')?.value;
+        if (!from || !to) { showToast('Bitte Zeitraum eingeben.', 'error'); return; }
+
+        const accs = _finState.accounts.length ? _finState.accounts : await _finGetAccounts(bid);
+        _finState.accounts = accs;
+
+        const { data: entries } = await _supabase.from('journal_entries').select('*')
+            .eq('building_id', bid)
+            .gte('entry_date', from)
+            .lte('entry_date', to)
+            .order('entry_date');
+
+        _finState.jabData = { fy, from, to, entries: entries||[], distKeys: {}, heatingMode: 'A', heatingManual: {} };
+        _finState.jabStep = 2;
+        _finRenderJAB();
+
+    } else if (fromStep === 2) {
+        _finState.jabStep = 3;
+
+        // Apartments laden falls nötig
+        if (!_finState.apartments.length) {
+            const { data: apts } = await _supabase.from('apartments').select('id,apartment_number,sq_meters').eq('building_id', bid).order('apartment_number');
+            _finState.apartments = apts || [];
+        }
+        _finRenderJAB();
+
+    } else if (fromStep === 3) {
+        // Heizkosten-Manualwerte einlesen
+        document.querySelectorAll('[data-heat="A"]').forEach(inp => {
+            const aptId = Number(inp.dataset.aptId);
+            const val   = parseFloat(inp.value);
+            if (!isNaN(val)) _finState.jabData.heatingManual[aptId] = val;
+        });
+
+        // Für Option B: HeizkostenV-Berechnung
+        if (_finState.jabData.heatingMode === 'B') {
+            await _calcHeatingCostsB();
+        }
+
+        // Soll-Ist-Abgleich laden
+        await _finJABLoadSollIst();
+        _finState.jabStep = 4;
+        _finRenderJAB();
+
+    } else if (fromStep === 4) {
+        // §35a Steuerbescheinigung aufbereiten
+        const d = _finState.jabData;
+        const aptMap = {};
+        for (const apt of (_finState.apartments||[])) aptMap[apt.id] = apt;
+
+        const stMap = {};
+        for (const e of (d.entries||[])) {
+            if (Number(e.lohn_anteil_35a) > 0) {
+                const row = d.sollIst?.find(r => r.apt_id == e.apartment_id);
+                const key = e.apartment_id || 'allgemein';
+                stMap[key] = (stMap[key] || 0) + Number(e.lohn_anteil_35a);
+            }
+        }
+        d.steuerbescheinigung = Object.entries(stMap).map(([aptId, lohn35a]) => {
+            const row = d.sollIst?.find(r => r.apt_id == aptId);
+            return { apt_number: row?.apt_number || 'Allgemein', owner_name: row?.owner_name, lohn35a };
+        });
+
+        _finState.jabStep = 5;
+        _finRenderJAB();
+    }
+};
+
+async function _finJABLoadSollIst() {
+    const bid = _finState.buildingId;
+    const d   = _finState.jabData;
+
+    const [{ data: demands }, { data: sonderlev }, { data: ownerships }] = await Promise.all([
+        _supabase.from('payment_demands').select('apartment_id, amount, status, demand_type')
+            .eq('building_id', bid).eq('fiscal_year', d.fy).eq('demand_type', 'hausgeld'),
+        _supabase.from('special_levies').select('*').eq('building_id', bid).eq('fiscal_year', d.fy),
+        _supabase.from('ownerships').select('apartment_id, owner:profiles(full_name)').eq('is_active', true),
+    ]);
+
+    // Per apartment aggregieren
+    const aptMap = {};
+    for (const apt of (_finState.apartments||[])) {
+        aptMap[apt.id] = { apt_id: apt.id, apt_number: apt.apartment_number, soll: 0, bezahlt: 0, owner_name: '' };
+    }
+    for (const o of (ownerships||[])) {
+        if (aptMap[o.apartment_id]) aptMap[o.apartment_id].owner_name = o.owner?.full_name || '–';
+    }
+    for (const dem of (demands||[])) {
+        if (!aptMap[dem.apartment_id]) aptMap[dem.apartment_id] = { apt_id: dem.apartment_id, apt_number: '?', soll: 0, bezahlt: 0, owner_name: '' };
+        aptMap[dem.apartment_id].soll += Number(dem.amount);
+        if (dem.status === 'paid') aptMap[dem.apartment_id].bezahlt += Number(dem.amount);
+    }
+
+    d.sollIst    = Object.values(aptMap).filter(r => r.soll > 0);
+    d.sonderIst  = sonderlev || [];
+}
+
+async function _calcHeatingCostsB() {
+    const bid = _finState.buildingId;
+    const d   = _finState.jabData;
+    const apts = _finState.apartments || [];
+    const fy   = d.fy;
+
+    // Heizungs-Zähler laden
+    const aptIds = apts.map(a => a.id);
+    const { data: heatingMeters } = await _supabase.from('meters')
+        .select('id, apartment_id').in('apartment_id', aptIds).eq('meter_type', 'heating').eq('is_active', true);
+
+    if (!heatingMeters?.length) return;
+
+    const meterIds = heatingMeters.map(m => m.id);
+    const [{ data: curReadings }, { data: prevReadings }] = await Promise.all([
+        _supabase.from('meter_readings').select('meter_id, reading_value, reading_date')
+            .in('meter_id', meterIds).gte('reading_date', `${fy}-01-01`).lte('reading_date', `${fy}-12-31`)
+            .order('reading_date', { ascending: false }),
+        _supabase.from('meter_readings').select('meter_id, reading_value, reading_date')
+            .in('meter_id', meterIds).gte('reading_date', `${fy-1}-01-01`).lte('reading_date', `${fy-1}-12-31`)
+            .order('reading_date', { ascending: false }),
+    ]);
+
+    // Letzten Wert pro Zähler
+    const lastCur  = {}, lastPrev = {};
+    for (const r of (curReadings||[]))  { if (!lastCur[r.meter_id])  lastCur[r.meter_id]  = r.reading_value; }
+    for (const r of (prevReadings||[])) { if (!lastPrev[r.meter_id]) lastPrev[r.meter_id] = r.reading_value; }
+
+    // Verbrauch pro Einheit (cur - prev, Schätzung wenn kein Wert)
+    const aptVerbrauch = {};
+    let totalVerbrauch = 0;
+    for (const m of heatingMeters) {
+        const cur  = lastCur[m.id];
+        const prev = lastPrev[m.id];
+        let verbrauch = cur != null && prev != null ? cur - prev : null;
+        if (verbrauch == null) {
+            // Schätzung: Durchschnitt aller vorhandenen Werte + 10%
+            const known = Object.values(aptVerbrauch).filter(v => v !== null);
+            verbrauch = known.length ? (known.reduce((s,v)=>s+v,0) / known.length) * 1.1 : 0;
+            d.hasEstimates = true;
+        }
+        aptVerbrauch[m.apartment_id] = verbrauch;
+        totalVerbrauch += verbrauch;
+    }
+
+    // Heizkosten aus Buchungen (Aufwandskonten)
+    const heatingAmount = (d.entries||[])
+        .filter(e => _finState.accounts.find(a => a.id == e.debit_account_id && a.account_type === 'expense'))
+        .reduce((s, e) => s + Number(e.amount), 0);
+
+    // 50% Verbrauch, 50% Fläche
+    const totalSqm = apts.reduce((s, a) => s + Number(a.sq_meters||0), 0);
+    for (const apt of apts) {
+        const verbrauchAnteil = totalVerbrauch > 0 ? (aptVerbrauch[apt.id]||0) / totalVerbrauch : 0;
+        const flaecheAnteil   = totalSqm > 0 ? Number(apt.sq_meters||0) / totalSqm : 0;
+        d.heatingManual[apt.id] = heatingAmount * 0.5 * verbrauchAnteil + heatingAmount * 0.5 * flaecheAnteil;
+    }
+}
+
+window._finJABAbschluss = async () => {
+    if (!confirm('Abrechnung abschließen? Buchungen des Abrechnungszeitraums werden gesperrt.')) return;
+    const d = _finState.jabData;
+
+    // journal_entries is_locked setzen
+    const { error } = await _supabase.from('journal_entries')
+        .update({ is_locked: true })
+        .eq('building_id', _finState.buildingId)
+        .gte('entry_date', d.from)
+        .lte('entry_date', d.to);
+    if (error) { showToast('Fehler beim Sperren: ' + error.message, 'error'); return; }
+
+    // Nachzahlungs-Demands erstellen
+    const nachzRows = (d.sollIst||[]).filter(r => r.soll - r.bezahlt > 0.01);
+    if (nachzRows.length) {
+        const inserts = nachzRows.map(r => ({
+            building_id:  _finState.buildingId,
+            apartment_id: r.apt_id,
+            demand_type:  'abrechnungsspitze',
+            amount:       Math.round((r.soll - r.bezahlt) * 100) / 100,
+            due_date:     new Date(Date.now() + 30*86400000).toISOString().split('T')[0],
+            fiscal_year:  d.fy,
+            status:       'open',
+        }));
+        await _supabase.from('payment_demands').insert(inserts);
+    }
+
+    // budget_plan status=closed
+    const plan = _finState.plans.find(p => p.fiscal_year == d.fy && p.building_id == _finState.buildingId);
+    if (plan) await _supabase.from('budget_plans').update({ status: 'closed' }).eq('id', plan.id);
+
+    showToast('Abrechnung abgeschlossen. Buchungen gesperrt, Abrechnungsspitzen angelegt.', 'success');
+};
+
+window._finJABExportCSV = () => {
+    const d   = _finState.jabData;
+    const rows = [['Einheit','Eigentümer','Soll-HG (€)','Bezahlt (€)','Differenz (€)','Typ']];
+    for (const r of (d.sollIst||[])) {
+        const diff = r.soll - r.bezahlt;
+        rows.push([r.apt_number, r.owner_name||'', r.soll.toFixed(2), r.bezahlt.toFixed(2), diff.toFixed(2), diff>0?'Nachzahlung':diff<0?'Guthaben':'Ausgeglichen']);
+    }
+    for (const l of (d.sonderIst||[])) {
+        rows.push([l.title,'','',Number(l.total_amount).toFixed(2),'','Sonderumlage']);
+    }
+    const csv = '\uFEFF' + rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(';')).join('\r\n');
+    _finDownloadFile(csv, `Jahresabrechnung_${d.fy}_${_finState.buildingId}.csv`, 'text/csv;charset=utf-8');
+};
+
+// ============================================================
+// ─── Tab 10: Mahnwesen ────────────────────────────────────────
+// ============================================================
+
+async function _finLoadMahnwesen() {
+    const bid = _finState.buildingId;
+    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-sm">Kein Gebäude gewählt.</p>'; return; }
+
+    const today = new Date().toISOString().split('T')[0];
+    const [{ data: overdue }, { data: notices }] = await Promise.all([
+        _supabase.from('payment_demands')
+            .select('id, apartment_id, amount, due_date, status, demand_type, apartment:apartments(apartment_number), person:profiles(full_name)')
+            .eq('building_id', bid)
+            .or(`status.eq.overdue,and(status.eq.open,due_date.lt.${today})`)
+            .order('due_date'),
+        _supabase.from('dunning_notices')
+            .select('*, person:profiles(full_name), demand:payment_demands(apartment_id, apartment:apartments(apartment_number))')
+            .eq('building_id', bid)
+            .order('created_at', { ascending: false })
+            .limit(50),
+    ]);
+
+    const overdueRows = (overdue||[]).map(d => {
+        const days = Math.ceil((Date.now() - new Date(d.due_date).getTime()) / 86400000);
+        return `<tr class="hover:bg-gray-50/60">
+            <td class="px-3 py-3"><input type="checkbox" class="mahn-check" data-id="${d.id}" data-amount="${d.amount}" data-person="${d.person?.full_name||''}" data-apt="${d.apartment?.apartment_number||''}"></td>
+            <td class="px-4 py-3 text-sm text-gray-500">${d.due_date}</td>
+            <td class="px-4 py-3 text-sm font-semibold">${d.apartment?.apartment_number||'–'}</td>
+            <td class="px-4 py-3 text-sm text-gray-600">${d.person?.full_name||'–'}</td>
+            <td class="px-4 py-3 text-sm font-bold text-right">${Number(d.amount).toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3 text-center"><span class="text-xs bg-hb-orange/10 text-hb-orange font-semibold px-2 py-0.5 rounded-md">${days} Tage</span></td>
+        </tr>`;
+    }).join('');
+
+    const dunningBadge = l => l==1?'<span class="text-xs bg-gray-100 text-gray-600 font-semibold px-2 py-0.5 rounded-md">Stufe 1</span>'
+        :l==2?'<span class="text-xs bg-hb-orange/15 text-hb-orange font-semibold px-2 py-0.5 rounded-md">Stufe 2</span>'
+        :'<span class="text-xs bg-red-50 text-red-600 font-semibold px-2 py-0.5 rounded-md">Stufe 3</span>';
+    const noticeRows = (notices||[]).map(n => `
+        <tr class="hover:bg-gray-50/60">
+            <td class="px-4 py-3 text-sm text-gray-500">${n.created_at?.split('T')[0]||'–'}</td>
+            <td class="px-4 py-3 text-sm text-gray-600">${n.person?.full_name||'–'}</td>
+            <td class="px-4 py-3 text-sm font-semibold">${n.demand?.apartment?.apartment_number||'–'}</td>
+            <td class="px-4 py-3">${dunningBadge(n.dunning_level)}</td>
+            <td class="px-4 py-3 text-sm text-right">${Number(n.amount||0).toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3 text-sm text-right text-hb-orange">${Number(n.fee||0).toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3 text-sm font-bold text-right">${(Number(n.amount||0)+Number(n.fee||0)).toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3 text-center">
+                ${n.status!=='paid'?`<button onclick="_finNoticePaid(${n.id},${n.payment_demand_id})" class="text-xs text-hb-olive bg-hb-ultralight px-2 py-1 rounded-lg hover:bg-gray-100">Bezahlt</button>`:'<span class="text-xs text-green-600 font-semibold">Bezahlt</span>'}
+            </td>
+        </tr>`).join('');
+
+    document.getElementById('fin-content').innerHTML = `
+        <!-- Überfällige Posten -->
+        <div class="card overflow-hidden mb-5">
+            <div class="bg-hb-olive px-5 py-3 flex justify-between items-center">
+                <span class="text-sm font-bold text-white">Überfällige Sollstellungen (${(overdue||[]).length})</span>
+                <button onclick="_finSelectAllChecks()" class="bg-white text-hb-olive text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">Alle auswählen</button>
+            </div>
+            <table class="w-full">
+                <thead class="bg-gray-50"><tr>
+                    <th class="px-3 py-3 w-8"></th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Fälligkeit</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Einheit</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Person</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Betrag</th>
+                    <th class="px-4 py-3 text-center text-xs font-bold text-gray-500">Überfällig</th>
+                </tr></thead>
+                <tbody class="divide-y divide-hb-olive/10">${overdueRows||'<tr><td colspan="6" class="px-4 py-8 text-center text-sm text-gray-400">Keine überfälligen Posten. ✓</td></tr>'}</tbody>
+            </table>
+        </div>
+
+        <!-- Mahnlauf -->
+        <div class="card p-5 mb-5">
+            <h3 class="text-sm font-bold text-hb-offblack mb-3">Mahnlauf starten</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
+                <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Mahnstufe</label>
+                    <select id="mahn-level" class="text-sm">
+                        <option value="1">Stufe 1 — Zahlungserinnerung</option>
+                        <option value="2">Stufe 2 — Mahnung</option>
+                        <option value="3">Stufe 3 — Letzte Mahnung</option>
+                    </select></div>
+                <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Basiszinssatz (%/Jahr)</label>
+                    <input id="mahn-rate" type="number" step="0.01" value="3.37" class="text-sm"></div>
+                <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Mahngebühr (€)</label>
+                    <input id="mahn-fee" type="number" step="0.01" value="0" class="text-sm"></div>
+                <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Fälligkeit Mahnung</label>
+                    <input id="mahn-due" type="date" value="${new Date(Date.now()+14*86400000).toISOString().split('T')[0]}" class="text-sm"></div>
+            </div>
+            <div id="mahn-level-fee-hint" class="text-xs text-gray-400 mt-2">Stufe 1: 0€ | Stufe 2: 5€ | Stufe 3: 10€ (empfohlen, editierbar)</div>
+            <div class="flex gap-3 mt-4">
+                <button onclick="_finCreateDunning()" class="btn-primary text-sm px-5 py-2.5">Mahnungen erstellen</button>
+            </div>
+        </div>
+
+        <!-- Mahnungs-Tabelle -->
+        <div class="card overflow-hidden">
+            <div class="bg-hb-olive px-5 py-3">
+                <span class="text-sm font-bold text-white">Mahnungsverlauf</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50"><tr>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Datum</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Person</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Einheit</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Stufe</th>
+                        <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Betrag</th>
+                        <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Geb.+Zinsen</th>
+                        <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Gesamt</th>
+                        <th class="px-4 py-3 text-right text-xs font-bold text-gray-500"></th>
+                    </tr></thead>
+                    <tbody class="divide-y divide-hb-olive/10">${noticeRows||'<tr><td colspan="8" class="px-4 py-8 text-center text-sm text-gray-400">Keine Mahnungen vorhanden.</td></tr>'}</tbody>
+                </table>
+            </div>
+        </div>`;
+
+    // Mahnstufe → Gebühr vorausfüllen
+    document.getElementById('mahn-level')?.addEventListener('change', function() {
+        const fees = {'1':'0','2':'5','3':'10'};
+        const feeEl = document.getElementById('mahn-fee');
+        if (feeEl) feeEl.value = fees[this.value] || '0';
+    });
+}
+
+window._finSelectAllChecks = () => {
+    document.querySelectorAll('.mahn-check').forEach(c => c.checked = !c.checked);
+};
+
+window._finCreateDunning = async () => {
+    const bid   = _finState.buildingId;
+    const level = Number(document.getElementById('mahn-level')?.value) || 1;
+    const rate  = parseFloat(document.getElementById('mahn-rate')?.value) || 3.37;
+    const fee   = parseFloat(document.getElementById('mahn-fee')?.value) || 0;
+    const due   = document.getElementById('mahn-due')?.value;
+
+    const checked = [...document.querySelectorAll('.mahn-check:checked')];
+    if (!checked.length) { showToast('Bitte mindestens einen Posten auswählen.', 'error'); return; }
+
+    const today   = new Date();
+    const inserts = [];
+    const updateIds = [];
+
+    for (const inp of checked) {
+        const demandId = Number(inp.dataset.id);
+        const amount   = parseFloat(inp.dataset.amount);
+        const demandDate = inp.closest('tr')?.querySelector('td:nth-child(2)')?.textContent?.trim();
+        const daysOverdue = demandDate ? Math.max(0, Math.ceil((today - new Date(demandDate)) / 86400000)) : 0;
+        const interest = Math.round(amount * (rate/100) * daysOverdue / 365 * 100) / 100;
+        const totalFee = fee + interest;
+
+        inserts.push({
+            payment_demand_id: demandId,
+            building_id:       bid,
+            dunning_level:     level,
+            amount:            amount,
+            fee:               totalFee,
+            due_date:          due || new Date(Date.now()+14*86400000).toISOString().split('T')[0],
+            status:            'open',
+            created_by:        currentUser.id,
+        });
+        updateIds.push(demandId);
+    }
+
+    const { error } = await _supabase.from('dunning_notices').insert(inserts);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+
+    if (updateIds.length) {
+        await _supabase.from('payment_demands').update({ status: 'overdue' }).in('id', updateIds);
+    }
+    showToast(`${inserts.length} Mahnung(en) erstellt.`, 'success');
+    await _finLoadMahnwesen();
+};
+
+window._finNoticePaid = async (noticeId, demandId) => {
+    await Promise.all([
+        _supabase.from('dunning_notices').update({ status: 'paid' }).eq('id', noticeId),
+        demandId ? _supabase.from('payment_demands').update({ status: 'paid', updated_at: new Date().toISOString() }).eq('id', demandId) : Promise.resolve(),
+    ]);
+    showToast('Als bezahlt markiert.', 'success');
+    await _finLoadMahnwesen();
+};
+
+// ============================================================
+// ─── Tab 11: DATEV-Export ────────────────────────────────────
+// ============================================================
+
+async function _finLoadDatev() {
+    const bid = _finState.buildingId;
+    const fy  = _finState.fiscalYear;
+    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-sm">Kein Gebäude gewählt.</p>'; return; }
+
+    const fyOpts = [fy+1, fy, fy-1, fy-2].map(y => `<option value="${y}" ${y==fy?'selected':''}>${y}</option>`).join('');
+
+    document.getElementById('fin-content').innerHTML = `
+        <div class="card p-6 max-w-lg">
+            <h3 class="text-base font-extrabold text-hb-offblack mb-4">DATEV-Export konfigurieren</h3>
+            <div class="space-y-3">
+                <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Wirtschaftsjahr</label>
+                    <select id="datev-fy" class="text-sm">${fyOpts}</select></div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Zeitraum von</label>
+                        <input id="datev-from" type="date" value="${fy}-01-01"></div>
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Zeitraum bis</label>
+                        <input id="datev-to" type="date" value="${fy}-12-31"></div>
+                </div>
+                <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Kontenrahmen</label>
+                    <select id="datev-skr" class="text-sm">
+                        <option value="SKR03" selected>SKR03</option>
+                        <option value="SKR04">SKR04</option>
+                    </select></div>
+                <div class="bg-hb-ultralight border border-hb-olive/10 rounded-lg p-3 text-xs text-gray-500">
+                    Export im DATEV Buchungsstapel-Format (UTF-8 mit BOM, Semikolon-getrennt). Kompatibel mit DATEV Unternehmen online und gängigen Steuerberater-Systemen.
+                </div>
+            </div>
+            <div class="flex flex-col gap-3 mt-5">
+                <button onclick="_finExportDatev()" class="btn-primary text-sm py-3">DATEV-Export generieren &amp; herunterladen</button>
+                <button onclick="_fin35aExport()" class="text-xs text-hb-olive bg-hb-ultralight border border-hb-olive/20 px-4 py-2.5 rounded-lg font-semibold hover:bg-gray-100 transition-colors text-center">
+                    §35a EStG Steuerbescheinigung (separate CSV)
+                </button>
+            </div>
+        </div>`;
+}
+
+window._finExportDatev = async () => {
+    const bid  = _finState.buildingId;
+    const from = document.getElementById('datev-from')?.value;
+    const to   = document.getElementById('datev-to')?.value;
+    const fy   = document.getElementById('datev-fy')?.value;
+    const skr  = document.getElementById('datev-skr')?.value || 'SKR03';
+    if (!from || !to) { showToast('Bitte Zeitraum angeben.', 'error'); return; }
+
+    const accs = _finState.accounts.length ? _finState.accounts : await _finGetAccounts(bid);
+    _finState.accounts = accs;
+    const accMap = {};
+    for (const a of accs) accMap[a.id] = a;
+
+    const { data: entries } = await _supabase.from('journal_entries').select('*')
+        .eq('building_id', bid).gte('entry_date', from).lte('entry_date', to)
+        .order('entry_date');
+
+    if (!entries?.length) { showToast('Keine Buchungen im Zeitraum.', 'error'); return; }
+
+    // DATEV Buchungsstapel Header (vereinfacht)
+    const datevHeader = [
+        `"EXTF";700;21;"Buchungsstapel";2;${new Date().toISOString().replace(/[-:T]/g,'').slice(0,14)};;"";;"";1;${fy};4;${from.replace(/-/g,'')};${to.replace(/-/g,'')};;"${skr}";"";0;"";"";"Mieterportal";"";"";"";"";"";"";""`,
+        '"Umsatz (ohne Soll/Haben-Kz)";"Soll/Haben-Kennzeichen";"WKZ Umsatz";"Kurs";"Basis-Umsatz";"WKZ Basis-Umsatz";"Konto";"Gegenkonto (ohne BU-Schlüssel)";"BU-Schlüssel";"Belegdatum";"Belegfeld 1";"Belegfeld 2";"Skonto";"Buchungstext"'
+    ];
+
+    const dataRows = entries.map(e => {
+        const debitAcc  = accMap[e.debit_account_id];
+        const creditAcc = accMap[e.credit_account_id];
+        const dateParts = e.entry_date?.split('-') || ['','',''];
+        const belegDat  = `${dateParts[2]}${dateParts[1]}`;     // DDMM for DATEV
+        const amount    = Number(e.amount).toFixed(2).replace('.',',');
+        const desc      = (e.description||'').replace(/"/g,'""').slice(0,60);
+        const ref       = (e.reference_number||'').replace(/"/g,'""').slice(0,36);
+        return `"${amount}";"S";"EUR";"";"";"";"${debitAcc?.account_number||''}";"${creditAcc?.account_number||''}";"";"${belegDat}";"${ref}";"";"0";"${desc}"`;
+    });
+
+    const csv = '\uFEFF' + datevHeader.join('\r\n') + '\r\n' + dataRows.join('\r\n');
+    _finDownloadFile(csv, `DATEV_${skr}_${fy}_${from}_${to}.csv`, 'text/csv;charset=utf-8');
+    showToast(`${entries.length} Buchungen als DATEV-CSV exportiert.`, 'success');
+};
+
+window._fin35aExport = async () => {
+    const bid  = _finState.buildingId;
+    const from = document.getElementById('datev-from')?.value;
+    const to   = document.getElementById('datev-to')?.value;
+    const fy   = document.getElementById('datev-fy')?.value;
+    if (!from || !to) { showToast('Bitte Zeitraum angeben.', 'error'); return; }
+
+    const { data: entries } = await _supabase.from('journal_entries')
+        .select('entry_date, description, apartment_id, lohn_anteil_35a, apartment:apartments(apartment_number)')
+        .eq('building_id', bid).gte('entry_date', from).lte('entry_date', to)
+        .gt('lohn_anteil_35a', 0);
+
+    if (!entries?.length) { showToast('Keine §35a-Buchungen im Zeitraum.', 'error'); return; }
+
+    // Aggregieren nach Einheit
+    const aptMap = {};
+    for (const e of entries) {
+        const key = e.apartment_id || 'allgemein';
+        if (!aptMap[key]) aptMap[key] = { apt: e.apartment?.apartment_number || 'Allgemein', total: 0, rows: [] };
+        aptMap[key].total += Number(e.lohn_anteil_35a);
+        aptMap[key].rows.push(e);
+    }
+
+    const rows = [['Einheit','Beschreibung','Datum','Lohnanteil §35a (€)']];
+    for (const [, v] of Object.entries(aptMap)) {
+        for (const e of v.rows) {
+            rows.push([v.apt, e.description, e.entry_date, Number(e.lohn_anteil_35a).toFixed(2)]);
+        }
+        rows.push([v.apt, 'GESAMT', '', v.total.toFixed(2)]);
+    }
+
+    const csv = '\uFEFF' + rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(';')).join('\r\n');
+    _finDownloadFile(csv, `35a_Steuerbescheinigung_${fy}.csv`, 'text/csv;charset=utf-8');
+    showToast('§35a-Bescheinigung exportiert.', 'success');
+};
+
+// ─── Hilfsfunktion: CSV-Download ─────────────────────────────
+
+function _finDownloadFile(content, filename, mime) {
+    const blob = new Blob([content], { type: mime });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
