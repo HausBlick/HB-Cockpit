@@ -55,6 +55,7 @@ function renderNav(role) {
 
             <li class="nav-section-title">Service & Dokumente</li>
             <li><a onclick="loadDocuments();      setActiveNav(this)" class="nav-link">${icons.docs}      Dokumenten Cloud <span id="nav-badge-docs" class="nav-badge"></span></a></li>
+            <li><a onclick="loadCalendar();       setActiveNav(this)" class="nav-link">${icons.calendar}  Kalender</a></li>
             <li><a onclick="loadSettings();       setActiveNav(this)" class="nav-link">${icons.settings}  Einstellungen</a></li>`;
     } else if (role === 'owner') {
         html += `
