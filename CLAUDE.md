@@ -168,6 +168,7 @@ js/
 - 7.2 **KI-Belegerfassung** (PDF-Upload → OCR via Google Document AI → Buchungsvorschlag) 💡
 - 7.3 **Messdienstleister CSV-Import** (Techem/Ista Ablesewerte als CSV importieren) 💡
 - 7.4 **Einladungscode UI** (aus Phase 2.4 verschoben) 💡
+- 7.5 **Kalender-Ausbau**: manuelle Einträge, Wartungstermine, iCal-Export (.ics) für Sync mit Google/Apple/Outlook 💡
 
 ---
 
