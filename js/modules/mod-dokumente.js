@@ -19,8 +19,11 @@ const KATEGORIEN_MIET      = ['Mietverträge', 'Wohnungsübergabe'];
 const KATEGORIEN_ALLGEMEIN = ['Allgemein'];
 const ALLE_KATEGORIEN      = [...KATEGORIEN_WEG, ...KATEGORIEN_MIET, ...KATEGORIEN_ALLGEMEIN];
 
-// Kategorie-Index-Lookup (für onclick ohne Escape-Probleme)
-window._docsCatByIndex = (idx) => idx === -1 ? null : ALLE_KATEGORIEN[idx];
+window._docsFilterCatIdx = (idx) => {
+    _docsState.category = idx === -1 ? null : ALLE_KATEGORIEN[idx];
+    _renderDocsCategoryList();
+    _renderDocsTable();
+};
 
 let _docsState = {
     category:     null,
@@ -32,11 +35,13 @@ let _docsState = {
     stagingFiles: [],
 };
 
+// Typ-sicherer Lookup (DB-ID ist integer, onclick-String ist string → == statt ===)
+const _docsById = (id) => _docsState.data.find(d => d.id == id);
+
 // ─── Entry Point ───────────────────────────────────────────────
 async function loadDocuments() {
     const container = document.getElementById('content-area');
-    const role = userProfile?.role;
-    const canUpload = role === 'admin' || role === 'manager';
+    const canUpload = userProfile?.role === 'admin' || userProfile?.role === 'manager';
 
     container.innerHTML = `
         <div class="flex justify-between items-end mb-6 text-left">
@@ -60,8 +65,7 @@ async function loadDocuments() {
                         <p class="text-xs font-bold text-white">Gebäude</p>
                     </div>
                     <div class="p-2">
-                        <select id="docs-building-filter" onchange="_docsFilterBuilding(this.value)"
-                            class="w-full text-sm">
+                        <select id="docs-building-filter" onchange="_docsFilterBuilding(this.value)" class="w-full text-sm">
                             <option value="">Alle Gebäude</option>
                         </select>
                     </div>
@@ -97,7 +101,7 @@ async function loadDocuments() {
                                     <th class="p-4">Gebäude</th>
                                     <th class="p-4">Jahr</th>
                                     <th class="p-4">Hochgeladen</th>
-                                    <th class="p-4 text-right">Aktion</th>
+                                    <th class="p-4 text-right">Aktionen</th>
                                 </tr>
                             </thead>
                             <tbody id="docs-table-body" class="text-sm divide-y divide-hb-olive/10">
@@ -144,11 +148,15 @@ async function _loadDocsInit() {
 
 // ─── Daten laden ───────────────────────────────────────────────
 async function _fetchDocs() {
+    const role    = userProfile?.role;
+    const isAdmin = role === 'admin' || role === 'manager';
+
     let q = _supabase.from('documents')
         .select('id, title, category, file_path, file_type, file_size, year, visibility_scope, status, is_deleted, building_id, apartment_id, uploaded_by, created_at, updated_at, buildings(name), profiles!uploaded_by(full_name)')
-        .neq('status', 'draft')
         .order('created_at', { ascending: false });
 
+    // Admins/Manager sehen auch Entwürfe; andere nicht
+    if (!isAdmin) q = q.neq('status', 'draft');
     if (!_docsState.showArchived) q = q.eq('is_deleted', false);
     if (_docsState.buildingId)    q = q.eq('building_id', _docsState.buildingId);
 
@@ -162,9 +170,13 @@ function _renderDocsCategoryList() {
     const el = document.getElementById('docs-category-list');
     if (!el) return;
 
+    // Entwürfe zählen nicht in Kategorien
     const counts = {};
-    _docsState.data.forEach(d => { counts[d.category] = (counts[d.category] || 0) + 1; });
-    const total = _docsState.data.length;
+    _docsState.data
+        .filter(d => d.status !== 'draft')
+        .forEach(d => { counts[d.category] = (counts[d.category] || 0) + 1; });
+    const total = _docsState.data.filter(d => d.status !== 'draft').length;
+    const draftCount = _docsState.data.filter(d => d.status === 'draft').length;
 
     const isAllActive = !_docsState.category;
     let html = `
@@ -174,6 +186,16 @@ function _renderDocsCategoryList() {
             <span>Alle</span>
             <span class="text-xs rounded-md px-1.5 py-0.5 font-bold ${isAllActive ? 'bg-hb-olive text-white' : 'bg-gray-100 text-gray-500'}">${total}</span>
         </button>`;
+
+    if (draftCount > 0) {
+        html += `
+        <button onclick="window._docsFilterCatIdx(-2)"
+            class="w-full text-left px-3 py-2 text-sm flex justify-between items-center hover:bg-gray-50 transition-colors
+            ${_docsState.category === '__draft__' ? 'bg-hb-orange/5 text-hb-orange font-bold' : 'text-gray-500'}">
+            <span>Entwürfe</span>
+            <span class="text-xs rounded-md px-1.5 py-0.5 font-bold ${_docsState.category === '__draft__' ? 'bg-hb-orange text-white' : 'bg-hb-orange/10 text-hb-orange'}">${draftCount}</span>
+        </button>`;
+    }
 
     const groups = [
         { label: 'WEG',       cats: KATEGORIEN_WEG },
@@ -202,8 +224,11 @@ function _renderDocsCategoryList() {
     el.innerHTML = html;
 }
 
+// Index -2 = Entwürfe-Filter
 window._docsFilterCatIdx = (idx) => {
-    _docsState.category = idx === -1 ? null : ALLE_KATEGORIEN[idx];
+    if (idx === -1)      _docsState.category = null;
+    else if (idx === -2) _docsState.category = '__draft__';
+    else                 _docsState.category = ALLE_KATEGORIEN[idx];
     _renderDocsCategoryList();
     _renderDocsTable();
 };
@@ -213,13 +238,18 @@ function _renderDocsTable() {
     const tbody = document.getElementById('docs-table-body');
     if (!tbody) return;
 
-    const filtered = _docsState.category
-        ? _docsState.data.filter(d => d.category === _docsState.category)
-        : _docsState.data;
+    let filtered = _docsState.data;
+    if (_docsState.category === '__draft__') {
+        filtered = filtered.filter(d => d.status === 'draft');
+    } else if (_docsState.category) {
+        filtered = filtered.filter(d => d.category === _docsState.category && d.status !== 'draft');
+    } else {
+        filtered = filtered.filter(d => d.status !== 'draft');
+    }
 
     const titleEl = document.getElementById('docs-list-title');
     const countEl = document.getElementById('docs-count');
-    if (titleEl) titleEl.textContent = _docsState.category || 'Alle Dokumente';
+    if (titleEl) titleEl.textContent = _docsState.category === '__draft__' ? 'Entwürfe' : (_docsState.category || 'Alle Dokumente');
     if (countEl) countEl.textContent = `${filtered.length} Dokument${filtered.length !== 1 ? 'e' : ''}`;
 
     if (!filtered.length) {
@@ -227,17 +257,37 @@ function _renderDocsTable() {
         return;
     }
 
+    const canEdit = userProfile?.role === 'admin' || userProfile?.role === 'manager';
+
+    // SVG-Icons
+    const iconEye = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>`;
+    const iconDl  = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>`;
+
     tbody.innerHTML = filtered.map(d => {
         const isRead     = _docsState.readDocIds.has(d.id);
         const isArchived = d.is_deleted;
+        const isDraft    = d.status === 'draft';
         const iconLabel  = _docsFileIcon(d.file_type);
         const sizeStr    = d.file_size ? _formatFileSize(d.file_size) : '';
         const dateStr    = d.created_at ? new Date(d.created_at).toLocaleDateString('de-DE') : '—';
         const building   = d.buildings?.name || '—';
         const uploader   = d.profiles?.full_name || '—';
 
+        const actionBtns = isDraft && canEdit
+            ? `<button onclick="_publishDoc(${d.id})" title="Freigeben"
+                    class="text-xs text-white bg-hb-olive px-3 py-1.5 rounded-lg hover:bg-hb-olive/80 transition-colors font-semibold flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    Freigeben
+                </button>`
+            : `<div class="flex gap-1 justify-end">
+                <button onclick="_openDocModal(${d.id})" title="Anzeigen"
+                    class="p-2 text-hb-olive bg-hb-ultralight rounded-lg hover:bg-gray-100 transition-colors">${iconEye}</button>
+                <button onclick="_downloadDoc(${d.id})" title="Herunterladen"
+                    class="p-2 text-hb-olive bg-hb-ultralight rounded-lg hover:bg-gray-100 transition-colors">${iconDl}</button>
+               </div>`;
+
         return `
-            <tr onclick="_openDocModal('${d.id}')"
+            <tr onclick="_openDocModal(${d.id})"
                 class="hover:bg-gray-50 transition-colors cursor-pointer ${isArchived ? 'opacity-50' : ''}">
                 <td class="p-4">
                     <div class="flex items-center gap-3">
@@ -245,7 +295,8 @@ function _renderDocsTable() {
                         <div>
                             <div class="font-semibold text-hb-offblack flex items-center gap-2">
                                 ${d.title}
-                                ${!isRead ? '<span class="inline-block w-1.5 h-1.5 rounded-full bg-hb-orange flex-shrink-0"></span>' : ''}
+                                ${isDraft ? '<span class="text-[9px] font-black uppercase bg-hb-orange/10 text-hb-orange px-1.5 py-0.5 rounded">Entwurf</span>' : ''}
+                                ${!isRead && !isDraft ? '<span class="inline-block w-1.5 h-1.5 rounded-full bg-hb-orange flex-shrink-0"></span>' : ''}
                                 ${isArchived ? '<span class="text-[9px] font-black uppercase bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Archiv</span>' : ''}
                             </div>
                             ${sizeStr ? `<div class="text-xs text-gray-400">${sizeStr}</div>` : ''}
@@ -260,8 +311,7 @@ function _renderDocsTable() {
                     <div class="text-xs text-gray-400">${dateStr}</div>
                 </td>
                 <td class="p-4 text-right" onclick="event.stopPropagation()">
-                    <button onclick="_downloadDoc('${d.id}')"
-                        class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Download</button>
+                    ${actionBtns}
                 </td>
             </tr>`;
     }).join('');
@@ -282,12 +332,25 @@ window._docsToggleArchived = async (val) => {
     _renderDocsTable();
 };
 
+// ─── Dokument freigeben ────────────────────────────────────────
+window._publishDoc = async (docId) => {
+    const { error } = await _supabase.from('documents')
+        .update({ status: 'active', updated_at: new Date().toISOString() })
+        .eq('id', docId);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    showToast('Dokument freigegeben.', 'success');
+    _docsState.data = await _fetchDocs();
+    _renderDocsCategoryList();
+    _renderDocsTable();
+    window.refreshNavBadges?.();
+};
+
 // ─── Dokument-Detail-Modal ─────────────────────────────────────
 window._openDocModal = async (docId) => {
-    const doc = _docsState.data.find(d => d.id === docId);
+    const doc = _docsById(docId);
     if (!doc) return;
 
-    _markDocRead(docId);
+    if (doc.status !== 'draft') _markDocRead(doc.id);
 
     const isPdf = (doc.file_type || '').toLowerCase().includes('pdf');
     let signedUrl = null;
@@ -296,8 +359,7 @@ window._openDocModal = async (docId) => {
         signedUrl = data?.signedUrl || null;
     }
 
-    const role = userProfile?.role;
-    const canEdit = role === 'admin' || role === 'manager';
+    const canEdit = userProfile?.role === 'admin' || userProfile?.role === 'manager';
 
     document.getElementById('doc-detail-modal')?.remove();
     const modal = document.createElement('div');
@@ -313,12 +375,12 @@ window._openDocModal = async (docId) => {
                 <div class="flex gap-2 items-center ml-4 flex-shrink-0">
                     ${signedUrl ? `
                         <a href="${signedUrl}" download="${doc.title}"
-                            onclick="_markDocRead('${docId}')"
+                            onclick="_markDocRead(${doc.id})"
                             class="btn-primary text-xs px-3 py-1.5">Download</a>` : ''}
                     ${canEdit ? `
-                        <button onclick="document.getElementById('doc-detail-modal').remove(); _openDocEditModal('${docId}')"
+                        <button onclick="document.getElementById('doc-detail-modal').remove(); _openDocEditModal(${doc.id})"
                             class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Bearbeiten</button>
-                        <button onclick="_archiveDoc('${docId}')"
+                        <button onclick="_archiveDoc(${doc.id})"
                             class="text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5 transition-colors">${doc.is_deleted ? 'Wiederherstellen' : 'Archivieren'}</button>` : ''}
                     <button onclick="document.getElementById('doc-detail-modal').remove()"
                         class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none ml-1">✕</button>
@@ -340,10 +402,11 @@ window._openDocModal = async (docId) => {
 
 // ─── Read-Tracking ─────────────────────────────────────────────
 async function _markDocRead(docId) {
-    if (_docsState.readDocIds.has(docId)) return;
-    _docsState.readDocIds.add(docId);
+    const id = Number(docId);
+    if (_docsState.readDocIds.has(id)) return;
+    _docsState.readDocIds.add(id);
     await _supabase.from('document_reads').upsert(
-        { document_id: docId, user_id: currentUser.id, read_at: new Date().toISOString() },
+        { document_id: id, user_id: currentUser.id, read_at: new Date().toISOString() },
         { onConflict: 'document_id,user_id' }
     );
     _renderDocsTable();
@@ -353,7 +416,7 @@ window._markDocRead = _markDocRead;
 
 // ─── Download ──────────────────────────────────────────────────
 window._downloadDoc = async (docId) => {
-    const doc = _docsState.data.find(d => d.id === docId);
+    const doc = _docsById(docId);
     if (!doc?.file_path) { showToast('Kein Dateipfad hinterlegt.', 'error'); return; }
 
     const { data, error } = await _supabase.storage.from('documents').createSignedUrl(doc.file_path, 300);
@@ -363,19 +426,19 @@ window._downloadDoc = async (docId) => {
     a.href = data.signedUrl;
     a.download = doc.title;
     a.click();
-    _markDocRead(docId);
+    _markDocRead(doc.id);
 };
 
 // ─── Archivieren ───────────────────────────────────────────────
 window._archiveDoc = async (docId) => {
-    const doc = _docsState.data.find(d => d.id === docId);
+    const doc = _docsById(docId);
     if (!doc) return;
     const toArchive = !doc.is_deleted;
 
     const { error } = await _supabase.from('documents').update({
         is_deleted: toArchive,
         deleted_at: toArchive ? new Date().toISOString() : null,
-    }).eq('id', docId);
+    }).eq('id', Number(docId));
 
     if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
 
@@ -388,15 +451,15 @@ window._archiveDoc = async (docId) => {
 
 // ─── Bearbeiten-Modal ──────────────────────────────────────────
 window._openDocEditModal = (docId) => {
-    const doc = _docsState.data.find(d => d.id === docId);
+    const doc = _docsById(docId);
     if (!doc) return;
 
     const catOptions  = ALLE_KATEGORIEN.map(c => `<option value="${c}" ${doc.category === c ? 'selected' : ''}>${c}</option>`).join('');
-    const bldOptions  = _docsState.buildings.map(b => `<option value="${b.id}" ${doc.building_id === b.id ? 'selected' : ''}>${b.name}</option>`).join('');
+    const bldOptions  = _docsState.buildings.map(b => `<option value="${b.id}" ${doc.building_id == b.id ? 'selected' : ''}>${b.name}</option>`).join('');
     const curYear     = new Date().getFullYear();
     let   yearOptions = '<option value="">—</option>';
     for (let y = curYear + 1; y >= curYear - 10; y--) {
-        yearOptions += `<option value="${y}" ${doc.year === y ? 'selected' : ''}>${y}</option>`;
+        yearOptions += `<option value="${y}" ${doc.year == y ? 'selected' : ''}>${y}</option>`;
     }
 
     document.getElementById('doc-edit-modal')?.remove();
@@ -432,16 +495,16 @@ window._openDocEditModal = (docId) => {
                 <div>
                     <label class="block text-xs font-bold text-gray-500 mb-1">Sichtbarkeit</label>
                     <select id="doc-edit-scope">
-                        <option value="global"   ${doc.visibility_scope === 'global'   ? 'selected' : ''}>Global (alle)</option>
-                        <option value="building" ${doc.visibility_scope === 'building' ? 'selected' : ''}>Gebäude</option>
-                        <option value="apartment"${doc.visibility_scope === 'apartment'? 'selected' : ''}>Einheit</option>
+                        <option value="global"    ${doc.visibility_scope === 'global'    ? 'selected' : ''}>Global (alle)</option>
+                        <option value="building"  ${doc.visibility_scope === 'building'  ? 'selected' : ''}>Gebäude</option>
+                        <option value="apartment" ${doc.visibility_scope === 'apartment' ? 'selected' : ''}>Einheit</option>
                     </select>
                 </div>
             </div>
             <div class="p-5 border-t border-gray-100 flex justify-end gap-3">
                 <button onclick="document.getElementById('doc-edit-modal').remove()"
                     class="btn-secondary text-sm px-4 py-2">Abbrechen</button>
-                <button onclick="_saveDocEdit('${docId}')"
+                <button onclick="_saveDocEdit(${doc.id})"
                     class="btn-primary text-sm px-4 py-2">Speichern</button>
             </div>
         </div>`;
@@ -461,7 +524,7 @@ window._saveDocEdit = async (docId) => {
     const { error } = await _supabase.from('documents').update({
         title, category, building_id: buildingId, year,
         visibility_scope: scope, updated_at: new Date().toISOString(),
-    }).eq('id', docId);
+    }).eq('id', Number(docId));
 
     if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
     document.getElementById('doc-edit-modal')?.remove();
@@ -528,6 +591,13 @@ window._openUploadModal = () => {
                         <option value="building">Gebäude</option>
                     </select>
                 </div>
+                <label class="flex items-center gap-3 p-3 bg-hb-orange/5 rounded-xl cursor-pointer border border-hb-orange/20">
+                    <input type="checkbox" id="doc-upload-draft" class="flex-shrink-0">
+                    <div>
+                        <span class="text-xs font-bold text-hb-orange">Als Entwurf speichern</span>
+                        <p class="text-[11px] text-gray-500 mt-0.5">Dokument erst prüfen, dann manuell freigeben.</p>
+                    </div>
+                </label>
             </div>
             <div class="p-5 border-t border-gray-100 flex justify-end gap-3">
                 <button onclick="document.getElementById('doc-upload-modal').remove()"
@@ -564,7 +634,6 @@ function _addDocsToStaging(newFiles) {
 
 window._removeDocStaging = (idx) => {
     _docsState.stagingFiles.splice(idx, 1);
-    // Re-render list by calling with empty (no new files)
     const saved = [..._docsState.stagingFiles];
     _docsState.stagingFiles = [];
     _addDocsToStaging(saved);
@@ -577,10 +646,11 @@ window._doUploadDocs = async () => {
         return;
     }
 
-    const category  = document.getElementById('doc-upload-category')?.value;
-    const buildingId= document.getElementById('doc-upload-building')?.value || null;
-    const year      = parseInt(document.getElementById('doc-upload-year')?.value) || null;
-    const scope     = document.getElementById('doc-upload-scope')?.value || 'global';
+    const category   = document.getElementById('doc-upload-category')?.value;
+    const buildingId = document.getElementById('doc-upload-building')?.value || null;
+    const year       = parseInt(document.getElementById('doc-upload-year')?.value) || null;
+    const scope      = document.getElementById('doc-upload-scope')?.value || 'global';
+    const asDraft    = document.getElementById('doc-upload-draft')?.checked || false;
 
     const btn = document.getElementById('doc-upload-btn');
     if (btn) { btn.textContent = 'Lädt hoch…'; btn.disabled = true; }
@@ -588,8 +658,9 @@ window._doUploadDocs = async () => {
     let ok = 0, fail = 0;
 
     for (const file of _docsState.stagingFiles) {
-        const ext       = file.name.split('.').pop();
-        const safeName  = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        const ext      = file.name.split('.').pop();
+        // Lesbarer Dateiname: Zeitstempel + sanitisierter Originalname
+        const safeName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
         const storagePath = buildingId ? `${buildingId}/${safeName}` : `global/${safeName}`;
 
         const { error: upErr } = await _supabase.storage
@@ -609,7 +680,7 @@ window._doUploadDocs = async () => {
             visibility_scope: scope,
             building_id:      buildingId,
             uploaded_by:      currentUser.id,
-            status:           'active',
+            status:           asDraft ? 'draft' : 'active',
             is_deleted:       false,
         });
 
@@ -617,7 +688,7 @@ window._doUploadDocs = async () => {
     }
 
     document.getElementById('doc-upload-modal')?.remove();
-    if (ok)   showToast(`${ok} Dokument${ok > 1 ? 'e' : ''} hochgeladen.`, 'success');
+    if (ok)   showToast(`${ok} Dokument${ok > 1 ? 'e' : ''} ${asDraft ? 'als Entwurf gespeichert' : 'hochgeladen'}.`, 'success');
     if (fail) showToast(`${fail} Datei${fail > 1 ? 'en' : ''} fehlgeschlagen.`, 'error');
 
     _docsState.data = await _fetchDocs();
@@ -626,19 +697,14 @@ window._doUploadDocs = async () => {
     window.refreshNavBadges?.();
 };
 
-// ─── Nav-Badge: ungelesene Dokumente ──────────────────────────
+// ─── Nav-Badge ─────────────────────────────────────────────────
 async function _loadDocsNavBadge() {
     const { data: allDocs } = await _supabase.from('documents')
-        .select('id')
-        .eq('status', 'active')
-        .eq('is_deleted', false);
-
+        .select('id').eq('status', 'active').eq('is_deleted', false);
     const { data: reads } = await _supabase.from('document_reads')
-        .select('document_id')
-        .eq('user_id', currentUser.id);
-
-    const readSet  = new Set((reads || []).map(r => r.document_id));
-    const unread   = (allDocs || []).filter(d => !readSet.has(d.id)).length;
+        .select('document_id').eq('user_id', currentUser.id);
+    const readSet = new Set((reads || []).map(r => r.document_id));
+    const unread  = (allDocs || []).filter(d => !readSet.has(d.id)).length;
     _setNavBadge('nav-badge-docs', unread);
 }
 window._loadDocsNavBadge = _loadDocsNavBadge;
@@ -646,11 +712,11 @@ window._loadDocsNavBadge = _loadDocsNavBadge;
 // ─── Hilfsfunktionen ───────────────────────────────────────────
 function _docsFileIcon(fileType) {
     const t = (fileType || '').toLowerCase();
-    if (t.includes('pdf'))                                          return 'PDF';
-    if (t.includes('word') || t.includes('doc'))                   return 'DOC';
+    if (t.includes('pdf'))                                               return 'PDF';
+    if (t.includes('word') || t.includes('doc'))                        return 'DOC';
     if (t.includes('excel') || t.includes('sheet') || t.includes('xls')) return 'XLS';
     if (t.includes('image') || t.includes('png') || t.includes('jpg') || t.includes('jpeg')) return 'IMG';
-    if (t.includes('zip') || t.includes('rar'))                    return 'ZIP';
+    if (t.includes('zip') || t.includes('rar'))                         return 'ZIP';
     return 'DAT';
 }
 
