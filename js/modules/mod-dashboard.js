@@ -41,7 +41,7 @@ function _dashKpi(icon, label, value, highlight, onclickAttr) {
 // ─── Navigation helpers ───────────────────────────────────────
 
 function _dashNavTo(loadFn) {
-    const keyword = { loadTickets: 'Ticket', loadDocuments: 'Dokument', loadNews: 'Brett', loadContacts: 'Kontakt', loadCalendar: 'Kalender' }[loadFn.name];
+    const keyword = { loadTickets: 'Ticket', loadDocuments: 'Dokument', loadNews: 'Brett', loadContacts: 'Kontakt', loadCalendar: 'Kalender', loadFinance: 'Buchhaltung' }[loadFn.name];
     if (!keyword) return;
     const el = Array.from(document.querySelectorAll('#nav-links a')).find(a => a.textContent.includes(keyword));
     if (el) setActiveNav(el);
