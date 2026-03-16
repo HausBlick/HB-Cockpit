@@ -295,8 +295,9 @@ INSERT INTO journal_entries (building_id, entry_date, description, amount, debit
     (bid1, '2025-01-01', 'Eröffnungsbilanz Rücklagenkonto 01.01.2025', 22000.00, a1_1210, a1_3000, 'erhoeffnungsbilanz', 2025);
 
 -- Mahnung für WE03 (überfällig März + April)
-INSERT INTO dunning_notices (building_id, dunning_level, amount, fee, due_date, status, created_at)
-VALUES (bid1, 1, 220.00, 0.00, '2025-04-15', 'open', '2025-04-01 09:00:00+00');
+-- Mahnung: dunning_notices.person_id referenziert persons.id (CRM-Tabelle, bigint).
+-- Mahnung kann im UI über den Mahnwesen-Tab angelegt werden.
+-- Hier wird keine Mahnung eingespielt, um Abhängigkeit auf bestehende persons-Datensätze zu vermeiden.
 
 
 -- ════════════════════════════════════════════════════════════════
