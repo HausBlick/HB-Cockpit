@@ -66,6 +66,7 @@ js/
     mod-tickets.js          # Ticket-System (Chat, Status-Flow, Suche, Auto-Reopen)
     mod-dokumente.js        # Dokumenten-Cloud (Upload, Download, Vorschau, Kategorien)
     mod-kontakte.js         # Kontaktbuch (Handwerker, Notfallkontakte, Dienstleister)
+    mod-kalender.js         # Monatskalender — Gebäude-Fristen & Ticket-Wiedervorlagen
     mod-placeholder.js      # Platzhalter für kommende Module
 ```
 
@@ -298,6 +299,20 @@ js/
 | 5 | Entwürfe sichtbar für Admin/Manager mit orangem "Entwurf"-Badge + "Freigeben"-Button |
 | 6 | Entwürfe-Filter in Kategorie-Sidebar mit orange Badge-Zähler |
 | 7 | Lesbare Dateinamen im Storage: `{timestamp}_{originalname}` statt Random-Hash |
+
+**Phase 5.5 — Kalender**
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | `mod-kalender.js` (neu): Monatskalender mit Prev/Next-Navigation, „Heute"-Sprung |
+| 2 | Gebäude-Fristen als farbige Pills (Rot <14 Tage, Orange 14–30, Grün >30) |
+| 3 | Legionellen-Fälligkeit berechnet aus `last_legionella_check + interval_months` |
+| 4 | Ticket-Wiedervorlagen als kleinere olive Pills (nur eigene Tickets: creator oder assigned) |
+| 5 | Klick auf Ticket-Pill → navigiert direkt zum Ticket-Chat |
+| 6 | Nav-Eintrag „Kalender" (mit Icon) für admin/manager unter „Service & Dokumente" |
+| 7 | `config.js`: Kalender-Icon ergänzt |
+| 8 | Dashboard KPI „Anstehende Fristen" → navigiert jetzt zum Kalender statt zu scrollen |
+| 9 | Legende unterhalb des Kalenders (Farb-Erklärung + Ticket-Wiedervorlage) |
 
 **Phase 5.4 — Dashboard KPIs**
 

@@ -41,7 +41,7 @@ function _dashKpi(icon, label, value, highlight, onclickAttr) {
 // ─── Navigation helpers ───────────────────────────────────────
 
 function _dashNavTo(loadFn) {
-    const keyword = { loadTickets: 'Ticket', loadDocuments: 'Dokument', loadNews: 'Brett', loadContacts: 'Kontakt' }[loadFn.name];
+    const keyword = { loadTickets: 'Ticket', loadDocuments: 'Dokument', loadNews: 'Brett', loadContacts: 'Kontakt', loadCalendar: 'Kalender' }[loadFn.name];
     if (!keyword) return;
     const el = Array.from(document.querySelectorAll('#nav-links a')).find(a => a.textContent.includes(keyword));
     if (el) setActiveNav(el);
@@ -215,7 +215,7 @@ async function _renderAdminDashboard() {
             ${_dashKpi('🚨', 'Offene Tickets',         openCount,  openCount > 0,   "_dashGoTickets('Offen')")}
             ${_dashKpi('📋', 'Tickets in Bearbeitung', wipCount,   false,            "_dashGoTickets('In Bearbeitung')")}
             ${_dashKpi('📄', 'Dokumente im Entwurf',   draftCount, draftCount > 0,  "_dashGoDocs()")}
-            ${_dashKpi('⏳', 'Anstehende Fristen',     dlineCount, dlineCount > 0,  "document.getElementById('dash-fristen')?.scrollIntoView({behavior:'smooth'})")}
+            ${_dashKpi('⏳', 'Anstehende Fristen',     dlineCount, dlineCount > 0,  "_dashNavTo(loadCalendar); loadCalendar()")}
         </div>
 
         <!-- Widgets -->
