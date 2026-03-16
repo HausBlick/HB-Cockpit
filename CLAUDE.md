@@ -161,6 +161,7 @@ js/
 *Kernmodul: Wirtschaftsplan, Hausgeldabrechnung, Erhaltungsrücklage.*
 - 6-A DB-Fundament: Doppik, Kontenrahmen, Journal, Sollstellungen ✅
 - 6-B Buchhaltung UI (`mod-finanzen.js`): Übersicht, Buchungen, Zählerstände, Sollstellungen, Onboarding ✅
+- 6-C Wirtschaftsplan, Sonderumlagen, Erhaltungsrücklage, Beirat-Belegprüfung ✅
 - 6.1 Wirtschaftsplan (Planung laufender Kosten pro WEG) 📋
 - 6.2 Jahresabrechnung / Hausgeldabrechnung (Kostenverteilung nach MEA & Schlüsseln) 📋
 - 6.3 Erhaltungsrücklage (Zuführungen, Entnahmen, Ausweis in Abrechnung) 📋
@@ -361,6 +362,19 @@ js/
 | 6 | **Auto-Naming on Publish** (`_publishDoc`): `generated_filename = [file_number] [apt_number] - [document_title].[ext]` aus `buildings.file_number` + `apartments.apartment_number` |
 | 7 | **document_links-Management** im Bearbeiten-Modal: Personen hinzufügen/entfernen, die Zugriff auf ein Dokument haben |
 | 8 | Anzeige-Name-Priorität in Tabelle: `generated_filename` → `document_title` → `title` |
+
+---
+
+### Phase 6-C — Wirtschaftsplan, Sonderumlagen, Erhaltungsrücklage, Beirat-Belegprüfung
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Tab Wirtschaftsplan**: Plan anlegen/status-flow (draft→approved→active→closed), Positionen (account, prior_year_actual, adjustment_percent, planned_amount mit Auto-Kalkulation), Gesamtsumme |
+| 2 | **Sonderumlagen** (unterer Bereich Wirtschaftsplan-Tab): Anlegen (Titel, Betrag, Schlüssel MEA/Einheiten/m²/custom, Fälligkeit), Aktivierung → generiert `payment_demands` mit demand_type='sonderumlage' pro Eigentümer |
+| 3 | **Tab Rücklage**: Karten pro Rücklagekonto mit Echtzeit-Saldo + Soll-Bestand aus aktivem Wirtschaftsplan (Warnung bei >5% Abweichung), Zuführung/Entnahme buchen (entry_type='ruecklage'), Entwicklungsübersicht mit laufendem Saldo |
+| 4 | **Tab Belegprüfung** (Admin/Manager): Beirat-Freigabezeiträume CRUD (`beirat_access_periods`), Vorschau der Buchungen was Beirat sieht |
+| 5 | **Beirat Read-Only-View**: `loadFinance()` erkennt Beirat-Mitglieder via `board_members` → `persons.auth_user_id` → prüft aktive `beirat_access_periods` → zeigt read-only Buchungsjournal |
+| 6 | `nav.js`: „Belegprüfung" Nav-Eintrag für Owner-Rolle ergänzt (für Beirat-Mitglieder) |
 
 ---
 
