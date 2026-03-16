@@ -58,7 +58,7 @@ js/
   utils.js                  # Toast, Dropdown, Logout, Mobile-Menu
   nav.js                    # init(), renderNav(), setActiveNav(), loadNavBadges()
   modules/
-    mod-dashboard.js        # Dashboard-Modul (Platzhalter)
+    mod-dashboard.js        # Dashboard — KPIs, Quick-Actions, Widgets (rollenbasiert)
     mod-objekte.js          # Gebäude & Einheiten (CRUD + Zuweisungen)
     mod-personen.js         # Personen-Liste & Supabase-Anbindung
     mod-persons-edit.js     # Personen bearbeiten (4-Tab-Formular)
@@ -148,7 +148,7 @@ js/
 - 5.1 Dokumenten-Cloud — Migration `phase5_documents` ✅
 - 5.2 Dokumenten-Cloud — `mod-dokumente.js`: Upload, Download, Vorschau, Kategorien, Read-Tracking, Nav-Badge, Listen- & Baumansicht, Draft-Workflow, Auto-Naming, `document_links` für Personen-Scope ✅
 - 5.3 Kontaktbuch — `mod-kontakte.js` ✅
-- 5.4 Dashboard KPIs (rollenbasiert, Kennzahlen, Fristen-Widget) 📋
+- 5.4 Dashboard KPIs (rollenbasiert, Kennzahlen, Fristen-Widget) ✅
 
 ### 📋 Phase 6 — Finanzen & Abrechnung
 *Kernmodul: Wirtschaftsplan, Hausgeldabrechnung, Erhaltungsrücklage.*
@@ -298,6 +298,23 @@ js/
 | 5 | Entwürfe sichtbar für Admin/Manager mit orangem "Entwurf"-Badge + "Freigeben"-Button |
 | 6 | Entwürfe-Filter in Kategorie-Sidebar mit orange Badge-Zähler |
 | 7 | Lesbare Dateinamen im Storage: `{timestamp}_{originalname}` statt Random-Hash |
+
+**Phase 5.4 — Dashboard KPIs**
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | `mod-dashboard.js` vollständig implementiert (Platzhalter ersetzt) |
+| 2 | **Admin/Manager**: Quick-Actions (4 Buttons), KPI-Karten (Offene Tickets, In Bearbeitung, Entwürfe, Fristen), 4 Widgets |
+| 3 | Widget: Prioritäts-Tickets (5 neueste Offen/In Bearbeitung, klickbar → Ticket-Chat) |
+| 4 | Widget: Warten auf Freigabe (Entwürfe, Freigeben-Button inline ohne Seitennavigation) |
+| 5 | Widget: Ablaufende Fristen (energy_certificate, fire_safety, drinking_water, legionella berechnet, Farb-Badges Rot/Orange/Grün) |
+| 6 | Widget: Letzte Aktivitäten (ticket_messages + news + documents, merged & sortiert) |
+| 7 | **Tenant/Owner**: Begrüßung mit Rolle, Quick-Actions (3 Buttons), KPI-Karten (Tickets, Neue Docs, Ungelesene News, Hausgeld/Miete) |
+| 8 | Widget: Aktuelle Meldungen (3 neueste News des eigenen Gebäudes) |
+| 9 | Widget: Meine Tickets (offene Tickets, klickbar → Ticket-Chat) |
+| 10 | Widget: Neue Dokumente (ungelesene Docs mit Download-Button + Read-Tracking) |
+| 11 | Widget: Mein Ansprechpartner (Verwalter/Hausmeister aus contacts, tel:/mailto:-Links) |
+| 12 | Navigation-Helpers (`_dashGoTickets`, `_dashNewTicket`, `_dashGoDocs` etc.) setzen auch aktiven Nav-Link |
 
 **Phase B — Nav-Badge Bugfix**
 
