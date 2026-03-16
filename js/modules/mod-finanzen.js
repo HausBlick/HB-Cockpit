@@ -102,6 +102,8 @@ function _finRenderShell() {
         { key: 'jahresabrechnung',  label: 'Jahresabrechnung' },
         { key: 'mahnwesen',         label: 'Mahnwesen' },
         { key: 'datev',             label: 'DATEV-Export' },
+        { key: 'csv_import',        label: 'CSV-Import' },
+        { key: 'sepa_export',       label: 'SEPA-Export' },
         { key: 'onboarding',        label: 'Onboarding' },
     ];
 
@@ -160,6 +162,8 @@ async function _finLoadTab(tab) {
     else if (tab === 'jahresabrechnung')  await _finLoadJahresabrechnung();
     else if (tab === 'mahnwesen')         await _finLoadMahnwesen();
     else if (tab === 'datev')             await _finLoadDatev();
+    else if (tab === 'csv_import')        await _finLoadCsvImport();
+    else if (tab === 'sepa_export')       await _finLoadSepaExport();
     else if (tab === 'onboarding')        _finRenderOnboarding();
 }
 
@@ -2532,4 +2536,615 @@ function _finDownloadFile(content, filename, mime) {
     const a    = document.createElement('a');
     a.href = url; a.download = filename; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TAB 12: CSV-BANKIMPORT (6.4)
+// ═══════════════════════════════════════════════════════════════
+
+const _csvState = {
+    rows: [],       // parsed transactions
+    accounts: [],   // accounts for building
+    bankAccounts: [],
+};
+
+async function _finLoadCsvImport() {
+    const el = document.getElementById('fin-content');
+    const bid = _finState.buildingId;
+
+    // load accounts + bank accounts
+    const [accRes, bankRes] = await Promise.all([
+        _supabase.from('accounts').select('id,account_number,account_name,account_type')
+            .eq('building_id', bid).eq('is_active', true).order('sort_order'),
+        _supabase.from('building_bank_accounts').select('id,account_type,bank_name,iban')
+            .eq('building_id', bid),
+    ]);
+    _csvState.accounts    = accRes.data  || [];
+    _csvState.bankAccounts = bankRes.data || [];
+    _csvState.rows = [];
+
+    const bankOpts = _csvState.bankAccounts.map(b =>
+        `<option value="${b.id}">${b.bank_name} — ${b.iban}</option>`
+    ).join('');
+
+    el.innerHTML = `
+        <div class="space-y-5">
+            <!-- Header-Zeile -->
+            <div class="card p-5">
+                <div class="flex gap-4 flex-wrap">
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="block text-xs font-bold text-gray-500 mb-1">Bankkonto</label>
+                        <select id="csv-bank-select" class="w-full text-sm">${bankOpts || '<option>Kein Bankkonto</option>'}</select>
+                    </div>
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="block text-xs font-bold text-gray-500 mb-1">Format</label>
+                        <select id="csv-format-select" class="w-full text-sm">
+                            <option value="sparkasse">CSV Sparkasse</option>
+                            <option value="volksbank">CSV Volksbank / DZ Bank</option>
+                            <option value="generic">CSV allgemein (Datum;Betrag;Name;Zweck)</option>
+                            <option value="mt940">MT940 (Swift)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Drop-Zone -->
+            <div id="csv-dropzone"
+                class="border-2 border-dashed border-hb-olive/30 rounded-[15px] p-10 text-center cursor-pointer hover:border-hb-olive/60 hover:bg-hb-olive/5 transition-colors"
+                onclick="document.getElementById('csv-file-input').click()"
+                ondragover="event.preventDefault(); this.classList.add('border-hb-olive','bg-hb-olive/5')"
+                ondragleave="this.classList.remove('border-hb-olive','bg-hb-olive/5')"
+                ondrop="_csvHandleDrop(event)">
+                <div class="text-4xl mb-3 text-hb-olive/40">↑</div>
+                <p class="font-semibold text-hb-olive">Datei hierher ziehen</p>
+                <p class="text-sm text-gray-400 mt-1">oder klicken zum Auswählen · CSV oder STA/MT940</p>
+                <input id="csv-file-input" type="file" accept=".csv,.sta,.txt,.mt940" class="hidden"
+                    onchange="_csvHandleFile(this.files[0])">
+            </div>
+
+            <!-- Preview-Tabelle (leer am Anfang) -->
+            <div id="csv-preview"></div>
+        </div>`;
+}
+
+window._csvHandleDrop = (e) => {
+    e.preventDefault();
+    document.getElementById('csv-dropzone').classList.remove('border-hb-olive','bg-hb-olive/5');
+    const file = e.dataTransfer.files[0];
+    if (file) _csvHandleFile(file);
+};
+
+window._csvHandleFile = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const text = e.target.result;
+        const fmt  = document.getElementById('csv-format-select')?.value || 'sparkasse';
+        try {
+            _csvState.rows = _csvParse(text, fmt);
+            _csvRenderPreview();
+        } catch(err) {
+            showToast('Fehler beim Parsen: ' + err.message, 'error');
+        }
+    };
+    reader.readAsText(file, 'UTF-8');
+};
+
+function _csvParse(text, fmt) {
+    if (fmt === 'mt940') return _csvParseMt940(text);
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (fmt === 'sparkasse')  return _csvParseSparkasse(lines);
+    if (fmt === 'volksbank')  return _csvParseVolksbank(lines);
+    return _csvParseGeneric(lines);
+}
+
+// Sparkasse: Auftragskonto;Buchungstag;Wertstellung;Buchungstext;Auftraggeber/Empfänger;Konto;BLZ;Betrag;...
+function _csvParseSparkasse(lines) {
+    const rows = [];
+    // skip header row(s) — find data rows by checking for date pattern
+    for (const line of lines) {
+        const cols = _csvSplit(line);
+        if (cols.length < 8) continue;
+        const dateRaw = cols[1]; // Buchungstag DD.MM.YY or DD.MM.YYYY
+        if (!dateRaw || !/\d{2}\.\d{2}/.test(dateRaw)) continue;
+        const amount = parseFloat((cols[7] || '0').replace(/\./g,'').replace(',','.'));
+        if (isNaN(amount)) continue;
+        rows.push({
+            date:     _csvParseDate(dateRaw),
+            name:     (cols[4] || '').trim().replace(/^"|"$/g,''),
+            purpose:  (cols[3] || '').trim().replace(/^"|"$/g,''),
+            amount,
+        });
+    }
+    return rows;
+}
+
+// Volksbank: ;Kontonummer;BIC;Kontoinhaber;Buchungstag;Valuta;Name;...;Verwendungszweck;Betrag;...
+function _csvParseVolksbank(lines) {
+    const rows = [];
+    for (const line of lines) {
+        const cols = _csvSplit(line);
+        if (cols.length < 12) continue;
+        const dateRaw = cols[4];
+        if (!dateRaw || !/\d{2}\.\d{2}/.test(dateRaw)) continue;
+        const amount = parseFloat((cols[11] || '0').replace(/\./g,'').replace(',','.'));
+        if (isNaN(amount)) continue;
+        rows.push({
+            date:    _csvParseDate(dateRaw),
+            name:    (cols[6] || '').trim().replace(/^"|"$/g,''),
+            purpose: (cols[10] || '').trim().replace(/^"|"$/g,''),
+            amount,
+        });
+    }
+    return rows;
+}
+
+// Generic: Datum;Betrag;Name;Verwendungszweck (first row = header)
+function _csvParseGeneric(lines) {
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+        const cols = _csvSplit(lines[i]);
+        if (cols.length < 2) continue;
+        const dateRaw = cols[0];
+        if (!dateRaw || !/\d/.test(dateRaw)) continue;
+        const amount = parseFloat((cols[1] || '0').replace(/\./g,'').replace(',','.'));
+        if (isNaN(amount)) continue;
+        rows.push({
+            date:    _csvParseDate(dateRaw),
+            name:    (cols[2] || '').trim().replace(/^"|"$/g,''),
+            purpose: (cols[3] || '').trim().replace(/^"|"$/g,''),
+            amount,
+        });
+    }
+    return rows;
+}
+
+// MT940 Swift parser
+function _csvParseMt940(text) {
+    const rows = [];
+    const txBlocks = text.split(/:61:/);
+    for (let i = 1; i < txBlocks.length; i++) {
+        const block = txBlocks[i];
+        // Date: YYMMDD in :61: line
+        const dateMatch = block.match(/^(\d{6})/);
+        if (!dateMatch) continue;
+        const ds = dateMatch[1];
+        const date = `20${ds.slice(0,2)}-${ds.slice(2,4)}-${ds.slice(4,6)}`;
+        // Amount: C/D + amount
+        const amtMatch = block.match(/\d{6}(?:\d{4})?[CD](\d+,\d{2})/);
+        if (!amtMatch) continue;
+        const sign   = block.includes('D') && !block.includes('C') ? -1 : 1;
+        const amount = sign * parseFloat(amtMatch[1].replace(',','.'));
+        // :86: Verwendungszweck
+        const purposeMatch = block.match(/:86:([\s\S]*?)(?=:\d{2}[A-Z]?:|$)/);
+        const purpose = purposeMatch ? purposeMatch[1].replace(/\r?\n/g,' ').trim().slice(0,120) : '';
+        rows.push({ date, name: '', purpose, amount });
+    }
+    return rows;
+}
+
+function _csvSplit(line) {
+    const result = [];
+    let cur = '', inQ = false;
+    for (const ch of line) {
+        if (ch === '"') { inQ = !inQ; }
+        else if (ch === ';' && !inQ) { result.push(cur); cur = ''; }
+        else cur += ch;
+    }
+    result.push(cur);
+    return result;
+}
+
+function _csvParseDate(raw) {
+    // DD.MM.YYYY or DD.MM.YY
+    const m = raw.match(/(\d{2})\.(\d{2})\.(\d{2,4})/);
+    if (!m) return raw;
+    const y = m[3].length === 2 ? '20' + m[3] : m[3];
+    return `${y}-${m[2]}-${m[1]}`;
+}
+
+function _csvRenderPreview() {
+    const el = document.getElementById('csv-preview');
+    const rows = _csvState.rows;
+    if (!rows.length) {
+        el.innerHTML = '<p class="text-sm text-gray-400 text-center py-6">Keine Buchungen gefunden.</p>';
+        return;
+    }
+
+    const acctOpts = _csvState.accounts.map(a =>
+        `<option value="${a.id}">${a.account_number} ${a.account_name}</option>`
+    ).join('');
+
+    const rowHtml = rows.map((r, i) => {
+        const isCredit = r.amount >= 0;
+        const colorClass = isCredit ? 'text-green-700' : 'text-red-600';
+        return `<tr class="hover:bg-gray-50">
+            <td class="px-3 py-2 text-center">
+                <input type="checkbox" id="csv-chk-${i}" checked class="accent-hb-olive">
+            </td>
+            <td class="px-3 py-2 text-sm text-gray-600">${r.date}</td>
+            <td class="px-3 py-2 text-sm font-medium">${_esc(r.name || '—')}</td>
+            <td class="px-3 py-2 text-sm text-gray-500 max-w-[220px] truncate" title="${_esc(r.purpose)}">${_esc(r.purpose || '—')}</td>
+            <td class="px-3 py-2 text-sm font-bold text-right ${colorClass}">${r.amount >= 0 ? '+' : ''}${r.amount.toFixed(2)} €</td>
+            <td class="px-3 py-2">
+                <select id="csv-acc-${i}" class="text-xs w-full">
+                    <option value="">— Konto wählen —</option>
+                    ${acctOpts}
+                </select>
+            </td>
+        </tr>`;
+    }).join('');
+
+    el.innerHTML = `
+        <div class="card overflow-hidden">
+            <div class="bg-hb-olive px-5 py-3 flex justify-between items-center">
+                <span class="text-sm font-bold text-white">${rows.length} Buchungen gefunden</span>
+                <div class="flex gap-2">
+                    <button onclick="_csvSelectAll(true)"  class="text-xs bg-white text-hb-olive px-3 py-1 rounded-lg font-semibold">Alle</button>
+                    <button onclick="_csvSelectAll(false)" class="text-xs bg-white/20 text-white px-3 py-1 rounded-lg font-semibold">Keine</button>
+                    <button onclick="_csvImport()" class="text-xs bg-hb-orange text-white px-4 py-1 rounded-lg font-bold hover:opacity-90">Importieren</button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full divide-y divide-hb-olive/10">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-3 py-2 text-xs font-bold text-gray-500 text-center w-8"></th>
+                            <th class="px-3 py-2 text-xs font-bold text-gray-500 text-left">Datum</th>
+                            <th class="px-3 py-2 text-xs font-bold text-gray-500 text-left">Name</th>
+                            <th class="px-3 py-2 text-xs font-bold text-gray-500 text-left">Verwendungszweck</th>
+                            <th class="px-3 py-2 text-xs font-bold text-gray-500 text-right">Betrag</th>
+                            <th class="px-3 py-2 text-xs font-bold text-gray-500 text-left">Konto</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-hb-olive/10">${rowHtml}</tbody>
+                </table>
+            </div>
+        </div>`;
+}
+
+window._csvSelectAll = (checked) => {
+    _csvState.rows.forEach((_, i) => {
+        const chk = document.getElementById(`csv-chk-${i}`);
+        if (chk) chk.checked = checked;
+    });
+};
+
+window._csvImport = async () => {
+    const bid      = _finState.buildingId;
+    const bankId   = document.getElementById('csv-bank-select')?.value;
+    const selected = _csvState.rows.filter((_, i) => document.getElementById(`csv-chk-${i}`)?.checked);
+
+    if (!selected.length) { showToast('Keine Buchungen ausgewählt.', 'error'); return; }
+
+    // build entries — only those with an account assigned
+    const entries = [];
+    for (let i = 0; i < _csvState.rows.length; i++) {
+        if (!document.getElementById(`csv-chk-${i}`)?.checked) continue;
+        const r      = _csvState.rows[i];
+        const accId  = document.getElementById(`csv-acc-${i}`)?.value;
+        if (!accId) continue;
+
+        // cash account (1200) for the bank side
+        const cashAcc = _csvState.accounts.find(a => a.account_number === '1200');
+        const isCredit = r.amount >= 0;
+
+        entries.push({
+            building_id:       bid,
+            entry_date:        r.date,
+            description:       [r.name, r.purpose].filter(Boolean).join(' · ').slice(0,200) || 'CSV-Import',
+            amount:            Math.abs(r.amount),
+            debit_account_id:  isCredit ? (cashAcc?.id || Number(accId)) : Number(accId),
+            credit_account_id: isCredit ? Number(accId) : (cashAcc?.id || Number(accId)),
+            entry_type:        'csv_import',
+            fiscal_year:       new Date(r.date).getFullYear(),
+            reference_number:  r.purpose ? r.purpose.slice(0,50) : null,
+        });
+    }
+
+    if (!entries.length) {
+        showToast('Bitte jedem importierten Eintrag ein Konto zuweisen.', 'error');
+        return;
+    }
+
+    // duplicate check: reference_number already in journal_entries
+    const refs = entries.map(e => e.reference_number).filter(Boolean);
+    if (refs.length) {
+        const { data: existing } = await _supabase.from('journal_entries')
+            .select('reference_number')
+            .eq('building_id', bid)
+            .in('reference_number', refs);
+        const dupSet = new Set((existing || []).map(e => e.reference_number));
+        const dupes  = entries.filter(e => e.reference_number && dupSet.has(e.reference_number));
+        if (dupes.length) {
+            showToast(`${dupes.length} Duplikat(e) übersprungen (Referenznummer bereits vorhanden).`, 'error');
+            entries.splice(0, entries.length, ...entries.filter(e => !e.reference_number || !dupSet.has(e.reference_number)));
+            if (!entries.length) return;
+        }
+    }
+
+    const { error } = await _supabase.from('journal_entries').insert(entries);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+
+    showToast(`${entries.length} Buchung(en) erfolgreich importiert.`, 'success');
+    _csvState.rows = [];
+    await _finLoadCsvImport();
+};
+
+function _esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// TAB 13: SEPA-XML EXPORT (PAIN.008.003.02)
+// ═══════════════════════════════════════════════════════════════
+
+async function _finLoadSepaExport() {
+    const el  = document.getElementById('fin-content');
+    const bid = _finState.buildingId;
+
+    // load building + bank accounts
+    const [bldRes, bankRes] = await Promise.all([
+        _supabase.from('buildings').select('name,creditor_id').eq('id', bid).single(),
+        _supabase.from('building_bank_accounts').select('id,account_type,bank_name,iban,bic')
+            .eq('building_id', bid),
+    ]);
+    const building   = bldRes.data  || {};
+    const bankAccounts = bankRes.data || [];
+    const giroAcc   = bankAccounts.find(b => b.account_type === 'giro') || bankAccounts[0] || {};
+
+    const curYear = new Date().getFullYear();
+    const yearOpts = [curYear - 1, curYear, curYear + 1].map(y =>
+        `<option value="${y}" ${y === curYear ? 'selected' : ''}>${y}</option>`
+    ).join('');
+
+    const bankOpts = bankAccounts.map(b =>
+        `<option value="${b.id}" ${b.id === giroAcc.id ? 'selected' : ''}
+            data-iban="${b.iban}" data-bic="${b.bic || ''}">${b.bank_name} — ${b.iban}</option>`
+    ).join('');
+
+    el.innerHTML = `
+        <div class="space-y-5">
+            <!-- Einstellungen -->
+            <div class="card p-5">
+                <h3 class="text-sm font-bold text-hb-olive mb-4">SEPA-Lastschrift Einstellungen</h3>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">Gläubiger-ID (Creditor ID)</label>
+                        <input id="sepa-creditor-id" type="text" value="${building.creditor_id || ''}"
+                            placeholder="DE98ZZZ09999999999"
+                            class="w-full text-sm bg-hb-ultralight border border-gray-200 rounded-lg px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">Gläubiger-Konto (Zielkonto)</label>
+                        <select id="sepa-bank-select" class="w-full text-sm">${bankOpts || '<option>Kein Konto</option>'}</select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">Wirtschaftsjahr</label>
+                        <select id="sepa-year-select" class="w-full text-sm">${yearOpts}</select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">Fälligkeitsdatum (Requested Collection Date)</label>
+                        <input id="sepa-due-date" type="date" class="w-full text-sm bg-hb-ultralight border border-gray-200 rounded-lg px-3 py-2"
+                            value="${new Date(Date.now() + 5*86400000).toISOString().slice(0,10)}">
+                    </div>
+                </div>
+                <button onclick="_sepaLoadPreview()"
+                    class="px-4 py-2 bg-hb-olive text-white text-sm font-semibold rounded-lg hover:opacity-90">
+                    Vorschau laden
+                </button>
+            </div>
+            <div id="sepa-preview"></div>
+        </div>`;
+}
+
+window._sepaLoadPreview = async () => {
+    const el   = document.getElementById('sepa-preview');
+    const bid  = _finState.buildingId;
+    const year = Number(document.getElementById('sepa-year-select')?.value);
+
+    el.innerHTML = `<div class="flex justify-center py-8"><div class="w-6 h-6 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div></div>`;
+
+    // open/overdue payment_demands + apartment → tenancy → persons → person_bank_accounts
+    const { data: demands, error } = await _supabase
+        .from('payment_demands')
+        .select(`
+            id, amount, due_date, demand_type,
+            apartment:apartments(
+                apartment_number,
+                tenancies(
+                    tenant:persons(
+                        id, first_name, last_name,
+                        person_bank_accounts(iban, bic, account_holder)
+                    ),
+                    end_date
+                )
+            )
+        `)
+        .eq('building_id', bid)
+        .eq('fiscal_year', year)
+        .in('status', ['open', 'overdue'])
+        .order('due_date');
+
+    if (error) { el.innerHTML = `<p class="text-red-500 text-sm p-4">${error.message}</p>`; return; }
+
+    const rows = (demands || []).map(d => {
+        const apt       = d.apartment;
+        const activeTen = apt?.tenancies?.find(t => !t.end_date || new Date(t.end_date) >= new Date());
+        const person    = activeTen?.tenant;
+        const bankAcc   = person?.person_bank_accounts?.[0];
+        return {
+            demandId: d.id,
+            aptNum:   apt?.apartment_number || '—',
+            person:   person ? `${person.first_name} ${person.last_name}` : '—',
+            amount:   d.amount,
+            dueDate:  d.due_date,
+            iban:     bankAcc?.iban || '',
+            bic:      bankAcc?.bic  || '',
+            holder:   bankAcc?.account_holder || (person ? `${person.first_name} ${person.last_name}` : ''),
+            hasIban:  !!bankAcc?.iban,
+        };
+    });
+
+    if (!rows.length) {
+        el.innerHTML = '<div class="card p-8 text-center text-gray-400 text-sm">Keine offenen Sollstellungen für dieses Jahr.</div>';
+        return;
+    }
+
+    const noIbanCount = rows.filter(r => !r.hasIban).length;
+    const noIbanBanner = noIbanCount > 0 ? `
+        <div class="flex items-center gap-2 bg-hb-orange/10 border border-hb-orange/30 rounded-lg px-4 py-2 text-sm text-hb-orange font-semibold mb-4">
+            <span>⚠</span>
+            <span>${noIbanCount} Eigentümer ohne hinterlegte IBAN — diese werden im XML nicht berücksichtigt.</span>
+        </div>` : '';
+
+    const rowHtml = rows.map((r, i) => `
+        <tr class="hover:bg-gray-50">
+            <td class="px-3 py-2 text-center">
+                <input type="checkbox" id="sepa-chk-${i}" ${r.hasIban ? 'checked' : 'disabled'}
+                    class="accent-hb-olive" ${!r.hasIban ? 'title="Keine IBAN hinterlegt"' : ''}>
+            </td>
+            <td class="px-3 py-2 text-sm">${_esc(r.aptNum)}</td>
+            <td class="px-3 py-2 text-sm font-medium">${_esc(r.person)}</td>
+            <td class="px-3 py-2 text-sm font-bold text-right">${r.amount.toFixed(2)} €</td>
+            <td class="px-3 py-2 text-sm text-gray-500">${r.dueDate}</td>
+            <td class="px-3 py-2 text-sm font-mono">
+                ${r.hasIban
+                    ? `<span class="text-gray-700">${r.iban}</span>`
+                    : `<span class="inline-flex items-center gap-1 bg-hb-orange/15 text-hb-orange text-xs font-bold px-2 py-0.5 rounded-md">Keine IBAN</span>`}
+            </td>
+        </tr>`).join('');
+
+    const total = rows.filter(r => r.hasIban).reduce((s, r) => s + r.amount, 0);
+
+    el.innerHTML = `
+        <div class="card overflow-hidden">
+            ${noIbanBanner ? `<div class="px-5 pt-4">${noIbanBanner}</div>` : ''}
+            <div class="bg-hb-olive px-5 py-3 flex justify-between items-center">
+                <span class="text-sm font-bold text-white">${rows.length} Sollstellungen · Gesamt: ${total.toFixed(2)} €</span>
+                <div class="flex gap-2">
+                    <button onclick="_sepaExportXml()" class="text-xs bg-white text-hb-olive px-4 py-1 rounded-lg font-bold hover:bg-gray-50">
+                        XML herunterladen
+                    </button>
+                    <button onclick="_sepaMarkPaid()" class="text-xs bg-hb-orange text-white px-4 py-1 rounded-lg font-semibold hover:opacity-90">
+                        Als bezahlt markieren
+                    </button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full divide-y divide-hb-olive/10">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-3 py-2 w-8"></th>
+                            <th class="px-3 py-2 text-xs font-bold text-gray-500 text-left">Einheit</th>
+                            <th class="px-3 py-2 text-xs font-bold text-gray-500 text-left">Eigentümer / Mieter</th>
+                            <th class="px-3 py-2 text-xs font-bold text-gray-500 text-right">Betrag</th>
+                            <th class="px-3 py-2 text-xs font-bold text-gray-500 text-left">Fälligkeit</th>
+                            <th class="px-3 py-2 text-xs font-bold text-gray-500 text-left">IBAN</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-hb-olive/10">${rowHtml}</tbody>
+                </table>
+            </div>
+        </div>`;
+
+    // store rows on window for export
+    window._sepaRows = rows;
+    window._sepaDemandsRaw = demands || [];
+};
+
+window._sepaExportXml = () => {
+    const rows     = (window._sepaRows || []).filter((r, i) => r.hasIban && document.getElementById(`sepa-chk-${i}`)?.checked);
+    if (!rows.length) { showToast('Keine auswählbaren Einträge.', 'error'); return; }
+
+    const creditorId  = document.getElementById('sepa-creditor-id')?.value || '';
+    const dueDate     = document.getElementById('sepa-due-date')?.value    || new Date().toISOString().slice(0,10);
+    const bankSel     = document.getElementById('sepa-bank-select');
+    const selOpt      = bankSel?.options[bankSel.selectedIndex];
+    const credIban    = selOpt?.dataset?.iban  || '';
+    const credBic     = selOpt?.dataset?.bic   || '';
+    const msgId       = `HBMP-${Date.now()}`;
+    const now         = new Date().toISOString().slice(0,19);
+    const totalAmt    = rows.reduce((s, r) => s + r.amount, 0).toFixed(2);
+    const ctrlSum     = totalAmt;
+    const bid = _finState.buildingId;
+    const bldName     = _finState.buildings.find(b => b.id === bid)?.name || 'HB-Portal';
+
+    const txXml = rows.map((r, i) => `
+        <DrctDbtTxInf>
+            <PmtId><EndToEndId>HBMP-${bid}-${r.demandId}</EndToEndId></PmtId>
+            <InstdAmt Ccy="EUR">${r.amount.toFixed(2)}</InstdAmt>
+            <DrctDbtTx>
+                <MndtRltdInf>
+                    <MndtId>MNDT-${r.demandId}</MndtId>
+                    <DtOfSgntr>${dueDate}</DtOfSgntr>
+                </MndtRltdInf>
+                <CdtrSchmeId>
+                    <Id><PrvtId><Othr>
+                        <Id>${_xmlEsc(creditorId)}</Id>
+                        <SchmeNm><Prtry>SEPA</Prtry></SchmeNm>
+                    </Othr></PrvtId></Id>
+                </CdtrSchmeId>
+            </DrctDbtTx>
+            <DbtrAgt><FinInstnId><BIC>${_xmlEsc(r.bic || 'NOTPROVIDED')}</BIC></FinInstnId></DbtrAgt>
+            <Dbtr><Nm>${_xmlEsc(r.holder || r.person)}</Nm></Dbtr>
+            <DbtrAcct><Id><IBAN>${_xmlEsc(r.iban)}</IBAN></Id></DbtrAcct>
+            <RmtInf><Ustrd>Hausgeld ${_xmlEsc(r.aptNum)} Faelligkeit ${r.dueDate}</Ustrd></RmtInf>
+        </DrctDbtTxInf>`).join('');
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.008.003.02"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="urn:iso:std:iso:20022:tech:xsd:pain.008.003.02 pain.008.003.02.xsd">
+    <CstmrDrctDbtInitn>
+        <GrpHdr>
+            <MsgId>${msgId}</MsgId>
+            <CreDtTm>${now}</CreDtTm>
+            <NbOfTxs>${rows.length}</NbOfTxs>
+            <CtrlSum>${ctrlSum}</CtrlSum>
+            <InitgPty><Nm>${_xmlEsc(bldName)}</Nm></InitgPty>
+        </GrpHdr>
+        <PmtInf>
+            <PmtInfId>${msgId}-001</PmtInfId>
+            <PmtMtd>DD</PmtMtd>
+            <NbOfTxs>${rows.length}</NbOfTxs>
+            <CtrlSum>${ctrlSum}</CtrlSum>
+            <PmtTpInf>
+                <SvcLvl><Cd>SEPA</Cd></SvcLvl>
+                <LclInstrm><Cd>CORE</Cd></LclInstrm>
+                <SeqTp>RCUR</SeqTp>
+            </PmtTpInf>
+            <ReqdColltnDt>${dueDate}</ReqdColltnDt>
+            <Cdtr><Nm>${_xmlEsc(bldName)}</Nm></Cdtr>
+            <CdtrAcct><Id><IBAN>${_xmlEsc(credIban)}</IBAN></Id></CdtrAcct>
+            <CdtrAgt><FinInstnId><BIC>${_xmlEsc(credBic || 'NOTPROVIDED')}</BIC></FinInstnId></CdtrAgt>
+            ${txXml}
+        </PmtInf>
+    </CstmrDrctDbtInitn>
+</Document>`;
+
+    _finDownloadFile(xml, `SEPA_Lastschrift_${dueDate}.xml`, 'application/xml;charset=utf-8');
+    showToast('SEPA-XML heruntergeladen.', 'success');
+};
+
+window._sepaMarkPaid = async () => {
+    const rows    = (window._sepaRows || []).filter((r, i) => document.getElementById(`sepa-chk-${i}`)?.checked);
+    const ids     = rows.map(r => r.demandId);
+    if (!ids.length) { showToast('Keine Einträge ausgewählt.', 'error'); return; }
+    const { error } = await _supabase.from('payment_demands')
+        .update({ status: 'paid' })
+        .in('id', ids);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    showToast(`${ids.length} Sollstellung(en) als bezahlt markiert.`, 'success');
+    await _sepaLoadPreview();
+};
+
+function _xmlEsc(s) {
+    return String(s || '')
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;')
+        .replace(/'/g,'&apos;');
 }
