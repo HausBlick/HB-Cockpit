@@ -163,12 +163,9 @@ js/
 - 6-B Buchhaltung UI (`mod-finanzen.js`): Übersicht, Buchungen, Zählerstände, Sollstellungen, Onboarding ✅
 - 6-C Wirtschaftsplan, Sonderumlagen, Erhaltungsrücklage, Beirat-Belegprüfung ✅
 - 6-D Jahresabrechnung, Mahnwesen, DATEV-Export ✅
-- 6.1 Wirtschaftsplan (Planung laufender Kosten pro WEG) 📋
-- 6.2 Jahresabrechnung / Hausgeldabrechnung (Kostenverteilung nach MEA & Schlüsseln) 📋
-- 6.3 Erhaltungsrücklage (Zuführungen, Entnahmen, Ausweis in Abrechnung) 📋
-- 6.4 **CSV-Bankimport** (MT940/CSV-Upload → Transaktionen einlesen & zuordnen) 📋
-- 6.5 **Mahnwesen** (mehrstufig, automatisch auf Basis offener Posten) 📋
-- 6.6 **DATEV-Export** (CSV/JSON im DATEV-Format für Steuerberater) 📋
+- 6-E CSV-Bankimport (Tab 12) + SEPA-XML Export (Tab 13) + Testdaten-Scripts ✅
+- 6.4 **CSV-Bankimport** (MT940/Sparkasse/Volksbank/CSV allgemein, Drag & Drop, Duplikat-Check) ✅
+- 6.13 **SEPA-XML Export** (PAIN.008.003.02, IBAN-Vorschau, „Als bezahlt"-Markierung) ✅
 - 6.7 **Pro-rata-temporis Umlage** (zeitanteilige Abrechnung bei Mieterwechsel) 📋
 - 6.8 **Zählerstände UI** (aus Phase 3.5 verschoben, wird für Abrechnung benötigt) 📋
 
@@ -363,6 +360,18 @@ js/
 | 6 | **Auto-Naming on Publish** (`_publishDoc`): `generated_filename = [file_number] [apt_number] - [document_title].[ext]` aus `buildings.file_number` + `apartments.apartment_number` |
 | 7 | **document_links-Management** im Bearbeiten-Modal: Personen hinzufügen/entfernen, die Zugriff auf ein Dokument haben |
 | 8 | Anzeige-Name-Priorität in Tabelle: `generated_filename` → `document_title` → `title` |
+
+---
+
+### Phase 6-E — CSV-Bankimport, SEPA-XML Export, Testdaten-Scripts
+**Commits:** `3efc9ed`
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Tab 12 CSV-Import**: Format-Auswahl (MT940/Sparkasse/Volksbank/CSV allgemein), Drag & Drop Upload-Zone, client-seitiger Parser, Vorschau-Tabelle (Checkbox, Betrag farbkodiert grün/rot, Kontenzuweisung je Zeile), Duplikat-Erkennung per `reference_number`, Import in `journal_entries` |
+| 2 | **Tab 13 SEPA-Export**: Offene/überfällige Sollstellungen mit IBAN-Vorschau, orange „Keine IBAN"-Badge, PAIN.008.003.02 XML-Download, „Als bezahlt markieren"-Button |
+| 3 | **`scripts/seed-testdata.sql`**: 5 WE (TEST-001) + 4 WE (TEST-002), Zählerstände Jahresanfang + Jahresende 2025, 2 Wirtschaftspläne je Gebäude (2025 aktiv + 2026 Entwurf), 108 Sollstellungen (inkl. overdue für WE05) |
+| 4 | Testdaten in DB eingespielt und verifiziert |
 
 ---
 
