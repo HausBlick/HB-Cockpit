@@ -313,6 +313,8 @@ js/
 | 7 | `config.js`: Kalender-Icon ergänzt |
 | 8 | Dashboard KPI „Anstehende Fristen" → navigiert jetzt zum Kalender statt zu scrollen |
 | 9 | Legende unterhalb des Kalenders (Farb-Erklärung + Ticket-Wiedervorlage) |
+| 10 | Klick auf Deadline-Pill öffnet Popup: Frist-Typ, Gebäude, Datum, Dringlichkeit + „Zum Gebäude"-Button |
+| 11 | Popup schließt bei Klick außerhalb; Positionierung neben dem geklickten Element |
 
 **Phase 5.4 — Dashboard KPIs**
 
