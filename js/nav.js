@@ -68,7 +68,10 @@ function renderNav(role) {
             <li><a onclick="loadContacts();  setActiveNav(this)" class="nav-link">${icons.contact}  Kontaktbuch</a></li>
 
             <li class="nav-section-title">Vermieter-Bereich</li>
-            <li><a onclick="loadMyTenants(); setActiveNav(this)" class="nav-link">${icons.users}    Meine Mieter</a></li>`;
+            <li><a onclick="loadMyTenants(); setActiveNav(this)" class="nav-link">${icons.users}    Meine Mieter</a></li>
+
+            <li class="nav-section-title">Finanzen</li>
+            <li><a onclick="loadFinance();   setActiveNav(this)" class="nav-link">${icons.finance}  Belegprüfung</a></li>`;
     } else {
         // tenant
         html += `

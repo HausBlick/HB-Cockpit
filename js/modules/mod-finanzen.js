@@ -1,22 +1,32 @@
 // ============================================================
 // HB-Mieterportal | mod-finanzen.js
-// Buchhaltung: Übersicht, Buchungen, Zählerstände, Sollstellungen, Onboarding
-// Nur für admin & manager
+// Buchhaltung: Übersicht, Buchungen, Zählerstände, Sollstellungen,
+//              Wirtschaftsplan, Rücklage, Belegprüfung, Onboarding
 // ============================================================
 
 let _finState = {
-    tab:            'uebersicht',
-    buildingId:     null,
-    buildings:      [],
-    accounts:       [],
-    entries:        [],
-    demands:        [],
-    apartments:     [],
-    meters:         [],
-    lastReadings:   {},   // { meterId: reading_value }
-    fiscalYear:     new Date().getFullYear(),
-    onboardStep:    1,
-    onboardBankRows: [],
+    tab:              'uebersicht',
+    buildingId:       null,
+    buildings:        [],
+    accounts:         [],
+    entries:          [],
+    demands:          [],
+    apartments:       [],
+    meters:           [],
+    lastReadings:     {},
+    fiscalYear:       new Date().getFullYear(),
+    // Wirtschaftsplan
+    selectedPlanId:   null,
+    plans:            [],
+    planItems:        [],
+    sonderumlagen:    [],
+    // Beirat
+    isBeirat:         false,
+    beiratBuildingId: null,
+    beiratFiscalYear: null,
+    // Onboarding
+    onboardStep:      1,
+    onboardBankRows:  [],
     onboardOwnerRows: [],
 };
 
@@ -25,6 +35,45 @@ let _finState = {
 async function loadFinance() {
     const ca = document.getElementById('content-area');
     ca.innerHTML = `<div class="flex justify-center py-16"><div class="w-8 h-8 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div></div>`;
+
+    const isAdminManager = ['admin','manager'].includes(userProfile?.role);
+
+    // Beirat-Prüfung für Nicht-Verwalter
+    _finState.isBeirat = false;
+    _finState.beiratBuildingId = null;
+    _finState.beiratFiscalYear = null;
+
+    if (!isAdminManager) {
+        const { data: person } = await _supabase.from('persons').select('id').eq('auth_user_id', currentUser.id).maybeSingle();
+        if (person) {
+            const today = new Date().toISOString().split('T')[0];
+            const { data: bm } = await _supabase.from('board_members').select('building_id, valid_to').eq('person_id', person.id);
+            const activeBM = (bm || []).filter(b => !b.valid_to || b.valid_to >= today);
+            if (activeBM.length > 0) {
+                const bidList = activeBM.map(b => b.building_id);
+                const { data: periods } = await _supabase.from('beirat_access_periods')
+                    .select('building_id, fiscal_year')
+                    .in('building_id', bidList)
+                    .lte('access_from', today)
+                    .gte('access_to', today)
+                    .limit(1);
+                if (periods?.length > 0) {
+                    _finState.isBeirat       = true;
+                    _finState.beiratBuildingId = periods[0].building_id;
+                    _finState.beiratFiscalYear = periods[0].fiscal_year;
+                }
+            }
+        }
+        if (!_finState.isBeirat) {
+            ca.innerHTML = `<div class="p-10 card text-center max-w-sm mx-auto mt-10">
+                <h2 class="text-lg font-bold mb-2 text-hb-offblack">Kein Zugriff</h2>
+                <p class="text-sm text-gray-500">Aktuell keine aktive Belegprüfungs-Freigabe vorhanden.</p></div>`;
+            return;
+        }
+        // Beirat: direkt Belegansicht
+        _finRenderBeiratView();
+        return;
+    }
 
     const { data: buildings } = await _supabase.from('buildings').select('id, name').order('name');
     _finState.buildings = buildings || [];
@@ -40,11 +89,14 @@ async function loadFinance() {
 
 function _finRenderShell() {
     const tabs = [
-        { key: 'uebersicht',   label: 'Übersicht' },
-        { key: 'buchungen',    label: 'Buchungen' },
-        { key: 'zaehler',      label: 'Zählerstände' },
-        { key: 'sollstellung', label: 'Sollstellungen' },
-        { key: 'onboarding',   label: 'Onboarding' },
+        { key: 'uebersicht',      label: 'Übersicht' },
+        { key: 'buchungen',       label: 'Buchungen' },
+        { key: 'zaehler',         label: 'Zählerstände' },
+        { key: 'sollstellung',    label: 'Sollstellungen' },
+        { key: 'wirtschaftsplan', label: 'Wirtschaftsplan' },
+        { key: 'ruecklage',       label: 'Rücklage' },
+        { key: 'belegpruefung',   label: 'Belegprüfung' },
+        { key: 'onboarding',      label: 'Onboarding' },
     ];
 
     const buildingOpts = _finState.buildings.map(b =>
@@ -92,11 +144,14 @@ async function _finLoadTab(tab) {
     if (!el) return;
     el.innerHTML = `<div class="flex justify-center py-10"><div class="w-7 h-7 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div></div>`;
 
-    if (tab === 'uebersicht')   await _finLoadOverview();
-    else if (tab === 'buchungen')    await _finLoadBookings();
-    else if (tab === 'zaehler')      await _finLoadMeters();
-    else if (tab === 'sollstellung') await _finLoadDemands();
-    else if (tab === 'onboarding')   _finRenderOnboarding();
+    if (tab === 'uebersicht')        await _finLoadOverview();
+    else if (tab === 'buchungen')         await _finLoadBookings();
+    else if (tab === 'zaehler')           await _finLoadMeters();
+    else if (tab === 'sollstellung')      await _finLoadDemands();
+    else if (tab === 'wirtschaftsplan')   await _finLoadWirtschaftsplan();
+    else if (tab === 'ruecklage')         await _finLoadRuecklage();
+    else if (tab === 'belegpruefung')     await _finLoadBelegpruefung();
+    else if (tab === 'onboarding')        _finRenderOnboarding();
 }
 
 // ─── Konten sicherstellen (System-Konten kopieren) ────────────
@@ -957,3 +1012,709 @@ window._finOBComplete = async () => {
     _finState.onboardOwnerRows = [];
     await _finSwitchTab('uebersicht');
 };
+
+// ============================================================
+// ─── Tab 5: Wirtschaftsplan & Sonderumlagen ──────────────────
+// ============================================================
+
+async function _finLoadWirtschaftsplan() {
+    const bid = _finState.buildingId;
+    const fy  = _finState.fiscalYear;
+    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-sm">Kein Gebäude gewählt.</p>'; return; }
+
+    const accounts = _finState.accounts.length ? _finState.accounts : await _finGetAccounts(bid);
+    _finState.accounts = accounts;
+
+    const [{ data: plans }, { data: levies }] = await Promise.all([
+        _supabase.from('budget_plans').select('*').eq('building_id', bid).order('fiscal_year', { ascending: false }),
+        _supabase.from('special_levies').select('*').eq('building_id', bid).order('due_date', { ascending: false }),
+    ]);
+    _finState.plans        = plans || [];
+    _finState.sonderumlagen = levies || [];
+
+    // Aktiven Plan für gewähltes Jahr finden
+    const plan = _finState.plans.find(p => p.fiscal_year == fy) || null;
+    _finState.selectedPlanId = plan?.id || null;
+
+    let planItems = [];
+    if (plan) {
+        const { data: items } = await _supabase.from('budget_plan_items')
+            .select('*, account:accounts(account_number, account_name)')
+            .eq('budget_plan_id', plan.id)
+            .order('id');
+        planItems = items || [];
+    }
+    _finState.planItems = planItems;
+
+    _finRenderWirtschaftsplan(plan, planItems);
+}
+
+function _finRenderWirtschaftsplan(plan, planItems) {
+    const fy  = _finState.fiscalYear;
+    const bid = _finState.buildingId;
+    const fyOpts = [fy+1, fy, fy-1, fy-2].map(y => `<option value="${y}" ${y==fy?'selected':''}>${y}</option>`).join('');
+
+    const statusBadge = (s) => ({
+        draft:    '<span class="text-xs bg-gray-100 text-gray-600 font-semibold px-2 py-0.5 rounded-md">Entwurf</span>',
+        approved: '<span class="text-xs bg-hb-olive/10 text-hb-olive font-semibold px-2 py-0.5 rounded-md">Beschlossen</span>',
+        active:   '<span class="text-xs bg-green-50 text-green-700 font-semibold px-2 py-0.5 rounded-md">Aktiv</span>',
+        closed:   '<span class="text-xs bg-gray-100 text-gray-400 font-semibold px-2 py-0.5 rounded-md">Abgeschlossen</span>',
+    }[s] || '');
+
+    const totalPlanned = planItems.reduce((s, i) => s + Number(i.planned_amount || 0), 0);
+
+    const itemRows = planItems.map(item => `
+        <tr class="hover:bg-gray-50/60">
+            <td class="px-4 py-3 text-xs font-mono text-gray-500">${item.account?.account_number || '–'}</td>
+            <td class="px-4 py-3 text-sm">${item.account?.account_name || '–'}</td>
+            <td class="px-4 py-3 text-sm text-right text-gray-500">${Number(item.prior_year_actual || 0).toLocaleString('de-DE', {minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3 text-sm text-right text-gray-500">${item.adjustment_percent != null ? item.adjustment_percent + ' %' : '–'}</td>
+            <td class="px-4 py-3 text-sm font-bold text-right">${Number(item.planned_amount || 0).toLocaleString('de-DE', {minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3 text-right">
+                ${plan?.status === 'draft' ? `<button onclick="_finDeletePlanItem(${item.id})" class="text-xs text-hb-orange px-2 py-1 rounded-lg hover:bg-hb-orange/5">Entfernen</button>` : ''}
+            </td>
+        </tr>`).join('');
+
+    // Status-Aktions-Button
+    let statusAction = '';
+    if (plan) {
+        if (plan.status === 'draft')
+            statusAction = `<button onclick="_finPlanStatus(${plan.id},'approved')" class="btn-primary text-sm px-4 py-2">Als beschlossen markieren</button>`;
+        else if (plan.status === 'approved')
+            statusAction = `<div class="flex gap-2 items-center">
+                <input id="fin-wp-validfrom" type="date" class="w-40 text-sm" value="${new Date().toISOString().split('T')[0]}">
+                <button onclick="_finPlanStatus(${plan.id},'active')" class="btn-primary text-sm px-4 py-2">Aktivieren ab...</button>
+            </div>`;
+        else if (plan.status === 'active')
+            statusAction = `<button onclick="_finPlanStatus(${plan.id},'closed')" class="btn-secondary text-sm px-4 py-2">Abschließen</button>`;
+    }
+
+    // Sonderumlagen-Tabelle
+    const levyStatusBadge = (s) => s === 'active' ? '<span class="text-xs bg-green-50 text-green-700 font-semibold px-2 py-0.5 rounded-md">Aktiv</span>'
+        : s === 'draft' ? '<span class="text-xs bg-gray-100 text-gray-600 font-semibold px-2 py-0.5 rounded-md">Entwurf</span>'
+        : '<span class="text-xs bg-hb-orange/10 text-hb-orange font-semibold px-2 py-0.5 rounded-md">Abgeschlossen</span>';
+    const distKeyLabel = { mea: 'MEA', units: 'Einheiten', sqm: 'Wohnfläche m²', custom: 'Individuell' };
+    const levyRows = _finState.sonderumlagen.map(l => `
+        <tr class="hover:bg-gray-50/60">
+            <td class="px-4 py-3 text-sm font-semibold">${l.title}</td>
+            <td class="px-4 py-3 text-sm text-right font-bold">${Number(l.total_amount).toLocaleString('de-DE', {minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3 text-xs text-gray-500">${distKeyLabel[l.distribution_key] || l.distribution_key}</td>
+            <td class="px-4 py-3 text-sm text-gray-500">${l.due_date || '–'}</td>
+            <td class="px-4 py-3">${levyStatusBadge(l.status)}</td>
+            <td class="px-4 py-3 text-right">
+                ${l.status === 'draft' ? `<button onclick="_finActivateLevy(${l.id})" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Aktivieren</button>` : ''}
+            </td>
+        </tr>`).join('');
+
+    document.getElementById('fin-content').innerHTML = `
+        <!-- Plan-Header -->
+        <div class="card p-5 mb-5">
+            <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
+                <div class="flex items-center gap-3">
+                    <h3 class="text-sm font-bold text-hb-offblack">Wirtschaftsplan</h3>
+                    <select onchange="_finChangeWPFY(this.value)" class="text-sm w-24">${fyOpts}</select>
+                    ${plan ? statusBadge(plan.status) : ''}
+                </div>
+                <div class="flex gap-2">
+                    ${statusAction}
+                    ${!plan ? `<button onclick="_finNewPlan()" class="btn-primary text-sm px-4 py-2">+ Neuer Plan ${fy}</button>` : ''}
+                    ${plan?.status === 'draft' ? `<button onclick="_finOpenAddItemModal()" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 border border-hb-olive/20">+ Position hinzufügen</button>` : ''}
+                </div>
+            </div>
+            ${!plan ? `<p class="text-sm text-gray-400">Kein Wirtschaftsplan für ${fy} vorhanden.</p>` : `
+            <table class="w-full">
+                <thead class="bg-gray-50"><tr>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Kto.</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Bezeichnung</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Vorjahres-Ist</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Anpassung</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Plan ${fy}</th>
+                    <th class="px-4 py-3"></th>
+                </tr></thead>
+                <tbody class="divide-y divide-hb-olive/10">
+                    ${itemRows || '<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-gray-400">Noch keine Positionen. Klicke „+ Position hinzufügen".</td></tr>'}
+                    <tr class="bg-hb-olive/5 font-bold">
+                        <td colspan="4" class="px-4 py-3 text-sm text-right text-hb-offblack">Gesamtaufwand geplant:</td>
+                        <td class="px-4 py-3 text-sm text-right text-hb-olive">${totalPlanned.toLocaleString('de-DE', {minimumFractionDigits:2})} €</td>
+                        <td></td>
+                    </tr>
+                </tbody>
+            </table>`}
+        </div>
+
+        <!-- Sonderumlagen -->
+        <div class="card overflow-hidden">
+            <div class="bg-hb-olive px-5 py-3 flex justify-between items-center">
+                <span class="text-sm font-bold text-white">Sonderumlagen</span>
+                <button onclick="_finOpenNewLevyModal()" class="bg-white text-hb-olive text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">+ Sonderumlage anlegen</button>
+            </div>
+            <table class="w-full">
+                <thead class="bg-gray-50"><tr>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Titel</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Gesamtbetrag</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Schlüssel</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Fälligkeit</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Status</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500"></th>
+                </tr></thead>
+                <tbody class="divide-y divide-hb-olive/10">${levyRows || '<tr><td colspan="6" class="px-4 py-8 text-center text-sm text-gray-400">Keine Sonderumlagen vorhanden.</td></tr>'}</tbody>
+            </table>
+        </div>
+
+        <!-- Modal: Position hinzufügen -->
+        <div id="fin-item-modal" class="hidden fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-md p-6">
+                <h3 class="text-base font-extrabold text-hb-offblack mb-4">Position hinzufügen</h3>
+                <div class="space-y-3">
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Konto *</label>
+                        <select id="fin-item-acc">${_finState.accounts.filter(a=>a.account_type==='expense').map(a=>`<option value="${a.id}">${a.account_number} – ${a.account_name}</option>`).join('')}</select></div>
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Vorjahres-Ist (€)</label>
+                        <input id="fin-item-prior" type="number" step="0.01" min="0" placeholder="0,00" oninput="_finCalcPlanned()"></div>
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Anpassung (%)</label>
+                        <input id="fin-item-adj" type="number" step="0.1" placeholder="0" oninput="_finCalcPlanned()"></div>
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Geplanter Betrag (€) *</label>
+                        <input id="fin-item-planned" type="number" step="0.01" min="0" placeholder="0,00"></div>
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Notiz</label>
+                        <input id="fin-item-notes" type="text"></div>
+                </div>
+                <div class="flex gap-3 mt-5">
+                    <button onclick="_finSavePlanItem()" class="btn-primary flex-1 text-sm py-2.5">Hinzufügen</button>
+                    <button onclick="document.getElementById('fin-item-modal').classList.add('hidden')" class="btn-secondary flex-1 text-sm py-2.5">Abbrechen</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Sonderumlage -->
+        <div id="fin-levy-modal" class="hidden fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-md p-6">
+                <h3 class="text-base font-extrabold text-hb-offblack mb-4">Sonderumlage anlegen</h3>
+                <div class="space-y-3">
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Titel *</label>
+                        <input id="fin-lv-title" type="text" placeholder="z.B. Fassadensanierung"></div>
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Gesamtbetrag (€) *</label>
+                        <input id="fin-lv-amount" type="number" step="0.01" min="0.01"></div>
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Verteilerschlüssel</label>
+                        <select id="fin-lv-key"><option value="mea">MEA</option><option value="units">Einheiten</option><option value="sqm">Wohnfläche m²</option><option value="custom">Individuell</option></select></div>
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Fälligkeitsdatum *</label>
+                        <input id="fin-lv-due" type="date"></div>
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Wirtschaftsjahr</label>
+                        <input id="fin-lv-fy" type="number" value="${fy}"></div>
+                </div>
+                <div class="flex gap-3 mt-5">
+                    <button onclick="_finSaveLevy()" class="btn-primary flex-1 text-sm py-2.5">Speichern</button>
+                    <button onclick="document.getElementById('fin-levy-modal').classList.add('hidden')" class="btn-secondary flex-1 text-sm py-2.5">Abbrechen</button>
+                </div>
+            </div>
+        </div>`;
+}
+
+window._finChangeWPFY = async (val) => {
+    _finState.fiscalYear = Number(val);
+    await _finLoadWirtschaftsplan();
+};
+
+window._finNewPlan = async () => {
+    const { error } = await _supabase.from('budget_plans').insert({
+        building_id: _finState.buildingId,
+        fiscal_year: _finState.fiscalYear,
+        status:      'draft',
+        created_by:  currentUser.id,
+    });
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    showToast(`Wirtschaftsplan ${_finState.fiscalYear} angelegt.`, 'success');
+    await _finLoadWirtschaftsplan();
+};
+
+window._finPlanStatus = async (planId, newStatus) => {
+    const updateData = { status: newStatus };
+    if (newStatus === 'approved') updateData.approved_at = new Date().toISOString();
+    if (newStatus === 'active') {
+        const vf = document.getElementById('fin-wp-validfrom')?.value;
+        if (vf) updateData.valid_from = vf;
+        showToast(`Plan aktiviert ab ${vf || 'heute'}. Neue Hausgelder können im Tab „Sollstellungen" generiert werden.`, 'success');
+    }
+    const { error } = await _supabase.from('budget_plans').update(updateData).eq('id', planId);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    if (newStatus !== 'active') showToast('Status aktualisiert.', 'success');
+    await _finLoadWirtschaftsplan();
+};
+
+window._finOpenAddItemModal = () => {
+    document.getElementById('fin-item-modal')?.classList.remove('hidden');
+};
+
+window._finCalcPlanned = () => {
+    const prior = parseFloat(document.getElementById('fin-item-prior')?.value) || 0;
+    const adj   = parseFloat(document.getElementById('fin-item-adj')?.value) || 0;
+    const calc  = prior * (1 + adj / 100);
+    const p = document.getElementById('fin-item-planned');
+    if (p && prior) p.value = calc.toFixed(2);
+};
+
+window._finSavePlanItem = async () => {
+    const accId   = document.getElementById('fin-item-acc')?.value;
+    const prior   = parseFloat(document.getElementById('fin-item-prior')?.value) || null;
+    const adj     = parseFloat(document.getElementById('fin-item-adj')?.value) || null;
+    const planned = parseFloat(document.getElementById('fin-item-planned')?.value);
+    const notes   = document.getElementById('fin-item-notes')?.value.trim();
+    if (!accId || !planned) { showToast('Konto und geplanter Betrag sind Pflicht.', 'error'); return; }
+
+    const { error } = await _supabase.from('budget_plan_items').insert({
+        budget_plan_id:    _finState.selectedPlanId,
+        account_id:        Number(accId),
+        planned_amount:    planned,
+        prior_year_actual: prior,
+        adjustment_percent: adj,
+        notes:             notes || null,
+    });
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    document.getElementById('fin-item-modal')?.classList.add('hidden');
+    showToast('Position hinzugefügt.', 'success');
+    await _finLoadWirtschaftsplan();
+};
+
+window._finDeletePlanItem = async (itemId) => {
+    const { error } = await _supabase.from('budget_plan_items').delete().eq('id', itemId);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    showToast('Position entfernt.', 'success');
+    await _finLoadWirtschaftsplan();
+};
+
+window._finOpenNewLevyModal = () => {
+    document.getElementById('fin-levy-modal')?.classList.remove('hidden');
+};
+
+window._finSaveLevy = async () => {
+    const title  = document.getElementById('fin-lv-title')?.value.trim();
+    const amount = parseFloat(document.getElementById('fin-lv-amount')?.value);
+    const key    = document.getElementById('fin-lv-key')?.value;
+    const due    = document.getElementById('fin-lv-due')?.value;
+    const fy     = Number(document.getElementById('fin-lv-fy')?.value) || _finState.fiscalYear;
+    if (!title || !amount || !due) { showToast('Titel, Betrag und Fälligkeit sind Pflicht.', 'error'); return; }
+
+    const { error } = await _supabase.from('special_levies').insert({
+        building_id:     _finState.buildingId,
+        title, total_amount: amount,
+        distribution_key: key,
+        due_date:        due,
+        fiscal_year:     fy,
+        status:          'draft',
+        created_by:      currentUser.id,
+    });
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    document.getElementById('fin-levy-modal')?.classList.add('hidden');
+    showToast('Sonderumlage gespeichert.', 'success');
+    await _finLoadWirtschaftsplan();
+};
+
+window._finActivateLevy = async (levyId) => {
+    const levy = _finState.sonderumlagen.find(l => l.id == levyId);
+    if (!levy) return;
+
+    // Aktive Eigentümer mit Einheit holen
+    const { data: ownerships } = await _supabase.from('ownerships')
+        .select('id, owner_id, apartment_id, apartment:apartments(mea, mea_numerator, mea_denominator, sq_meters, building_id)')
+        .eq('is_active', true);
+    const relevant = (ownerships || []).filter(o => o.apartment?.building_id == _finState.buildingId);
+    if (!relevant.length) { showToast('Keine aktiven Eigentümer gefunden.', 'error'); return; }
+
+    const totalApts = relevant.length;
+    const totalSqm  = relevant.reduce((s, o) => s + Number(o.apartment?.sq_meters || 0), 0);
+
+    const demands = relevant.map(o => {
+        let share = 0;
+        const apt = o.apartment;
+        if (levy.distribution_key === 'mea') {
+            const num = apt.mea_numerator || 0, den = apt.mea_denominator || 1;
+            share = den > 0 ? levy.total_amount * (num / den) : levy.total_amount * (Number(apt.mea || 0) / 100);
+        } else if (levy.distribution_key === 'units') {
+            share = levy.total_amount / totalApts;
+        } else if (levy.distribution_key === 'sqm') {
+            share = totalSqm > 0 ? levy.total_amount * (Number(apt.sq_meters || 0) / totalSqm) : 0;
+        } else {
+            share = levy.total_amount / totalApts; // custom → gleiche Aufteilung als Fallback
+        }
+        return {
+            building_id:  _finState.buildingId,
+            apartment_id: o.apartment_id,
+            person_id:    o.owner_id,
+            demand_type:  'sonderumlage',
+            amount:       Math.round(share * 100) / 100,
+            due_date:     levy.due_date,
+            fiscal_year:  levy.fiscal_year,
+            status:       'open',
+        };
+    });
+
+    const { error: dErr } = await _supabase.from('payment_demands').insert(demands);
+    if (dErr) { showToast('Fehler Demands: ' + dErr.message, 'error'); return; }
+
+    await _supabase.from('special_levies').update({ status: 'active' }).eq('id', levyId);
+    showToast(`Sonderumlage aktiviert — ${demands.length} Sollstellungen erstellt.`, 'success');
+    await _finLoadWirtschaftsplan();
+};
+
+// ============================================================
+// ─── Tab 6: Erhaltungsrücklage ────────────────────────────────
+// ============================================================
+
+async function _finLoadRuecklage() {
+    const bid = _finState.buildingId;
+    const fy  = _finState.fiscalYear;
+    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-sm">Kein Gebäude gewählt.</p>'; return; }
+
+    const accounts = _finState.accounts.length ? _finState.accounts : await _finGetAccounts(bid);
+    _finState.accounts = accounts;
+    const reserveAccs = accounts.filter(a => a.is_reserve_account);
+
+    // Saldi aus journal_entries
+    const [{ data: debits }, { data: credits }] = await Promise.all([
+        _supabase.from('journal_entries').select('debit_account_id, amount').eq('building_id', bid),
+        _supabase.from('journal_entries').select('credit_account_id, amount').eq('building_id', bid),
+    ]);
+    const saldoMap = {};
+    for (const a of accounts) saldoMap[a.id] = 0;
+    for (const e of (debits  || [])) if (saldoMap[e.debit_account_id]  !== undefined) saldoMap[e.debit_account_id]  += Number(e.amount);
+    for (const e of (credits || [])) if (saldoMap[e.credit_account_id] !== undefined) saldoMap[e.credit_account_id] -= Number(e.amount);
+
+    // Soll-Bestand aus aktivem Wirtschaftsplan
+    const activePlan = _finState.plans.find(p => p.fiscal_year == fy && p.status === 'active');
+    let planTargetMap = {};
+    if (activePlan) {
+        const { data: items } = await _supabase.from('budget_plan_items').select('account_id, planned_amount').eq('budget_plan_id', activePlan.id);
+        for (const i of (items || [])) planTargetMap[i.account_id] = Number(i.planned_amount);
+    }
+
+    // Buchungshistorie für erstes Rücklagenkonto laden (Jahres-Filter)
+    const firstResAcc = reserveAccs[0];
+    let histEntries = [];
+    if (firstResAcc) {
+        const { data: hist } = await _supabase.from('journal_entries')
+            .select('id, entry_date, description, amount, debit_account_id, credit_account_id, entry_type')
+            .eq('building_id', bid)
+            .eq('fiscal_year', fy)
+            .or(`debit_account_id.eq.${firstResAcc.id},credit_account_id.eq.${firstResAcc.id}`)
+            .order('entry_date');
+        histEntries = hist || [];
+    }
+
+    _finRenderRuecklage(reserveAccs, saldoMap, planTargetMap, histEntries);
+}
+
+function _finRenderRuecklage(reserveAccs, saldoMap, planTargetMap, histEntries) {
+    const fy  = _finState.fiscalYear;
+    const fyOpts = [fy+1, fy, fy-1, fy-2].map(y => `<option value="${y}" ${y==fy?'selected':''}>${y}</option>`).join('');
+
+    const cards = reserveAccs.length ? reserveAccs.map(a => {
+        const saldo  = saldoMap[a.id] ?? 0;
+        const target = planTargetMap[a.id];
+        const diff   = target != null ? saldo - target : null;
+        const warn   = diff != null && Math.abs(diff) / (target || 1) > 0.05;
+        return `<div class="card p-4 flex-1 min-w-[220px]">
+            <div class="text-xs font-black uppercase tracking-widest text-hb-orange mb-1">${a.account_number}</div>
+            <div class="text-sm font-extrabold text-hb-offblack mb-1">${a.reserve_label || a.account_name}</div>
+            <div class="text-2xl font-extrabold ${saldo < 0 ? 'text-red-600' : 'text-hb-olive'}">${saldo.toLocaleString('de-DE', {minimumFractionDigits:2})} €</div>
+            ${target != null ? `<div class="text-xs ${warn ? 'text-hb-orange font-semibold' : 'text-gray-400'} mt-1">
+                Soll: ${target.toLocaleString('de-DE', {minimumFractionDigits:2})} € ${warn ? '⚠ Abweichung >5%' : '✓'}
+            </div>` : ''}
+        </div>`;
+    }).join('') : '<p class="text-sm text-gray-400">Keine Rücklagekonten vorhanden. Konto anlegen und „Ist Rücklagekonto" setzen.</p>';
+
+    // Laufender Saldo für Entwicklungsübersicht
+    let runSaldo = 0;
+    const firstResAcc = reserveAccs[0];
+    const histRows = histEntries.map(e => {
+        const isDebit = e.debit_account_id == firstResAcc?.id;
+        const typeLabel = isDebit ? 'Zuführung' : 'Entnahme';
+        const typeCls   = isDebit ? 'text-green-700 bg-green-50' : 'text-hb-orange bg-hb-orange/10';
+        runSaldo += isDebit ? Number(e.amount) : -Number(e.amount);
+        return `<tr class="hover:bg-gray-50/60">
+            <td class="px-4 py-3 text-sm text-gray-500">${e.entry_date}</td>
+            <td class="px-4 py-3 text-sm">${e.description}</td>
+            <td class="px-4 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-md ${typeCls}">${typeLabel}</span></td>
+            <td class="px-4 py-3 text-sm font-bold text-right">${Number(e.amount).toLocaleString('de-DE', {minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3 text-sm font-semibold text-right ${runSaldo < 0 ? 'text-red-600' : 'text-green-700'}">${runSaldo.toLocaleString('de-DE', {minimumFractionDigits:2})} €</td>
+        </tr>`;
+    }).join('');
+
+    document.getElementById('fin-content').innerHTML = `
+        <!-- Karten-Übersicht -->
+        <div class="flex gap-4 flex-wrap mb-5">${cards}</div>
+
+        <!-- Manuelle Buchungen -->
+        <div class="card p-5 mb-5">
+            <h3 class="text-sm font-bold text-hb-offblack mb-3">Rücklage manuell buchen</h3>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Rücklagenkonto</label>
+                    <select id="fin-rl-acc">${reserveAccs.map(a=>`<option value="${a.id}">${a.account_number} – ${a.reserve_label||a.account_name}</option>`).join('')}</select></div>
+                <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Betrag (€)</label>
+                    <input id="fin-rl-amount" type="number" step="0.01" min="0.01" placeholder="0,00"></div>
+                <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Datum</label>
+                    <input id="fin-rl-date" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
+                <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Beschreibung</label>
+                    <input id="fin-rl-desc" type="text" placeholder="z.B. Monatliche Zuführung"></div>
+            </div>
+            <div class="flex gap-3 mt-4">
+                <button onclick="_finBuchenRuecklage('zufuehrung')" class="btn-primary text-sm px-5 py-2.5">Zuführung buchen</button>
+                <button onclick="_finBuchenRuecklage('entnahme')" class="btn-secondary text-sm px-5 py-2.5">Entnahme buchen</button>
+            </div>
+        </div>
+
+        <!-- Entwicklungsübersicht -->
+        <div class="card overflow-hidden">
+            <div class="bg-hb-olive px-5 py-3 flex justify-between items-center">
+                <span class="text-sm font-bold text-white">Entwicklung ${firstResAcc?.reserve_label || 'Rücklage'} ${fy}</span>
+                <select onchange="_finChangeRLFY(this.value)" class="text-xs bg-white text-hb-olive font-bold px-2 py-1 rounded-lg border-0 cursor-pointer">${fyOpts}</select>
+            </div>
+            <table class="w-full">
+                <thead class="bg-gray-50"><tr>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Datum</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Buchungstext</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Typ</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Betrag</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Saldo</th>
+                </tr></thead>
+                <tbody class="divide-y divide-hb-olive/10">${histRows || `<tr><td colspan="5" class="px-4 py-8 text-center text-sm text-gray-400">Keine Rücklagebuchungen für ${fy}.</td></tr>`}</tbody>
+            </table>
+        </div>`;
+}
+
+window._finChangeRLFY = async (val) => {
+    _finState.fiscalYear = Number(val);
+    await _finLoadRuecklage();
+};
+
+window._finBuchenRuecklage = async (type) => {
+    const accId  = document.getElementById('fin-rl-acc')?.value;
+    const amount = parseFloat(document.getElementById('fin-rl-amount')?.value);
+    const date   = document.getElementById('fin-rl-date')?.value;
+    const desc   = document.getElementById('fin-rl-desc')?.value.trim();
+    if (!accId || !amount || !date) { showToast('Bitte alle Felder ausfüllen.', 'error'); return; }
+
+    const accounts = _finState.accounts;
+    const rlAcc    = accounts.find(a => a.id == accId);
+    const acc3000  = accounts.find(a => a.account_number === '3000');
+    if (!rlAcc || !acc3000) { showToast('Rücklagekonto oder Gegenkonto (3000) nicht gefunden.', 'error'); return; }
+
+    const isZu = type === 'zufuehrung';
+    const { error } = await _supabase.from('journal_entries').insert({
+        building_id:       _finState.buildingId,
+        entry_date:        date,
+        description:       desc || (isZu ? 'Zuführung Rücklage' : 'Entnahme Rücklage'),
+        amount,
+        debit_account_id:  isZu ? rlAcc.id  : acc3000.id,
+        credit_account_id: isZu ? acc3000.id : rlAcc.id,
+        entry_type:        'ruecklage',
+        fiscal_year:       new Date(date).getFullYear(),
+        created_by:        currentUser.id,
+    });
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    showToast(`${isZu ? 'Zuführung' : 'Entnahme'} gebucht.`, 'success');
+    await _finLoadRuecklage();
+};
+
+// ============================================================
+// ─── Tab 7: Belegprüfung Beirat (Admin-Verwaltung) ───────────
+// ============================================================
+
+async function _finLoadBelegpruefung() {
+    const bid = _finState.buildingId;
+    const fy  = _finState.fiscalYear;
+    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-sm">Kein Gebäude gewählt.</p>'; return; }
+
+    const [{ data: periods }, { data: entries }] = await Promise.all([
+        _supabase.from('beirat_access_periods').select('*').eq('building_id', bid).order('access_from', { ascending: false }),
+        _supabase.from('journal_entries')
+            .select('*, debit_account:accounts!debit_account_id(account_number,account_name), credit_account:accounts!credit_account_id(account_number,account_name)')
+            .eq('building_id', bid)
+            .eq('fiscal_year', fy)
+            .order('entry_date', { ascending: false }),
+    ]);
+
+    const today = new Date().toISOString().split('T')[0];
+    const fyOpts = [fy+1, fy, fy-1, fy-2].map(y => `<option value="${y}" ${y==fy?'selected':''}>${y}</option>`).join('');
+
+    const periodRows = (periods || []).map(p => {
+        const isActive = p.access_from <= today && p.access_to >= today;
+        return `<tr class="hover:bg-gray-50/60">
+            <td class="px-4 py-3 text-sm">${p.access_from}</td>
+            <td class="px-4 py-3 text-sm">${p.access_to}</td>
+            <td class="px-4 py-3 text-sm">${p.fiscal_year}</td>
+            <td class="px-4 py-3">
+                ${isActive ? '<span class="text-xs bg-green-50 text-green-700 font-semibold px-2 py-0.5 rounded-md">Aktiv</span>'
+                           : '<span class="text-xs bg-gray-100 text-gray-400 font-semibold px-2 py-0.5 rounded-md">Abgelaufen</span>'}
+            </td>
+            <td class="px-4 py-3 text-right">
+                <button onclick="_finDeleteAccessPeriod(${p.id})" class="text-xs text-hb-orange px-2 py-1 rounded-lg hover:bg-hb-orange/5">Entfernen</button>
+            </td>
+        </tr>`;
+    }).join('');
+
+    const entryRows = (entries || []).map(e => `
+        <tr class="hover:bg-gray-50/60">
+            <td class="px-4 py-3 text-sm text-gray-500">${e.entry_date}</td>
+            <td class="px-4 py-3 text-sm max-w-[200px] truncate" title="${e.description}">${e.description}</td>
+            <td class="px-4 py-3 text-xs text-gray-600">${e.debit_account?.account_number} ${e.debit_account?.account_name}</td>
+            <td class="px-4 py-3 text-xs text-gray-600">${e.credit_account?.account_number} ${e.credit_account?.account_name}</td>
+            <td class="px-4 py-3 text-sm font-bold text-right">${Number(e.amount).toLocaleString('de-DE', {minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3 text-center">
+                ${e.attachment_path ? `<button onclick="_finPreviewAttachment('${e.attachment_path}')" title="Beleg" class="text-hb-olive hover:opacity-70"><svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button>` : '–'}
+            </td>
+        </tr>`).join('');
+
+    document.getElementById('fin-content').innerHTML = `
+        <!-- Freigabe-Verwaltung -->
+        <div class="card overflow-hidden mb-5">
+            <div class="bg-hb-olive px-5 py-3 flex justify-between items-center">
+                <span class="text-sm font-bold text-white">Beirat-Freigabezeiträume</span>
+                <button onclick="_finOpenNewAccessModal()" class="bg-white text-hb-olive text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">+ Freigabe definieren</button>
+            </div>
+            <table class="w-full">
+                <thead class="bg-gray-50"><tr>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Von</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Bis</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Wirtschaftsjahr</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Status</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500"></th>
+                </tr></thead>
+                <tbody class="divide-y divide-hb-olive/10">${periodRows || '<tr><td colspan="5" class="px-4 py-6 text-center text-sm text-gray-400">Keine Freigaben definiert.</td></tr>'}</tbody>
+            </table>
+            <div class="px-5 py-3 bg-hb-ultralight border-t border-hb-olive/10 text-xs text-gray-500">
+                Personen mit Beirat-Eintrag im Gebäude sehen während eines aktiven Freigabezeitraums alle Buchungen und Belege des freigegebenen Wirtschaftsjahres (nur lesend).
+            </div>
+        </div>
+
+        <!-- Buchungsvorschau (für Admins als Voransicht was der Beirat sieht) -->
+        <div class="card overflow-hidden">
+            <div class="bg-hb-olive px-5 py-3 flex justify-between items-center">
+                <span class="text-sm font-bold text-white">Vorschau: Buchungen ${fy}</span>
+                <select onchange="_finChangeBPFY(this.value)" class="text-xs bg-white text-hb-olive font-bold px-2 py-1 rounded-lg border-0 cursor-pointer">${fyOpts}</select>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50"><tr>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Datum</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Beschreibung</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Soll</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Haben</th>
+                        <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Betrag</th>
+                        <th class="px-4 py-3 text-center text-xs font-bold text-gray-500">Beleg</th>
+                    </tr></thead>
+                    <tbody class="divide-y divide-hb-olive/10">${entryRows || `<tr><td colspan="6" class="px-4 py-8 text-center text-sm text-gray-400">Keine Buchungen für ${fy}.</td></tr>`}</tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Modal: Freigabezeitraum -->
+        <div id="fin-access-modal" class="hidden fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-md p-6">
+                <h3 class="text-base font-extrabold text-hb-offblack mb-4">Freigabezeitraum definieren</h3>
+                <div class="space-y-3">
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Von</label>
+                        <input id="fin-ac-from" type="date" value="${today}"></div>
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Bis</label>
+                        <input id="fin-ac-to" type="date"></div>
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Wirtschaftsjahr</label>
+                        <input id="fin-ac-fy" type="number" value="${fy}"></div>
+                </div>
+                <div class="flex gap-3 mt-5">
+                    <button onclick="_finSaveAccessPeriod()" class="btn-primary flex-1 text-sm py-2.5">Speichern</button>
+                    <button onclick="document.getElementById('fin-access-modal').classList.add('hidden')" class="btn-secondary flex-1 text-sm py-2.5">Abbrechen</button>
+                </div>
+            </div>
+        </div>`;
+}
+
+window._finChangeBPFY = async (val) => {
+    _finState.fiscalYear = Number(val);
+    await _finLoadBelegpruefung();
+};
+
+window._finOpenNewAccessModal = () => {
+    document.getElementById('fin-access-modal')?.classList.remove('hidden');
+};
+
+window._finSaveAccessPeriod = async () => {
+    const from = document.getElementById('fin-ac-from')?.value;
+    const to   = document.getElementById('fin-ac-to')?.value;
+    const fy   = Number(document.getElementById('fin-ac-fy')?.value);
+    if (!from || !to || !fy) { showToast('Alle Felder ausfüllen.', 'error'); return; }
+    if (to < from) { showToast('„Bis" muss nach „Von" liegen.', 'error'); return; }
+
+    const { error } = await _supabase.from('beirat_access_periods').insert({
+        building_id:  _finState.buildingId,
+        fiscal_year:  fy,
+        access_from:  from,
+        access_to:    to,
+        created_by:   currentUser.id,
+    });
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    document.getElementById('fin-access-modal')?.classList.add('hidden');
+    showToast('Freigabezeitraum gespeichert.', 'success');
+    await _finLoadBelegpruefung();
+};
+
+window._finDeleteAccessPeriod = async (id) => {
+    if (!confirm('Freigabe wirklich entfernen?')) return;
+    await _supabase.from('beirat_access_periods').delete().eq('id', id);
+    showToast('Freigabe entfernt.', 'success');
+    await _finLoadBelegpruefung();
+};
+
+// ============================================================
+// ─── Beirat: Read-Only Belegansicht ──────────────────────────
+// ============================================================
+
+async function _finRenderBeiratView() {
+    const bid = _finState.beiratBuildingId;
+    const fy  = _finState.beiratFiscalYear;
+    const ca  = document.getElementById('content-area');
+
+    const [{ data: bldg }, { data: entries }] = await Promise.all([
+        _supabase.from('buildings').select('name').eq('id', bid).single(),
+        _supabase.from('journal_entries')
+            .select('*, debit_account:accounts!debit_account_id(account_number,account_name), credit_account:accounts!credit_account_id(account_number,account_name)')
+            .eq('building_id', bid)
+            .eq('fiscal_year', fy)
+            .order('entry_date', { ascending: false }),
+    ]);
+
+    const entryRows = (entries || []).map(e => `
+        <tr class="hover:bg-gray-50/60">
+            <td class="px-4 py-3 text-sm text-gray-500">${e.entry_date}</td>
+            <td class="px-4 py-3 text-sm max-w-[200px] truncate" title="${e.description}">${e.description}</td>
+            <td class="px-4 py-3 text-xs text-gray-600">${e.debit_account?.account_number} ${e.debit_account?.account_name}</td>
+            <td class="px-4 py-3 text-xs text-gray-600">${e.credit_account?.account_number} ${e.credit_account?.account_name}</td>
+            <td class="px-4 py-3 text-sm font-bold text-right">${Number(e.amount).toLocaleString('de-DE', {minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3 text-center">
+                ${e.attachment_path ? `<button onclick="_finPreviewAttachment('${e.attachment_path}')" title="Beleg anzeigen" class="text-hb-olive hover:opacity-70"><svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button>` : '–'}
+            </td>
+        </tr>`).join('');
+
+    ca.innerHTML = `
+        <div class="flex justify-between items-end mb-6">
+            <div>
+                <p class="text-xs uppercase tracking-widest font-bold text-hb-orange mb-1">Belegprüfung Beirat</p>
+                <h2 class="text-2xl font-extrabold text-hb-olive tracking-tight">${bldg?.name || '–'}</h2>
+                <p class="text-sm text-gray-500 mt-1">Wirtschaftsjahr ${fy} — schreibgeschützt</p>
+            </div>
+        </div>
+        <div class="card overflow-hidden">
+            <div class="bg-hb-olive px-5 py-3">
+                <span class="text-sm font-bold text-white">Buchungsjournal ${fy}</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50"><tr>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Datum</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Beschreibung</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Soll</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Haben</th>
+                        <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Betrag</th>
+                        <th class="px-4 py-3 text-center text-xs font-bold text-gray-500">Beleg</th>
+                    </tr></thead>
+                    <tbody class="divide-y divide-hb-olive/10">${entryRows || '<tr><td colspan="6" class="px-4 py-8 text-center text-sm text-gray-400">Keine Buchungen im freigegebenen Zeitraum.</td></tr>'}</tbody>
+                </table>
+            </div>
+        </div>`;
+}
