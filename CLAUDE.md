@@ -83,14 +83,19 @@ js/
 
 ---
 
-## 6. Datenbankschema (22 Tabellen, alle RLS)
+## 6. Datenbankschema (30 Tabellen, alle RLS)
 
 `profiles`, `buildings`, `apartments`, `persons`, `tenancies`, `ownerships`, `management_assignments`, `tickets`, `ticket_messages`, `news`, `news_likes`, `documents`, `document_reads`, `document_links`, `contacts`, `meters`, `meter_readings`, `invitations`, `building_bank_accounts`, `building_insurances`, `board_members`, `service_providers`, `person_bank_accounts`
+
+**Phase 6-A Finanztabellen:**
+`accounts`, `journal_entries`, `budget_plans`, `budget_plan_items`, `payment_demands`, `special_levies`, `dunning_notices`, `beirat_access_periods`
 
 **Wichtige Architektur:**
 - Auth-User getrennt von CRM (`persons`) — Verknüpfung über `persons.auth_user_id` + `invite_code`
 - `tenancies.tenant_id` → `persons.id` (nicht `auth.uid()`)
 - Historisierung: `tenancies` + `ownerships` mit `start_date` / `end_date`
+- **Doppelte Buchführung (GoBD):** `journal_entries` mit DB-RULES (`journal_no_update`, `journal_no_delete`) — keine Bearbeitung/Löschung möglich, nur Storno
+- `accounts.building_id = NULL` → globale Kontenrahmen-Vorlage; `building_id != NULL` → gebäudespezifisch
 
 ---
 
@@ -109,6 +114,7 @@ js/
 | Phase 5 | phase5_documents | `documents` um 11 Spalten erweitert, `document_reads.downloaded_at`, RLS-Policies, `profiles.role`-Constraint auf 4 Rollen erweitert |
 | Phase 5b | phase5b_document_links | `document_links`-Tabelle (Personen-Scope), `documents` um `original_filename`, `document_title`, `generated_filename` erweitert, RLS für `unit`- und `person`-Scope |
 | Bugfix | fix_document_reads_legacy_trigger | Legacy-Trigger `trg_document_reads_sync_legacy` + Funktionen entfernt — verursachte 400-Fehler bei jedem `document_reads`-INSERT (uuid[] vs jsonb Typ-Konflikt) |
+| Phase 6-A | phase6a_finance_foundation | 8 Finanztabellen: `accounts` (Kontenrahmen, 17 System-Konten), `journal_entries` (GoBD-konform, No-Update/No-Delete-Rules), `budget_plans`+`budget_plan_items` (Wirtschaftsplan), `payment_demands` (Sollstellungen), `special_levies` (Sonderumlagen), `dunning_notices` (Mahnwesen 3-stufig), `beirat_access_periods` (Beirat-Lesezugriff). 5 Performance-Indexes. |
 
 ---
 
@@ -151,8 +157,9 @@ js/
 - 5.3 Kontaktbuch — `mod-kontakte.js` ✅
 - 5.4 Dashboard KPIs (rollenbasiert, Kennzahlen, Fristen-Widget) ✅
 
-### 📋 Phase 6 — Finanzen & Abrechnung
+### 🔄 Phase 6 — Finanzen & Abrechnung
 *Kernmodul: Wirtschaftsplan, Hausgeldabrechnung, Erhaltungsrücklage.*
+- 6-A DB-Fundament: Doppik, Kontenrahmen, Journal, Sollstellungen ✅
 - 6.1 Wirtschaftsplan (Planung laufender Kosten pro WEG) 📋
 - 6.2 Jahresabrechnung / Hausgeldabrechnung (Kostenverteilung nach MEA & Schlüsseln) 📋
 - 6.3 Erhaltungsrücklage (Zuführungen, Entnahmen, Ausweis in Abrechnung) 📋
@@ -353,6 +360,22 @@ js/
 | 6 | **Auto-Naming on Publish** (`_publishDoc`): `generated_filename = [file_number] [apt_number] - [document_title].[ext]` aus `buildings.file_number` + `apartments.apartment_number` |
 | 7 | **document_links-Management** im Bearbeiten-Modal: Personen hinzufügen/entfernen, die Zugriff auf ein Dokument haben |
 | 8 | Anzeige-Name-Priorität in Tabelle: `generated_filename` → `document_title` → `title` |
+
+---
+
+### Phase 6-A — Finanzen DB-Fundament
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | Migration `phase6a_finance_foundation` angewendet (8 neue Tabellen, alle mit RLS) |
+| 2 | `accounts`: Kontenrahmen (WEG-spezifisch, SKR03/04-angelehnt), 17 System-Vorlagen-Konten (1200–8410), `building_id = NULL` = globale Vorlage |
+| 3 | `journal_entries`: GoBD-konformes Buchungsjournal, DB-RULES verhindern UPDATE/DELETE — nur Storno erlaubt |
+| 4 | `budget_plans` + `budget_plan_items`: Wirtschaftsplan pro Gebäude & Geschäftsjahr |
+| 5 | `payment_demands`: Sollstellungen (hausgeld / sonderumlage / abrechnungsspitze / mahnung) |
+| 6 | `special_levies`: Sonderumlagen mit Verteilungsschlüsseln (MEA / Einheiten / m² / custom) |
+| 7 | `dunning_notices`: 3-stufiges Mahnwesen (Zahlungserinnerung / Mahnung / Letzte Mahnung) |
+| 8 | `beirat_access_periods`: Zeitfenster für Beirat-Lesezugriff pro Geschäftsjahr |
+| 9 | 5 Performance-Indexes auf häufig gefilterte Spalten (`building_id`, `fiscal_year`, `status`) |
 
 ---
 
