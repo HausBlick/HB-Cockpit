@@ -84,7 +84,7 @@ js/
 
 ## 6. Datenbankschema (22 Tabellen, alle RLS)
 
-`profiles`, `buildings`, `apartments`, `persons`, `tenancies`, `ownerships`, `management_assignments`, `tickets`, `ticket_messages`, `news`, `news_likes`, `documents`, `document_reads`, `contacts`, `meters`, `meter_readings`, `invitations`, `building_bank_accounts`, `building_insurances`, `board_members`, `service_providers`, `person_bank_accounts`
+`profiles`, `buildings`, `apartments`, `persons`, `tenancies`, `ownerships`, `management_assignments`, `tickets`, `ticket_messages`, `news`, `news_likes`, `documents`, `document_reads`, `document_links`, `contacts`, `meters`, `meter_readings`, `invitations`, `building_bank_accounts`, `building_insurances`, `board_members`, `service_providers`, `person_bank_accounts`
 
 **Wichtige Architektur:**
 - Auth-User getrennt von CRM (`persons`) — Verknüpfung über `persons.auth_user_id` + `invite_code`
@@ -106,6 +106,7 @@ js/
 | Phase 3 | extend_apartments_warm_water_meter | `meter_water_warm`, `meter_water_warm_calibration` zu `apartments` |
 | Phase 4 | phase4_news_and_tickets | `news`-Spalten, `news_reads`, `tickets.snooze_until`, `ticket_messages.is_system_message` |
 | Phase 5 | phase5_documents | `documents` um 11 Spalten erweitert, `document_reads.downloaded_at`, RLS-Policies, `profiles.role`-Constraint auf 4 Rollen erweitert |
+| Phase 5b | phase5b_document_links | `document_links`-Tabelle (Personen-Scope), `documents` um `original_filename`, `document_title`, `generated_filename` erweitert, RLS für `unit`- und `person`-Scope |
 
 ---
 
@@ -144,7 +145,7 @@ js/
 
 ### ✅ Phase 5 — Dokumente & Kontakte (TEILWEISE ABGESCHLOSSEN)
 - 5.1 Dokumenten-Cloud — Migration `phase5_documents` ✅
-- 5.2 Dokumenten-Cloud — `mod-dokumente.js`: Upload, Download, Vorschau, Kategorien, Read-Tracking, Nav-Badge ✅
+- 5.2 Dokumenten-Cloud — `mod-dokumente.js`: Upload, Download, Vorschau, Kategorien, Read-Tracking, Nav-Badge, Listen- & Baumansicht, Draft-Workflow, Auto-Naming, `document_links` für Personen-Scope ✅
 - 5.3 Kontaktbuch — `mod-kontakte.js` ✅
 - 5.4 Dashboard KPIs (rollenbasiert, Kennzahlen, Fristen-Widget) 📋
 
@@ -208,6 +209,7 @@ js/
 - **Kurz & präzise** — kein unnötiges Ausholen
 - **Rating** — jede Antwort mit `Rating: X%` abschließen
 - **Sprache** — strikt Deutsch
+- **CLAUDE.md immer mit committen** — nach jeder Modul-Änderung CLAUDE.md im selben Commit aktualisieren (Changelog, Schema, Phasen-Status)
 
 ---
 
@@ -281,7 +283,9 @@ js/
 
 ---
 
-### Projekttag 3 — Dokumenten-Cloud Bugfixes
+### Projekttag 3 — Dokumenten-Cloud Bugfixes & Konzept-Update
+
+**Phase A — Bugfixes**
 **Commits:** `45c3672`
 
 | # | Was wurde gemacht |
@@ -293,6 +297,19 @@ js/
 | 5 | Entwürfe sichtbar für Admin/Manager mit orangem "Entwurf"-Badge + "Freigeben"-Button |
 | 6 | Entwürfe-Filter in Kategorie-Sidebar mit orange Badge-Zähler |
 | 7 | Lesbare Dateinamen im Storage: `{timestamp}_{originalname}` statt Random-Hash |
+
+**Phase C — Konzept-Update (Dokumenten-Cloud Erweiterung)**
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | Migration `phase5b_document_links`: `document_links`-Tabelle (Personen-Scope), neue Spalten `original_filename`, `document_title`, `generated_filename` in `documents`, aktualisierte RLS-Policies |
+| 2 | **Ansichts-Toggle**: Listen- und Baumansicht (Building → Apartment → Category → Dokumente), nur für Admin/Manager |
+| 3 | **Baumansicht** (`_buildTreeHtml`): aufklappbare Knoten via `_docsState.treeOpen` (Set), Kollaps-Status bleibt beim Re-Render erhalten |
+| 4 | **Per-File-Staging**: jede Datei im Upload-Modal bekommt eigenes Titelfeld (`_docsState.stagingFiles: [{file, title}]`) |
+| 5 | **Kaskadierendes Scope-UI** (`_docsUpdateScopeFields`): `building` → nur Gebäude; `unit` → + Wohnung; `person` → + Personen-Multiselect |
+| 6 | **Auto-Naming on Publish** (`_publishDoc`): `generated_filename = [file_number] [apt_number] - [document_title].[ext]` aus `buildings.file_number` + `apartments.apartment_number` |
+| 7 | **document_links-Management** im Bearbeiten-Modal: Personen hinzufügen/entfernen, die Zugriff auf ein Dokument haben |
+| 8 | Anzeige-Name-Priorität in Tabelle: `generated_filename` → `document_title` → `title` |
 
 ---
 
