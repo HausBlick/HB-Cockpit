@@ -107,6 +107,7 @@ js/
 | Phase 4 | phase4_news_and_tickets | `news`-Spalten, `news_reads`, `tickets.snooze_until`, `ticket_messages.is_system_message` |
 | Phase 5 | phase5_documents | `documents` um 11 Spalten erweitert, `document_reads.downloaded_at`, RLS-Policies, `profiles.role`-Constraint auf 4 Rollen erweitert |
 | Phase 5b | phase5b_document_links | `document_links`-Tabelle (Personen-Scope), `documents` um `original_filename`, `document_title`, `generated_filename` erweitert, RLS für `unit`- und `person`-Scope |
+| Bugfix | fix_document_reads_legacy_trigger | Legacy-Trigger `trg_document_reads_sync_legacy` + Funktionen entfernt — verursachte 400-Fehler bei jedem `document_reads`-INSERT (uuid[] vs jsonb Typ-Konflikt) |
 
 ---
 
@@ -297,6 +298,13 @@ js/
 | 5 | Entwürfe sichtbar für Admin/Manager mit orangem "Entwurf"-Badge + "Freigeben"-Button |
 | 6 | Entwürfe-Filter in Kategorie-Sidebar mit orange Badge-Zähler |
 | 7 | Lesbare Dateinamen im Storage: `{timestamp}_{originalname}` statt Random-Hash |
+
+**Phase B — Nav-Badge Bugfix**
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | Root-Cause-Analyse: `document_reads`-INSERT schlug mit 400 fehl wegen Legacy-Trigger `trg_document_reads_sync_legacy` (versuchte `uuid[]` in `jsonb`-Spalte `documents.read_by` zu schreiben) |
+| 2 | Migration `fix_document_reads_legacy_trigger`: Trigger + beide Hilfsfunktionen gedroppt |
 
 **Phase C — Konzept-Update (Dokumenten-Cloud Erweiterung)**
 
