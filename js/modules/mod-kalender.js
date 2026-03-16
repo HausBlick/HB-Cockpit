@@ -12,9 +12,10 @@ const DEADLINE_TYPES_KAL = [
 const MONTHS_DE = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 
 let _kalState = {
-    year:   new Date().getFullYear(),
-    month:  new Date().getMonth(),  // 0-based
-    events: {},                      // { 'YYYY-MM-DD': [{...}] }
+    year:     new Date().getFullYear(),
+    month:    new Date().getMonth(),  // 0-based
+    events:   {},                     // { 'YYYY-MM-DD': [{...}] }
+    eventMap: {},                     // { 'key': eventObj } für onclick-Lookup
 };
 
 // ─── Entry Point ──────────────────────────────────────────────
@@ -124,7 +125,8 @@ async function _kalLoadData() {
         });
     }
 
-    _kalState.events = events;
+    _kalState.events   = events;
+    _kalState.eventMap = {};
 }
 
 function _kalDaysFromToday(dateStr) {
@@ -163,16 +165,20 @@ function _kalRender() {
                 olive:  'bg-hb-olive/10 text-hb-olive',
             }[e.color] || 'bg-gray-100 text-gray-600';
 
-            const isTicket   = e.type === 'ticket';
-            const sizeClass  = isTicket ? 'text-[9px]' : 'text-[10px] font-semibold';
-            const eventKey   = `${dateStr}-${idx}`;
-            const prefix     = e.building ? `${e.building.length > 12 ? e.building.slice(0, 12) + '…' : e.building} · ` : '';
-            const fullTitle  = e.building ? `${e.building}: ${e.label}` : e.label;
-            const onclickAttr = isTicket
-                ? `_kalOpenTicket('${e.ticketId}')`
-                : `_kalShowPopup(event, ${JSON.stringify(e)})`;
+            const isTicket  = e.type === 'ticket';
+            const sizeClass = isTicket ? 'text-[9px]' : 'text-[10px] font-semibold';
 
-            return `<div onclick="${onclickAttr}" title="${fullTitle}"
+            // Event in Map ablegen — kein JSON im onclick-Attribut nötig
+            const eventKey = `${dateStr}-${idx}`;
+            _kalState.eventMap[eventKey] = e;
+
+            const prefix    = e.building ? `${e.building.length > 12 ? e.building.slice(0, 12) + '…' : e.building} · ` : '';
+            const fullTitle = e.building ? `${e.building}: ${e.label}` : e.label;
+            const onclick   = isTicket
+                ? `_kalOpenTicket('${e.ticketId}')`
+                : `_kalShowPopup(event,'${eventKey}')`;
+
+            return `<div onclick="${onclick}" title="${fullTitle}"
                 class="${sizeClass} ${colorCls} px-1.5 py-0.5 rounded truncate cursor-pointer hover:opacity-75 transition-opacity block">
                 ${prefix}${e.label}
             </div>`;
@@ -241,7 +247,9 @@ window._kalOpenTicket = async (ticketId) => {
 
 // ─── Deadline-Popup ───────────────────────────────────────────
 
-window._kalShowPopup = (event, e) => {
+window._kalShowPopup = (event, eventKey) => {
+    const e = _kalState.eventMap[eventKey];
+    if (!e) return;
     event.stopPropagation();
     document.getElementById('kal-popup')?.remove();
 
