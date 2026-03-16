@@ -86,9 +86,12 @@ async function _kalLoadData() {
             const dateStr = b[dt.key].split('T')[0];
             const days    = _kalDaysFromToday(b[dt.key]);
             addEvent(dateStr, {
-                type:  'deadline',
-                label: dt.label,
-                building: b.name,
+                type:       'deadline',
+                label:      dt.label,
+                building:   b.name,
+                buildingId: b.id,
+                date:       b[dt.key].split('T')[0],
+                days,
                 color: days < 14 ? 'red' : days <= 30 ? 'orange' : 'green',
             });
         }
@@ -99,9 +102,12 @@ async function _kalLoadData() {
             const dateStr = due.toISOString().split('T')[0];
             const days    = _kalDaysFromToday(due.toISOString());
             addEvent(dateStr, {
-                type:  'deadline',
-                label: 'Legionellen',
-                building: b.name,
+                type:       'deadline',
+                label:      'Legionellenprüfung',
+                building:   b.name,
+                buildingId: b.id,
+                date:       dateStr,
+                days,
                 color: days < 14 ? 'red' : days <= 30 ? 'orange' : 'green',
             });
         }
@@ -149,7 +155,7 @@ function _kalRender() {
         const isToday = dateStr === todayStr;
         const dayEvts = events[dateStr] || [];
 
-        const pills = dayEvts.map(e => {
+        const pills = dayEvts.map((e, idx) => {
             const colorCls = {
                 red:    'bg-red-100 text-red-700',
                 orange: 'bg-hb-orange/15 text-hb-orange',
@@ -157,13 +163,19 @@ function _kalRender() {
                 olive:  'bg-hb-olive/10 text-hb-olive',
             }[e.color] || 'bg-gray-100 text-gray-600';
 
-            const isTicket = e.type === 'ticket';
-            const sizeClass = isTicket ? 'text-[9px]' : 'text-[10px] font-semibold';
-            const clickable = isTicket ? `onclick="_kalOpenTicket('${e.ticketId}')" class="${sizeClass} ${colorCls} px-1.5 py-0.5 rounded truncate cursor-pointer hover:opacity-75 transition-opacity block"` : `class="${sizeClass} ${colorCls} px-1.5 py-0.5 rounded truncate block"`;
-            const prefix = e.building ? `${e.building.length > 10 ? e.building.slice(0, 10) + '…' : e.building} · ` : '';
-            const fullTitle = e.building ? `${e.building}: ${e.label}` : e.label;
+            const isTicket   = e.type === 'ticket';
+            const sizeClass  = isTicket ? 'text-[9px]' : 'text-[10px] font-semibold';
+            const eventKey   = `${dateStr}-${idx}`;
+            const prefix     = e.building ? `${e.building.length > 12 ? e.building.slice(0, 12) + '…' : e.building} · ` : '';
+            const fullTitle  = e.building ? `${e.building}: ${e.label}` : e.label;
+            const onclickAttr = isTicket
+                ? `_kalOpenTicket('${e.ticketId}')`
+                : `_kalShowPopup(event, ${JSON.stringify(e)})`;
 
-            return `<div ${clickable} title="${fullTitle}">${prefix}${e.label}</div>`;
+            return `<div onclick="${onclickAttr}" title="${fullTitle}"
+                class="${sizeClass} ${colorCls} px-1.5 py-0.5 rounded truncate cursor-pointer hover:opacity-75 transition-opacity block">
+                ${prefix}${e.label}
+            </div>`;
         }).join('');
 
         cells += `
@@ -225,4 +237,70 @@ window._kalOpenTicket = async (ticketId) => {
     if (navEl) setActiveNav(navEl);
     await loadTickets();
     openTicketDetail(ticketId);
+};
+
+// ─── Deadline-Popup ───────────────────────────────────────────
+
+window._kalShowPopup = (event, e) => {
+    event.stopPropagation();
+    document.getElementById('kal-popup')?.remove();
+
+    const days     = e.days;
+    const daysText = days < 0
+        ? `<span class="text-red-600 font-bold">${Math.abs(days)} Tage überfällig</span>`
+        : days === 0
+            ? `<span class="text-red-600 font-bold">Heute fällig</span>`
+            : `<span class="${days < 14 ? 'text-red-600' : days <= 30 ? 'text-hb-orange' : 'text-green-600'} font-bold">in ${days} Tagen</span>`;
+
+    const dateFormatted = new Date(e.date + 'T12:00:00').toLocaleDateString('de-DE', {
+        day: '2-digit', month: 'long', year: 'numeric'
+    });
+
+    const popup = document.createElement('div');
+    popup.id = 'kal-popup';
+    popup.className = 'fixed z-50 bg-white rounded-[15px] shadow-2xl border border-hb-olive/20 p-5 w-72 text-left';
+    popup.innerHTML = `
+        <div class="flex justify-between items-start mb-3">
+            <div class="text-xs font-black uppercase tracking-widest text-hb-orange">${e.label}</div>
+            <button onclick="document.getElementById('kal-popup')?.remove()"
+                class="text-gray-400 hover:text-gray-600 transition-colors -mt-0.5 ml-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="font-extrabold text-hb-offblack text-base mb-1">${e.building}</div>
+        <div class="text-sm text-gray-500 mb-3">${dateFormatted}</div>
+        <div class="text-sm mb-4">${daysText}</div>
+        <button onclick="_kalGoBuilding(${e.buildingId})"
+            class="w-full btn-primary text-sm flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21h18M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16"/></svg>
+            Zum Gebäude
+        </button>`;
+
+    // Popup neben dem geklickten Element positionieren
+    document.body.appendChild(popup);
+    const rect = event.currentTarget.getBoundingClientRect();
+    const popW = 288; // w-72
+    let left = rect.right + 8;
+    let top  = rect.top + window.scrollY;
+    if (left + popW > window.innerWidth) left = rect.left - popW - 8;
+    if (top + 200 > window.innerHeight + window.scrollY) top = Math.max(8, rect.bottom + window.scrollY - 200);
+    popup.style.left = `${Math.max(8, left)}px`;
+    popup.style.top  = `${top}px`;
+
+    // Schließen bei Klick außerhalb
+    setTimeout(() => document.addEventListener('click', _kalClosePopup, { once: true }), 0);
+};
+
+function _kalClosePopup(e) {
+    if (!document.getElementById('kal-popup')?.contains(e.target)) {
+        document.getElementById('kal-popup')?.remove();
+    }
+}
+
+window._kalGoBuilding = async (buildingId) => {
+    document.getElementById('kal-popup')?.remove();
+    const navEl = Array.from(document.querySelectorAll('#nav-links a')).find(a => a.textContent.includes('Gebäude'));
+    if (navEl) setActiveNav(navEl);
+    await loadTenants();
+    if (buildingId) selectBuilding(buildingId);
 };
