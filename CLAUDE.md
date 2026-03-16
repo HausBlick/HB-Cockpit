@@ -160,6 +160,7 @@ js/
 ### 🔄 Phase 6 — Finanzen & Abrechnung
 *Kernmodul: Wirtschaftsplan, Hausgeldabrechnung, Erhaltungsrücklage.*
 - 6-A DB-Fundament: Doppik, Kontenrahmen, Journal, Sollstellungen ✅
+- 6-B Buchhaltung UI (`mod-finanzen.js`): Übersicht, Buchungen, Zählerstände, Sollstellungen, Onboarding ✅
 - 6.1 Wirtschaftsplan (Planung laufender Kosten pro WEG) 📋
 - 6.2 Jahresabrechnung / Hausgeldabrechnung (Kostenverteilung nach MEA & Schlüsseln) 📋
 - 6.3 Erhaltungsrücklage (Zuführungen, Entnahmen, Ausweis in Abrechnung) 📋
@@ -360,6 +361,23 @@ js/
 | 6 | **Auto-Naming on Publish** (`_publishDoc`): `generated_filename = [file_number] [apt_number] - [document_title].[ext]` aus `buildings.file_number` + `apartments.apartment_number` |
 | 7 | **document_links-Management** im Bearbeiten-Modal: Personen hinzufügen/entfernen, die Zugriff auf ein Dokument haben |
 | 8 | Anzeige-Name-Priorität in Tabelle: `generated_filename` → `document_title` → `title` |
+
+---
+
+### Phase 6-B — Buchhaltung UI
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | `mod-finanzen.js` (neu): 5-Tab-Layout — Übersicht, Buchungen, Zählerstände, Sollstellungen, Onboarding |
+| 2 | **Tab Übersicht**: Kontenblatt mit Saldo-Berechnung aus `journal_entries`, Konto-anlegen-Modal |
+| 3 | Automatisches Kopieren der System-Kontenvorlagen (`building_id=NULL`) beim ersten Aufruf eines Gebäudes |
+| 4 | **Tab Buchungen**: Buchungsmaske (Soll/Haben, Datum, Beleg-Upload → `documents`-Bucket/`belege/`-Unterordner, §35a-Feld), Journal-Tabelle mit Jahres-Filter, Storno-Button pro Zeile |
+| 5 | **Tab Zählerstände**: Schnelleingabe-Grid (alle Einheiten × alle Zählertypen), letzter bekannter Wert als Placeholder, Bulk-INSERT in `meter_readings` via `meters.id` |
+| 6 | **Tab Sollstellungen**: Generierung (12×Hausgeld pro aktivem Eigentümer, Duplikat-Check, gleichzeitig `journal_entries` 1400/8400), Status-Tabelle, „Als bezahlt markieren" |
+| 7 | **Tab Onboarding**: 3-Schritte-Wizard (Stichtag → Bankkonten-Salden → Offene Posten), Eröffnungsbuchungen in `journal_entries` (entry_type='erhoeffnungsbilanz') |
+| 8 | `nav.js`: „Abrechnungen" → „Buchhaltung" |
+| 9 | `dashboard.html`: `mod-finanzen.js` Script-Tag ergänzt |
+| 10 | `mod-dashboard.js`: `loadFinance:'Buchhaltung'` in `_dashNavTo`-Map ergänzt |
 
 ---
 
