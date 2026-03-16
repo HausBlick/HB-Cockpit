@@ -281,6 +281,21 @@ js/
 
 ---
 
+### Projekttag 3 — Dokumenten-Cloud Bugfixes
+**Commits:** `45c3672`
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | Typ-Mismatch behoben: DB-Integer-ID vs. HTML-String in `onclick` — `_docsById()` mit `==` |
+| 2 | Download, Modal-Öffnung, Archivieren und Read-Tracking funktionieren jetzt korrekt |
+| 3 | SVG-Icons in Aktionsspalte: Auge (Anzeigen) + Download-Pfeil statt Text-Buttons |
+| 4 | Draft-Workflow: "Als Entwurf speichern"-Checkbox im Upload-Modal |
+| 5 | Entwürfe sichtbar für Admin/Manager mit orangem "Entwurf"-Badge + "Freigeben"-Button |
+| 6 | Entwürfe-Filter in Kategorie-Sidebar mit orange Badge-Zähler |
+| 7 | Lesbare Dateinamen im Storage: `{timestamp}_{originalname}` statt Random-Hash |
+
+---
+
 ### Projekttag 2 — UI-Overhaul & Phase 5
 **Commits:** `(UI-Overhaul)`, `f2ef175`, `9281293`
 
