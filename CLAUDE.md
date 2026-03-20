@@ -379,6 +379,18 @@ js/
 
 ---
 
+### Projekttag 4 — mod-finanzen.js UX-Verbesserungen (5 Features)
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Konto-Ledger** (Tab Übersicht): Klick auf Konto-Zeile öffnet gefilterte Buchungsansicht (Datum, Gegenkonto, Beschreibung, Soll, Haben, laufender Saldo). „← Zurück"-Button. |
+| 2 | **Suchleiste** in Kontenblatt (Kontonummer/Name/Typ) und Buchungsjournal (Betrag/Beschreibung/Kontoname). Live-Filterung ohne Reload. |
+| 3 | **Buchungs-Detailansicht**: Klick auf Journal-Zeile öffnet Modal mit allen Feldern (Datum, Wertstellung, Konten, Betrag, Beschreibung, Referenz, §35a, Beleg-Link, Typ-Badge). |
+| 4 | **Wirtschaftsplan Manueller Override**: `planned_amount` als editierbares Input-Feld in Draft-Plänen. Auto-Kalkulation als Vorschlag, manuelle Überschreibung möglich. Speichert per `onblur`. |
+| 5 | **Variabler Heizkosten-Schlüssel** (Option B): Zwei Felder „Verbrauchsanteil %" (Default 70) und „Flächenanteil %" (Default 30) statt festem 50/50-Split. Validierung: Summe muss 100% ergeben. |
+
+---
+
 ### Projekttag 4 — UI-Cleanup & Gebäudenamens-Logik
 
 | # | Was wurde gemacht |
