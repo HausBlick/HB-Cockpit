@@ -403,6 +403,22 @@ js/
 
 ---
 
+### Projekttag 5 — mod-finanzen.js UX-Verbesserungen (2 Batches)
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Konto-Ledger**: Klick auf Kontoblatt-Zeile öffnet gefilterte Journal-Ansicht mit laufendem Saldo + Zurück-Button |
+| 2 | **Suchleisten**: Live-Filter in Kontenblatt (Nr/Name/Typ) und Buchungsjournal (Betrag/Beschreibung/Kontoname) |
+| 3 | **Buchungs-Detailansicht**: Slide-in Panel von rechts (420px, CSS-Transition), alle Felder, signierter Beleg-Link |
+| 4 | **Beleg nachträglich hochladen/ersetzen**: im Detail-Panel, Upload in Storage `belege/`, Update via Supabase RPC `update_journal_attachment` (GoBD-konform, bypassed via `session_replication_role='replica'`) |
+| 5 | **Deutsches Datumsformat**: `_finFormatDate()` Helper, alle Datumsspalten als `DD.MM.YYYY` |
+| 6 | **WP Modal: Alle Kontentypen**: `fin-item-acc` Select zeigt expense/revenue/liability (vorher nur expense) |
+| 7 | **WP Live-Berechnung bidirektional**: `planned_amount` ↔ `adjustment_percent` in Modal und Tabellen-Zeilen (Entwurf-Status), `_finCalcAdjFromPlanned`, `_finWPLivePlanned`, `_finWPLiveAdj`, `_finUpdatePlanItemAdj` |
+| 8 | **WP Wirtschaftsplan-Override**: `planned_amount` als editierbares `<input>` in Entwurf-Zeilen, `onblur`-Speicherung |
+| 9 | **Variabler Heizkosten-Schlüssel** (Jahresabrechnung Option B): `heatSplitV` (Standard 70%) + `heatSplitF` (Standard 30%), Validierung Summe = 100% |
+
+---
+
 ### Phase 6-E — CSV-Bankimport, SEPA-XML Export, Testdaten-Scripts
 **Commits:** `3efc9ed`
 

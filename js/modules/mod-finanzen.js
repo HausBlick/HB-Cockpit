@@ -33,6 +33,16 @@ let _finState = {
     onboardOwnerRows: [],
 };
 
+// ─── Hilfsfunktionen ──────────────────────────────────────────
+
+function _finFormatDate(dateStr) {
+    if (!dateStr) return '—';
+    const s = String(dateStr).split('T')[0];
+    const [y, m, d] = s.split('-');
+    if (!y || !m || !d) return dateStr;
+    return `${d}.${m}.${y}`;
+}
+
 // ─── Entry Point ──────────────────────────────────────────────
 
 async function loadFinance() {
@@ -366,7 +376,7 @@ window._finOpenLedger = async (accountId, accountName) => {
             : `${e.debit_account?.account_number  || ''} ${e.debit_account?.account_name  || ''}`.trim();
         const saldoCls = runningBalance < 0 ? 'text-red-600' : runningBalance > 0 ? 'text-green-700' : 'text-gray-400';
         return `<tr class="hover:bg-gray-50/60">
-            <td class="px-4 py-3 text-sm text-gray-500">${e.entry_date}</td>
+            <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(e.entry_date)}</td>
             <td class="px-4 py-3 text-sm text-gray-600 max-w-[160px] truncate" title="${gegenkonto}">${gegenkonto}</td>
             <td class="px-4 py-3 text-sm text-hb-offblack max-w-[200px] truncate" title="${e.description}">${e.description}</td>
             <td class="px-4 py-3 text-sm text-right">${soll > 0 ? soll.toLocaleString('de-DE', {minimumFractionDigits:2}) + ' €' : ''}</td>
@@ -444,7 +454,7 @@ async function _finRenderBookings() {
             const hasStorno = _finState.entries.some(x => x.storno_of == e.id);
             const canStorno = !isStorno && !hasStorno && !e.is_locked;
             return `<tr class="hover:bg-gray-50/60 transition-colors cursor-pointer ${isStorno ? 'opacity-60' : ''}" onclick="_finOpenEntryDetail(${e.id})">
-                <td class="px-4 py-3 text-sm text-gray-500">${e.entry_date}</td>
+                <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(e.entry_date)}</td>
                 <td class="px-4 py-3 text-sm text-hb-offblack max-w-[200px] truncate" title="${e.description}">${e.description}</td>
                 <td class="px-4 py-3 text-xs text-gray-600">${e.debit_account?.account_number} ${e.debit_account?.account_name}</td>
                 <td class="px-4 py-3 text-xs text-gray-600">${e.credit_account?.account_number} ${e.credit_account?.account_name}</td>
@@ -518,10 +528,7 @@ async function _finRenderBookings() {
             </div>
         </div>
 
-        <!-- Buchungs-Detail-Modal -->
-        <div id="fin-entry-detail-modal" class="hidden fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-lg p-6" id="fin-entry-detail-body"></div>
-        </div>`;
+`;
 }
 
 window._finChangeFY = async (val) => {
@@ -544,7 +551,7 @@ window._finFilterJournal = (q) => {
         const hasStorno = _finState.entries.some(x => x.storno_of == e.id);
         const canStorno = !isStorno && !hasStorno && !e.is_locked;
         return `<tr class="hover:bg-gray-50/60 transition-colors cursor-pointer ${isStorno ? 'opacity-60' : ''}" onclick="_finOpenEntryDetail(${e.id})">
-            <td class="px-4 py-3 text-sm text-gray-500">${e.entry_date}</td>
+            <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(e.entry_date)}</td>
             <td class="px-4 py-3 text-sm text-hb-offblack max-w-[200px] truncate" title="${e.description}">${e.description}</td>
             <td class="px-4 py-3 text-xs text-gray-600">${e.debit_account?.account_number} ${e.debit_account?.account_name}</td>
             <td class="px-4 py-3 text-xs text-gray-600">${e.credit_account?.account_number} ${e.credit_account?.account_name}</td>
@@ -563,56 +570,113 @@ window._finFilterJournal = (q) => {
     if (tbody) tbody.innerHTML = rows;
 };
 
+window._finCloseEntryPanel = () => {
+    const panel   = document.getElementById('fin-entry-panel');
+    const overlay = document.getElementById('fin-entry-overlay');
+    if (panel) { panel.style.transform = 'translateX(100%)'; setTimeout(() => panel.remove(), 300); }
+    if (overlay) { overlay.style.opacity = '0'; setTimeout(() => overlay.remove(), 300); }
+};
+
 window._finOpenEntryDetail = async (entryId) => {
     const e = _finState.entries.find(x => x.id == entryId);
     if (!e) return;
-    const modal = document.getElementById('fin-entry-detail-modal');
-    const body  = document.getElementById('fin-entry-detail-body');
-    if (!modal || !body) return;
+
+    // Remove existing panel if open
+    document.getElementById('fin-entry-panel')?.remove();
+    document.getElementById('fin-entry-overlay')?.remove();
 
     const entryTypeLabels = { manual: 'Manuelle Buchung', storno: 'Storno', hausgeld: 'Hausgeld', abrechnungsspitze: 'Abrechnungsspitze', ruecklage: 'Rücklage', erhoeffnungsbilanz: 'Eröffnungsbilanz', csv_import: 'CSV-Import' };
-    const stornoHint = e.storno_of ? `<p class="text-xs text-hb-orange mt-1">Storno von Buchung #${e.storno_of}</p>` : '';
+    const stornoHint = e.storno_of ? `<span class="text-xs text-hb-orange font-semibold">Storno von #${e.storno_of}</span>` : '';
 
-    let attachmentLink = '';
+    let attachmentSection = '';
     if (e.attachment_path) {
         const { data } = await _supabase.storage.from('documents').createSignedUrl(e.attachment_path, 120);
-        if (data?.signedUrl)
-            attachmentLink = `<a href="${data.signedUrl}" target="_blank" class="text-sm text-hb-olive font-semibold hover:underline flex items-center gap-1">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                Beleg öffnen</a>`;
-        else attachmentLink = '<span class="text-sm text-gray-400">Beleg-Link konnte nicht erstellt werden</span>';
+        const link = data?.signedUrl
+            ? `<a href="${data.signedUrl}" target="_blank" class="text-sm text-hb-olive font-semibold hover:underline flex items-center gap-1.5">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                Beleg öffnen</a>`
+            : '<span class="text-sm text-gray-400">Link nicht verfügbar</span>';
+        attachmentSection = `
+            <div>
+                <p class="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">Beleg</p>
+                <div class="flex items-center gap-3 flex-wrap">${link}
+                    <button onclick="_finUploadAttachment(${e.id})" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Beleg ersetzen</button>
+                </div>
+            </div>`;
+    } else {
+        attachmentSection = `
+            <div>
+                <p class="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">Beleg</p>
+                <button onclick="_finUploadAttachment(${e.id})" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Beleg hochladen</button>
+            </div>`;
     }
 
-    const field = (label, value) => value
-        ? `<div><p class="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-0.5">${label}</p><p class="text-sm font-semibold text-hb-offblack">${value}</p></div>`
-        : '';
+    const field = (label, value) => (!value || value === '—') ? '' :
+        `<div><p class="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-0.5">${label}</p>
+         <p class="text-sm font-semibold text-hb-offblack">${value}</p></div>`;
 
-    body.innerHTML = `
-        <div class="flex justify-between items-start mb-5">
+    // Overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'fin-entry-overlay';
+    overlay.onclick = _finCloseEntryPanel;
+    Object.assign(overlay.style, { position:'fixed', inset:'0', background:'rgba(0,0,0,0.2)', zIndex:'49', opacity:'0', transition:'opacity 0.3s' });
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.style.opacity = '1');
+
+    // Panel
+    const panel = document.createElement('div');
+    panel.id = 'fin-entry-panel';
+    Object.assign(panel.style, { position:'fixed', right:'0', top:'0', height:'100%', width:'420px', maxWidth:'100vw', zIndex:'50', transform:'translateX(100%)', transition:'transform 0.3s ease-in-out', display:'flex', flexDirection:'column', backgroundColor:'#F9FAF8', boxShadow:'-4px 0 24px rgba(0,0,0,0.1)' });
+    panel.innerHTML = `
+        <div style="background:#687451;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
             <div>
-                <h3 class="text-base font-extrabold text-hb-offblack">Buchungsdetail</h3>
-                <div class="flex items-center gap-2 mt-1">
-                    <span class="text-xs font-semibold px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">${entryTypeLabels[e.entry_type] || e.entry_type}</span>
+                <span style="font-size:14px;font-weight:700;color:white">Buchungsdetail</span>
+                <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
+                    <span style="font-size:11px;font-weight:600;background:rgba(255,255,255,0.2);color:white;padding:1px 8px;border-radius:6px">${entryTypeLabels[e.entry_type] || e.entry_type}</span>
                     ${stornoHint}
                 </div>
             </div>
-            <button onclick="document.getElementById('fin-entry-detail-modal').classList.add('hidden')"
-                class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-            </button>
+            <button onclick="_finCloseEntryPanel()" style="color:rgba(255,255,255,0.8);background:none;border:none;cursor:pointer;font-size:22px;line-height:1;padding:4px">×</button>
         </div>
-        <div class="grid grid-cols-2 gap-4">
-            ${field('Datum', e.entry_date)}
-            ${field('Wertstellung', e.value_date || '—')}
-            ${field('Soll-Konto', `${e.debit_account?.account_number || ''} ${e.debit_account?.account_name || ''}`)}
-            ${field('Haben-Konto', `${e.credit_account?.account_number || ''} ${e.credit_account?.account_name || ''}`)}
-            ${field('Betrag', Number(e.amount).toLocaleString('de-DE', {minimumFractionDigits:2}) + ' €')}
-            ${field('Referenznummer', e.reference_number || '—')}
-            ${e.lohn_anteil_35a > 0 ? field('§35a Lohnanteil', Number(e.lohn_anteil_35a).toLocaleString('de-DE', {minimumFractionDigits:2}) + ' €') : ''}
-            <div class="col-span-2">${field('Beschreibung', e.description)}</div>
-            ${e.attachment_path ? `<div class="col-span-2"><p class="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">Beleg</p>${attachmentLink}</div>` : ''}
+        <div style="flex:1;overflow-y:auto;padding:20px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                ${field('Datum', _finFormatDate(e.entry_date))}
+                ${field('Wertstellung', _finFormatDate(e.value_date))}
+                <div style="grid-column:1/-1">${field('Soll-Konto', `${e.debit_account?.account_number || ''} ${e.debit_account?.account_name || ''}`.trim())}</div>
+                <div style="grid-column:1/-1">${field('Haben-Konto', `${e.credit_account?.account_number || ''} ${e.credit_account?.account_name || ''}`.trim())}</div>
+                ${field('Betrag', Number(e.amount).toLocaleString('de-DE', {minimumFractionDigits:2}) + ' €')}
+                ${field('Referenznummer', e.reference_number)}
+                ${e.lohn_anteil_35a > 0 ? field('§35a Lohnanteil', Number(e.lohn_anteil_35a).toLocaleString('de-DE', {minimumFractionDigits:2}) + ' €') : ''}
+                <div style="grid-column:1/-1">${field('Beschreibung', e.description)}</div>
+                <div style="grid-column:1/-1">${attachmentSection}</div>
+            </div>
         </div>`;
-    modal.classList.remove('hidden');
+    document.body.appendChild(panel);
+    requestAnimationFrame(() => panel.style.transform = 'translateX(0)');
+};
+
+window._finUploadAttachment = (entryId) => {
+    const input = document.createElement('input');
+    input.type  = 'file';
+    input.accept = 'application/pdf,image/*';
+    input.onchange = async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        const bid  = _finState.buildingId;
+        const path = `belege/${bid}/${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+        showToast('Beleg wird hochgeladen…', 'success');
+        const { error: upErr } = await _supabase.storage.from('documents').upload(path, file);
+        if (upErr) { showToast('Upload fehlgeschlagen: ' + upErr.message, 'error'); return; }
+        const { error } = await _supabase.rpc('update_journal_attachment', { p_entry_id: entryId, p_path: path });
+        if (error) { showToast('Fehler beim Speichern: ' + error.message, 'error'); return; }
+        // Update local state
+        const entry = _finState.entries.find(x => x.id == entryId);
+        if (entry) entry.attachment_path = path;
+        showToast('Beleg gespeichert.', 'success');
+        _finCloseEntryPanel();
+        _finOpenEntryDetail(entryId);
+    };
+    input.click();
 };
 
 window._finSubmitBooking = async () => {
@@ -860,7 +924,7 @@ function _finRenderDemands() {
 
     const rows = demands.map(d => `
         <tr class="hover:bg-gray-50/60 transition-colors">
-            <td class="px-4 py-3 text-sm text-gray-500">${d.due_date}</td>
+            <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(d.due_date)}</td>
             <td class="px-4 py-3 text-sm font-semibold">${d.apartment?.apartment_number || '–'}</td>
             <td class="px-4 py-3 text-sm text-gray-600">${d.person?.full_name || '–'}</td>
             <td class="px-4 py-3 text-sm font-bold text-right">${Number(d.amount).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</td>
@@ -1281,11 +1345,21 @@ function _finRenderWirtschaftsplan(plan, planItems) {
             <td class="px-4 py-3 text-xs font-mono text-gray-500">${item.account?.account_number || '–'}</td>
             <td class="px-4 py-3 text-sm">${item.account?.account_name || '–'}</td>
             <td class="px-4 py-3 text-sm text-right text-gray-500">${Number(item.prior_year_actual || 0).toLocaleString('de-DE', {minimumFractionDigits:2})} €</td>
-            <td class="px-4 py-3 text-sm text-right text-gray-500">${item.adjustment_percent != null ? item.adjustment_percent + ' %' : '–'}</td>
+            <td class="px-4 py-3 text-sm text-right text-gray-500">
+                ${plan?.status === 'draft'
+                    ? `<input type="number" step="0.1" id="fin-wp-adj-${item.id}"
+                            value="${item.adjustment_percent != null ? item.adjustment_percent : ''}"
+                            placeholder="0"
+                            oninput="_finWPLiveAdj(${item.id}, ${Number(item.prior_year_actual || 0).toFixed(2)}, this.value)"
+                            onblur="_finUpdatePlanItemAdj(${item.id}, this.value)"
+                            class="text-sm text-right w-20 bg-hb-ultralight border border-gray-200 rounded-lg px-2 focus:border-hb-olive focus:outline-none" style="height:32px">`
+                    : `${item.adjustment_percent != null ? item.adjustment_percent + ' %' : '–'}`}
+            </td>
             <td class="px-4 py-3 text-right">
                 ${plan?.status === 'draft'
-                    ? `<input type="number" step="0.01" min="0"
+                    ? `<input type="number" step="0.01" min="0" id="fin-wp-planned-${item.id}"
                             value="${Number(item.planned_amount || 0).toFixed(2)}"
+                            oninput="_finWPLivePlanned(${item.id}, ${Number(item.prior_year_actual || 0).toFixed(2)}, this.value)"
                             onblur="_finUpdatePlanItemAmount(${item.id}, this.value)"
                             class="text-sm font-bold text-right w-28 bg-hb-ultralight border border-gray-200 rounded-lg px-2 focus:border-hb-olive focus:outline-none" style="height:32px">`
                     : `<span class="text-sm font-bold">${Number(item.planned_amount || 0).toLocaleString('de-DE', {minimumFractionDigits:2})} €</span>`}
@@ -1319,7 +1393,7 @@ function _finRenderWirtschaftsplan(plan, planItems) {
             <td class="px-4 py-3 text-sm font-semibold">${l.title}</td>
             <td class="px-4 py-3 text-sm text-right font-bold">${Number(l.total_amount).toLocaleString('de-DE', {minimumFractionDigits:2})} €</td>
             <td class="px-4 py-3 text-xs text-gray-500">${distKeyLabel[l.distribution_key] || l.distribution_key}</td>
-            <td class="px-4 py-3 text-sm text-gray-500">${l.due_date || '–'}</td>
+            <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(l.due_date)}</td>
             <td class="px-4 py-3">${levyStatusBadge(l.status)}</td>
             <td class="px-4 py-3 text-right">
                 ${l.status === 'draft' ? `<button onclick="_finActivateLevy(${l.id})" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Aktivieren</button>` : ''}
@@ -1387,13 +1461,13 @@ function _finRenderWirtschaftsplan(plan, planItems) {
                 <h3 class="text-base font-extrabold text-hb-offblack mb-4">Position hinzufügen</h3>
                 <div class="space-y-3">
                     <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Konto *</label>
-                        <select id="fin-item-acc">${_finState.accounts.filter(a=>a.account_type==='expense').map(a=>`<option value="${a.id}">${a.account_number} – ${a.account_name}</option>`).join('')}</select></div>
+                        <select id="fin-item-acc">${_finState.accounts.filter(a=>['expense','revenue','liability'].includes(a.account_type)).map(a=>`<option value="${a.id}">${a.account_number} – ${a.account_name}</option>`).join('')}</select></div>
                     <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Vorjahres-Ist (€)</label>
                         <input id="fin-item-prior" type="number" step="0.01" min="0" placeholder="0,00" oninput="_finCalcPlanned()"></div>
                     <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Anpassung (%)</label>
                         <input id="fin-item-adj" type="number" step="0.1" placeholder="0" oninput="_finCalcPlanned()"></div>
                     <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Geplanter Betrag (€) *</label>
-                        <input id="fin-item-planned" type="number" step="0.01" min="0" placeholder="0,00"></div>
+                        <input id="fin-item-planned" type="number" step="0.01" min="0" placeholder="0,00" oninput="_finCalcAdjFromPlanned()"></div>
                     <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Notiz</label>
                         <input id="fin-item-notes" type="text"></div>
                 </div>
@@ -1469,6 +1543,32 @@ window._finCalcPlanned = () => {
     const calc  = prior * (1 + adj / 100);
     const p = document.getElementById('fin-item-planned');
     if (p && prior) p.value = calc.toFixed(2);
+};
+
+window._finCalcAdjFromPlanned = () => {
+    const prior   = parseFloat(document.getElementById('fin-item-prior')?.value) || 0;
+    const planned = parseFloat(document.getElementById('fin-item-planned')?.value) || 0;
+    const adjEl   = document.getElementById('fin-item-adj');
+    if (adjEl && prior) adjEl.value = (((planned / prior) - 1) * 100).toFixed(1);
+};
+
+window._finWPLivePlanned = (itemId, prior, plannedVal) => {
+    const planned = parseFloat(plannedVal) || 0;
+    const adjEl   = document.getElementById(`fin-wp-adj-${itemId}`);
+    if (adjEl && prior) adjEl.value = (((planned / prior) - 1) * 100).toFixed(1);
+};
+
+window._finWPLiveAdj = (itemId, prior, adjVal) => {
+    const adj       = parseFloat(adjVal) || 0;
+    const plannedEl = document.getElementById(`fin-wp-planned-${itemId}`);
+    if (plannedEl && prior) plannedEl.value = (prior * (1 + adj / 100)).toFixed(2);
+};
+
+window._finUpdatePlanItemAdj = async (itemId, value) => {
+    const adj = parseFloat(value);
+    if (isNaN(adj)) return;
+    const { error } = await _supabase.from('budget_plan_items').update({ adjustment_percent: adj }).eq('id', itemId);
+    if (error) showToast('Fehler beim Speichern: ' + error.message, 'error');
 };
 
 window._finSavePlanItem = async () => {
@@ -1662,7 +1762,7 @@ function _finRenderRuecklage(reserveAccs, saldoMap, planTargetMap, histEntries) 
         const typeCls   = isDebit ? 'text-green-700 bg-green-50' : 'text-hb-orange bg-hb-orange/10';
         runSaldo += isDebit ? Number(e.amount) : -Number(e.amount);
         return `<tr class="hover:bg-gray-50/60">
-            <td class="px-4 py-3 text-sm text-gray-500">${e.entry_date}</td>
+            <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(e.entry_date)}</td>
             <td class="px-4 py-3 text-sm">${e.description}</td>
             <td class="px-4 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-md ${typeCls}">${typeLabel}</span></td>
             <td class="px-4 py-3 text-sm font-bold text-right">${Number(e.amount).toLocaleString('de-DE', {minimumFractionDigits:2})} €</td>
@@ -1785,7 +1885,7 @@ async function _finLoadBelegpruefung() {
 
     const entryRows = (entries || []).map(e => `
         <tr class="hover:bg-gray-50/60">
-            <td class="px-4 py-3 text-sm text-gray-500">${e.entry_date}</td>
+            <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(e.entry_date)}</td>
             <td class="px-4 py-3 text-sm max-w-[200px] truncate" title="${e.description}">${e.description}</td>
             <td class="px-4 py-3 text-xs text-gray-600">${e.debit_account?.account_number} ${e.debit_account?.account_name}</td>
             <td class="px-4 py-3 text-xs text-gray-600">${e.credit_account?.account_number} ${e.credit_account?.account_name}</td>
@@ -1914,7 +2014,7 @@ async function _finRenderBeiratView() {
 
     const entryRows = (entries || []).map(e => `
         <tr class="hover:bg-gray-50/60">
-            <td class="px-4 py-3 text-sm text-gray-500">${e.entry_date}</td>
+            <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(e.entry_date)}</td>
             <td class="px-4 py-3 text-sm max-w-[200px] truncate" title="${e.description}">${e.description}</td>
             <td class="px-4 py-3 text-xs text-gray-600">${e.debit_account?.account_number} ${e.debit_account?.account_name}</td>
             <td class="px-4 py-3 text-xs text-gray-600">${e.credit_account?.account_number} ${e.credit_account?.account_name}</td>
@@ -2511,7 +2611,7 @@ async function _finLoadMahnwesen() {
         const days = Math.ceil((Date.now() - new Date(d.due_date).getTime()) / 86400000);
         return `<tr class="hover:bg-gray-50/60">
             <td class="px-3 py-3"><input type="checkbox" class="mahn-check" data-id="${d.id}" data-amount="${d.amount}" data-person="${d.person?.full_name||''}" data-apt="${d.apartment?.apartment_number||''}"></td>
-            <td class="px-4 py-3 text-sm text-gray-500">${d.due_date}</td>
+            <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(d.due_date)}</td>
             <td class="px-4 py-3 text-sm font-semibold">${d.apartment?.apartment_number||'–'}</td>
             <td class="px-4 py-3 text-sm text-gray-600">${d.person?.full_name||'–'}</td>
             <td class="px-4 py-3 text-sm font-bold text-right">${Number(d.amount).toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
@@ -2524,7 +2624,7 @@ async function _finLoadMahnwesen() {
         :'<span class="text-xs bg-red-50 text-red-600 font-semibold px-2 py-0.5 rounded-md">Stufe 3</span>';
     const noticeRows = (notices||[]).map(n => `
         <tr class="hover:bg-gray-50/60">
-            <td class="px-4 py-3 text-sm text-gray-500">${n.created_at?.split('T')[0]||'–'}</td>
+            <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(n.created_at)}</td>
             <td class="px-4 py-3 text-sm text-gray-600">${n.person?.full_name||'–'}</td>
             <td class="px-4 py-3 text-sm font-semibold">${n.demand?.apartment?.apartment_number||'–'}</td>
             <td class="px-4 py-3">${dunningBadge(n.dunning_level)}</td>
