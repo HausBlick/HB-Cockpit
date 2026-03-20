@@ -67,6 +67,7 @@ js/
     mod-dokumente.js        # Dokumenten-Cloud (Upload, Download, Vorschau, Kategorien)
     mod-kontakte.js         # Kontaktbuch (Handwerker, Notfallkontakte, Dienstleister)
     mod-kalender.js         # Monatskalender — Gebäude-Fristen & Ticket-Wiedervorlagen
+    mod-finanzen.js         # Buchhaltung (Konten, Buchungen, Wirtschaftsplan, Abrechnung, CSV/SEPA)
     mod-placeholder.js      # Platzhalter für kommende Module
 ```
 
@@ -363,18 +364,6 @@ js/
 
 ---
 
-### Phase 6-E — CSV-Bankimport, SEPA-XML Export, Testdaten-Scripts
-**Commits:** `3efc9ed`
-
-| # | Was wurde gemacht |
-|---|---|
-| 1 | **Tab 12 CSV-Import**: Format-Auswahl (MT940/Sparkasse/Volksbank/CSV allgemein), Drag & Drop Upload-Zone, client-seitiger Parser, Vorschau-Tabelle (Checkbox, Betrag farbkodiert grün/rot, Kontenzuweisung je Zeile), Duplikat-Erkennung per `reference_number`, Import in `journal_entries` |
-| 2 | **Tab 13 SEPA-Export**: Offene/überfällige Sollstellungen mit IBAN-Vorschau, orange „Keine IBAN"-Badge, PAIN.008.003.02 XML-Download, „Als bezahlt markieren"-Button |
-| 3 | **`scripts/seed-testdata.sql`**: 5 WE (TEST-001) + 4 WE (TEST-002), Zählerstände Jahresanfang + Jahresende 2025, 2 Wirtschaftspläne je Gebäude (2025 aktiv + 2026 Entwurf), 108 Sollstellungen (inkl. overdue für WE05) |
-| 4 | Testdaten in DB eingespielt und verifiziert |
-
----
-
 ### Phase 6-D — Jahresabrechnung, Mahnwesen, DATEV-Export
 
 | # | Was wurde gemacht |
@@ -387,6 +376,18 @@ js/
 | 6 | **Tab Mahnwesen**: Überfällige Sollstellungen mit Checkbox-Auswahl, Mahnlauf (Stufe 1-3, Basiszins 3,37%, Mahngebühr), Zinsberechnung (Tage × Rate × Betrag / 365), INSERT dunning_notices, Status „Bezahlt" setzen |
 | 7 | **Tab DATEV-Export**: DATEV Buchungsstapel-Format (UTF-8 mit BOM, EXTF-Header, SKR03/04), CSV-Download. Separate §35a EStG Steuerbescheinigung als CSV |
 | 8 | Hilfsfunktion `_finDownloadFile()` für Blob-CSV-Downloads |
+
+---
+
+### Phase 6-E — CSV-Bankimport, SEPA-XML Export, Testdaten-Scripts
+**Commits:** `3efc9ed`
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Tab 12 CSV-Import**: Format-Auswahl (MT940/Sparkasse/Volksbank/CSV allgemein), Drag & Drop Upload-Zone, client-seitiger Parser, Vorschau-Tabelle (Checkbox, Betrag farbkodiert grün/rot, Kontenzuweisung je Zeile), Duplikat-Erkennung per `reference_number`, Import in `journal_entries` |
+| 2 | **Tab 13 SEPA-Export**: Offene/überfällige Sollstellungen mit IBAN-Vorschau, orange „Keine IBAN"-Badge, PAIN.008.003.02 XML-Download, „Als bezahlt markieren"-Button |
+| 3 | **`scripts/seed-testdata.sql`**: 5 WE (TEST-001) + 4 WE (TEST-002), Zählerstände Jahresanfang + Jahresende 2025, 2 Wirtschaftspläne je Gebäude (2025 aktiv + 2026 Entwurf), 108 Sollstellungen (inkl. overdue für WE05) |
+| 4 | Testdaten in DB eingespielt und verifiziert |
 
 ---
 
