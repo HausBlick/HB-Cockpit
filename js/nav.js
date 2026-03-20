@@ -14,8 +14,6 @@ async function init() {
         if (!profile) return;
         userProfile = profile;
 
-        document.getElementById('welcome-title').textContent = profile.full_name.split(' ')[0];
-
         const roleLabels = {
             'admin':   'Verwalter Cockpit',
             'manager': 'Objektbetreuer',

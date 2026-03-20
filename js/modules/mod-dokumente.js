@@ -85,7 +85,7 @@ async function _loadDocsInit() {
     _docsState.showArchived = false;
 
     const [bldRes, aptRes, profRes, docsData, readsRes] = await Promise.all([
-        _supabase.from('buildings').select('id, name, file_number').order('name'),
+        _supabase.from('buildings').select('id, name, file_number, street, house_number').order('name'),
         _supabase.from('apartments').select('id, building_id, apartment_number').order('apartment_number'),
         _supabase.from('profiles').select('id, full_name, email').order('full_name'),
         _fetchDocs(),
@@ -105,7 +105,7 @@ async function _loadDocsInit() {
 async function _fetchDocs() {
     const isAdmin = userProfile?.role === 'admin' || userProfile?.role === 'manager';
     let q = _supabase.from('documents')
-        .select('id, title, document_title, original_filename, generated_filename, category, file_path, file_type, file_size, year, visibility_scope, status, is_deleted, building_id, apartment_id, uploaded_by, created_at, updated_at, buildings(name, file_number), profiles!uploaded_by(full_name)')
+        .select('id, title, document_title, original_filename, generated_filename, category, file_path, file_type, file_size, year, visibility_scope, status, is_deleted, building_id, apartment_id, uploaded_by, created_at, updated_at, buildings(name, file_number, street, house_number), profiles!uploaded_by(full_name)')
         .order('created_at', { ascending: false });
 
     if (!isAdmin)              q = q.neq('status', 'draft');
@@ -200,7 +200,7 @@ function _populateBuildingFilter() {
     _docsState.buildings.forEach(b => {
         const opt = document.createElement('option');
         opt.value = b.id;
-        opt.textContent = b.name;
+        opt.textContent = formatBuildingName(b);
         if (_docsState.buildingId && b.id == _docsState.buildingId) opt.selected = true;
         sel.appendChild(opt);
     });
@@ -614,7 +614,7 @@ window._openDocEditModal = async (docId) => {
     }
 
     const catOptions = ALLE_KATEGORIEN.map(c => `<option value="${c}" ${doc.category === c ? 'selected' : ''}>${c}</option>`).join('');
-    const bldOptions = _docsState.buildings.map(b => `<option value="${b.id}" ${doc.building_id == b.id ? 'selected' : ''}>${b.name}</option>`).join('');
+    const bldOptions = _docsState.buildings.map(b => `<option value="${b.id}" ${doc.building_id == b.id ? 'selected' : ''}>${formatBuildingName(b)}</option>`).join('');
     const aptOptions = _docsState.apartments
         .filter(a => !doc.building_id || a.building_id == doc.building_id)
         .map(a => `<option value="${a.id}" ${doc.apartment_id == a.id ? 'selected' : ''}>${a.apartment_number}</option>`).join('');
@@ -745,7 +745,7 @@ window._openUploadModal = () => {
     _docsState.stagingFiles = [];
 
     const catOptions = ALLE_KATEGORIEN.map(c => `<option value="${c}">${c}</option>`).join('');
-    const bldOptions = _docsState.buildings.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+    const bldOptions = _docsState.buildings.map(b => `<option value="${b.id}">${formatBuildingName(b)}</option>`).join('');
     const curYear    = new Date().getFullYear();
     let yearOpts = '';
     for (let y = curYear; y >= curYear - 5; y--) {

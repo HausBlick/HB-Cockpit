@@ -74,7 +74,7 @@ async function _loadLikedAndRead() {
 
 async function _fetchAndRenderNews() {
     const { data, error } = await _supabase.from('news')
-        .select('*, author:profiles!news_author_id_fkey(id, full_name), buildings(name)')
+        .select('*, author:profiles!news_author_id_fkey(id, full_name), buildings(name, file_number, street, house_number)')
         .order('created_at', { ascending: false });
 
     if (error) { showToast('Fehler beim Laden.', 'error'); return; }
@@ -126,7 +126,7 @@ function _newsCardHtml(n) {
             ${_newsBadge(n)}
             <div class="flex items-center gap-2">
                 <span class="${catColor} text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md">${n.category || 'Allgemein'}</span>
-                ${n.buildings?.name ? `<span class="text-[10px] text-gray-400">${n.buildings.name}</span>` : ''}
+                ${n.buildings ? `<span class="text-[10px] text-gray-400">${formatBuildingName(n.buildings)}</span>` : ''}
             </div>
             <h3 class="font-extrabold text-hb-offblack text-base leading-snug pr-8">${n.title}</h3>
             <p class="text-sm text-gray-500 line-clamp-3 flex-grow">${preview}…</p>
@@ -188,7 +188,7 @@ window.openNewsModal = async (newsId) => {
                     <span class="${catColor} text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md">${item.category || 'Allgemein'}</span>
                     <h2 class="text-xl font-extrabold text-hb-offblack">${item.title}</h2>
                     <p class="text-xs text-gray-400">${item.author?.full_name || '—'} · ${date}
-                        ${item.buildings?.name ? ` · ${item.buildings.name}` : ''}</p>
+                        ${item.buildings ? ` · ${formatBuildingName(item.buildings)}` : ''}</p>
                 </div>
                 <div class="flex gap-2 items-center flex-shrink-0 ml-4">
                     ${canEdit ? `
@@ -274,7 +274,7 @@ window.showEditNewsModal = async (newsId) => {
     const item = _newsData.find(n => n.id === newsId);
     if (!item) return;
 
-    const { data: buildings } = await _supabase.from('buildings').select('id, name').order('name');
+    const { data: buildings } = await _supabase.from('buildings').select('id, name, file_number, street, house_number').order('name');
     const bList = buildings || [];
     const role  = userProfile?.role;
 
@@ -313,7 +313,7 @@ window.showEditNewsModal = async (newsId) => {
                 <label class="text-[10px] uppercase font-bold text-gray-500">Gebäude</label>
                 <select id="edit_news_building_id">
                     <option value="">— Bitte wählen —</option>
-                    ${bList.map(b => `<option value="${b.id}" ${item.building_id===b.id?'selected':''}>${b.name}</option>`).join('')}
+                    ${bList.map(b => `<option value="${b.id}" ${item.building_id===b.id?'selected':''}>${formatBuildingName(b)}</option>`).join('')}
                 </select>
             </div>
             <div class="space-y-2">
@@ -384,7 +384,7 @@ window.updateNews = async (newsId) => {
 window.showCreateNewsModal = async () => {
     const role = userProfile?.role;
     // Gebäude für Auswahl
-    const { data: buildings } = await _supabase.from('buildings').select('id, name').order('name');
+    const { data: buildings } = await _supabase.from('buildings').select('id, name, file_number, street, house_number').order('name');
     const bList = buildings || [];
 
     document.getElementById('create-news-modal')?.remove();
@@ -423,7 +423,7 @@ window.showCreateNewsModal = async () => {
                 <label class="text-[10px] uppercase font-bold text-gray-500">Gebäude</label>
                 <select id="news_building_id" onchange="handleNewsBuildingChange(this.value)">
                     <option value="">— Bitte wählen —</option>
-                    ${bList.map(b => `<option value="${b.id}">${b.name}</option>`).join('')}
+                    ${bList.map(b => `<option value="${b.id}">${formatBuildingName(b)}</option>`).join('')}
                 </select>
             </div>
             <div id="news_unit_wrap" class="space-y-2 hidden">

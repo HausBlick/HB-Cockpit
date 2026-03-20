@@ -78,7 +78,7 @@ async function loadFinance() {
         return;
     }
 
-    const { data: buildings } = await _supabase.from('buildings').select('id, name').order('name');
+    const { data: buildings } = await _supabase.from('buildings').select('id, name, file_number, street, house_number').order('name');
     _finState.buildings = buildings || [];
     if (!_finState.buildingId && _finState.buildings.length > 0) {
         _finState.buildingId = _finState.buildings[0].id;
@@ -108,7 +108,7 @@ function _finRenderShell() {
     ];
 
     const buildingOpts = _finState.buildings.map(b =>
-        `<option value="${b.id}" ${b.id == _finState.buildingId ? 'selected' : ''}>${b.name}</option>`
+        `<option value="${b.id}" ${b.id == _finState.buildingId ? 'selected' : ''}>${formatBuildingName(b)}</option>`
     ).join('');
 
     const tabHtml = tabs.map(t => `
@@ -817,7 +817,7 @@ function _finRenderOnboarding() {
 
     if (step === 1) {
         const buildingOpts = _finState.buildings.map(b =>
-            `<option value="${b.id}" ${b.id == bid ? 'selected' : ''}>${b.name}</option>`
+            `<option value="${b.id}" ${b.id == bid ? 'selected' : ''}>${formatBuildingName(b)}</option>`
         ).join('');
         stepContent = `
             <div class="max-w-md mx-auto space-y-4">
@@ -1684,7 +1684,7 @@ async function _finRenderBeiratView() {
     const ca  = document.getElementById('content-area');
 
     const [{ data: bldg }, { data: entries }] = await Promise.all([
-        _supabase.from('buildings').select('name').eq('id', bid).single(),
+        _supabase.from('buildings').select('name, file_number, street, house_number').eq('id', bid).single(),
         _supabase.from('journal_entries')
             .select('*, debit_account:accounts!debit_account_id(account_number,account_name), credit_account:accounts!credit_account_id(account_number,account_name)')
             .eq('building_id', bid)
@@ -1708,7 +1708,7 @@ async function _finRenderBeiratView() {
         <div class="flex justify-between items-end mb-6">
             <div>
                 <p class="text-xs uppercase tracking-widest font-bold text-hb-orange mb-1">Belegprüfung Beirat</p>
-                <h2 class="text-2xl font-extrabold text-hb-olive tracking-tight">${bldg?.name || '–'}</h2>
+                <h2 class="text-2xl font-extrabold text-hb-olive tracking-tight">${formatBuildingName(bldg)}</h2>
                 <p class="text-sm text-gray-500 mt-1">Wirtschaftsjahr ${fy} — schreibgeschützt</p>
             </div>
         </div>

@@ -107,7 +107,7 @@ function renderBuildingsList(query = '') {
         <div onclick="selectBuilding(${b.id})" id="b-item-${b.id}"
             class="px-3 py-3 rounded-lg cursor-pointer
                    hover:bg-gray-100 transition-all text-left group">
-            <p class="font-bold text-xs text-hb-offblack truncate group-hover:text-hb-olive">${b.name}</p>
+            <p class="font-bold text-xs text-hb-offblack truncate group-hover:text-hb-olive">${formatBuildingName(b)}</p>
             <p class="text-[10px] text-gray-400 truncate">${b.street ? `${b.street} ${b.house_number || ''}` : (b.city || '')}</p>
         </div>`).join('')
         || '<p class="text-xs text-gray-400 p-3">Keine Treffer.</p>';
@@ -149,7 +149,7 @@ async function showBuildingInfo(b) {
                         <span class="bg-gray-100 text-gray-500 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md">${b.status || 'aktiv'}</span>
                         <span class="text-[10px] font-bold text-gray-400">Nr. ${b.file_number || '—'}</span>
                     </div>
-                    <h2 class="text-base font-extrabold text-hb-offblack leading-tight">${b.name}</h2>
+                    <h2 class="text-base font-extrabold text-hb-offblack leading-tight">${formatBuildingName(b)}</h2>
                     <p class="text-xs text-gray-500">${addr}</p>
                 </div>
                 <button onclick="showBuildingForm(${b.id})"
