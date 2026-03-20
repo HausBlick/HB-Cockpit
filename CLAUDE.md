@@ -380,31 +380,7 @@ js/
 
 ---
 
-### Projekttag 4 — mod-finanzen.js UX-Verbesserungen (5 Features)
-
-| # | Was wurde gemacht |
-|---|---|
-| 1 | **Konto-Ledger** (Tab Übersicht): Klick auf Konto-Zeile öffnet gefilterte Buchungsansicht (Datum, Gegenkonto, Beschreibung, Soll, Haben, laufender Saldo). „← Zurück"-Button. |
-| 2 | **Suchleiste** in Kontenblatt (Kontonummer/Name/Typ) und Buchungsjournal (Betrag/Beschreibung/Kontoname). Live-Filterung ohne Reload. |
-| 3 | **Buchungs-Detailansicht**: Klick auf Journal-Zeile öffnet Modal mit allen Feldern (Datum, Wertstellung, Konten, Betrag, Beschreibung, Referenz, §35a, Beleg-Link, Typ-Badge). |
-| 4 | **Wirtschaftsplan Manueller Override**: `planned_amount` als editierbares Input-Feld in Draft-Plänen. Auto-Kalkulation als Vorschlag, manuelle Überschreibung möglich. Speichert per `onblur`. |
-| 5 | **Variabler Heizkosten-Schlüssel** (Option B): Zwei Felder „Verbrauchsanteil %" (Default 70) und „Flächenanteil %" (Default 30) statt festem 50/50-Split. Validierung: Summe muss 100% ergeben. |
-
----
-
-### Projekttag 4 — UI-Cleanup & Gebäudenamens-Logik
-
-| # | Was wurde gemacht |
-|---|---|
-| 1 | **Header vereinfacht:** `<h1 id="welcome-title">` (Vorname) aus `dashboard.html` entfernt — Header zeigt nur noch Cockpit-Titel (`role-label`) |
-| 2 | **Begrüßung ins Dashboard:** `Hallo, [Vorname]!` in `_renderAdminDashboard()` direkt über Quick-Actions eingefügt (war bisher nur in `_renderUserDashboard()`) |
-| 3 | **`formatBuildingName(b)` in `config.js`:** Neue globale Hilfsfunktion — Schema: `[file_number] - WEG [street] [house_number]`; Legacy-Fallback: `b.name` |
-| 4 | Alle Module (`mod-objekte`, `mod-finanzen`, `mod-tickets`, `mod-news`, `mod-dashboard`, `mod-kontakte`, `mod-dokumente`, `mod-kalender`) auf `formatBuildingName()` umgestellt |
-| 5 | Alle buildings-Queries in betroffenen Modulen um `file_number, street, house_number` erweitert |
-
----
-
-### Projekttag 6 — mod-finanzen.js: Belege, Konten-CRUD, Unterkonten
+### Projekttag 4 — mod-finanzen.js: Belege, Konten-CRUD, Unterkonten
 
 | # | Was wurde gemacht |
 |---|---|
@@ -418,19 +394,38 @@ js/
 
 ---
 
-### Projekttag 5 — mod-finanzen.js UX-Verbesserungen (2 Batches)
+### Projekttag 4 — mod-finanzen.js UX-Verbesserungen (Batch 2)
 
 | # | Was wurde gemacht |
 |---|---|
-| 1 | **Konto-Ledger**: Klick auf Kontoblatt-Zeile öffnet gefilterte Journal-Ansicht mit laufendem Saldo + Zurück-Button |
-| 2 | **Suchleisten**: Live-Filter in Kontenblatt (Nr/Name/Typ) und Buchungsjournal (Betrag/Beschreibung/Kontoname) |
-| 3 | **Buchungs-Detailansicht**: Slide-in Panel von rechts (420px, CSS-Transition), alle Felder, signierter Beleg-Link |
-| 4 | **Beleg nachträglich hochladen/ersetzen**: im Detail-Panel, Upload in Storage `belege/`, Update via Supabase RPC `update_journal_attachment` (GoBD-konform, bypassed via `session_replication_role='replica'`) |
-| 5 | **Deutsches Datumsformat**: `_finFormatDate()` Helper, alle Datumsspalten als `DD.MM.YYYY` |
-| 6 | **WP Modal: Alle Kontentypen**: `fin-item-acc` Select zeigt expense/revenue/liability (vorher nur expense) |
-| 7 | **WP Live-Berechnung bidirektional**: `planned_amount` ↔ `adjustment_percent` in Modal und Tabellen-Zeilen (Entwurf-Status), `_finCalcAdjFromPlanned`, `_finWPLivePlanned`, `_finWPLiveAdj`, `_finUpdatePlanItemAdj` |
-| 8 | **WP Wirtschaftsplan-Override**: `planned_amount` als editierbares `<input>` in Entwurf-Zeilen, `onblur`-Speicherung |
-| 9 | **Variabler Heizkosten-Schlüssel** (Jahresabrechnung Option B): `heatSplitV` (Standard 70%) + `heatSplitF` (Standard 30%), Validierung Summe = 100% |
+| 1 | **Buchungs-Detailansicht**: Slide-in Panel von rechts (420px, CSS-Transition), alle Felder, signierter Beleg-Link |
+| 2 | **Deutsches Datumsformat**: `_finFormatDate()` Helper, alle Datumsspalten als `DD.MM.YYYY` |
+| 3 | **WP Modal: Alle Kontentypen**: `fin-item-acc` Select zeigt expense/revenue/liability (vorher nur expense) |
+| 4 | **WP Live-Berechnung bidirektional**: `planned_amount` ↔ `adjustment_percent` in Modal und Tabellen-Zeilen (Entwurf-Status), `_finCalcAdjFromPlanned`, `_finWPLivePlanned`, `_finWPLiveAdj`, `_finUpdatePlanItemAdj` |
+
+---
+
+### Projekttag 4 — mod-finanzen.js UX-Verbesserungen (Batch 1)
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Konto-Ledger** (Tab Übersicht): Klick auf Konto-Zeile öffnet gefilterte Buchungsansicht (Datum, Gegenkonto, Beschreibung, Soll, Haben, laufender Saldo). „← Zurück"-Button. |
+| 2 | **Suchleiste** in Kontenblatt (Kontonummer/Name/Typ) und Buchungsjournal (Betrag/Beschreibung/Kontoname). Live-Filterung ohne Reload. |
+| 3 | **Buchungs-Detailansicht**: Klick auf Journal-Zeile öffnet Modal mit allen Feldern (Datum, Wertstellung, Konten, Betrag, Beschreibung, Referenz, §35a, Beleg-Link, Typ-Badge). |
+| 4 | **Wirtschaftsplan Manueller Override**: `planned_amount` als editierbares Input-Feld in Draft-Plänen. Speichert per `onblur`. |
+| 5 | **Variabler Heizkosten-Schlüssel** (Option B): `heatSplitV` (70%) + `heatSplitF` (30%), Validierung Summe = 100%. |
+
+---
+
+### Projekttag 4 — UI-Cleanup & Gebäudenamens-Logik
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Header vereinfacht:** `<h1 id="welcome-title">` (Vorname) aus `dashboard.html` entfernt — Header zeigt nur noch Cockpit-Titel (`role-label`) |
+| 2 | **Begrüßung ins Dashboard:** `Hallo, [Vorname]!` in `_renderAdminDashboard()` direkt über Quick-Actions eingefügt (war bisher nur in `_renderUserDashboard()`) |
+| 3 | **`formatBuildingName(b)` in `config.js`:** Neue globale Hilfsfunktion — Schema: `[file_number] - WEG [street] [house_number]`; Legacy-Fallback: `b.name` |
+| 4 | Alle Module (`mod-objekte`, `mod-finanzen`, `mod-tickets`, `mod-news`, `mod-dashboard`, `mod-kontakte`, `mod-dokumente`, `mod-kalender`) auf `formatBuildingName()` umgestellt |
+| 5 | Alle buildings-Queries in betroffenen Modulen um `file_number, street, house_number` erweitert |
 
 ---
 
