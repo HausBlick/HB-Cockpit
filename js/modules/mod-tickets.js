@@ -128,7 +128,7 @@ async function _renderFilterMenu() {
         <div id="ticket-building-filters" class="space-y-0.5"></div>`;
 
     // Gebäude-Filter mit Counts
-    const { data: buildings } = await _supabase.from('buildings').select('id, name').order('name');
+    const { data: buildings } = await _supabase.from('buildings').select('id, name, file_number, street, house_number').order('name');
     const bDiv = document.getElementById('ticket-building-filters');
     if (bDiv && buildings) {
         bDiv.innerHTML = buildings.map(b => {
@@ -137,7 +137,7 @@ async function _renderFilterMenu() {
             <button onclick="setTicketFilter('building-${b.id}')" id="tf-building-${b.id}"
                 class="ticket-filter-btn w-full text-left px-3 py-2 rounded-lg text-xs font-semibold
                        text-gray-500 hover:bg-gray-50 transition-colors flex items-center gap-2">
-                <span class="truncate flex-1">${b.name}</span>${badge(n)}
+                <span class="truncate flex-1">${formatBuildingName(b)}</span>${badge(n)}
             </button>`;
         }).join('');
     }
@@ -195,7 +195,7 @@ async function _loadTicketView(filterId) {
     </div>`;
 
     let query = _supabase.from('tickets')
-        .select(`*, buildings(id, name), apartments(id, apartment_number),
+        .select(`*, buildings(id, name, file_number, street, house_number), apartments(id, apartment_number),
             creator:profiles!tickets_creator_id_fkey(id, full_name),
             assignee:profiles!tickets_assigned_to_fkey(id, full_name)`)
         .order('created_at', { ascending: false });
@@ -287,7 +287,7 @@ window.searchTickets = async (query) => {
     // Parallel: alle zugänglichen Tickets + Nachrichten-Treffer (RLS filtert jeweils automatisch)
     const [ticketsRes, msgRes] = await Promise.all([
         _supabase.from('tickets')
-            .select(`*, buildings(id, name), apartments(id, apartment_number),
+            .select(`*, buildings(id, name, file_number, street, house_number), apartments(id, apartment_number),
                 creator:profiles!tickets_creator_id_fkey(id, full_name),
                 assignee:profiles!tickets_assigned_to_fkey(id, full_name)`)
             .order('created_at', { ascending: false }),
@@ -353,7 +353,7 @@ window.openTicketDetail = async (ticketId) => {
 
     const [ticketRes, messagesRes, managersRes] = await Promise.all([
         _supabase.from('tickets')
-            .select(`*, buildings(id, name), apartments(id, apartment_number),
+            .select(`*, buildings(id, name, file_number, street, house_number), apartments(id, apartment_number),
                 creator:profiles!tickets_creator_id_fkey(id, full_name),
                 assignee:profiles!tickets_assigned_to_fkey(id, full_name)`)
             .eq('id', ticketId).single(),
@@ -436,7 +436,7 @@ window.openTicketDetail = async (ticketId) => {
                 ${t.buildings ? `<div class="space-y-1">
                     <p class="text-[10px] uppercase font-bold text-gray-400">Gebäude</p>
                     <button onclick="navigateToBuilding(${t.buildings.id})"
-                        class="text-sm font-bold text-hb-olive hover:underline">${t.buildings.name}</button>
+                        class="text-sm font-bold text-hb-olive hover:underline">${formatBuildingName(t.buildings)}</button>
                 </div>` : ''}
 
                 <!-- Einheit Deep-Link -->
@@ -628,7 +628,7 @@ window.escalateTicket = async (ticketId) => {
 
 // ─── Ticket erstellen ─────────────────────────────────────────
 window.showCreateTicketModal = async () => {
-    const { data: buildings } = await _supabase.from('buildings').select('id, name').order('name');
+    const { data: buildings } = await _supabase.from('buildings').select('id, name, file_number, street, house_number').order('name');
     const bList = buildings || [];
 
     document.getElementById('create-ticket-modal')?.remove();
@@ -659,7 +659,7 @@ window.showCreateTicketModal = async () => {
                     <label class="text-[10px] uppercase font-bold text-gray-500">Gebäude</label>
                     <select id="tkt_building" onchange="loadApartmentsForTicket(this.value)">
                         <option value="">— Bitte wählen —</option>
-                        ${bList.map(b => `<option value="${b.id}">${b.name}</option>`).join('')}
+                        ${bList.map(b => `<option value="${b.id}">${formatBuildingName(b)}</option>`).join('')}
                     </select>
                 </div>
             </div>

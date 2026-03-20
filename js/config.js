@@ -14,6 +14,13 @@ let currentBuildings   = [];
 let selectedBuildingId = null;
 let currentApartments  = [];
 
+// --- Globale Hilfsfunktionen ---
+function formatBuildingName(b) {
+    if (!b) return '—';
+    if (b.file_number) return `${b.file_number} - WEG ${b.street || ''} ${b.house_number || ''}`.trim();
+    return b.name || '—';
+}
+
 // --- Icon-Library ---
 const icons = {
     dashboard: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>`,

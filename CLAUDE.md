@@ -379,6 +379,18 @@ js/
 
 ---
 
+### Projekttag 4 — UI-Cleanup & Gebäudenamens-Logik
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Header vereinfacht:** `<h1 id="welcome-title">` (Vorname) aus `dashboard.html` entfernt — Header zeigt nur noch Cockpit-Titel (`role-label`) |
+| 2 | **Begrüßung ins Dashboard:** `Hallo, [Vorname]!` in `_renderAdminDashboard()` direkt über Quick-Actions eingefügt (war bisher nur in `_renderUserDashboard()`) |
+| 3 | **`formatBuildingName(b)` in `config.js`:** Neue globale Hilfsfunktion — Schema: `[file_number] - WEG [street] [house_number]`; Legacy-Fallback: `b.name` |
+| 4 | Alle Module (`mod-objekte`, `mod-finanzen`, `mod-tickets`, `mod-news`, `mod-dashboard`, `mod-kontakte`, `mod-dokumente`, `mod-kalender`) auf `formatBuildingName()` umgestellt |
+| 5 | Alle buildings-Queries in betroffenen Modulen um `file_number, street, house_number` erweitert |
+
+---
+
 ### Phase 6-E — CSV-Bankimport, SEPA-XML Export, Testdaten-Scripts
 **Commits:** `3efc9ed`
 

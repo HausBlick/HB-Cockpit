@@ -135,12 +135,12 @@ function _renderContactsPage(role) {
 async function _renderBuildingDropdown() {
     const wrap = document.getElementById('contact-building-filter-wrap');
     if (!wrap) return;
-    const { data: buildings } = await _supabase.from('buildings').select('id, name')
+    const { data: buildings } = await _supabase.from('buildings').select('id, name, file_number, street, house_number')
         .in('id', _myBuildingIds).order('name');
     wrap.innerHTML = `
         <select onchange="_setContactBuilding(this.value)" class="md:w-56">
             <option value="">Alle Gebäude</option>
-            ${(buildings || []).map(b => `<option value="${b.id}">${b.name}</option>`).join('')}
+            ${(buildings || []).map(b => `<option value="${b.id}">${formatBuildingName(b)}</option>`).join('')}
         </select>`;
 }
 
@@ -270,7 +270,7 @@ window.openContactDetail = async (contactId) => {
         _supabase.from('contacts').select('*').eq('id', contactId).single(),
         _supabase.from('contact_persons').select('*').eq('contact_id', contactId).order('name'),
         buildingIdsForContact.length
-            ? _supabase.from('buildings').select('id, name').in('id', buildingIdsForContact)
+            ? _supabase.from('buildings').select('id, name, file_number, street, house_number').in('id', buildingIdsForContact)
             : Promise.resolve({ data: [] }),
     ]);
 
@@ -313,7 +313,7 @@ window.openContactDetail = async (contactId) => {
                 ${bList.map(b => `
                 <button onclick="navigateToBuilding(${b.id}); document.getElementById('contact-detail-modal')?.remove()"
                     class="text-xs font-bold text-hb-olive px-3 py-1 rounded-lg hover:bg-hb-olive/10 transition-colors" style="background:rgba(104,116,81,.1)">
-                    ${b.name}
+                    ${formatBuildingName(b)}
                 </button>`).join('')}
             </div>
         </div>` : '';
@@ -382,7 +382,7 @@ window.showContactForm = async (contactId = null) => {
             ? _supabase.from('contacts').select('*').eq('id', contactId).single()
             : Promise.resolve({ data: null }),
         _myBuildingIds.length
-            ? _supabase.from('buildings').select('id, name').in('id', _myBuildingIds).order('name')
+            ? _supabase.from('buildings').select('id, name, file_number, street, house_number').in('id', _myBuildingIds).order('name')
             : Promise.resolve({ data: [] }),
     ]);
 
@@ -464,7 +464,7 @@ window.showContactForm = async (contactId = null) => {
                         <label class="flex items-center gap-2 cursor-pointer">
                             <input type="checkbox" value="${b.id}" class="ctct_building_cb accent-[#687451]"
                                 ${(c.building_ids || []).includes(b.id) ? 'checked' : ''}>
-                            <span class="text-sm">${b.name}</span>
+                            <span class="text-sm">${formatBuildingName(b)}</span>
                         </label>`).join('')}
                     </div>
                 </div>` : ''}

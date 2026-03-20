@@ -117,13 +117,13 @@ async function _renderAdminDashboard() {
         _supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('status', 'Offen'),
         _supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('status', 'In Bearbeitung'),
         _supabase.from('documents').select('id', { count: 'exact', head: true }).eq('status', 'draft').eq('is_deleted', false),
-        _supabase.from('buildings').select('id, name, energy_certificate_expiry, next_fire_safety_check, drinking_water_analysis_due, last_legionella_check, legionella_check_interval_months'),
+        _supabase.from('buildings').select('id, name, file_number, street, house_number, energy_certificate_expiry, next_fire_safety_check, drinking_water_analysis_due, last_legionella_check, legionella_check_interval_months'),
         _supabase.from('tickets')
-            .select(`id, subject, status, created_at, buildings(name), creator:profiles!tickets_creator_id_fkey(full_name)`)
+            .select(`id, subject, status, created_at, buildings(file_number, street, house_number, name), creator:profiles!tickets_creator_id_fkey(full_name)`)
             .in('status', ['Offen', 'In Bearbeitung'])
             .order('created_at', { ascending: false }).limit(5),
         _supabase.from('documents')
-            .select(`id, title, document_title, generated_filename, category, created_at, buildings(name), profiles!uploaded_by(full_name)`)
+            .select(`id, title, document_title, generated_filename, category, created_at, buildings(file_number, street, house_number, name), profiles!uploaded_by(full_name)`)
             .eq('status', 'draft').eq('is_deleted', false)
             .order('created_at', { ascending: false }),
         _supabase.from('ticket_messages')
@@ -151,14 +151,14 @@ async function _renderAdminDashboard() {
         for (const dt of DEADLINE_TYPES) {
             if (!b[dt.key]) continue;
             const days = _dashDaysUntil(b[dt.key]);
-            if (days !== null && days <= 30) deadlines.push({ building: b.name, label: dt.label, date: b[dt.key], days });
+            if (days !== null && days <= 30) deadlines.push({ building: formatBuildingName(b), label: dt.label, date: b[dt.key], days });
         }
         if (b.last_legionella_check && b.legionella_check_interval_months) {
             const due = new Date(b.last_legionella_check);
             due.setMonth(due.getMonth() + Number(b.legionella_check_interval_months));
             const days = _dashDaysUntil(due.toISOString());
             if (days !== null && days <= 30)
-                deadlines.push({ building: b.name, label: 'Legionellenprüfung', date: due.toISOString().split('T')[0], days });
+                deadlines.push({ building: formatBuildingName(b), label: 'Legionellenprüfung', date: due.toISOString().split('T')[0], days });
         }
     }
     deadlines.sort((a, b) => a.days - b.days);
@@ -188,8 +188,15 @@ async function _renderAdminDashboard() {
         })),
     ].sort((a, b) => new Date(b.ts) - new Date(a.ts)).slice(0, 10);
 
+    const firstName = userProfile.full_name?.split(' ')[0] || 'Willkommen';
+
     // ── Render ──
     ca.innerHTML = `
+        <!-- Begrüßung -->
+        <div class="mb-6">
+            <h2 class="text-2xl font-extrabold text-hb-offblack tracking-tight">Hallo, ${firstName}!</h2>
+        </div>
+
         <!-- Quick-Actions -->
         <div class="flex flex-wrap gap-3 mb-6">
             <button onclick="_dashNewTicket()" class="btn-primary text-sm flex items-center gap-2">
@@ -242,7 +249,7 @@ async function _renderAdminDashboard() {
                                         <div class="font-semibold text-hb-offblack truncate max-w-[180px]">${t.subject}</div>
                                         <div class="text-xs text-gray-400">${t.creator?.full_name || '—'}</div>
                                     </td>
-                                    <td class="p-3 text-xs text-gray-600">${t.buildings?.name || '—'}</td>
+                                    <td class="p-3 text-xs text-gray-600">${formatBuildingName(t.buildings)}</td>
                                     <td class="p-3"><span class="text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${STATUS_STYLE[t.status] || ''}">${t.status}</span></td>
                                 </tr>`).join('')}
                         </tbody></table></div>`}
@@ -326,7 +333,7 @@ function _dashDraftRowHtml(d) {
         <td class="p-3 font-semibold text-hb-offblack">
             <div class="truncate max-w-[150px]" title="${name}">${name}</div>
         </td>
-        <td class="p-3 text-xs text-gray-600">${d.buildings?.name || '—'}</td>
+        <td class="p-3 text-xs text-gray-600">${formatBuildingName(d.buildings)}</td>
         <td class="p-3 text-xs text-gray-600">${d.category || '—'}</td>
         <td class="p-3 text-xs text-gray-600">${d.profiles?.full_name || '—'}</td>
         <td class="p-3 text-xs text-gray-400">${new Date(d.created_at).toLocaleDateString('de-DE')}</td>

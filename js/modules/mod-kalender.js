@@ -64,7 +64,7 @@ async function _kalLoadData() {
 
     const [buildingsRes, ticketsRes] = await Promise.all([
         _supabase.from('buildings').select(
-            'id, name, energy_certificate_expiry, next_fire_safety_check, drinking_water_analysis_due, last_legionella_check, legionella_check_interval_months'
+            'id, name, file_number, street, house_number, energy_certificate_expiry, next_fire_safety_check, drinking_water_analysis_due, last_legionella_check, legionella_check_interval_months'
         ),
         _supabase.from('tickets')
             .select('id, subject, snooze_until')
@@ -89,7 +89,7 @@ async function _kalLoadData() {
             addEvent(dateStr, {
                 type:       'deadline',
                 label:      dt.label,
-                building:   b.name,
+                building:   formatBuildingName(b),
                 buildingId: b.id,
                 date:       b[dt.key].split('T')[0],
                 days,
@@ -105,7 +105,7 @@ async function _kalLoadData() {
             addEvent(dateStr, {
                 type:       'deadline',
                 label:      'Legionellenprüfung',
-                building:   b.name,
+                building:   formatBuildingName(b),
                 buildingId: b.id,
                 date:       dateStr,
                 days,
