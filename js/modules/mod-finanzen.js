@@ -207,7 +207,7 @@ async function _finGetAccounts(buildingId) {
         .select('*')
         .eq('building_id', buildingId)
         .eq('is_active', true)
-        .order('sort_order');
+        .order('account_number');
     return data || [];
 }
 
@@ -238,21 +238,35 @@ async function _finLoadOverview() {
 
     const buildOverviewRows = (filter = '') => {
         const q = filter.toLowerCase();
-        return accounts.filter(a =>
+        const filtered = accounts.filter(a =>
             !q ||
             (a.account_number || '').toLowerCase().includes(q) ||
             (a.account_name   || '').toLowerCase().includes(q) ||
             (typeLabels[a.account_type] || '').toLowerCase().includes(q)
-        ).map(a => {
+        );
+        return filtered.map(a => {
             const saldo = saldoMap[a.id] ?? 0;
             const saldoCls = saldo < 0 ? 'text-red-600' : saldo > 0 ? 'text-green-700' : 'text-gray-400';
-            return `<tr class="hover:bg-gray-50/60 transition-colors cursor-pointer" onclick="_finOpenLedger(${a.id}, '${a.account_name.replace(/'/g, "\\'")}')">
-                <td class="px-4 py-3 text-sm font-mono text-gray-500">${a.account_number}</td>
-                <td class="px-4 py-3 text-sm font-semibold text-hb-offblack">${a.account_name}${a.reserve_label ? `<span class="ml-2 text-xs text-gray-400">(${a.reserve_label})</span>` : ''}</td>
+            const isChild = !!a.parent_account_id;
+            const namePrefix = isChild ? '<span class="text-gray-400 mr-1.5">└</span>' : '';
+            const rowClass = isChild ? 'bg-gray-50/50' : '';
+            const actions = a.is_system_account ? '' :
+                `<button onclick="event.stopPropagation();_finEditAccount(${a.id})" title="Bearbeiten"
+                    class="text-xs text-hb-olive bg-hb-ultralight px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 2.828L11.828 15.828a2 2 0 01-1.414.586H8v-2.414a2 2 0 01.586-1.414z"/></svg>
+                </button>
+                <button onclick="event.stopPropagation();_finDeleteAccount(${a.id})" title="Löschen"
+                    class="text-xs text-hb-orange px-2 py-1 rounded-lg hover:bg-hb-orange/5 transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                </button>`;
+            return `<tr class="hover:bg-gray-50/60 transition-colors cursor-pointer ${rowClass}" onclick="_finOpenLedger(${a.id}, '${a.account_name.replace(/'/g, "\\'")}')">
+                <td class="px-4 py-3 text-sm font-mono text-gray-500 ${isChild ? 'pl-8' : ''}">${a.account_number}</td>
+                <td class="px-4 py-3 text-sm font-semibold text-hb-offblack">${namePrefix}${a.account_name}${a.reserve_label ? `<span class="ml-2 text-xs text-gray-400">(${a.reserve_label})</span>` : ''}${a.is_system_account ? '<span class="ml-2 text-[10px] text-gray-300 font-normal">System</span>' : ''}</td>
                 <td class="px-4 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-md ${typeBadge[a.account_type] || 'bg-gray-100 text-gray-600'}">${typeLabels[a.account_type] || a.account_type}</span></td>
                 <td class="px-4 py-3 text-sm font-bold text-right ${saldoCls}">${saldo.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</td>
+                <td class="px-4 py-3 text-right" onclick="event.stopPropagation()"><div class="flex gap-1 justify-end">${actions}</div></td>
             </tr>`;
-        }).join('') || '<tr><td colspan="4" class="px-4 py-8 text-center text-sm text-gray-400">Keine Treffer.</td></tr>';
+        }).join('') || '<tr><td colspan="5" class="px-4 py-8 text-center text-sm text-gray-400">Keine Treffer.</td></tr>';
     };
 
     document.getElementById('fin-content').innerHTML = `
@@ -272,6 +286,7 @@ async function _finLoadOverview() {
                     <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Bezeichnung</th>
                     <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Typ</th>
                     <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Saldo</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500"></th>
                 </tr></thead>
                 <tbody id="fin-overview-tbody" class="divide-y divide-hb-olive/10">${buildOverviewRows()}</tbody>
             </table>
@@ -294,12 +309,50 @@ async function _finLoadOverview() {
                             <option value="revenue">Ertrag</option>
                             <option value="expense" selected>Aufwand</option>
                         </select></div>
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Übergeordnetes Konto (Unterkonto von…)</label>
+                        <select id="fin-acc-parent">
+                            <option value="">— Kein übergeordnetes Konto —</option>
+                            ${accounts.map(a => `<option value="${a.id}">${a.account_number} – ${a.account_name}</option>`).join('')}
+                        </select></div>
                     <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Rücklage-Label (optional)</label>
                         <input id="fin-acc-reserve" type="text" placeholder="z.B. Instandhaltungsrücklage"></div>
                 </div>
                 <div class="flex gap-3 mt-5">
                     <button onclick="_finSaveAccount()" class="btn-primary flex-1 text-sm py-2.5">Speichern</button>
                     <button onclick="document.getElementById('fin-account-modal').classList.add('hidden')" class="btn-secondary flex-1 text-sm py-2.5">Abbrechen</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Konto bearbeiten -->
+        <div id="fin-account-edit-modal" class="hidden fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-md p-6">
+                <h3 class="text-base font-extrabold text-hb-offblack mb-4">Konto bearbeiten</h3>
+                <input type="hidden" id="fin-edit-acc-id">
+                <div class="space-y-3">
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Kontonummer</label>
+                        <input id="fin-edit-acc-number" type="text"></div>
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Kontobezeichnung</label>
+                        <input id="fin-edit-acc-name" type="text"></div>
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Typ</label>
+                        <select id="fin-edit-acc-type">
+                            <option value="asset">Aktiva</option>
+                            <option value="liability">Passiva</option>
+                            <option value="equity">Eigenkapital</option>
+                            <option value="revenue">Ertrag</option>
+                            <option value="expense">Aufwand</option>
+                        </select></div>
+                    <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Übergeordnetes Konto (Unterkonto von…)</label>
+                        <select id="fin-edit-acc-parent">
+                            <option value="">— Kein übergeordnetes Konto —</option>
+                            ${accounts.map(a => `<option value="${a.id}">${a.account_number} – ${a.account_name}</option>`).join('')}
+                        </select></div>
+                    <div id="fin-edit-acc-reserve-wrap"><label class="text-xs font-semibold text-gray-500 mb-1 block">Rücklage-Label</label>
+                        <input id="fin-edit-acc-reserve" type="text"></div>
+                </div>
+                <div class="flex gap-3 mt-5">
+                    <button onclick="_finSaveEditAccount()" class="btn-primary flex-1 text-sm py-2.5">Speichern</button>
+                    <button onclick="document.getElementById('fin-account-edit-modal').classList.add('hidden')" class="btn-secondary flex-1 text-sm py-2.5">Abbrechen</button>
                 </div>
             </div>
         </div>`;
@@ -310,23 +363,92 @@ window._finOpenNewAccountModal = () => {
 };
 
 window._finSaveAccount = async () => {
-    const number  = document.getElementById('fin-acc-number')?.value.trim();
-    const name    = document.getElementById('fin-acc-name')?.value.trim();
-    const type    = document.getElementById('fin-acc-type')?.value;
-    const reserve = document.getElementById('fin-acc-reserve')?.value.trim();
+    const number   = document.getElementById('fin-acc-number')?.value.trim();
+    const name     = document.getElementById('fin-acc-name')?.value.trim();
+    const type     = document.getElementById('fin-acc-type')?.value;
+    const parentId = document.getElementById('fin-acc-parent')?.value || null;
+    const reserve  = document.getElementById('fin-acc-reserve')?.value.trim();
     if (!number || !name) { showToast('Kontonummer und Bezeichnung sind Pflicht.', 'error'); return; }
 
     const { error } = await _supabase.from('accounts').insert({
-        building_id:   _finState.buildingId,
-        account_number: number,
-        account_name:  name,
-        account_type:  type,
-        reserve_label: reserve || null,
-        is_active:     true,
+        building_id:       _finState.buildingId,
+        account_number:    number,
+        account_name:      name,
+        account_type:      type,
+        parent_account_id: parentId ? Number(parentId) : null,
+        reserve_label:     reserve || null,
+        is_active:         true,
     });
     if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
     document.getElementById('fin-account-modal')?.classList.add('hidden');
     showToast('Konto angelegt.', 'success');
+    _finState.accounts = [];
+    await _finLoadOverview();
+};
+
+window._finEditAccount = (accountId) => {
+    const a = _finState.accounts.find(x => x.id == accountId);
+    if (!a || a.is_system_account) return;
+    document.getElementById('fin-edit-acc-id').value     = a.id;
+    document.getElementById('fin-edit-acc-number').value = a.account_number || '';
+    document.getElementById('fin-edit-acc-name').value   = a.account_name || '';
+    document.getElementById('fin-edit-acc-type').value   = a.account_type || 'expense';
+    document.getElementById('fin-edit-acc-parent').value = a.parent_account_id || '';
+    document.getElementById('fin-edit-acc-reserve').value = a.reserve_label || '';
+    const reserveWrap = document.getElementById('fin-edit-acc-reserve-wrap');
+    if (reserveWrap) reserveWrap.style.display = a.is_reserve_account ? '' : 'none';
+    document.getElementById('fin-account-edit-modal')?.classList.remove('hidden');
+};
+
+window._finSaveEditAccount = async () => {
+    const id       = document.getElementById('fin-edit-acc-id')?.value;
+    const number   = document.getElementById('fin-edit-acc-number')?.value.trim();
+    const name     = document.getElementById('fin-edit-acc-name')?.value.trim();
+    const type     = document.getElementById('fin-edit-acc-type')?.value;
+    const parentId = document.getElementById('fin-edit-acc-parent')?.value || null;
+    const reserve  = document.getElementById('fin-edit-acc-reserve')?.value.trim();
+    if (!number || !name) { showToast('Kontonummer und Bezeichnung sind Pflicht.', 'error'); return; }
+    if (parentId && Number(parentId) === Number(id)) { showToast('Ein Konto kann nicht sein eigenes Unterkonto sein.', 'error'); return; }
+
+    const { error } = await _supabase.from('accounts').update({
+        account_number:    number,
+        account_name:      name,
+        account_type:      type,
+        parent_account_id: parentId ? Number(parentId) : null,
+        reserve_label:     reserve || null,
+    }).eq('id', Number(id));
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    document.getElementById('fin-account-edit-modal')?.classList.add('hidden');
+    showToast('Konto aktualisiert.', 'success');
+    _finState.accounts = [];
+    await _finLoadOverview();
+};
+
+window._finDeleteAccount = async (accountId) => {
+    const a = _finState.accounts.find(x => x.id == accountId);
+    if (!a || a.is_system_account) return;
+
+    // Check for existing journal entries
+    const { count } = await _supabase.from('journal_entries')
+        .select('id', { count: 'exact', head: true })
+        .or(`debit_account_id.eq.${accountId},credit_account_id.eq.${accountId}`);
+    if (count > 0) {
+        showToast('Konto kann nicht gelöscht werden — es existieren Buchungen auf dieses Konto.', 'error');
+        return;
+    }
+
+    // Check for child accounts
+    const hasChildren = _finState.accounts.some(x => x.parent_account_id == accountId);
+    if (hasChildren) {
+        showToast('Konto kann nicht gelöscht werden — es hat noch Unterkonten.', 'error');
+        return;
+    }
+
+    if (!confirm(`Konto „${a.account_number} ${a.account_name}" wirklich löschen?`)) return;
+
+    const { error } = await _supabase.from('accounts').update({ is_active: false }).eq('id', accountId);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    showToast('Konto gelöscht.', 'success');
     _finState.accounts = [];
     await _finLoadOverview();
 };
@@ -344,13 +466,26 @@ window._finFilterOverview = (q) => {
     ).map(a => {
         const saldo = saldoMap[a.id] ?? 0;
         const saldoCls = saldo < 0 ? 'text-red-600' : saldo > 0 ? 'text-green-700' : 'text-gray-400';
-        return `<tr class="hover:bg-gray-50/60 transition-colors cursor-pointer" onclick="_finOpenLedger(${a.id}, '${a.account_name.replace(/'/g, "\\'")}')">
-            <td class="px-4 py-3 text-sm font-mono text-gray-500">${a.account_number}</td>
-            <td class="px-4 py-3 text-sm font-semibold text-hb-offblack">${a.account_name}${a.reserve_label ? `<span class="ml-2 text-xs text-gray-400">(${a.reserve_label})</span>` : ''}</td>
+        const isChild = !!a.parent_account_id;
+        const namePrefix = isChild ? '<span class="text-gray-400 mr-1.5">└</span>' : '';
+        const rowClass = isChild ? 'bg-gray-50/50' : '';
+        const actions = a.is_system_account ? '' :
+            `<button onclick="event.stopPropagation();_finEditAccount(${a.id})" title="Bearbeiten"
+                class="text-xs text-hb-olive bg-hb-ultralight px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 2.828L11.828 15.828a2 2 0 01-1.414.586H8v-2.414a2 2 0 01.586-1.414z"/></svg>
+            </button>
+            <button onclick="event.stopPropagation();_finDeleteAccount(${a.id})" title="Löschen"
+                class="text-xs text-hb-orange px-2 py-1 rounded-lg hover:bg-hb-orange/5 transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            </button>`;
+        return `<tr class="hover:bg-gray-50/60 transition-colors cursor-pointer ${rowClass}" onclick="_finOpenLedger(${a.id}, '${a.account_name.replace(/'/g, "\\'")}')">
+            <td class="px-4 py-3 text-sm font-mono text-gray-500 ${isChild ? 'pl-8' : ''}">${a.account_number}</td>
+            <td class="px-4 py-3 text-sm font-semibold text-hb-offblack">${namePrefix}${a.account_name}${a.reserve_label ? `<span class="ml-2 text-xs text-gray-400">(${a.reserve_label})</span>` : ''}${a.is_system_account ? '<span class="ml-2 text-[10px] text-gray-300 font-normal">System</span>' : ''}</td>
             <td class="px-4 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-md ${typeBadge[a.account_type] || 'bg-gray-100 text-gray-600'}">${typeLabels[a.account_type] || a.account_type}</span></td>
             <td class="px-4 py-3 text-sm font-bold text-right ${saldoCls}">${saldo.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</td>
+            <td class="px-4 py-3 text-right" onclick="event.stopPropagation()"><div class="flex gap-1 justify-end">${actions}</div></td>
         </tr>`;
-    }).join('') || '<tr><td colspan="4" class="px-4 py-8 text-center text-sm text-gray-400">Keine Treffer.</td></tr>';
+    }).join('') || '<tr><td colspan="5" class="px-4 py-8 text-center text-sm text-gray-400">Keine Treffer.</td></tr>';
     const tbody = document.getElementById('fin-overview-tbody');
     if (tbody) tbody.innerHTML = rows;
 };
@@ -588,28 +723,30 @@ window._finOpenEntryDetail = async (entryId) => {
     const entryTypeLabels = { manual: 'Manuelle Buchung', storno: 'Storno', hausgeld: 'Hausgeld', abrechnungsspitze: 'Abrechnungsspitze', ruecklage: 'Rücklage', erhoeffnungsbilanz: 'Eröffnungsbilanz', csv_import: 'CSV-Import' };
     const stornoHint = e.storno_of ? `<span class="text-xs text-hb-orange font-semibold">Storno von #${e.storno_of}</span>` : '';
 
+    // Load attachments from journal_attachments table
+    const { data: attachments } = await _supabase.from('journal_attachments')
+        .select('id, attachment_path, created_at')
+        .eq('journal_entry_id', entryId)
+        .order('created_at', { ascending: true });
+
     let attachmentSection = '';
-    if (e.attachment_path) {
-        const { data } = await _supabase.storage.from('documents').createSignedUrl(e.attachment_path, 120);
-        const link = data?.signedUrl
-            ? `<a href="${data.signedUrl}" target="_blank" class="text-sm text-hb-olive font-semibold hover:underline flex items-center gap-1.5">
+    const attachLinks = [];
+    for (const att of (attachments || [])) {
+        const { data: urlData } = await _supabase.storage.from('documents').createSignedUrl(att.attachment_path, 120);
+        const fileName = att.attachment_path.split('/').pop().replace(/^\d+_/, '');
+        attachLinks.push(urlData?.signedUrl
+            ? `<a href="${urlData.signedUrl}" target="_blank" class="text-sm text-hb-olive font-semibold hover:underline flex items-center gap-1.5">
                 <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                Beleg öffnen</a>`
-            : '<span class="text-sm text-gray-400">Link nicht verfügbar</span>';
-        attachmentSection = `
-            <div>
-                <p class="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">Beleg</p>
-                <div class="flex items-center gap-3 flex-wrap">${link}
-                    <button onclick="_finUploadAttachment(${e.id})" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Beleg ersetzen</button>
-                </div>
-            </div>`;
-    } else {
-        attachmentSection = `
-            <div>
-                <p class="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">Beleg</p>
-                <button onclick="_finUploadAttachment(${e.id})" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Beleg hochladen</button>
-            </div>`;
+                ${fileName}</a>`
+            : `<span class="text-sm text-gray-400">${fileName}</span>`
+        );
     }
+    attachmentSection = `
+        <div>
+            <p class="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">Belege (${(attachments||[]).length})</p>
+            <div class="flex flex-col gap-1.5">${attachLinks.join('')}</div>
+            <button onclick="_finUploadAttachment(${e.id})" class="mt-2 text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">+ Beleg hinzufügen</button>
+        </div>`;
 
     const field = (label, value) => (!value || value === '—') ? '' :
         `<div><p class="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-0.5">${label}</p>
@@ -667,11 +804,12 @@ window._finUploadAttachment = (entryId) => {
         showToast('Beleg wird hochgeladen…', 'success');
         const { error: upErr } = await _supabase.storage.from('documents').upload(path, file);
         if (upErr) { showToast('Upload fehlgeschlagen: ' + upErr.message, 'error'); return; }
-        const { error } = await _supabase.rpc('update_journal_attachment', { p_entry_id: entryId, p_path: path });
+        const { error } = await _supabase.from('journal_attachments').insert({
+            journal_entry_id: entryId,
+            attachment_path:  path,
+            uploaded_by:      currentUser?.id || null,
+        });
         if (error) { showToast('Fehler beim Speichern: ' + error.message, 'error'); return; }
-        // Update local state
-        const entry = _finState.entries.find(x => x.id == entryId);
-        if (entry) entry.attachment_path = path;
         showToast('Beleg gespeichert.', 'success');
         _finCloseEntryPanel();
         _finOpenEntryDetail(entryId);
