@@ -1,0 +1,354 @@
+// ============================================================
+// HB-Mieterportal | utils-pdf.js
+// Official Letter Engine — PDF-Generierung via pdf-lib
+// Abhängigkeit: pdf-lib (CDN, muss vor diesem Script geladen sein)
+// ============================================================
+
+// ─── Hilfsfunktionen ─────────────────────────────────────────
+
+async function _pdfGetSettings() {
+    const { data } = await _supabase.from('global_settings').select('*').eq('id', 1).single();
+    return data || {};
+}
+
+function _pdfDownload(bytes, filename) {
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+// Erstellt ein neues PDFDocument — mit Briefbogen als Hintergrund oder blank A4
+async function _pdfCreateDoc(settings) {
+    const { PDFDocument } = PDFLib;
+    let pdfDoc, page;
+
+    if (settings.letterhead_pdf_url) {
+        try {
+            const resp = await fetch(settings.letterhead_pdf_url);
+            const templateBytes = await resp.arrayBuffer();
+            const templateDoc = await PDFDocument.load(templateBytes);
+            pdfDoc = await PDFDocument.create();
+            const [copied] = await pdfDoc.copyPages(templateDoc, [0]);
+            page = pdfDoc.addPage(copied);
+        } catch (e) {
+            console.warn('Briefbogen konnte nicht geladen werden, blank A4 wird verwendet.', e);
+            pdfDoc = await PDFDocument.create();
+            page   = pdfDoc.addPage([595.28, 841.89]);
+        }
+    } else {
+        pdfDoc = await PDFDocument.create();
+        page   = pdfDoc.addPage([595.28, 841.89]);
+    }
+
+    return { pdfDoc, page };
+}
+
+// Zeichnet einen einfachen Briefkopf (falls kein Briefbogen-PDF hinterlegt)
+async function _pdfDrawFallbackHeader(page, pdfDoc, settings) {
+    const { StandardFonts, rgb } = PDFLib;
+    const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const reg  = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const { height } = page.getSize();
+
+    const olive = rgb(0.408, 0.455, 0.318); // #687451
+
+    // Firmenname
+    if (settings.company_name) {
+        page.drawText(settings.company_name, {
+            x: 56.7, y: height - 42,
+            size: 11, font: bold, color: olive,
+        });
+    }
+
+    // Adresszeile
+    const addrLine = [settings.street, settings.zip_city].filter(Boolean).join(' | ');
+    if (addrLine) {
+        page.drawText(addrLine, {
+            x: 56.7, y: height - 58,
+            size: 8, font: reg, color: rgb(0.4, 0.4, 0.4),
+        });
+    }
+
+    // Trennlinie
+    page.drawLine({
+        start: { x: 56.7, y: height - 68 },
+        end:   { x: 538.6, y: height - 68 },
+        thickness: 0.5, color: rgb(0.8, 0.8, 0.8),
+    });
+
+    return { bold, reg };
+}
+
+// ─── DIN-5008-konformes Adressfeld (Empfänger) ───────────────
+// Fenster: 20mm links, 50mm von oben, 85mm × 45mm
+function _pdfDrawAddressField(page, font, name, address1, address2) {
+    const { height } = page.getSize();
+    const x    = 56.7;          // 20mm
+    const yTop = height - 141.8; // 50mm von oben (842 - 141.8)
+
+    if (name) {
+        page.drawText(name, { x, y: yTop, size: 10, font, color: PDFLib.rgb(0.22, 0.22, 0.22) });
+    }
+    if (address1) {
+        page.drawText(address1, { x, y: yTop - 14, size: 10, font, color: PDFLib.rgb(0.22, 0.22, 0.22) });
+    }
+    if (address2) {
+        page.drawText(address2, { x, y: yTop - 28, size: 10, font, color: PDFLib.rgb(0.22, 0.22, 0.22) });
+    }
+}
+
+// ─── Absenderzeile (kleine Schrift über dem Adressfeld) ───────
+function _pdfDrawSenderLine(page, font, settings) {
+    const { height } = page.getSize();
+    const senderText = [settings.company_name, settings.street, settings.zip_city].filter(Boolean).join(', ');
+    if (senderText) {
+        page.drawText(senderText, {
+            x: 56.7, y: height - 121,
+            size: 7, font, color: PDFLib.rgb(0.5, 0.5, 0.5),
+        });
+    }
+}
+
+// ─── Datum + Ort rechts ───────────────────────────────────────
+function _pdfDrawDate(page, font, settings) {
+    const { height } = page.getSize();
+    const dateStr = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
+    const place   = settings.zip_city ? settings.zip_city.replace(/^\d+\s*/, '') : '';
+    const line    = place ? `${place}, ${dateStr}` : dateStr;
+    page.drawText(line, {
+        x: 340, y: height - 145,
+        size: 9, font, color: PDFLib.rgb(0.3, 0.3, 0.3),
+    });
+}
+
+// ─── Fußzeile ─────────────────────────────────────────────────
+function _pdfDrawFooter(page, font, settings) {
+    const parts = [];
+    if (settings.company_name) parts.push(settings.company_name);
+    if (settings.street)       parts.push(settings.street);
+    if (settings.zip_city)     parts.push(settings.zip_city);
+    if (settings.phone)        parts.push('Tel: ' + settings.phone);
+    if (settings.email)        parts.push(settings.email);
+    if (settings.hrb_number)   parts.push(settings.hrb_number);
+
+    if (parts.length === 0) return;
+
+    page.drawLine({
+        start: { x: 56.7, y: 48 }, end: { x: 538.6, y: 48 },
+        thickness: 0.5, color: PDFLib.rgb(0.8, 0.8, 0.8),
+    });
+    page.drawText(parts.join('  |  '), {
+        x: 56.7, y: 34, size: 7, font, color: PDFLib.rgb(0.5, 0.5, 0.5),
+        maxWidth: 480,
+    });
+}
+
+// ─── Mahnung als PDF generieren ───────────────────────────────
+async function generateMahnungPDF(noticeId) {
+    if (typeof PDFLib === 'undefined') {
+        showToast('PDF-Bibliothek nicht geladen. Bitte Seite neu laden.', 'error'); return;
+    }
+
+    showToast('PDF wird erstellt…');
+
+    // Daten laden
+    const [settingsRes, noticeRes] = await Promise.all([
+        _pdfGetSettings(),
+        _supabase.from('dunning_notices')
+            .select('*, person:profiles(full_name, email), demand:payment_demands(due_date, demand_type, apartment:apartments(apartment_number, buildings(street, house_number, file_number, zip, city)))')
+            .eq('id', noticeId).single(),
+    ]);
+
+    const settings = settingsRes;
+    const notice   = noticeRes.data;
+    if (!notice) { showToast('Mahnung nicht gefunden.', 'error'); return; }
+
+    const { StandardFonts, rgb } = PDFLib;
+    const { pdfDoc, page } = await _pdfCreateDoc(settings);
+    const { height } = page.getSize();
+
+    const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const reg  = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+    // Briefkopf (nur falls kein Briefbogen-PDF)
+    if (!settings.letterhead_pdf_url) {
+        await _pdfDrawFallbackHeader(page, pdfDoc, settings);
+    }
+
+    // Absender über Adressfeld
+    _pdfDrawSenderLine(page, reg, settings);
+
+    // Empfänger-Adressfeld
+    const apt    = notice.demand?.apartment;
+    const bld    = apt?.buildings;
+    const addr1  = bld ? `${bld.street || ''} ${bld.house_number || ''}, WE ${apt.apartment_number || ''}`.trim() : '';
+    const addr2  = bld ? `${bld.zip || ''} ${bld.city || ''}`.trim() : '';
+    _pdfDrawAddressField(page, reg, notice.person?.full_name || '—', addr1, addr2);
+
+    // Datum
+    _pdfDrawDate(page, reg, settings);
+
+    // Betreff
+    const levelText = notice.dunning_level === 1 ? 'Zahlungserinnerung'
+        : notice.dunning_level === 2 ? '1. Mahnung' : 'Letzte Mahnung';
+    const betreff = `${levelText} — Offene Hausgeld-Forderung`;
+    page.drawText(betreff, {
+        x: 56.7, y: height - 200, size: 11, font: bold, color: rgb(0.22, 0.22, 0.22),
+    });
+
+    // Anrede
+    const anrede = notice.person?.full_name ? `Sehr geehrte Damen und Herren,` : 'Sehr geehrte Damen und Herren,';
+    page.drawText(anrede, { x: 56.7, y: height - 230, size: 10, font: reg, color: rgb(0.22, 0.22, 0.22) });
+
+    // Textblock
+    const dueDateFmt = notice.demand?.due_date
+        ? new Date(notice.demand.due_date).toLocaleDateString('de-DE') : '—';
+    const totalAmt = (Number(notice.amount || 0) + Number(notice.fee || 0)).toLocaleString('de-DE', { minimumFractionDigits: 2 });
+
+    const lines = [
+        `trotz unserer Zahlungserinnerung haben wir bis heute keinen Zahlungseingang`,
+        `für die unten genannte Forderung feststellen können. Wir bitten Sie, den`,
+        `ausstehenden Betrag umgehend zu begleichen.`,
+        '',
+        `Fälligkeitsdatum:     ${dueDateFmt}`,
+        `Offener Betrag:       ${Number(notice.amount || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`,
+        `Mahngebühr:           ${Number(notice.fee || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`,
+        `Gesamtbetrag:         ${totalAmt} €`,
+        '',
+        `Bitte überweisen Sie den Gesamtbetrag von ${totalAmt} € binnen 7 Tagen`,
+        `auf das Ihnen bekannte Konto der WEG.`,
+        '',
+        `Bei weiterer Nichtzahlung behalten wir uns vor, rechtliche Schritte einzuleiten.`,
+        '',
+        `Mit freundlichen Grüßen`,
+    ];
+
+    let y = height - 255;
+    for (const line of lines) {
+        if (line === '') { y -= 8; continue; }
+        const isKey = line.includes(':') && !line.startsWith('Mit') && !line.startsWith('Bitte') && !line.startsWith('trotz') && !line.startsWith('für') && !line.startsWith('aus') && !line.startsWith('Bei');
+        page.drawText(line, {
+            x: 56.7, y, size: 10,
+            font: isKey ? bold : reg,
+            color: rgb(0.22, 0.22, 0.22),
+        });
+        y -= 15;
+    }
+
+    // Unterschrift-Bereich
+    y -= 25;
+    if (settings.company_name) {
+        page.drawText(settings.company_name, { x: 56.7, y, size: 10, font: bold, color: rgb(0.22, 0.22, 0.22) });
+    }
+    if (settings.ceo_name) {
+        page.drawText(settings.ceo_name, { x: 56.7, y: y - 15, size: 10, font: reg, color: rgb(0.4, 0.4, 0.4) });
+    }
+
+    _pdfDrawFooter(page, reg, settings);
+
+    const pdfBytes = await pdfDoc.save();
+    const filename = `Mahnung_${levelText.replace(/ /g, '_')}_${notice.person?.full_name?.replace(/ /g, '_') || noticeId}.pdf`;
+    _pdfDownload(pdfBytes, filename);
+    showToast('PDF heruntergeladen.');
+}
+
+// ─── Wirtschaftsplan als PDF generieren ──────────────────────
+async function generateWirtschaftsplanPDF(planId) {
+    if (typeof PDFLib === 'undefined') {
+        showToast('PDF-Bibliothek nicht geladen. Bitte Seite neu laden.', 'error'); return;
+    }
+
+    showToast('PDF wird erstellt…');
+
+    const [settingsRes, planRes, itemsRes] = await Promise.all([
+        _pdfGetSettings(),
+        _supabase.from('budget_plans').select('*, building:buildings(street, house_number, file_number, zip, city, name)').eq('id', planId).single(),
+        _supabase.from('budget_plan_items').select('*, account:accounts(account_number, account_name)').eq('budget_plan_id', planId).order('account_id'),
+    ]);
+
+    const settings  = settingsRes;
+    const plan      = planRes.data;
+    const planItems = itemsRes.data || [];
+
+    if (!plan) { showToast('Wirtschaftsplan nicht gefunden.', 'error'); return; }
+
+    const { StandardFonts, rgb } = PDFLib;
+    const { pdfDoc, page } = await _pdfCreateDoc(settings);
+    const { height } = page.getSize();
+
+    const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const reg  = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const olive = rgb(0.408, 0.455, 0.318);
+
+    if (!settings.letterhead_pdf_url) {
+        await _pdfDrawFallbackHeader(page, pdfDoc, settings);
+    }
+
+    _pdfDrawDate(page, reg, settings);
+
+    // Titel
+    const bld    = plan.building;
+    const bldName = bld ? formatBuildingName(bld) : '—';
+    page.drawText(`Wirtschaftsplan ${plan.fiscal_year}`, {
+        x: 56.7, y: height - 105, size: 14, font: bold, color: rgb(0.22, 0.22, 0.22),
+    });
+    page.drawText(bldName, {
+        x: 56.7, y: height - 124, size: 10, font: reg, color: rgb(0.4, 0.4, 0.4),
+    });
+
+    const statusMap = { draft: 'Entwurf', approved: 'Beschlossen', active: 'Aktiv', closed: 'Abgeschlossen' };
+    page.drawText(`Status: ${statusMap[plan.status] || plan.status}`, {
+        x: 56.7, y: height - 140, size: 9, font: reg, color: rgb(0.5, 0.5, 0.5),
+    });
+
+    // Tabellen-Header
+    const tableY = height - 168;
+    page.drawRectangle({ x: 56.7, y: tableY - 4, width: 482, height: 18, color: olive });
+    page.drawText('Konto', { x: 60, y: tableY, size: 8, font: bold, color: rgb(1, 1, 1) });
+    page.drawText('Bezeichnung', { x: 110, y: tableY, size: 8, font: bold, color: rgb(1, 1, 1) });
+    page.drawText('Vorjahr (€)', { x: 360, y: tableY, size: 8, font: bold, color: rgb(1, 1, 1) });
+    page.drawText('Ansatz (€)', { x: 435, y: tableY, size: 8, font: bold, color: rgb(1, 1, 1) });
+
+    // Zeilen
+    let y = tableY - 20;
+    let total = 0;
+    for (const item of planItems) {
+        if (y < 70) break; // Seitenrand
+        const planned = Number(item.planned_amount || 0);
+        total += planned;
+
+        page.drawText(item.account?.account_number || '–', { x: 60, y, size: 8, font: reg, color: rgb(0.3, 0.3, 0.3) });
+        page.drawText((item.account?.account_name || '–').substring(0, 42), { x: 110, y, size: 8, font: reg, color: rgb(0.22, 0.22, 0.22) });
+        page.drawText(Number(item.prior_year_actual || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 }), {
+            x: 360, y, size: 8, font: reg, color: rgb(0.4, 0.4, 0.4),
+        });
+        page.drawText(planned.toLocaleString('de-DE', { minimumFractionDigits: 2 }), {
+            x: 435, y, size: 8, font: bold, color: rgb(0.22, 0.22, 0.22),
+        });
+
+        // Trennlinie
+        page.drawLine({ start: { x: 56.7, y: y - 5 }, end: { x: 538.6, y: y - 5 }, thickness: 0.3, color: rgb(0.9, 0.9, 0.9) });
+        y -= 16;
+    }
+
+    // Summenzeile
+    page.drawLine({ start: { x: 56.7, y: y + 4 }, end: { x: 538.6, y: y + 4 }, thickness: 1, color: olive });
+    page.drawText('Gesamtansatz:', { x: 300, y: y - 8, size: 9, font: bold, color: rgb(0.22, 0.22, 0.22) });
+    page.drawText(total.toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' €', {
+        x: 435, y: y - 8, size: 9, font: bold, color: olive,
+    });
+
+    // Hinweis
+    page.drawText('Dieser Wirtschaftsplan wurde maschinell erstellt und ist rechtlich bindend nach Beschlussfassung der WEG-Gemeinschaft.', {
+        x: 56.7, y: 70, size: 7, font: reg, color: rgb(0.6, 0.6, 0.6), maxWidth: 480,
+    });
+
+    _pdfDrawFooter(page, reg, settings);
+
+    const pdfBytes = await pdfDoc.save();
+    const filename = `Wirtschaftsplan_${plan.fiscal_year}_${bldName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+    _pdfDownload(pdfBytes, filename);
+    showToast('PDF heruntergeladen.');
+}

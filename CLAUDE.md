@@ -89,6 +89,7 @@ dashboard.html              # HTML-Shell (~130 Zeilen)
 js/
   config.js                 # Supabase-Client, globale Vars, Icons
   utils.js                  # Toast, Dropdown, Logout, Mobile-Menu
+  utils-pdf.js              # Official Letter Engine (pdf-lib: generateMahnungPDF, generateWirtschaftsplanPDF)
   nav.js                    # init(), renderNav(), setActiveNav(), loadNavBadges()
   modules/
     mod-dashboard.js        # Dashboard — KPIs, Quick-Actions, Widgets (rollenbasiert)
@@ -101,7 +102,8 @@ js/
     mod-kontakte.js         # Kontaktbuch (Handwerker, Notfallkontakte, Dienstleister)
     mod-kalender.js         # Monatskalender — Gebäude-Fristen & Ticket-Wiedervorlagen
     mod-finanzen.js         # Buchhaltung (Konten, Buchungen, Wirtschaftsplan, Abrechnung, CSV/SEPA)
-    mod-placeholder.js      # Platzhalter für kommende Module
+    mod-settings.js         # Admin-Einstellungen (Firmendaten, Finanz-Defaults, Logo/Briefbogen-Upload)
+    mod-placeholder.js      # Platzhalter für kommende Module (loadProfile, loadMyUnits, loadMyTenants)
 ```
 
 ### Design-Konventionen (aktuell gültig)
@@ -117,12 +119,15 @@ js/
 
 ---
 
-## 6. Datenbankschema (30 Tabellen, alle RLS)
+## 6. Datenbankschema (31 Tabellen, alle RLS)
 
 `profiles`, `buildings`, `apartments`, `persons`, `tenancies`, `ownerships`, `management_assignments`, `tickets`, `ticket_messages`, `news`, `news_likes`, `documents`, `document_reads`, `document_links`, `contacts`, `meters`, `meter_readings`, `invitations`, `building_bank_accounts`, `building_insurances`, `board_members`, `service_providers`, `person_bank_accounts`
 
 **Phase 6-A/F Finanztabellen:**
 `accounts`, `journal_entries`, `journal_attachments`, `budget_plans`, `budget_plan_items`, `payment_demands`, `special_levies`, `dunning_notices`, `beirat_access_periods`
+
+**Phase 7 System-Tabellen:**
+`global_settings` (single-row id=1: Firmenstammdaten, Finanz-Defaults, logo_url, letterhead_pdf_url. RLS: lesen=alle, schreiben=admin)
 
 **Wichtige Architektur:**
 - Auth-User getrennt von CRM (`persons`) — Verknüpfung über `persons.auth_user_id` + `invite_code`
@@ -150,6 +155,7 @@ js/
 | Bugfix | fix_document_reads_legacy_trigger | Legacy-Trigger `trg_document_reads_sync_legacy` + Funktionen entfernt — verursachte 400-Fehler bei jedem `document_reads`-INSERT (uuid[] vs jsonb Typ-Konflikt) |
 | Phase 6-A | phase6a_finance_foundation | 8 Finanztabellen: `accounts` (Kontenrahmen, 17 System-Konten), `journal_entries` (GoBD-konform, No-Update/No-Delete-Rules), `budget_plans`+`budget_plan_items` (Wirtschaftsplan), `payment_demands` (Sollstellungen), `special_levies` (Sonderumlagen), `dunning_notices` (Mahnwesen 3-stufig), `beirat_access_periods` (Beirat-Lesezugriff). 5 Performance-Indexes. |
 | Phase 6-F | phase6f_journal_attachments_and_subaccounts | `journal_attachments`-Tabelle (mehrere Belege pro `journal_entries`, RLS admin/manager, Storage-Pfad), `accounts.parent_account_id` (Unterkonto-Hierarchie, self-referencing FK). |
+| Phase 7 | global_settings | Single-row-Tabelle (id=1) für Firmenstammdaten, Finanz-Defaults, logo_url, letterhead_pdf_url. RLS: lesen=authenticated, schreiben=admin. |
 
 ---
 
@@ -208,11 +214,11 @@ js/
 - 6.13 **SEPA-XML Export** (PAIN.008.003.02, IBAN-Vorschau, „Als bezahlt"-Markierung) ✅
 - 6.7 **Pro-rata-temporis Umlage** (zeitanteilige Abrechnung bei Mieterwechsel) 📋
 - 6.8 **Zählerstände UI** (aus Phase 3.5 verschoben, wird für Abrechnung benötigt) 📋
-- 6.9 **Official Letter Engine** (Abrechnungen, Pläne und Mahnungen als PDF mit Briefkopf und Firmendaten) 📋
+- 6.9 **Official Letter Engine** (Mahnung + Wirtschaftsplan als PDF via pdf-lib, Briefkopf-Integration) ✅
 
-### 📋 Phase 7 — System, Einstellungen & Benachrichtigungen
+### 🔄 Phase 7 — System, Einstellungen & Benachrichtigungen
 *Querschnitts-Modul: Konfiguration, E-Mail-Push, User-Profile, Audit, PWA.*
-- 7.1 **Admin-Einstellungen** (Firmenlogo, PDF-Briefkopf-Upload, Standard-Mahngebühr, Basiszins) 📋
+- 7.1 **Admin-Einstellungen** (Firmenstammdaten, Briefkopf-Upload, Mahngebühr, Basiszins) ✅
 - 7.2 **E-Mail-Benachrichtigungen** (Trigger: neue Tickets, Statusänderungen, neu freigegebene Dokumente, News) 📋
 - 7.3 **Nutzer-Einstellungen** (Passwort ändern, Notification Opt-Ins je Trigger-Typ) 📋
 - 7.4 **System-Logs / Audit Trail** (revisionssichere Aktions-Historie für Admin: Wer hat wann was geändert?) 📋
@@ -468,6 +474,19 @@ js/
 | 3 | **`formatBuildingName(b)` in `config.js`:** Neue globale Hilfsfunktion — Schema: `[file_number] - WEG [street] [house_number]`; Legacy-Fallback: `b.name` |
 | 4 | Alle Module (`mod-objekte`, `mod-finanzen`, `mod-tickets`, `mod-news`, `mod-dashboard`, `mod-kontakte`, `mod-dokumente`, `mod-kalender`) auf `formatBuildingName()` umgestellt |
 | 5 | Alle buildings-Queries in betroffenen Modulen um `file_number, street, house_number` erweitert |
+
+---
+
+### Phase 7-A — Admin-Einstellungen & Official Letter Engine
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Migration `global_settings`**: Single-row-Tabelle (id=1) für Firmenstammdaten (company_name, street, zip_city, phone, email, website, tax_number, hrb_number, ceo_name), Finanz-Defaults (default_dunning_fee, base_interest_rate), logo_url, letterhead_pdf_url. RLS: lesen=authenticated, schreiben=admin |
+| 2 | **`mod-settings.js`** (neu): 3-Card-Layout — Unternehmensdaten (9 Felder), Finanz-Standardwerte (2 Felder), Briefpapier & Logo (Upload via Supabase Storage `documents/settings/`). Nur für admin zugänglich |
+| 3 | **`utils-pdf.js`** (neu, Official Letter Engine): pdf-lib via CDN. `generateMahnungPDF(noticeId)` — lädt dunning_notice + Empfängerdaten, DIN-5008-Adressfeld, Briefkopf-Integration (letterhead PDF als Template oder Fallback-Header). `generateWirtschaftsplanPDF(planId)` — lädt plan + items, Tabelle mit olive Header, Summenzeile. Fußzeile mit Firmendaten auf beiden Dokumenttypen |
+| 4 | **PDF-Buttons in `mod-finanzen.js`**: Mahnwesen-Tabelle → PDF-Icon je Zeile. Wirtschaftsplan-Header → „PDF"-Button neben Status-Aktionen |
+| 5 | **`dashboard.html`**: pdf-lib CDN (unpkg), utils-pdf.js, mod-settings.js eingebunden |
+| 6 | **`mod-placeholder.js`**: `loadSettings()` Platzhalter entfernt (jetzt in mod-settings.js) |
 
 ---
 
