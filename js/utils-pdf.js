@@ -373,3 +373,204 @@ async function generateWirtschaftsplanPDF(planId) {
     _pdfDownload(pdfBytes, filename);
     showToast('PDF heruntergeladen.');
 }
+
+// ─── Einzelwirtschaftspläne als Bulk-PDF (1 Seite je WE) ────
+async function generateEinzelwirtschaftsplanPDF(planId) {
+    if (typeof PDFLib === 'undefined') {
+        showToast('PDF-Bibliothek nicht geladen. Bitte Seite neu laden.', 'error'); return;
+    }
+
+    showToast('Einzelwirtschaftspläne werden erstellt…');
+
+    const settings = await _pdfGetSettings();
+    const { data: plan } = await _supabase.from('budget_plans')
+        .select('*, building:buildings(id, name, file_number, street, house_number)')
+        .eq('id', planId).single();
+    if (!plan) { showToast('Wirtschaftsplan nicht gefunden.', 'error'); return; }
+
+    const bid = plan.building_id;
+    const [itemsRes, aptsRes, accsRes, dkRes, dkuRes, ownRes] = await Promise.all([
+        _supabase.from('budget_plan_items').select('*, account:accounts(id, account_number, account_name, primary_key_id, secondary_key_id, secondary_key_percentage)').eq('budget_plan_id', planId).order('account_id'),
+        _supabase.from('apartments').select('id, apartment_number, floor, sq_meters, mea, hausgeld').eq('building_id', bid).order('apartment_number'),
+        _supabase.from('accounts').select('id, account_number, account_name, primary_key_id, secondary_key_id, secondary_key_percentage').eq('building_id', bid).eq('is_active', true),
+        _supabase.from('distribution_keys').select('id, name, type, total_value, heiz_split_percent').eq('building_id', bid),
+        _supabase.from('distribution_key_units').select('distribution_key_id, apartment_id, value'),
+        _supabase.from('ownerships').select('apartment_id, person:persons(full_name)').eq('active', true),
+    ]);
+
+    const planItems = itemsRes.data || [];
+    const apts      = aptsRes.data || [];
+    const accounts  = accsRes.data || [];
+    const distKeys  = dkRes.data || [];
+    const dkUnits   = dkuRes.data || [];
+    const owners    = ownRes.data || [];
+
+    if (!apts.length) { showToast('Keine Einheiten vorhanden.', 'error'); return; }
+    if (!distKeys.length) { showToast('Keine Verteilerschlüssel konfiguriert. Bitte zuerst unter Gebäude → Verteilerschlüssel anlegen.', 'error'); return; }
+
+    // Lookup-Maps
+    const dkMap = {};
+    distKeys.forEach(k => { dkMap[k.id] = k; });
+    // dkUnitMap[keyId][aptId] = value
+    const dkUnitMap = {};
+    dkUnits.forEach(u => {
+        if (!dkUnitMap[u.distribution_key_id]) dkUnitMap[u.distribution_key_id] = {};
+        dkUnitMap[u.distribution_key_id][u.apartment_id] = Number(u.value) || 0;
+    });
+    // Owner per apartment
+    const ownerMap = {};
+    owners.forEach(o => { if (o.person?.full_name) ownerMap[o.apartment_id] = o.person.full_name; });
+
+    // Load letterhead template
+    const { PDFDocument, StandardFonts, rgb } = PDFLib;
+    if (!settings.letterhead_pdf_url) {
+        showToast('Kein Briefbogen hinterlegt. Bitte unter Einstellungen → Briefpapier & Logo hochladen.', 'error'); return;
+    }
+    const { data: signedData } = await _supabase.storage.from('documents').createSignedUrl(settings.letterhead_pdf_url, 120);
+    if (!signedData?.signedUrl) { showToast('Briefbogen konnte nicht geladen werden.', 'error'); return; }
+    const resp = await fetch(signedData.signedUrl);
+    if (!resp.ok) { showToast('Briefbogen konnte nicht geladen werden.', 'error'); return; }
+    const templateBytes = await resp.arrayBuffer();
+    const templateDoc   = await PDFDocument.load(templateBytes);
+
+    const pdfDoc = await PDFDocument.create();
+    const bold   = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const reg    = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const olive  = rgb(0.408, 0.455, 0.318);
+    const orange = rgb(0.922, 0.463, 0.176);
+
+    const bldName = plan.building ? formatBuildingName(plan.building) : '—';
+
+    // Helper: calc apartment share for one budget item
+    function calcShare(item, aptId) {
+        const acc = item.account || accounts.find(a => a.id === item.account_id);
+        if (!acc) return { share: 0, keyName: '—' };
+
+        const pkId = acc.primary_key_id;
+        const skId = acc.secondary_key_id;
+        const skPct = acc.secondary_key_percentage;
+        const planned = Number(item.planned_amount || 0);
+
+        if (!pkId || !dkMap[pkId]) return { share: 0, keyName: '—' };
+
+        const pk = dkMap[pkId];
+        const pkTotal = Number(pk.total_value) || 0;
+        const pkVal   = (dkUnitMap[pkId] && dkUnitMap[pkId][aptId]) || 0;
+        let keyName   = pk.name;
+
+        if (pkTotal === 0) return { share: 0, keyName };
+
+        if (skId && skPct && dkMap[skId]) {
+            // Dual key (HeizKV-Split)
+            const sk = dkMap[skId];
+            const skTotal = Number(sk.total_value) || 0;
+            const skVal   = (dkUnitMap[skId] && dkUnitMap[skId][aptId]) || 0;
+            const primaryShare   = planned * (1 - skPct / 100) * (pkVal / pkTotal);
+            const secondaryShare = skTotal > 0 ? planned * (skPct / 100) * (skVal / skTotal) : 0;
+            keyName = `${pk.name}/${sk.name}`;
+            return { share: primaryShare + secondaryShare, keyName };
+        }
+
+        return { share: planned * (pkVal / pkTotal), keyName };
+    }
+
+    // Generate one page per apartment
+    for (const apt of apts) {
+        const [copied] = await pdfDoc.copyPages(templateDoc, [0]);
+        const page     = pdfDoc.addPage(copied);
+        const { height } = page.getSize();
+
+        // Date
+        _pdfDrawDate(page, reg, settings);
+
+        // Title
+        page.drawText(`Einzelwirtschaftsplan ${plan.fiscal_year}`, {
+            x: 56.7, y: height - 105, size: 14, font: bold, color: rgb(0.22, 0.22, 0.22),
+        });
+        page.drawText(`${bldName} — WE ${apt.apartment_number}`, {
+            x: 56.7, y: height - 124, size: 10, font: reg, color: rgb(0.4, 0.4, 0.4),
+        });
+
+        // Owner + apartment info
+        const ownerName = ownerMap[apt.id] || 'Leerstand (Eigentümergemeinschaft)';
+        page.drawText(`Eigentümer: ${ownerName}`, {
+            x: 56.7, y: height - 140, size: 9, font: reg, color: rgb(0.4, 0.4, 0.4),
+        });
+        const meaText = apt.mea ? `MEA: ${apt.mea}` : '';
+        const sqmText = apt.sq_meters ? `Fläche: ${apt.sq_meters} m²` : '';
+        const infoLine = [meaText, sqmText].filter(Boolean).join(' | ');
+        if (infoLine) {
+            page.drawText(infoLine, {
+                x: 56.7, y: height - 153, size: 8, font: reg, color: rgb(0.5, 0.5, 0.5),
+            });
+        }
+
+        // Table header
+        const tableY = height - 174;
+        page.drawRectangle({ x: 56.7, y: tableY - 4, width: 482, height: 18, color: olive });
+        const cols = [
+            { x: 60,  label: 'Konto' },
+            { x: 100, label: 'Bezeichnung' },
+            { x: 270, label: 'Gesamt (€)' },
+            { x: 330, label: 'Schlüssel' },
+            { x: 400, label: 'Anteil (€)' },
+            { x: 460, label: 'mtl. (€)' },
+        ];
+        cols.forEach(c => {
+            page.drawText(c.label, { x: c.x, y: tableY, size: 7, font: bold, color: rgb(1, 1, 1) });
+        });
+
+        // Table rows
+        let y = tableY - 20;
+        let totalShare = 0;
+        for (const item of planItems) {
+            if (y < 90) break;
+            const planned = Number(item.planned_amount || 0);
+            const { share, keyName } = calcShare(item, apt.id);
+            totalShare += share;
+            const monthly = share / 12;
+
+            page.drawText(item.account?.account_number || '–', { x: 60, y, size: 7, font: reg, color: rgb(0.3, 0.3, 0.3) });
+            page.drawText((item.account?.account_name || '–').substring(0, 28), { x: 100, y, size: 7, font: reg, color: rgb(0.22, 0.22, 0.22) });
+            page.drawText(planned.toLocaleString('de-DE', { minimumFractionDigits: 2 }), { x: 270, y, size: 7, font: reg, color: rgb(0.4, 0.4, 0.4) });
+            page.drawText(keyName.substring(0, 12), { x: 330, y, size: 6.5, font: reg, color: rgb(0.5, 0.5, 0.5) });
+            page.drawText(share.toLocaleString('de-DE', { minimumFractionDigits: 2 }), { x: 400, y, size: 7, font: bold, color: rgb(0.22, 0.22, 0.22) });
+            page.drawText(monthly.toLocaleString('de-DE', { minimumFractionDigits: 2 }), { x: 460, y, size: 7, font: reg, color: rgb(0.4, 0.4, 0.4) });
+
+            page.drawLine({ start: { x: 56.7, y: y - 5 }, end: { x: 538.6, y: y - 5 }, thickness: 0.3, color: rgb(0.9, 0.9, 0.9) });
+            y -= 15;
+        }
+
+        // Sum row
+        page.drawLine({ start: { x: 56.7, y: y + 3 }, end: { x: 538.6, y: y + 3 }, thickness: 1, color: olive });
+        page.drawText('Ihr Jahres-Hausgeld:', { x: 270, y: y - 10, size: 8, font: bold, color: rgb(0.22, 0.22, 0.22) });
+        page.drawText(totalShare.toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' €', { x: 400, y: y - 10, size: 8, font: bold, color: olive });
+        page.drawText((totalShare / 12).toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' €', { x: 460, y: y - 10, size: 8, font: bold, color: olive });
+
+        // Hint box
+        const hintText = 'Dieser Wirtschaftsplan wurde maschinell erstellt und ist rechtlich bindend nach Beschlussfassung der WEG-Gemeinschaft. Die aus dem Wirtschaftsplan resultierenden monatlichen Hausgelder sind über den Planungszeitraum hinaus weiter zu zahlen, bis ein neuer Wirtschaftsplan beschlossen wurde.';
+        const hintPad = 10, hintFS = 7.5;
+        const hintLines = _pdfSplitText(hintText, reg, hintFS, 482 - hintPad * 2);
+        const hintLineH = 11;
+        const hintBoxH  = hintPad * 2 + hintLines.length * hintLineH;
+        const hintTopY  = y - 28;
+
+        page.drawRectangle({
+            x: 56.7, y: hintTopY - hintBoxH,
+            width: 482, height: hintBoxH,
+            borderColor: orange, borderWidth: 1.5,
+            color: rgb(1, 0.975, 0.965),
+        });
+        hintLines.forEach((line, i) => {
+            page.drawText(line, {
+                x: 56.7 + hintPad, y: hintTopY - hintPad - (i * hintLineH),
+                size: hintFS, font: reg, color: rgb(0.22, 0.22, 0.22),
+            });
+        });
+    }
+
+    const pdfBytes = await pdfDoc.save();
+    const filename = `Einzelwirtschaftsplaene_${plan.fiscal_year}_${bldName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+    _pdfDownload(pdfBytes, filename);
+    showToast(`${apts.length} Einzelwirtschaftspläne als PDF heruntergeladen.`);
+}
