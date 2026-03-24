@@ -374,16 +374,17 @@ async function generateWirtschaftsplanPDF(planId) {
     showToast('PDF heruntergeladen.');
 }
 
-// ─── Inter-Font Loader (cached) ─────────────────────────────
+// ─── Inter-Font Loader (cached as Uint8Array) ──────────────
 let _interFontsCache = null;
 async function _pdfLoadInterFonts(pdfDoc) {
     if (!_interFontsCache) {
         // Resolve base path from current page location (works on GitHub Pages & local)
         const base = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
         async function loadFont(file) {
-            const resp = await fetch(base + 'fonts/' + file);
-            if (!resp.ok) throw new Error(`Font ${file}: HTTP ${resp.status}`);
-            return resp.arrayBuffer();
+            const url = base + 'fonts/' + file;
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error(`Font ${file}: HTTP ${resp.status} (${url})`);
+            return new Uint8Array(await resp.arrayBuffer());
         }
         const [regBytes, semiBytes, boldBytes] = await Promise.all([
             loadFont('Inter-Regular.ttf'),
@@ -392,9 +393,10 @@ async function _pdfLoadInterFonts(pdfDoc) {
         ]);
         _interFontsCache = { regBytes, semiBytes, boldBytes };
     }
-    const reg  = await pdfDoc.embedFont(_interFontsCache.regBytes);
-    const semi = await pdfDoc.embedFont(_interFontsCache.semiBytes);
-    const bold = await pdfDoc.embedFont(_interFontsCache.boldBytes);
+    // Copy bytes for each embed call (pdf-lib may consume the buffer)
+    const reg  = await pdfDoc.embedFont(_interFontsCache.regBytes.slice());
+    const semi = await pdfDoc.embedFont(_interFontsCache.semiBytes.slice());
+    const bold = await pdfDoc.embedFont(_interFontsCache.boldBytes.slice());
     return { reg, semi, bold };
 }
 
@@ -462,7 +464,8 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
     try {
         ({ reg: fReg, semi: fSemi, bold: fBold } = await _pdfLoadInterFonts(pdfDoc));
     } catch (e) {
-        showToast('Inter-Schriftart konnte nicht geladen werden. Bitte prüfen Sie den fonts/-Ordner.', 'error'); return;
+        console.error('Inter font load error:', e);
+        showToast('Inter-Schriftart konnte nicht geladen werden: ' + e.message, 'error'); return;
     }
 
     // Colors
