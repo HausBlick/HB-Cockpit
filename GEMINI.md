@@ -49,7 +49,8 @@ Das Design-System & Frontend-Rahmenbedingungen
 
 Minimalistisch, fokussiert und professionell. Um "Wildwuchs" zu vermeiden, gelten strikte Design-Vorgaben für alle Module:
 
-CI-Farben: hb-olive (#687451) für Aktionen/Primäres, hb-ultralight (#F9FAF8) als Hintergrund, hb-offblack (#373737) für Typografie. Keine Fremdfarben!
+CI-Farben: hb-olive (#687451) für Aktionen/Primäres, hb-ultralight (#F9FAF8) als Hintergrund, hb-offblack (#373737) für Typografie und hb-signalorange (#EB762D) Für extreme Aufmerksamkeit und
+wichtige Hinweise/Akzente. Keine Fremdfarben!
 
 Konsistenz-Zwang: Alle Module müssen exakt dieselbe Formensprache (Weiche UI-Karten `rounded-[15px]`, identische Tabellen, einheitliche Button-Styles) nutzen.
 
