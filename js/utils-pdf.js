@@ -641,8 +641,8 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
         }
 
         // Section label
-        page.drawText('Hausgeld-Übersicht', { x: mLeft, y, size: 9, font: fBold, color: offblack });
-        y -= 16;
+        page.drawText('Hausgeld-Übersicht', { x: mLeft, y, size: 10, font: fBold, color: offblack });
+        y -= 10;
 
         // Header
         const summCols = [
@@ -706,8 +706,8 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
 
         // ── BLOCK 3: UMLAGESCHLÜSSEL-TABELLE ────────────────────
         const usedKeys = collectUsedKeys(apt.id);
-        page.drawText('Umlageschlüssel', { x: mLeft, y, size: 9, font: fBold, color: offblack });
-        y -= 16;
+        page.drawText('Umlageschlüssel', { x: mLeft, y, size: 10, font: fBold, color: offblack });
+        y -= 10;
 
         // (dkHeaderH computed by drawTableHeader)
         const dkFS  = 7.5;
@@ -768,8 +768,8 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
 
         // ── BLOCK 4: VERTEILUNGSERGEBNIS (Kostentabelle) ────────
         // Konto 13mm | Bezeichnung 50mm | Schlüssel 40mm | Gesamtkosten 30mm | Ihr Anteil 30mm
-        page.drawText('Verteilungsergebnis', { x: mLeft, y, size: 9, font: fBold, color: offblack });
-        y -= 16;
+        page.drawText('Verteilungsergebnis', { x: mLeft, y, size: 10, font: fBold, color: offblack });
+        y -= 10;
 
         // (costHeaderH computed by drawTableHeader)
         const bezFS  = 9;
