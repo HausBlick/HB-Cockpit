@@ -138,6 +138,10 @@ async function showBuildingInfo(b) {
     const area = document.getElementById('units-area');
     const bankRes = await _supabase.from('building_bank_accounts').select('*').eq('building_id', b.id);
     const bankAccounts = bankRes.data || [];
+    const { data: dkData } = await _supabase.from('distribution_keys')
+        .select('id, name, type, total_value, heiz_split_percent, is_system_default')
+        .eq('building_id', b.id).order('is_system_default', { ascending: false });
+    const distKeys = dkData || [];
     const addr = b.street ? `${b.street} ${b.house_number || ''}, ${b.zip_code || ''} ${b.city || ''}` : '—';
 
     area.innerHTML = `
@@ -164,6 +168,9 @@ async function showBuildingInfo(b) {
                     {id:'legal',   label:'Grundbuch'},
                     {id:'tech',    label:'Technik & Fristen'},
                 ], 'bldg-btn', 'base')}
+                <button type="button" id="bldg-btn-keys"
+                    onclick="switchBuildingTab('keys')"
+                    class="bldg-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Verteilerschlüssel</button>
             </div>
 
             <!-- Tab-Content: nimmt nur so viel wie nötig, max 25vh -->
@@ -231,6 +238,11 @@ async function showBuildingInfo(b) {
                     ${infoField('Intervall (Monate)', b.legionella_check_interval_months)}
                     ${infoField('Trinkwasser fällig', b.drinking_water_analysis_due)}
                     ${infoField('Brandschutz fällig', b.next_fire_safety_check)}
+                </div>
+
+                <!-- TAB 5: VERTEILERSCHLÜSSEL -->
+                <div id="bldg-tab-keys" class="bldg-tab-content hidden">
+                    ${_dkRenderTab(distKeys, b.id)}
                 </div>
 
             </div>
@@ -1031,3 +1043,319 @@ async function deleteApartment(id) {
     if (!error) { showToast('Einheit gelöscht.', 'success'); selectBuilding(selectedBuildingId); }
     else showToast(error.message, 'error');
 }
+
+// ============================================================
+// Verteilerschlüssel-Management (_dk* Funktionen)
+// ============================================================
+
+const _DK_TYPE_LABELS = {
+    mea:         'MEA',
+    sqm:         'm²',
+    units:       'Einheiten',
+    consumption: 'Verbrauch',
+    persons:     'Personen',
+    heizkosten:  'HeizKV-Split',
+    custom:      'Individuell',
+};
+
+function _dkTypeBadge(type) {
+    const label = _DK_TYPE_LABELS[type] || type;
+    const cls = type === 'heizkosten' ? 'bg-hb-orange/10 text-hb-orange'
+              : type === 'mea'        ? 'bg-hb-olive/10 text-hb-olive'
+              : 'bg-gray-100 text-gray-600';
+    return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${cls}">${label}</span>`;
+}
+
+function _dkRenderTab(keys, buildingId) {
+    const rows = keys.length === 0
+        ? '<p class="text-sm text-gray-400 py-2">Noch keine Verteilerschlüssel angelegt.</p>'
+        : `<table class="w-full text-sm mt-3">
+            <thead class="text-xs font-bold text-gray-500 bg-gray-50">
+                <tr>
+                    <th class="px-3 py-2 text-left">Name</th>
+                    <th class="px-3 py-2 text-left">Typ</th>
+                    <th class="px-3 py-2 text-right">Gesamtwert</th>
+                    <th class="px-3 py-2 text-right">Aktionen</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-hb-olive/10">
+                ${keys.map(k => `
+                <tr>
+                    <td class="px-3 py-2 font-semibold text-hb-offblack">
+                        ${k.name}
+                        ${k.is_system_default ? '<span class="ml-1 text-[9px] bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded">Standard</span>' : ''}
+                        ${k.type === 'heizkosten' && k.heiz_split_percent != null
+                            ? `<span class="ml-1 text-[9px] text-gray-400">(${k.heiz_split_percent}% / ${100 - k.heiz_split_percent}%)</span>`
+                            : ''}
+                    </td>
+                    <td class="px-3 py-2">${_dkTypeBadge(k.type)}</td>
+                    <td class="px-3 py-2 text-right font-mono text-gray-600">${k.total_value != null ? Number(k.total_value).toLocaleString('de-DE', {maximumFractionDigits:4}) : '—'}</td>
+                    <td class="px-3 py-2 text-right space-x-2">
+                        <button onclick="_dkOpenValuesModal('${k.id}', ${buildingId})"
+                            class="text-xs text-hb-olive bg-hb-ultralight px-2 py-1 rounded-lg hover:bg-gray-100">Werte</button>
+                        ${k.is_system_default ? '' : `<button onclick="_dkDeleteKey('${k.id}', ${buildingId})"
+                            class="text-xs text-hb-orange px-2 py-1 rounded-lg hover:bg-hb-orange/5">Löschen</button>`}
+                    </td>
+                </tr>`).join('')}
+            </tbody>
+           </table>`;
+    return `
+        <div class="flex justify-between items-center">
+            <p class="text-xs text-gray-500">${keys.length} Schlüssel konfiguriert</p>
+            <button onclick="_dkOpenNewModal(${buildingId})"
+                class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 font-semibold border border-hb-olive/20">+ Neuer Schlüssel</button>
+        </div>
+        ${rows}`;
+}
+
+async function _dkRefreshTab(buildingId) {
+    const { data } = await _supabase.from('distribution_keys')
+        .select('id, name, type, total_value, heiz_split_percent, is_system_default')
+        .eq('building_id', buildingId).order('is_system_default', { ascending: false });
+    const keys = data || [];
+    const tab = document.getElementById('bldg-tab-keys');
+    if (tab) tab.innerHTML = _dkRenderTab(keys, buildingId);
+}
+
+window._dkOpenNewModal = function(buildingId) {
+    const overlay = document.createElement('div');
+    overlay.id = 'dk-new-overlay';
+    overlay.className = 'fixed inset-0 bg-black/40 flex items-center justify-center z-50';
+    overlay.innerHTML = `
+        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-md p-6 mx-4">
+            <div class="flex justify-between items-center mb-5">
+                <h3 class="text-base font-extrabold text-hb-offblack">Neuer Verteilerschlüssel</h3>
+                <button onclick="document.getElementById('dk-new-overlay').remove()"
+                    class="text-gray-400 hover:text-hb-orange text-xl leading-none">×</button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="text-xs font-bold text-gray-500 mb-1 block">Name</label>
+                    <input id="dk-new-name" type="text" placeholder="z.B. Heizkosten 2025" class="w-full">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-gray-500 mb-1 block">Typ</label>
+                    <select id="dk-new-type" onchange="_dkToggleHeizSplit()" class="w-full">
+                        <option value="mea">MEA (Miteigentumsanteile)</option>
+                        <option value="sqm">m² (Wohnfläche)</option>
+                        <option value="units">Einheiten (je 1/n)</option>
+                        <option value="consumption">Verbrauch</option>
+                        <option value="persons">Personen</option>
+                        <option value="heizkosten">HeizKV-Split</option>
+                        <option value="custom">Individuell</option>
+                    </select>
+                </div>
+                <div id="dk-heiz-split-row" class="hidden">
+                    <label class="text-xs font-bold text-gray-500 mb-1 block">Verbrauchsanteil (%)</label>
+                    <input id="dk-new-heiz-split" type="number" min="1" max="99" step="1" value="70" class="w-full">
+                    <p class="text-xs text-gray-400 mt-1">z.B. 70 = 70% Verbrauch / 30% Fläche (gem. HeizkostenV)</p>
+                </div>
+            </div>
+            <div class="flex gap-3 mt-6 justify-end">
+                <button onclick="document.getElementById('dk-new-overlay').remove()"
+                    class="text-sm text-gray-500 px-4 py-2 rounded-lg hover:bg-gray-100">Abbrechen</button>
+                <button onclick="_dkSaveNew(${buildingId})" class="btn-primary text-sm px-5 py-2">Erstellen & Werte eingeben</button>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+};
+
+window._dkToggleHeizSplit = function() {
+    const type = document.getElementById('dk-new-type')?.value;
+    const row  = document.getElementById('dk-heiz-split-row');
+    if (row) row.classList.toggle('hidden', type !== 'heizkosten');
+};
+
+window._dkSaveNew = async function(buildingId) {
+    const name = document.getElementById('dk-new-name')?.value.trim();
+    const type = document.getElementById('dk-new-type')?.value;
+    if (!name) { showToast('Bitte einen Namen eingeben.', 'error'); return; }
+
+    const payload = { building_id: buildingId, name, type };
+    if (type === 'heizkosten') {
+        const split = parseFloat(document.getElementById('dk-new-heiz-split')?.value);
+        if (isNaN(split) || split < 1 || split > 99) { showToast('Verbrauchsanteil muss zwischen 1 und 99 liegen.', 'error'); return; }
+        payload.heiz_split_percent = split;
+    }
+
+    const { data: newKey, error } = await _supabase.from('distribution_keys').insert(payload).select().single();
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+
+    // Auto-Initialisierung der Einheitenwerte
+    const { data: apts } = await _supabase.from('apartments').select('id, mea, sq_meters').eq('building_id', buildingId);
+    if (apts && apts.length > 0) {
+        const initRows = apts.map(apt => {
+            let value = 0;
+            if (type === 'mea')        value = parseFloat(apt.mea) || 0;
+            else if (type === 'sqm')   value = parseFloat(apt.sq_meters) || 0;
+            else if (type === 'units') value = 1;
+            return { distribution_key_id: newKey.id, apartment_id: apt.id, value };
+        });
+        await _supabase.from('distribution_key_units').insert(initRows);
+    }
+
+    document.getElementById('dk-new-overlay')?.remove();
+    showToast('Schlüssel angelegt.');
+    await _dkRefreshTab(buildingId);
+    _dkOpenValuesModal(newKey.id, buildingId);
+};
+
+window._dkOpenValuesModal = async function(keyId, buildingId) {
+    const [{ data: key }, { data: apts }, { data: unitVals }] = await Promise.all([
+        _supabase.from('distribution_keys').select('*').eq('id', keyId).single(),
+        _supabase.from('apartments').select('id, apartment_number, floor, sq_meters, mea').eq('building_id', buildingId).order('apartment_number'),
+        _supabase.from('distribution_key_units').select('apartment_id, value').eq('distribution_key_id', keyId),
+    ]);
+    if (!key || !apts) return;
+
+    const valMap = {};
+    (unitVals || []).forEach(u => { valMap[u.apartment_id] = u.value; });
+
+    const isHeiz = key.type === 'heizkosten';
+
+    const overlay = document.createElement('div');
+    overlay.id = 'dk-vals-overlay';
+    overlay.className = 'fixed inset-0 bg-black/40 flex items-center justify-center z-50';
+    overlay.innerHTML = `
+        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-lg mx-4 flex flex-col" style="max-height:90vh">
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center flex-shrink-0">
+                <div>
+                    <h3 class="text-base font-extrabold text-hb-offblack">${key.name}</h3>
+                    <p class="text-xs text-gray-500">${_DK_TYPE_LABELS[key.type] || key.type}${isHeiz ? ` · ${key.heiz_split_percent ?? 70}% Verbrauch / ${100 - (key.heiz_split_percent ?? 70)}% Fläche` : ''}</p>
+                </div>
+                <button onclick="document.getElementById('dk-vals-overlay').remove()"
+                    class="text-gray-400 hover:text-hb-orange text-xl leading-none">×</button>
+            </div>
+            ${isHeiz ? `
+            <div class="px-6 py-3 bg-hb-ultralight border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
+                <label class="text-xs font-bold text-gray-500">Verbrauchsanteil (%)</label>
+                <input id="dk-heiz-split-val" type="number" min="1" max="99" step="1" value="${key.heiz_split_percent ?? 70}"
+                    class="w-20 text-sm" oninput="_dkUpdateHeizLabel()">
+                <span id="dk-heiz-rest-label" class="text-xs text-gray-400">= ${100 - (key.heiz_split_percent ?? 70)}% Fläche</span>
+            </div>` : ''}
+            <div class="px-6 py-3 bg-hb-ultralight border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
+                <p class="text-xs text-gray-500 flex-grow">Schnell befüllen aus:</p>
+                ${key.type === 'mea' || key.type === 'custom' || key.type === 'heizkosten'
+                    ? `<button onclick="_dkFillFrom('mea')" class="text-xs text-hb-olive bg-white border border-hb-olive/20 px-2 py-1 rounded-lg hover:bg-hb-ultralight">MEA</button>` : ''}
+                ${key.type === 'sqm' || key.type === 'custom' || key.type === 'heizkosten'
+                    ? `<button onclick="_dkFillFrom('sqm')" class="text-xs text-hb-olive bg-white border border-hb-olive/20 px-2 py-1 rounded-lg hover:bg-hb-ultralight">m²</button>` : ''}
+                ${key.type === 'units' || key.type === 'custom'
+                    ? `<button onclick="_dkFillFrom('units')" class="text-xs text-hb-olive bg-white border border-hb-olive/20 px-2 py-1 rounded-lg hover:bg-hb-ultralight">je 1/n</button>` : ''}
+                <button onclick="_dkFillFrom('zero')" class="text-xs text-gray-400 bg-white border border-gray-200 px-2 py-1 rounded-lg hover:bg-gray-50">Leeren</button>
+            </div>
+            <div class="overflow-y-auto flex-grow">
+                <table class="w-full text-sm">
+                    <thead class="text-xs font-bold text-gray-500 bg-gray-50 sticky top-0">
+                        <tr>
+                            <th class="px-4 py-2 text-left">Einheit</th>
+                            <th class="px-4 py-2 text-right">Wert</th>
+                            <th class="px-4 py-2 text-right">Anteil %</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dk-vals-body" class="divide-y divide-hb-olive/10">
+                        ${apts.map(apt => `
+                        <tr data-apt-id="${apt.id}" data-mea="${apt.mea || 0}" data-sqm="${apt.sq_meters || 0}">
+                            <td class="px-4 py-2 font-semibold">${apt.apartment_number}
+                                <span class="text-xs text-gray-400 font-normal">${apt.floor ? '· ' + apt.floor : ''}</span>
+                            </td>
+                            <td class="px-4 py-1.5 text-right">
+                                <input type="number" step="0.0001" min="0"
+                                    class="dk-val-input w-28 text-right text-sm"
+                                    value="${valMap[apt.id] ?? 0}"
+                                    oninput="_dkUpdateSum()">
+                            </td>
+                            <td class="px-4 py-2 text-right text-xs text-gray-500 dk-pct-cell">—</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>
+            <div class="px-6 py-3 border-t border-gray-100 flex items-center justify-between flex-shrink-0">
+                <div class="text-sm">
+                    <span class="text-gray-500">Summe:</span>
+                    <span id="dk-sum-display" class="font-bold text-hb-offblack ml-2">—</span>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="document.getElementById('dk-vals-overlay').remove()"
+                        class="text-sm text-gray-500 px-4 py-2 rounded-lg hover:bg-gray-100">Abbrechen</button>
+                    <button onclick="_dkSaveValues('${keyId}', ${buildingId})" class="btn-primary text-sm px-5 py-2">Speichern</button>
+                </div>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+    _dkUpdateSum();
+};
+
+window._dkUpdateHeizLabel = function() {
+    const val = parseInt(document.getElementById('dk-heiz-split-val')?.value) || 70;
+    const lbl = document.getElementById('dk-heiz-rest-label');
+    if (lbl) lbl.textContent = `= ${100 - val}% Fläche`;
+};
+
+window._dkUpdateSum = function() {
+    const inputs = document.querySelectorAll('.dk-val-input');
+    let sum = 0;
+    inputs.forEach(inp => { sum += parseFloat(inp.value) || 0; });
+    const sumEl = document.getElementById('dk-sum-display');
+    if (sumEl) sumEl.textContent = sum.toLocaleString('de-DE', { maximumFractionDigits: 4 });
+    // Update percentage cells
+    const rows = document.querySelectorAll('#dk-vals-body tr');
+    rows.forEach(row => {
+        const inp = row.querySelector('.dk-val-input');
+        const pct = row.querySelector('.dk-pct-cell');
+        if (!inp || !pct) return;
+        const v = parseFloat(inp.value) || 0;
+        pct.textContent = sum > 0 ? (v / sum * 100).toFixed(2) + '%' : '—';
+    });
+};
+
+window._dkFillFrom = function(source) {
+    const rows = document.querySelectorAll('#dk-vals-body tr');
+    const n = rows.length;
+    rows.forEach(row => {
+        const inp = row.querySelector('.dk-val-input');
+        if (!inp) return;
+        if      (source === 'mea')   inp.value = parseFloat(row.dataset.mea) || 0;
+        else if (source === 'sqm')   inp.value = parseFloat(row.dataset.sqm) || 0;
+        else if (source === 'units') inp.value = n > 0 ? (1 / n).toFixed(6) : 0;
+        else if (source === 'zero')  inp.value = 0;
+    });
+    _dkUpdateSum();
+};
+
+window._dkSaveValues = async function(keyId, buildingId) {
+    const rows = document.querySelectorAll('#dk-vals-body tr');
+    const upserts = [];
+    rows.forEach(row => {
+        const aptId = parseInt(row.dataset.aptId);
+        const val   = parseFloat(row.querySelector('.dk-val-input')?.value) || 0;
+        upserts.push({ distribution_key_id: keyId, apartment_id: aptId, value: val });
+    });
+
+    const totalValue = upserts.reduce((s, r) => s + r.value, 0);
+    const updatePayload = { total_value: totalValue, updated_at: new Date().toISOString() };
+
+    // Update heiz_split_percent if applicable
+    const splitInput = document.getElementById('dk-heiz-split-val');
+    if (splitInput) {
+        const split = parseFloat(splitInput.value);
+        if (!isNaN(split)) updatePayload.heiz_split_percent = split;
+    }
+
+    const { error: upErr } = await _supabase.from('distribution_keys').update(updatePayload).eq('id', keyId);
+    if (upErr) { showToast('Fehler beim Speichern: ' + upErr.message, 'error'); return; }
+
+    const { error: dkuErr } = await _supabase.from('distribution_key_units').upsert(upserts, { onConflict: 'distribution_key_id,apartment_id' });
+    if (dkuErr) { showToast('Fehler beim Speichern der Werte: ' + dkuErr.message, 'error'); return; }
+
+    document.getElementById('dk-vals-overlay')?.remove();
+    showToast('Verteilerschlüssel gespeichert.');
+    await _dkRefreshTab(buildingId);
+};
+
+window._dkDeleteKey = async function(keyId, buildingId) {
+    if (!confirm('Verteilerschlüssel wirklich löschen? Konten-Zuweisungen werden auf "kein Schlüssel" gesetzt.')) return;
+    const { error } = await _supabase.from('distribution_keys').delete().eq('id', keyId);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    showToast('Schlüssel gelöscht.');
+    await _dkRefreshTab(buildingId);
+};

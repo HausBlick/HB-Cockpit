@@ -217,12 +217,14 @@ async function _finLoadOverview() {
     const bid = _finState.buildingId;
     if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-sm">Kein Gebäude gewählt.</p>'; return; }
 
-    const [accounts, { data: debits }, { data: credits }] = await Promise.all([
+    const [accounts, { data: debits }, { data: credits }, { data: dkData }] = await Promise.all([
         _finGetAccounts(bid),
         _supabase.from('journal_entries').select('debit_account_id, amount').eq('building_id', bid),
         _supabase.from('journal_entries').select('credit_account_id, amount').eq('building_id', bid),
+        _supabase.from('distribution_keys').select('id, name, type').eq('building_id', bid).order('name'),
     ]);
     _finState.accounts = accounts;
+    _finState.distKeys = dkData || [];
 
     // Saldo pro Konto berechnen
     const saldoMap = {};
@@ -349,6 +351,26 @@ async function _finLoadOverview() {
                         </select></div>
                     <div id="fin-edit-acc-reserve-wrap"><label class="text-xs font-semibold text-gray-500 mb-1 block">Rücklage-Label</label>
                         <input id="fin-edit-acc-reserve" type="text"></div>
+                    <div class="border-t pt-3 mt-1">
+                        <p class="text-xs font-black uppercase tracking-widest text-hb-olive mb-2">Verteilerschlüssel</p>
+                        <div class="space-y-3">
+                            <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Primärer Schlüssel</label>
+                                <select id="fin-edit-acc-pk">
+                                    <option value="">— Kein Schlüssel —</option>
+                                    ${(_finState.distKeys || []).map(k => `<option value="${k.id}">${k.name} (${k.type})</option>`).join('')}
+                                </select></div>
+                            <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Sekundärer Schlüssel (HeizKV-Split)</label>
+                                <select id="fin-edit-acc-sk" onchange="_finToggleSkPercent()">
+                                    <option value="">— Keiner —</option>
+                                    ${(_finState.distKeys || []).map(k => `<option value="${k.id}">${k.name} (${k.type})</option>`).join('')}
+                                </select></div>
+                            <div id="fin-edit-sk-pct-wrap" class="hidden">
+                                <label class="text-xs font-semibold text-gray-500 mb-1 block">Anteil sekundärer Schlüssel (%)</label>
+                                <input id="fin-edit-acc-sk-pct" type="number" min="0" max="100" step="0.01" placeholder="z.B. 30">
+                                <p class="text-xs text-gray-400 mt-1">Restanteil wird dem primären Schlüssel zugeordnet.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="flex gap-3 mt-5">
                     <button onclick="_finSaveEditAccount()" class="btn-primary flex-1 text-sm py-2.5">Speichern</button>
@@ -397,6 +419,10 @@ window._finEditAccount = (accountId) => {
     document.getElementById('fin-edit-acc-reserve').value = a.reserve_label || '';
     const reserveWrap = document.getElementById('fin-edit-acc-reserve-wrap');
     if (reserveWrap) reserveWrap.style.display = a.is_reserve_account ? '' : 'none';
+    document.getElementById('fin-edit-acc-pk').value     = a.primary_key_id || '';
+    document.getElementById('fin-edit-acc-sk').value     = a.secondary_key_id || '';
+    document.getElementById('fin-edit-acc-sk-pct').value = a.secondary_key_percentage || '';
+    _finToggleSkPercent();
     document.getElementById('fin-account-edit-modal')?.classList.remove('hidden');
 };
 
@@ -410,18 +436,31 @@ window._finSaveEditAccount = async () => {
     if (!number || !name) { showToast('Kontonummer und Bezeichnung sind Pflicht.', 'error'); return; }
     if (parentId && Number(parentId) === Number(id)) { showToast('Ein Konto kann nicht sein eigenes Unterkonto sein.', 'error'); return; }
 
+    const pkId   = document.getElementById('fin-edit-acc-pk')?.value || null;
+    const skId   = document.getElementById('fin-edit-acc-sk')?.value || null;
+    const skPct  = document.getElementById('fin-edit-acc-sk-pct')?.value;
+
     const { error } = await _supabase.from('accounts').update({
-        account_number:    number,
-        account_name:      name,
-        account_type:      type,
-        parent_account_id: parentId ? Number(parentId) : null,
-        reserve_label:     reserve || null,
+        account_number:           number,
+        account_name:             name,
+        account_type:             type,
+        parent_account_id:        parentId ? Number(parentId) : null,
+        reserve_label:            reserve || null,
+        primary_key_id:           pkId || null,
+        secondary_key_id:         skId || null,
+        secondary_key_percentage: skId && skPct ? parseFloat(skPct) : null,
     }).eq('id', Number(id));
     if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
     document.getElementById('fin-account-edit-modal')?.classList.add('hidden');
     showToast('Konto aktualisiert.', 'success');
     _finState.accounts = [];
     await _finLoadOverview();
+};
+
+window._finToggleSkPercent = () => {
+    const sk = document.getElementById('fin-edit-acc-sk')?.value;
+    const wrap = document.getElementById('fin-edit-sk-pct-wrap');
+    if (wrap) wrap.classList.toggle('hidden', !sk);
 };
 
 window._finDeleteAccount = async (accountId) => {
@@ -1554,6 +1593,10 @@ function _finRenderWirtschaftsplan(plan, planItems) {
                     ${plan ? `<button onclick="generateWirtschaftsplanPDF(${plan.id})" class="text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg hover:bg-gray-100 border border-gray-200 flex items-center gap-1.5">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
                         PDF
+                    </button>` : ''}
+                    ${plan ? `<button onclick="generateEinzelwirtschaftsplanPDF(${plan.id})" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 border border-hb-olive/20 flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                        Einzelpläne PDF
                     </button>` : ''}
                 </div>
             </div>

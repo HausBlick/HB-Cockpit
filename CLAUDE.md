@@ -89,7 +89,7 @@ dashboard.html              # HTML-Shell (~130 Zeilen)
 js/
   config.js                 # Supabase-Client, globale Vars, Icons
   utils.js                  # Toast, Dropdown, Logout, Mobile-Menu
-  utils-pdf.js              # Official Letter Engine (pdf-lib: generateMahnungPDF, generateWirtschaftsplanPDF)
+  utils-pdf.js              # Official Letter Engine (pdf-lib: generateMahnungPDF, generateWirtschaftsplanPDF, generateEinzelwirtschaftsplanPDF)
   nav.js                    # init(), renderNav(), setActiveNav(), loadNavBadges()
   modules/
     mod-dashboard.js        # Dashboard — KPIs, Quick-Actions, Widgets (rollenbasiert)
@@ -119,12 +119,17 @@ js/
 
 ---
 
-## 6. Datenbankschema (31 Tabellen, alle RLS)
+## 6. Datenbankschema (33 Tabellen, alle RLS)
 
 `profiles`, `buildings`, `apartments`, `persons`, `tenancies`, `ownerships`, `management_assignments`, `tickets`, `ticket_messages`, `news`, `news_likes`, `documents`, `document_reads`, `document_links`, `contacts`, `meters`, `meter_readings`, `invitations`, `building_bank_accounts`, `building_insurances`, `board_members`, `service_providers`, `person_bank_accounts`
 
 **Phase 6-A/F Finanztabellen:**
 `accounts`, `journal_entries`, `journal_attachments`, `budget_plans`, `budget_plan_items`, `payment_demands`, `special_levies`, `dunning_notices`, `beirat_access_periods`
+
+**Phase 6.10 Verteilerschlüssel:**
+`distribution_keys` (building_id FK, name, type ENUM(mea/sqm/units/consumption/persons/heizkosten/custom), total_value, heiz_split_percent, is_system_default. RLS: lesen=alle, schreiben=admin/manager)
+`distribution_key_units` (distribution_key_id FK, apartment_id FK, value. UNIQUE(key_id, apartment_id). RLS: lesen=alle, schreiben=admin/manager)
+`accounts`-Erweiterung: `primary_key_id` (FK→distribution_keys), `secondary_key_id` (FK→distribution_keys), `secondary_key_percentage` (numeric 5,2)
 
 **Phase 7 System-Tabellen:**
 `global_settings` (single-row id=1: Firmenstammdaten, Finanz-Defaults, logo_url, letterhead_pdf_url. RLS: lesen=alle, schreiben=admin)
@@ -156,6 +161,7 @@ js/
 | Phase 6-A | phase6a_finance_foundation | 8 Finanztabellen: `accounts` (Kontenrahmen, 17 System-Konten), `journal_entries` (GoBD-konform, No-Update/No-Delete-Rules), `budget_plans`+`budget_plan_items` (Wirtschaftsplan), `payment_demands` (Sollstellungen), `special_levies` (Sonderumlagen), `dunning_notices` (Mahnwesen 3-stufig), `beirat_access_periods` (Beirat-Lesezugriff). 5 Performance-Indexes. |
 | Phase 6-F | phase6f_journal_attachments_and_subaccounts | `journal_attachments`-Tabelle (mehrere Belege pro `journal_entries`, RLS admin/manager, Storage-Pfad), `accounts.parent_account_id` (Unterkonto-Hierarchie, self-referencing FK). |
 | Phase 7 | global_settings | Single-row-Tabelle (id=1) für Firmenstammdaten, Finanz-Defaults, logo_url, letterhead_pdf_url. RLS: lesen=authenticated, schreiben=admin. |
+| Phase 6.10 | phase610_distribution_keys | `distribution_keys` + `distribution_key_units` (Verteilerschlüssel je Gebäude + Einheitenwerte), Enum `distribution_key_type`, `accounts`-Erweiterung (primary_key_id, secondary_key_id, secondary_key_percentage), 4 Indexes, RLS-Policies. |
 
 ---
 
@@ -215,6 +221,7 @@ js/
 - 6.7 **Pro-rata-temporis Umlage** (zeitanteilige Abrechnung bei Mieterwechsel) 📋
 - 6.8 **Zählerstände UI** (aus Phase 3.5 verschoben, wird für Abrechnung benötigt) 📋
 - 6.9 **Official Letter Engine** (Mahnung + Wirtschaftsplan als PDF via pdf-lib, Briefkopf-Integration) ✅
+- 6.10 **Verteilerschlüssel & Einzelwirtschaftspläne** (distribution_keys, Schlüsselzuweisung je Konto, Einzelplan-PDF Bulk) ✅
 
 ### 🔄 Phase 7 — System, Einstellungen & Benachrichtigungen
 *Querschnitts-Modul: Konfiguration, E-Mail-Push, User-Profile, Audit, PWA.*
@@ -474,6 +481,18 @@ js/
 | 3 | **`formatBuildingName(b)` in `config.js`:** Neue globale Hilfsfunktion — Schema: `[file_number] - WEG [street] [house_number]`; Legacy-Fallback: `b.name` |
 | 4 | Alle Module (`mod-objekte`, `mod-finanzen`, `mod-tickets`, `mod-news`, `mod-dashboard`, `mod-kontakte`, `mod-dokumente`, `mod-kalender`) auf `formatBuildingName()` umgestellt |
 | 5 | Alle buildings-Queries in betroffenen Modulen um `file_number, street, house_number` erweitert |
+
+---
+
+### Phase 6.10 — Verteilerschlüssel-Management & Einzelwirtschaftspläne
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Migration `phase610_distribution_keys`**: `distribution_keys`-Tabelle (building_id, name, type ENUM, total_value, heiz_split_percent, is_system_default), `distribution_key_units`-Tabelle (key_id+apartment_id UNIQUE, value), `accounts`-Erweiterung (primary_key_id, secondary_key_id, secondary_key_percentage), 4 Performance-Indexes, RLS-Policies (lesen=alle, schreiben=admin/manager) |
+| 2 | **`mod-objekte.js`: 5. Tab "Verteilerschlüssel"** im Gebäude-Detail: Liste aller Schlüssel (Name, Typ-Badge, Gesamtwert, Aktionen), "Neuer Schlüssel"-Modal (Name, 7 Typen, HeizKV-Split-%-Feld), "Werte"-Modal (Einheiten-Tabelle mit Wert-Inputs, Live-Summe, %-Anteile, Schnell-Befüllung aus MEA/m²/Einheiten), Auto-Initialisierung bei Erstellung |
+| 3 | **`mod-finanzen.js`: Schlüsselzuweisung** im Konto-bearbeiten-Modal: Verteilerschlüssel-Sektion mit primärem/sekundärem Schlüssel-Dropdown + %-Anteil für HeizKV-Split. Distribution Keys werden mit Kontenblatt geladen (`_finState.distKeys`) |
+| 4 | **`utils-pdf.js`: `generateEinzelwirtschaftsplanPDF(planId)`** — Bulk-PDF mit einer Seite pro Einheit. Spalten: Konto, Bezeichnung, Gesamt, Schlüssel, Anteil, monatlich. Berechnung über distribution_keys + unit values. Dual-Key-Support (HeizKV-Split). Eigentümer-Name, MEA/m²-Info, Hinweis-Box |
+| 5 | **`mod-finanzen.js`: "Einzelpläne PDF"-Button** neben bestehendem PDF-Button im Wirtschaftsplan-Header |
 
 ---
 
