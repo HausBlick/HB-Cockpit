@@ -3,6 +3,33 @@
 
 ---
 
+## 0. KI-Protokoll — Zwei-Datei-Architektur
+
+Dieses Projekt nutzt zwei KI-gesteuerte Dokumente mit strikter Aufgabenteilung:
+
+| Datei | Eigentümer | Inhalt | Wer pflegt sie |
+|---|---|---|---|
+| `GEMINI.md` | Gemini CLI | Strategisches Konzept, Vision, funktionale Anforderungen, Übergabe-Pakete | Niko + Gemini |
+| `CLAUDE.md` | Claude Code | Technischer Ist-Zustand: DB-Schema, JS-Module, RLS, Design-Tokens, Changelog | Niko + Claude |
+
+**Regeln für Claude:**
+- `GEMINI.md` **niemals verändern oder löschen** — nur lesen
+- Bei jeder Sitzung, in der `GEMINI.md` konsultiert wird: **zuerst den `0. Update-Log` prüfen** — dort dokumentiert Gemini alle Konzeptänderungen seit der letzten Übergabe
+- Nach erfolgreicher Umsetzung eines GEMINI.md-Pakets: **CLAUDE.md zwingend aktualisieren** (Changelog, Schema, Phasen-Status, Frontend-Struktur)
+- `CLAUDE.md` **immer im selben Commit** wie die zugehörigen Code-Änderungen mitcommiten
+
+**Übergabe-Format (Gemini → Claude):**
+```
+[UMSETZUNGS-ÜBERGABE FÜR CLAUDE]
+1. Ziel
+2. Anforderungen
+3. DB-Änderungen
+4. UI-Vorgaben
+5. Offene Entwickler-Entscheidungen
+```
+
+---
+
 ## 1. Projekt & URLs
 
 | | |
@@ -35,6 +62,12 @@
 - **Cards:** `rounded-[15px]`, `box-shadow: 0 4px 20px -2px rgba(0,0,0,0.03)`
 - **Inputs:** Hintergrund `#F9FAF8`, Border `#e5e7eb`, Focus-Ring hb-olive (10% Opacity)
 - **Typografie:** Inter (Google Fonts)
+
+### Frontend-Rahmenbedingungen (verbindlich für alle Module)
+- **Keine Fremdfarben:** Ausschließlich hb-olive, hb-offblack, hb-ultralight, hb-orange — kein Wildwuchs
+- **Konsistenz-Zwang:** Alle Module nutzen exakt dieselbe Formensprache — `rounded-[15px]`-Cards, identische Tabellen-Header, einheitliche Button-Styles (siehe Design-Konventionen unten)
+- **Mobile First & App-Feeling:** Mobile Ansicht ist keine zweitrangige Web-Ansicht — Sticky-Header, flüssige Swipe-Menüs, gut greifbare Touch-Zonen (mind. 44px)
+- **PWA-Ready:** Portal wird als Progressive Web App konzipiert — Nutzer können es als "echte App" auf iOS/Android-Homescreen installieren
 
 ---
 
@@ -133,16 +166,17 @@ js/
 - 2.1 Supabase-Anbindung (Mock-Daten ersetzt) ✅
 - 2.2 Neue Person anlegen ✅
 - 2.3 Person bearbeiten — 4-Tab-Formular (Stammdaten / Rollen / Portal / SEPA) ✅
-- 2.4 Einladungscode generieren 💡 (→ verschoben nach 7.4)
+- 2.4 Einladungscode generieren 💡 (→ verschoben nach 8.4)
 
-### ✅ Phase 3 — Objekte & Zuweisungen (ABGESCHLOSSEN)
+### 🔄 Phase 3 — Objekte & Zuweisungen (TEILWEISE ABGESCHLOSSEN)
 - 3.1 Eigentümer-Zuweisung (`ownerships`) ✅
 - 3.2 Mieter-Zuweisung (`tenancies`) ✅
 - 3.3 Gebäude-Detail: 4 Tabs (Stammdaten / Finanzen / Grundbuch / Technik & Fristen) ✅
 - 3.4 Einheiten-Detail: 5 Tabs + Breadcrumb + Tabellen-Ansicht ✅
 - 3.5 Zählerstände UI 💡 (→ verschoben nach 6.8)
+- 3.6 **Wartungsvertrags- & Schlüsselverwaltung** (Dienstleister-Fristen, Schließanlage-Dokumentation) 📋
 
-### ✅ Phase 4 — Kommunikation (ABGESCHLOSSEN)
+### 🔄 Phase 4 — Kommunikation (TEILWEISE ABGESCHLOSSEN)
 - 4.1 Schwarzes Brett (`mod-news.js`): Feed, Filter-Chips, Neu-Badge, Like-Toggle, Read-Tracking, Erstell-Modal ✅
 - 4.2 Ticket-System (`mod-tickets.js`): Zwei-Spalten-Layout, Chat-Bubbles, Info-Sidebar ✅
 - 4.3 Status-Flow: Offen → In Bearbeitung → Warte auf Rückmeldung → Wiedervorlage → Erledigt ✅
@@ -152,12 +186,16 @@ js/
 - 4.7 Eskalation owner → Verwalter mit Systemnachricht ✅
 - 4.8 Deep-Links: Gebäude, Einheit, Person aus Ticket-Detail ✅
 - 4.9 Mobile Navigation (3-Zustands-Flow) ✅
+- 4.10 **Massen-E-Mail** (Serienbrief-Funktion an alle Bewohner eines Objekts) 📋
+- 4.11 **Auftragsmanagement** (Auftrags-PDF für Handwerker direkt aus Ticket generieren) 📋
 
-### ✅ Phase 5 — Dokumente & Kontakte (TEILWEISE ABGESCHLOSSEN)
+### 🔄 Phase 5 — Dokumente & Kontakte (TEILWEISE ABGESCHLOSSEN)
 - 5.1 Dokumenten-Cloud — Migration `phase5_documents` ✅
 - 5.2 Dokumenten-Cloud — `mod-dokumente.js`: Upload, Download, Vorschau, Kategorien, Read-Tracking, Nav-Badge, Listen- & Baumansicht, Draft-Workflow, Auto-Naming, `document_links` für Personen-Scope ✅
 - 5.3 Kontaktbuch — `mod-kontakte.js` ✅
 - 5.4 Dashboard KPIs (rollenbasiert, Kennzahlen, Fristen-Widget) ✅
+- 5.5 **Bulk-Release** (Massen-Freigabe von Dokumenten, z.B. 150 Jahresabrechnungen gleichzeitig) 📋
+- 5.6 **ETV-Dokumente & Beschlusssammlung** (Einladungen/Protokolle generieren, gesetzliche Beschlusssammlung §24 Abs. 7 WEG) 📋
 
 ### 🔄 Phase 6 — Finanzen & Abrechnung
 *Kernmodul: Wirtschaftsplan, Hausgeldabrechnung, Erhaltungsrücklage.*
@@ -170,14 +208,26 @@ js/
 - 6.13 **SEPA-XML Export** (PAIN.008.003.02, IBAN-Vorschau, „Als bezahlt"-Markierung) ✅
 - 6.7 **Pro-rata-temporis Umlage** (zeitanteilige Abrechnung bei Mieterwechsel) 📋
 - 6.8 **Zählerstände UI** (aus Phase 3.5 verschoben, wird für Abrechnung benötigt) 📋
+- 6.9 **Official Letter Engine** (Abrechnungen, Pläne und Mahnungen als PDF mit Briefkopf und Firmendaten) 📋
 
-### 💡 Phase 7 — Automatisierung & Erweiterungen
+### 📋 Phase 7 — System, Einstellungen & Benachrichtigungen
+*Querschnitts-Modul: Konfiguration, E-Mail-Push, User-Profile, Audit, PWA.*
+- 7.1 **Admin-Einstellungen** (Firmenlogo, PDF-Briefkopf-Upload, Standard-Mahngebühr, Basiszins) 📋
+- 7.2 **E-Mail-Benachrichtigungen** (Trigger: neue Tickets, Statusänderungen, neu freigegebene Dokumente, News) 📋
+- 7.3 **Nutzer-Einstellungen** (Passwort ändern, Notification Opt-Ins je Trigger-Typ) 📋
+- 7.4 **System-Logs / Audit Trail** (revisionssichere Aktions-Historie für Admin: Wer hat wann was geändert?) 📋
+- 7.5 **In-App Hilfe & Onboarding** (Fragezeichen-Symbol je Modul → kontextbezogene Doku / Guided Tour) 📋
+- 7.6 **PWA-Implementierung** (`manifest.json`, Service Worker, Icons, Offline-Fallback — installierbar auf iOS/Android-Homescreen) 📋
+
+### 💡 Phase 8 — Automatisierung & Erweiterungen
 *Nach Projektabschluss — optionale Nachrüstung.*
-- 7.1 **Umlaufbeschluss-Modul** (digitale Abstimmung ohne Video, Protokoll-PDF) 💡
-- 7.2 **KI-Belegerfassung** (PDF-Upload → OCR via Google Document AI → Buchungsvorschlag) 💡
-- 7.3 **Messdienstleister CSV-Import** (Techem/Ista Ablesewerte als CSV importieren) 💡
-- 7.4 **Einladungscode UI** (aus Phase 2.4 verschoben) 💡
-- 7.5 **Kalender-Ausbau**: manuelle Einträge, Wartungstermine, iCal-Export (.ics) für Sync mit Google/Apple/Outlook 💡
+- 8.1 **Umlaufbeschluss-Modul** (digitale Abstimmung ohne Video, Protokoll-PDF) 💡
+- 8.2 **KI-Belegerfassung** (PDF-Upload → OCR via Google Document AI → Buchungsvorschlag) 💡
+- 8.3 **Messdienstleister CSV-Import** (Techem/Ista Ablesewerte als CSV importieren) 💡
+- 8.4 **Einladungscode UI** (aus Phase 2.4 verschoben) 💡
+- 8.5 **Kalender-Ausbau**: manuelle Einträge, Wartungstermine, iCal-Export (.ics) für Sync mit Google/Apple/Outlook 💡
+- 8.6 **Nebenkostenabrechnung** (Vermieter-Modul: umlegbare Kosten aus WEG-Abrechnung, landlord-spezifische Kosten, PDF-Export) 💡
+- 8.7 **Digitale Versammlungen** (hybride ETVs mit Video-Integration) 💡
 
 ---
 
@@ -203,15 +253,7 @@ js/
 | **Claude (Developer)** | Code (HTML/JS/SQL), Refactoring, Debugging, Supabase |
 | **Nutzer (Product Owner)** | Steuert Prozess, testet, transportiert zwischen Gemini & Claude |
 
-**Übergabe-Format (Gemini → Claude):**
-```
-[UMSETZUNGS-ÜBERGABE FÜR CLAUDE]
-1. Ziel
-2. Anforderungen
-3. DB-Änderungen
-4. UI-Vorgaben
-5. Offene Entwickler-Entscheidungen
-```
+→ Übergabe-Format und KI-Protokoll-Regeln: siehe **Abschnitt 0**.
 
 ---
 
