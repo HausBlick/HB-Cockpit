@@ -16,6 +16,7 @@ Regel für Claude: Nach der erfolgreichen Umsetzung eines Pakets aus der GEMINI.
 
 0. Update-Log
 
+- **Konzept-Erweiterung (Finanzen):** Einzelwirtschaftsplan inkl. PDF-Design und Bulk-Generierung (Master-PDF in einem Rutsch) als Teil der Verteilerschlüssel-Logik in Modul 4 hinzugefügt.
 - **Übergabe-Paket hinzugefügt:** Detaillierte Anforderungen für Admin-Einstellungen (7.1) und Official Letter Engine (6.9) am Ende des Dokuments zur Umsetzung für Claude hinterlegt.
 - **Frontend-Rahmenbedingungen hinzugefügt:** Strikte Vorgaben für Design-Konsistenz (Vermeidung von Wildwuchs), Mobile-First "App-Feeling" und PWA-Readiness etabliert.
 
@@ -139,7 +140,7 @@ Modul 4: Finanzen & Abrechnung (Das Herzstück)
 
 Echte Doppik & Kontenrahmen: GoBD-konformes Journal. Strikte Kategorisierung der Konten in "umlegbar" (Betriebskosten für Mieter) und "nicht umlegbar" (Verwaltergebühren, Instandhaltung, Rücklagenzuführung). Das ist die zwingende Basis für die spätere Nebenkostenabrechnung der Vermieter.
 
-Objektspezifische Verteilerschlüssel: Dynamische Anlage und Verwaltung individueller Schlüssel pro Gebäude (z.B. Verteilung nach speziellen Wasserzählern, Miteigentumsanteilen, Wohnfläche oder festen Beträgen).
+Objektspezifische Verteilerschlüssel & Einzelwirtschaftspläne: Dynamische Anlage und Verwaltung individueller Schlüssel pro Gebäude (z.B. Verteilung nach speziellen Wasserzählern, Miteigentumsanteilen, Wohnfläche oder festen Beträgen). Darauf aufbauend: Automatische Generierung von Einzelwirtschaftsplänen pro Eigentümer/Einheit inkl. PDF-Design und Bulk-Generierung (Konfiguration, Erzeugung und Zusammenführung in ein einziges Master-PDF in einem Rutsch).
 
 Automatischer Zahlungsabgleich (Banking): Matching von Bankumsätzen zu offenen Sollstellungen.
 
