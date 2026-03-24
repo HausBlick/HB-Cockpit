@@ -19,28 +19,22 @@ function _pdfDownload(bytes, filename) {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
-// Erstellt ein neues PDFDocument — mit Briefbogen als Hintergrund oder blank A4
+// Erstellt ein neues PDFDocument mit dem hochgeladenen Briefbogen als Hintergrund.
+// Wirft einen Fehler, wenn kein Briefbogen hinterlegt ist.
 async function _pdfCreateDoc(settings) {
-    const { PDFDocument } = PDFLib;
-    let pdfDoc, page;
-
-    if (settings.letterhead_pdf_url) {
-        try {
-            const resp = await fetch(settings.letterhead_pdf_url);
-            const templateBytes = await resp.arrayBuffer();
-            const templateDoc = await PDFDocument.load(templateBytes);
-            pdfDoc = await PDFDocument.create();
-            const [copied] = await pdfDoc.copyPages(templateDoc, [0]);
-            page = pdfDoc.addPage(copied);
-        } catch (e) {
-            console.warn('Briefbogen konnte nicht geladen werden, blank A4 wird verwendet.', e);
-            pdfDoc = await PDFDocument.create();
-            page   = pdfDoc.addPage([595.28, 841.89]);
-        }
-    } else {
-        pdfDoc = await PDFDocument.create();
-        page   = pdfDoc.addPage([595.28, 841.89]);
+    if (!settings.letterhead_pdf_url) {
+        throw new Error('NO_LETTERHEAD');
     }
+
+    const { PDFDocument } = PDFLib;
+    const resp = await fetch(settings.letterhead_pdf_url);
+    if (!resp.ok) throw new Error('FETCH_FAILED');
+
+    const templateBytes = await resp.arrayBuffer();
+    const templateDoc   = await PDFDocument.load(templateBytes);
+    const pdfDoc        = await PDFDocument.create();
+    const [copied]      = await pdfDoc.copyPages(templateDoc, [0]);
+    const page          = pdfDoc.addPage(copied);
 
     return { pdfDoc, page };
 }
@@ -166,16 +160,20 @@ async function generateMahnungPDF(noticeId) {
     if (!notice) { showToast('Mahnung nicht gefunden.', 'error'); return; }
 
     const { StandardFonts, rgb } = PDFLib;
-    const { pdfDoc, page } = await _pdfCreateDoc(settings);
+    let pdfDoc, page;
+    try {
+        ({ pdfDoc, page } = await _pdfCreateDoc(settings));
+    } catch (e) {
+        if (e.message === 'NO_LETTERHEAD')
+            showToast('Kein Briefbogen hinterlegt. Bitte unter Einstellungen → Briefpapier & Logo hochladen.', 'error');
+        else
+            showToast('Briefbogen konnte nicht geladen werden: ' + e.message, 'error');
+        return;
+    }
     const { height } = page.getSize();
 
     const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const reg  = await pdfDoc.embedFont(StandardFonts.Helvetica);
-
-    // Briefkopf (nur falls kein Briefbogen-PDF)
-    if (!settings.letterhead_pdf_url) {
-        await _pdfDrawFallbackHeader(page, pdfDoc, settings);
-    }
 
     // Absender über Adressfeld
     _pdfDrawSenderLine(page, reg, settings);
@@ -275,16 +273,21 @@ async function generateWirtschaftsplanPDF(planId) {
     if (!plan) { showToast('Wirtschaftsplan nicht gefunden.', 'error'); return; }
 
     const { StandardFonts, rgb } = PDFLib;
-    const { pdfDoc, page } = await _pdfCreateDoc(settings);
+    let pdfDoc, page;
+    try {
+        ({ pdfDoc, page } = await _pdfCreateDoc(settings));
+    } catch (e) {
+        if (e.message === 'NO_LETTERHEAD')
+            showToast('Kein Briefbogen hinterlegt. Bitte unter Einstellungen → Briefpapier & Logo hochladen.', 'error');
+        else
+            showToast('Briefbogen konnte nicht geladen werden: ' + e.message, 'error');
+        return;
+    }
     const { height } = page.getSize();
 
     const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const reg  = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const olive = rgb(0.408, 0.455, 0.318);
-
-    if (!settings.letterhead_pdf_url) {
-        await _pdfDrawFallbackHeader(page, pdfDoc, settings);
-    }
 
     _pdfDrawDate(page, reg, settings);
 
