@@ -222,6 +222,7 @@ js/
 - 6.8 **Zählerstände UI** (aus Phase 3.5 verschoben, wird für Abrechnung benötigt) 📋
 - 6.9 **Official Letter Engine** (Mahnung + Wirtschaftsplan als PDF via pdf-lib, Briefkopf-Integration) ✅
 - 6.10 **Verteilerschlüssel & Einzelwirtschaftspläne** (distribution_keys, Schlüsselzuweisung je Konto, Einzelplan-PDF Bulk) ✅
+- 6.10-B **Einzelwirtschaftsplan PDF-Design** (CI-konformes Redesign: Olive-Header, Info-Box, Zebra, rechtsbündig, Monats-Ableitung außerhalb Tabelle) ✅
 
 ### 🔄 Phase 7 — System, Einstellungen & Benachrichtigungen
 *Querschnitts-Modul: Konfiguration, E-Mail-Push, User-Profile, Audit, PWA.*
@@ -493,6 +494,18 @@ js/
 | 3 | **`mod-finanzen.js`: Schlüsselzuweisung** im Konto-bearbeiten-Modal: Verteilerschlüssel-Sektion mit primärem/sekundärem Schlüssel-Dropdown + %-Anteil für HeizKV-Split. Distribution Keys werden mit Kontenblatt geladen (`_finState.distKeys`) |
 | 4 | **`utils-pdf.js`: `generateEinzelwirtschaftsplanPDF(planId)`** — Bulk-PDF mit einer Seite pro Einheit. Spalten: Konto, Bezeichnung, Gesamt, Schlüssel, Anteil, monatlich. Berechnung über distribution_keys + unit values. Dual-Key-Support (HeizKV-Split). Eigentümer-Name, MEA/m²-Info, Hinweis-Box |
 | 5 | **`mod-finanzen.js`: "Einzelpläne PDF"-Button** neben bestehendem PDF-Button im Wirtschaftsplan-Header |
+
+---
+
+### Phase 6.10-B — Einzelwirtschaftsplan PDF-Design
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Meta-Header redesigned**: Titel größer (16pt, bold, hb-offblack), Objekt-Zeile (Aktenzeichen – WEG Straße – WE Nr – Lage) in mittelgrau, Info-Box mit hb-ultralight Hintergrund + 3pt olive Linksrand (Eigentümer bold + MEA/Fläche), Datum rechtsbündig auf Info-Box-Höhe |
+| 2 | **Haupttabelle neu**: Olive Header (`bg-hb-olive text-white`), 5 Spalten (Konto, Bezeichnung, Gesamt €, Schlüssel, Anteil €) — `mtl. (€)` entfernt. Zahlen rechtsbündig. Anteil >0 = bold hb-offblack, =0 = gray. Zebra-Muster (gerade weiß, ungerade hb-ultralight). Trennlinien olive/10 |
+| 3 | **Gesamtzeile & Hausgeld**: Summenzeile „Ihr Jahres-Hausgeld" mit olive/10 Hintergrund-Box, fett. Monatsableitung separat unterhalb als kompakte graue Zeile (nicht in Tabelle) |
+| 4 | **Rechtlicher Hinweis-Block**: hb-orange/10 Hintergrund, 1pt orange Border, rounded. Orange „i"-Icon-Kreis links. Text in hb-offblack |
+| 5 | **Layout**: Mehr Weißraum zwischen Sektionen, `drawRight()`-Hilfsfunktion für rechtsbündige Zahlen, konsistente Margins (20mm links, 15mm rechts) |
 
 ---
 
