@@ -16,6 +16,7 @@ Regel für Claude: Nach der erfolgreichen Umsetzung eines Pakets aus der GEMINI.
 
 0. Update-Log
 
+- **Übergabe-Paket hinzugefügt:** Detaillierte Anforderungen für Admin-Einstellungen (7.1) und Official Letter Engine (6.9) am Ende des Dokuments zur Umsetzung für Claude hinterlegt.
 - **Frontend-Rahmenbedingungen hinzugefügt:** Strikte Vorgaben für Design-Konsistenz (Vermeidung von Wildwuchs), Mobile-First "App-Feeling" und PWA-Readiness etabliert.
 
 
@@ -197,3 +198,40 @@ Digitale Versammlungen: Hybride ETVs (Video-Integration) im Portal.
 KI-Buchhaltung: KI-gestützte Belegerfassung (OCR) für automatische Buchungsvorschläge.
 
 API-Schnittstellen: Automatischer Datenabruf bei Techem, Ista & Co.
+
+---
+
+[UMSETZUNGS-ÜBERGABE FÜR CLAUDE]
+
+## Paket: Admin-Einstellungen (7.1) & Official Letter Engine (6.9)
+
+### 1. Ziel
+Die Hausverwaltung benötigt die Möglichkeit, ihre Unternehmens-Stammdaten (Logo, Firmenanschrift, rechtliche Angaben) zentral zu verwalten. Darauf aufbauend muss eine "Official Letter Engine" geschaffen werden, die in der Lage ist, aus den Daten des Finanzmoduls (Abrechnungen, Mahnungen, Pläne) rechtssichere PDFs mit dem offiziellen Briefkopf der Verwaltung zu generieren. Dies ist die zwingende Voraussetzung für den produktiven Einsatz der Finanzen.
+
+### 2. Anforderungen
+**A) Admin-Einstellungen (Modul `mod-settings.js`):**
+- **Zugriff:** Nur für die Rolle `admin`.
+- **Daten:** Erfassung von Firmenname, Straße, PLZ/Ort, Telefon, E-Mail, Website, Steuernummer, HRB, Geschäftsführer.
+- **Finanz-Defaults:** Festlegen von Standard-Werten wie `Standard-Mahngebühr` (z.B. 5,00 €) und `Basiszins` (z.B. 3,37%).
+- **Uploads:** Möglichkeit, ein Firmen-Logo (z.B. für das Portal-Header-Fallback) und ein offizielles Briefbogen-Hintergrund-PDF (A4) hochzuladen.
+
+**B) Official Letter Engine (`utils-pdf.js` oder in `mod-finanzen.js` integriert):**
+- **Client-Side PDF-Generierung:** Nutzung einer bewährten Library (z.B. `jspdf` via CDN) um die Serverkosten gering zu halten.
+- **Briefkopf-Integration:** Das System muss das vom Admin hochgeladene Briefbogen-PDF (oder eine generierte Kopf-/Fußzeile aus den Stammdaten) als Basis-Ebene für jedes Dokument nutzen.
+- **Adressfeld:** Exakte Positionierung des Empfänger-Adressfelds für Standard-DIN-Fensterbriefumschläge.
+- **Erste Use-Cases (MVP):** 
+  - Generierung einer Mahnung (aus `dunning_notices`).
+  - Generierung eines Wirtschaftsplans (`budget_plans`).
+
+### 3. DB-Änderungen (Supabase)
+- **Neue Tabelle `global_settings`:** (Oder Nutzung einer single-row table). Sollte Spalten für die Firmenstammdaten und Finanz-Defaults enthalten. RLS: Read für `admin/manager/owner/tenant`, Update nur für `admin`.
+- **Storage-Bucket Erweiterung:** Anpassung der Storage-Policies oder Schaffung eines speziellen Ordners in einem Bucket (z.B. `public_assets` oder im bestehenden `documents` Bucket) für das Logo und das Briefbogen-PDF.
+
+### 4. UI-Vorgaben
+- **Neues Navigations-Element:** "Einstellungen" (nur für Admins sichtbar, idealerweise unten in der Sidebar platziert).
+- **Settings-Dashboard:** Aufgeteilt in klare Sektionen (Cards) -> "Unternehmensdaten", "Finanz-Standardwerte", "Briefpapier & Logo". Einhaltung der strikten `hb-olive` Formensprache (`rounded-[15px]`).
+- **PDF-Generierung:** Die Erzeugung der PDFs sollte über einen Button in den entsprechenden Finanz-Tabs (z.B. "Mahnung als PDF herunterladen") ausgelöst werden, idealerweise mit einem Loading-Spinner, da die PDF-Generierung kurz dauern kann.
+
+### 5. Offene Entwickler-Entscheidungen (Claude)
+- **PDF-Library:** Entscheidung für eine leichtgewichtige Client-Side PDF Library, die gut via CDN funktioniert und idealerweise ein bestehendes PDF als Hintergrund (Template) laden kann. (Empfehlung prüfen: `pdf-lib` oder `html2pdf.js`).
+- **Speicherung Settings:** Soll `global_settings` eine Tabelle mit exakt einer Zeile (ID=1) sein, oder ein Key-Value Store? (Eine strukturierte Single-Row-Tabelle ist für Typisierung oft robuster).
