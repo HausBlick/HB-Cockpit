@@ -378,10 +378,17 @@ async function generateWirtschaftsplanPDF(planId) {
 let _interFontsCache = null;
 async function _pdfLoadInterFonts(pdfDoc) {
     if (!_interFontsCache) {
+        // Resolve base path from current page location (works on GitHub Pages & local)
+        const base = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
+        async function loadFont(file) {
+            const resp = await fetch(base + 'fonts/' + file);
+            if (!resp.ok) throw new Error(`Font ${file}: HTTP ${resp.status}`);
+            return resp.arrayBuffer();
+        }
         const [regBytes, semiBytes, boldBytes] = await Promise.all([
-            fetch('fonts/Inter-Regular.ttf').then(r => r.arrayBuffer()),
-            fetch('fonts/Inter-SemiBold.ttf').then(r => r.arrayBuffer()),
-            fetch('fonts/Inter-Bold.ttf').then(r => r.arrayBuffer()),
+            loadFont('Inter-Regular.ttf'),
+            loadFont('Inter-SemiBold.ttf'),
+            loadFont('Inter-Bold.ttf'),
         ]);
         _interFontsCache = { regBytes, semiBytes, boldBytes };
     }
