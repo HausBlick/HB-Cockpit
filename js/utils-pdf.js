@@ -458,6 +458,7 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
     const templateDoc   = await PDFDocument.load(templateBytes);
 
     const pdfDoc = await PDFDocument.create();
+    pdfDoc.registerFontkit(fontkit);
 
     // Embed Inter fonts (Regular 400, SemiBold 600, Bold 700)
     let fReg, fSemi, fBold;
