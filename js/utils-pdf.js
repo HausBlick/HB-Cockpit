@@ -659,21 +659,32 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
         y -= summRowH + 14;
 
         // ── BLOCK 3: UMLAGESCHLÜSSEL-TABELLE ────────────────────
+        // Column widths in mm → pt (1mm ≈ 2.835pt):
+        // Nr 10mm(28pt) | Schlüssel 42mm(119pt) | Typ 22mm(62pt) | Zeitraum 35mm(99pt) | Tage 12mm(34pt) | Gesamt 25mm(71pt) | Anteil 22mm(62pt) = 168mm
         const usedKeys = collectUsedKeys(apt.id);
 
         page.drawText('Umlageschlüssel', { x: mLeft, y, size: 9, font: fBold, color: offblack });
         y -= 16;
 
         const dkHeaderH = 18;
-        const dkRowH    = 14;
+        const dkBaseRowH = 14;
+        // Absolute column positions (left edge for left-aligned, right edge for right-aligned)
+        const dk0 = mLeft + 2;          // Nr. left
+        const dk1 = mLeft + 30;         // Schlüssel left
+        const dk2 = mLeft + 149;        // Umlage-Typ left
+        const dk3 = mLeft + 211;        // Zeitraum left
+        const dk4r = mLeft + 344;       // Tage right edge
+        const dk5r = mLeft + 415;       // Gesamtumlage right edge
+        const dk6r = mRight - 2;        // Ihr Anteil right edge
+
         const dkCols = [
-            { x: mLeft + 4,              label: 'Nr.',           align: 'left' },
-            { x: mLeft + 30,             label: 'Schlüssel',     align: 'left' },
-            { x: mLeft + contentW * 0.35, label: 'Umlage-Typ',  align: 'left' },
-            { x: mLeft + contentW * 0.52, label: 'Zeitraum',     align: 'left' },
-            { x: mLeft + contentW * 0.66, label: 'Tage',         align: 'right' },
-            { x: mLeft + contentW * 0.80, label: 'Gesamtumlage', align: 'right' },
-            { x: mRight - 4,              label: 'Ihr Anteil',   align: 'right' },
+            { x: dk0,  label: 'Nr.',           align: 'left' },
+            { x: dk1,  label: 'Schlüssel',     align: 'left' },
+            { x: dk2,  label: 'Umlage-Typ',    align: 'left' },
+            { x: dk3,  label: 'Zeitraum',       align: 'left' },
+            { x: dk4r, label: 'Tage',           align: 'right' },
+            { x: dk5r, label: 'Gesamtumlage',   align: 'right' },
+            { x: dk6r, label: 'Ihr Anteil',     align: 'right' },
         ];
         drawTableHeader(page, y, dkCols, dkHeaderH);
         y -= dkHeaderH + 2;
@@ -684,42 +695,48 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
             const uk = usedKeys[ki];
 
             if (ki % 2 === 1) {
-                page.drawRectangle({ x: mLeft, y: y - 4, width: contentW, height: dkRowH, color: rgb(0.976, 0.98, 0.973) });
+                page.drawRectangle({ x: mLeft, y: y - 4, width: contentW, height: dkBaseRowH, color: rgb(0.976, 0.98, 0.973) });
             }
 
-            page.drawText(`${uk.nr}`, { x: mLeft + 4, y, size: 7.5, font: fReg, color: gray40 });
-            page.drawText(uk.key.name.substring(0, 20), { x: mLeft + 30, y, size: 7.5, font: fReg, color: offblack });
-            page.drawText(typeLabels[uk.key.type] || uk.key.type, { x: mLeft + contentW * 0.35, y, size: 7.5, font: fReg, color: gray50 });
-            page.drawText(zeitraum, { x: mLeft + contentW * 0.52, y, size: 7, font: fReg, color: gray50 });
-            drawR(page, '365', mLeft + contentW * 0.66, y, 7.5, fReg, gray50);
-            drawR(page, eur(uk.total), mLeft + contentW * 0.80, y, 7.5, fReg, gray40);
-            drawR(page, eur(uk.unitVal), mRight - 4, y, 7.5, fSemi, offblack);
+            page.drawText(`${uk.nr}`,                          { x: dk0, y, size: 7.5, font: fReg, color: gray40 });
+            page.drawText(uk.key.name,                          { x: dk1, y, size: 7.5, font: fReg, color: offblack });
+            page.drawText(typeLabels[uk.key.type] || uk.key.type, { x: dk2, y, size: 7.5, font: fReg, color: gray50 });
+            page.drawText(zeitraum,                              { x: dk3, y, size: 7,   font: fReg, color: gray50 });
+            drawR(page, '365',           dk4r, y, 7.5, fReg,  gray50);
+            drawR(page, eur(uk.total),   dk5r, y, 7.5, fReg,  gray40);
+            drawR(page, eur(uk.unitVal), dk6r, y, 7.5, fSemi, offblack);
 
             page.drawLine({ start: { x: mLeft, y: y - 4 }, end: { x: mRight, y: y - 4 }, thickness: 0.3, color: rgb(0.88, 0.89, 0.86) });
-            y -= dkRowH;
+            y -= dkBaseRowH;
         }
 
         y -= 14;
 
         // ── BLOCK 4: VERTEILUNGSERGEBNIS (Kostentabelle) ────────
+        // Column widths in mm → pt:
+        // Konto 14mm(40pt) | Bezeichnung 52mm(147pt) | Schlüssel 42mm(119pt) | Gesamtkosten 28mm(79pt) | Ihr Anteil 28mm(79pt) = 164mm
         page.drawText('Verteilungsergebnis', { x: mLeft, y, size: 9, font: fBold, color: offblack });
         y -= 16;
 
         const costHeaderH = 18;
-        const costRowH    = 15;
-        // Column positions: Konto ~12%, Bezeichnung ~33%, Schlüssel ~25%, Gesamtkosten, Ihr Anteil
-        const cKonto  = mLeft + 4;
-        const cBez    = mLeft + contentW * 0.12;
-        const cKey    = mLeft + contentW * 0.45;
-        const cGesamt = mLeft + contentW * 0.74;
-        const cAnteil = mRight - 4;
+        const costLineH   = 10; // line height for wrapped text
+        const costPadBot  = 4;  // padding below text before divider
+
+        // Absolute column positions
+        const cKonto  = mLeft + 2;       // left
+        const cBez    = mLeft + 42;      // left, wraps within 147pt
+        const cBezW   = 147;             // max width for Bezeichnung
+        const cKey    = mLeft + 189;     // left, wraps within 119pt
+        const cKeyW   = 119;             // max width for Schlüssel
+        const cGesamtR = mLeft + 387;    // right edge for Gesamtkosten
+        const cAnteilR = mRight - 2;     // right edge for Ihr Anteil
 
         const costCols = [
-            { x: cKonto,  label: 'Konto',        align: 'left' },
-            { x: cBez,    label: 'Bezeichnung',   align: 'left' },
-            { x: cKey,    label: 'Schlüssel',     align: 'left' },
-            { x: cGesamt, label: 'Gesamtkosten',  align: 'right' },
-            { x: cAnteil, label: 'Ihr Anteil',    align: 'right' },
+            { x: cKonto,    label: 'Konto',        align: 'left' },
+            { x: cBez,      label: 'Bezeichnung',   align: 'left' },
+            { x: cKey,      label: 'Schlüssel',     align: 'left' },
+            { x: cGesamtR,  label: 'Gesamtkosten',  align: 'right' },
+            { x: cAnteilR,  label: 'Ihr Anteil',    align: 'right' },
         ];
         drawTableHeader(page, y, costCols, costHeaderH);
         y -= costHeaderH + 2;
@@ -740,10 +757,10 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
             let sectionTotal = 0;
             let sectionShare = 0;
 
-            // Section header
-            page.drawRectangle({ x: mLeft, y: y - 3, width: contentW, height: 14, color: rgb(0.94, 0.95, 0.93) });
+            // Section header (full-width colspan, olive/10 bg)
+            page.drawRectangle({ x: mLeft, y: y - 3, width: contentW, height: 15, color: rgb(0.94, 0.95, 0.93) });
             page.drawText(label, { x: mLeft + 4, y: y + 1, size: 7.5, font: fSemi, color: olive });
-            y -= 16;
+            y -= 17;
 
             for (const item of items) {
                 if (y < 80) break;
@@ -752,31 +769,51 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
                 sectionTotal += planned;
                 sectionShare += share;
 
+                // Word-wrap Bezeichnung and Schlüssel to calculate dynamic row height
+                const bezText = item.account?.account_name || '–';
+                const bezLines = _pdfSplitText(bezText, fReg, 7.5, cBezW);
+                const keyLines = _pdfSplitText(keyName, fReg, 7, cKeyW);
+                const maxLines = Math.max(bezLines.length, keyLines.length, 1);
+                const rowH = maxLines * costLineH + costPadBot;
+
                 // Zebra
                 if (ri % 2 === 1) {
-                    page.drawRectangle({ x: mLeft, y: y - 4, width: contentW, height: costRowH, color: rgb(0.976, 0.98, 0.973) });
+                    page.drawRectangle({ x: mLeft, y: y - costPadBot, width: contentW, height: rowH, color: rgb(0.976, 0.98, 0.973) });
                 }
 
+                // Konto (single line)
                 page.drawText(item.account?.account_number || '–', { x: cKonto, y, size: 7.5, font: fReg, color: gray40 });
-                page.drawText((item.account?.account_name || '–').substring(0, 30), { x: cBez, y, size: 7.5, font: fReg, color: offblack });
-                page.drawText(keyName.substring(0, 22), { x: cKey, y, size: 7, font: fReg, color: gray50 });
-                drawR(page, eur(planned), cGesamt, y, 7.5, fReg, gray40);
 
+                // Bezeichnung (wrapped)
+                bezLines.forEach((line, li) => {
+                    page.drawText(line, { x: cBez, y: y - li * costLineH, size: 7.5, font: fReg, color: offblack });
+                });
+
+                // Schlüssel (wrapped, 7pt)
+                keyLines.forEach((line, li) => {
+                    page.drawText(line, { x: cKey, y: y - li * costLineH, size: 7, font: fReg, color: gray50 });
+                });
+
+                // Gesamtkosten (right-aligned, first line)
+                drawR(page, eur(planned), cGesamtR, y, 7.5, fReg, gray40);
+
+                // Ihr Anteil (right-aligned, bold if > 0)
                 const shareFont  = share > 0 ? fSemi : fReg;
                 const shareColor = share > 0 ? offblack : rgb(0.6, 0.6, 0.6);
-                drawR(page, eur(share), cAnteil, y, 7.5, shareFont, shareColor);
+                drawR(page, eur(share), cAnteilR, y, 7.5, shareFont, shareColor);
 
-                page.drawLine({ start: { x: mLeft, y: y - 4 }, end: { x: mRight, y: y - 4 }, thickness: 0.3, color: rgb(0.88, 0.89, 0.86) });
-                y -= costRowH;
+                // Divider
+                page.drawLine({ start: { x: mLeft, y: y - rowH + costPadBot }, end: { x: mRight, y: y - rowH + costPadBot }, thickness: 0.3, color: rgb(0.88, 0.89, 0.86) });
+                y -= rowH;
                 ri++;
             }
 
-            // Subtotal
-            page.drawRectangle({ x: mLeft, y: y - 3, width: contentW, height: 14, color: rgb(0.94, 0.95, 0.93) });
+            // Subtotal (full-width colspan)
+            page.drawRectangle({ x: mLeft, y: y - 3, width: contentW, height: 15, color: rgb(0.94, 0.95, 0.93) });
             page.drawText(`Zwischensumme ${label}`, { x: mLeft + 4, y: y + 1, size: 7.5, font: fSemi, color: offblack });
-            drawR(page, eur(sectionTotal), cGesamt, y + 1, 7.5, fSemi, gray40);
-            drawR(page, eur(sectionShare), cAnteil, y + 1, 7.5, fBold, olive);
-            y -= 16;
+            drawR(page, eur(sectionTotal), cGesamtR, y + 1, 7.5, fSemi, gray40);
+            drawR(page, eur(sectionShare), cAnteilR, y + 1, 7.5, fBold, olive);
+            y -= 17;
 
             return { y, ri, total: sectionTotal, share: sectionShare };
         }
@@ -793,11 +830,11 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
             y = res.y; costIdx = res.ri; grandTotal += res.total; grandShare += res.share;
         }
 
-        // Grand total row
+        // Grand total row (full-width, olive bg)
         page.drawRectangle({ x: mLeft, y: y - 4, width: contentW, height: 18, color: olive });
         page.drawText('Gesamt Jahres-Hausgeld', { x: mLeft + 4, y: y, size: 8, font: fBold, color: white });
-        drawR(page, eur(grandTotal) + ' €', cGesamt, y, 8, fBold, white);
-        drawR(page, eur(grandShare) + ' €', cAnteil, y, 8, fBold, white);
+        drawR(page, eur(grandTotal) + ' €', cGesamtR, y, 8, fBold, white);
+        drawR(page, eur(grandShare) + ' €', cAnteilR, y, 8, fBold, white);
         y -= 24;
 
         // ── BLOCK 5: RECHTLICHER HINWEIS ────────────────────────
