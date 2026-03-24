@@ -504,9 +504,9 @@ js/
 | 1 | **Inter-Font eingebettet**: `_pdfLoadInterFonts()` lädt Inter Regular 400, SemiBold 600, Bold 700 als TTF via `fonts/Inter-*.ttf`, cached nach erstem Laden. Kein Helvetica-Fallback im Einzelwirtschaftsplan |
 | 2 | **Block 1 — Meta-Header**: Eigentümer-Name (SemiBold) + Adresse (Street, PLZ/Ort) links. Rechts: 6-zeiliger Info-Block (Datum, WP-Jahr, Einheit, Gebäude, MEA, Wohnfläche) als Key-Value rechtsbündig |
 | 3 | **Block 2 — Hausgeld-Summary**: 3-spaltige Tabelle (Hausgeld, Objekt gesamt, Ihr Anteil), olive Header. Jahres-Hausgeld + Monatliches Hausgeld (olive hervorgehoben). Monatlicher Betrag NUR hier, nicht in Kostentabelle |
-| 4 | **Block 3 — Umlageschlüssel-Tabelle**: 7 Spalten mit festen mm-Breiten (Nr 10mm, Schlüssel 42mm, Typ 22mm, Zeitraum 35mm, Tage 12mm, Gesamt 25mm, Anteil 22mm = 168mm). Olive Header, Zebra. Sammelt automatisch alle genutzten Verteilerschlüssel inkl. Sekundärschlüssel |
-| 5 | **Block 4 — Verteilungsergebnis**: Feste mm-Breiten (Konto 14mm, Bezeichnung 52mm, Schlüssel 42mm, Gesamtkosten 28mm, Anteil 28mm = 164mm). **Dynamische Zeilenhöhe** mit Textumbruch via `_pdfSplitText` für Bezeichnung und Schlüssel. Sektionszeilen (umlagefähig/nicht umlagefähig) als full-width colspan mit olive/10 Hintergrund + olive SemiBold-Text. Zebra, rechtsbündig. Grand-Total olive bg weiß |
-| 6 | **Block 5 — Rechtlicher Hinweis**: Dynamische Box mit orange Border, 8pt Inter, passt Höhe an Textlänge an |
+| 4 | **Block 3 — Umlageschlüssel-Tabelle**: 7 Spalten mit festen mm-Breiten (Nr 10, Schlüssel 42, Typ 22, Zeitraum 35, Tage 12, Gesamt 25, Anteil 22 = 168mm). **Pre-Kalkulation**: Schlüssel-Spalte max 2 Zeilen mit Textumbruch via `wrapMax()`, dynamische Zeilenhöhe. Olive Header, Zebra |
+| 5 | **Block 4 — Verteilungsergebnis**: Feste mm-Breiten (Konto 13, Bezeichnung 50, Schlüssel 40, Gesamtkosten 30, Anteil 30 = 163mm). **Pre-Kalkulation aller Zeilen** vor Zeichnen: `wrapMax()` für Bezeichnung + Schlüssel (max 2 Zeilen, Truncation mit „…"), akkumulierte y-Position. Sektionszeilen full-width colspan olive/10. Zebra, rechtsbündig |
+| 6 | **Block 5 — Rechtlicher Hinweis**: Dynamische Box-Höhe (6pt Padding), 9.5pt Inter, volle Breite. Orange-gefüllter Kreis (10pt) mit weißem „i" (7pt Bold) links, 6pt Gap zum Text. Box-Hintergrund hb-orange/8%, Border 1pt hb-orange |
 | 7 | **Font-Files**: `fonts/Inter-Regular.ttf`, `fonts/Inter-SemiBold.ttf`, `fonts/Inter-Bold.ttf` zum Projekt hinzugefügt |
 
 ---
