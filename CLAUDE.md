@@ -222,7 +222,7 @@ js/
 - 6.8 **Zählerstände UI** (aus Phase 3.5 verschoben, wird für Abrechnung benötigt) 📋
 - 6.9 **Official Letter Engine** (Mahnung + Wirtschaftsplan als PDF via pdf-lib, Briefkopf-Integration) ✅
 - 6.10 **Verteilerschlüssel & Einzelwirtschaftspläne** (distribution_keys, Schlüsselzuweisung je Konto, Einzelplan-PDF Bulk) ✅
-- 6.10-B **Einzelwirtschaftsplan PDF-Design** (CI-konformes Redesign: Olive-Header, Info-Box, Zebra, rechtsbündig, Monats-Ableitung außerhalb Tabelle) ✅
+- 6.10-B **Einzelwirtschaftsplan PDF-Redesign** (Inter-Font, 5-Block-Aufbau: Meta-Header, Hausgeld-Summary, Umlageschlüssel, Verteilungsergebnis mit Sektionen, Hinweis-Box) ✅
 
 ### 🔄 Phase 7 — System, Einstellungen & Benachrichtigungen
 *Querschnitts-Modul: Konfiguration, E-Mail-Push, User-Profile, Audit, PWA.*
@@ -497,15 +497,17 @@ js/
 
 ---
 
-### Phase 6.10-B — Einzelwirtschaftsplan PDF-Design
+### Phase 6.10-B — Einzelwirtschaftsplan PDF-Redesign (v2)
 
 | # | Was wurde gemacht |
 |---|---|
-| 1 | **Meta-Header redesigned**: Titel größer (16pt, bold, hb-offblack), Objekt-Zeile (Aktenzeichen – WEG Straße – WE Nr – Lage) in mittelgrau, Info-Box mit hb-ultralight Hintergrund + 3pt olive Linksrand (Eigentümer bold + MEA/Fläche), Datum rechtsbündig auf Info-Box-Höhe |
-| 2 | **Haupttabelle neu**: Olive Header (`bg-hb-olive text-white`), 5 Spalten (Konto, Bezeichnung, Gesamt €, Schlüssel, Anteil €) — `mtl. (€)` entfernt. Zahlen rechtsbündig. Anteil >0 = bold hb-offblack, =0 = gray. Zebra-Muster (gerade weiß, ungerade hb-ultralight). Trennlinien olive/10 |
-| 3 | **Gesamtzeile & Hausgeld**: Summenzeile „Ihr Jahres-Hausgeld" mit olive/10 Hintergrund-Box, fett. Monatsableitung separat unterhalb als kompakte graue Zeile (nicht in Tabelle) |
-| 4 | **Rechtlicher Hinweis-Block**: hb-orange/10 Hintergrund, 1pt orange Border, rounded. Orange „i"-Icon-Kreis links. Text in hb-offblack |
-| 5 | **Layout**: Mehr Weißraum zwischen Sektionen, `drawRight()`-Hilfsfunktion für rechtsbündige Zahlen, konsistente Margins (20mm links, 15mm rechts) |
+| 1 | **Inter-Font eingebettet**: `_pdfLoadInterFonts()` lädt Inter Regular 400, SemiBold 600, Bold 700 als TTF via `fonts/Inter-*.ttf`, cached nach erstem Laden. Kein Helvetica-Fallback im Einzelwirtschaftsplan |
+| 2 | **Block 1 — Meta-Header**: Eigentümer-Name (SemiBold) + Adresse (Street, PLZ/Ort) links. Rechts: 6-zeiliger Info-Block (Datum, WP-Jahr, Einheit, Gebäude, MEA, Wohnfläche) als Key-Value rechtsbündig |
+| 3 | **Block 2 — Hausgeld-Summary**: 3-spaltige Tabelle (Hausgeld, Objekt gesamt, Ihr Anteil), olive Header. Jahres-Hausgeld + Monatliches Hausgeld (olive hervorgehoben). Monatlicher Betrag NUR hier, nicht in Kostentabelle |
+| 4 | **Block 3 — Umlageschlüssel-Tabelle**: 7 Spalten (Nr., Schlüssel, Umlage-Typ, Zeitraum, Tage, Gesamtumlage, Ihr Anteil), olive Header, Zebra-Muster. Sammelt automatisch alle vom WP genutzten Verteilerschlüssel inkl. Sekundärschlüssel |
+| 5 | **Block 4 — Verteilungsergebnis**: Gruppierung in „Umlagefähige Kosten" (expense) und „Nicht umlagefähige Kosten" (andere account_types) mit Zwischensummen. 5 Spalten (Konto ~12%, Bezeichnung ~33%, Schlüssel ~25% 7pt, Gesamtkosten, Ihr Anteil). Zebra, rechtsbündig. Grand-Total-Zeile in olive bg mit weißem Text |
+| 6 | **Block 5 — Rechtlicher Hinweis**: Dynamische Box mit orange Border, 8pt Inter, passt Höhe an Textlänge an |
+| 7 | **Font-Files**: `fonts/Inter-Regular.ttf`, `fonts/Inter-SemiBold.ttf`, `fonts/Inter-Bold.ttf` zum Projekt hinzugefügt |
 
 ---
 
