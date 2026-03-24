@@ -504,9 +504,11 @@ js/
 | 1 | **Inter-Font eingebettet**: `_pdfLoadInterFonts()` lädt Inter Regular 400, SemiBold 600, Bold 700 als TTF via `fonts/Inter-*.ttf`, cached nach erstem Laden. Kein Helvetica-Fallback im Einzelwirtschaftsplan |
 | 2 | **Block 1 — Meta-Header**: Eigentümer-Name (SemiBold) + Adresse (Street, PLZ/Ort) links. Rechts: 6-zeiliger Info-Block (Datum, WP-Jahr, Einheit, Gebäude, MEA, Wohnfläche) als Key-Value rechtsbündig |
 | 3 | **Block 2 — Hausgeld-Summary**: 3-spaltige Tabelle (Hausgeld, Objekt gesamt, Ihr Anteil), olive Header. Jahres-Hausgeld + Monatliches Hausgeld (olive hervorgehoben). Monatlicher Betrag NUR hier, nicht in Kostentabelle |
-| 4 | **Block 3 — Umlageschlüssel-Tabelle**: Pflicht-Algorithmus: `splitLines()` für Schlüssel-Spalte (max 2 Zeilen, "…"-Truncation), `drawCell()`/`drawCellSingle()`/`drawCellR()` für vertikale Zentrierung. Pre-Kalkulation aller Zeilenhöhen (`nLines * lineH + padV*2`), dann akkumuliertes Zeichnen. lineH = `fontSize * 1.35`, padV = 5pt |
-| 5 | **Block 4 — Verteilungsergebnis**: Pflicht-Algorithmus identisch. Bezeichnung 9pt max 2 Zeilen, Schlüssel 7.5pt/38mm max 2 Zeilen. Sektionszeilen fixed 16pt, Zwischensummen fixed 18pt (fett). Grand-Total 20pt olive. Alle Zellen: Text innerhalb Zelle via `cellTop - padV - lineH` Baseline-Berechnung |
-| 6 | **Block 5 — Rechtlicher Hinweis**: Dynamische Box-Höhe = `textH + padV*2` (6pt). 9.5pt Inter, lineH=13pt. Orange-Kreis (10pt) mit "i" (7pt Bold), zentriert zur ersten Textzeile. Textbreite = contentW - iconArea - 12pt. Box: orange/8% bg, 1pt border |
+| 4 | **Block 3 — Umlageschlüssel-Tabelle**: `splitLines()` + Pre-Kalkulation, `drawCell()`/`drawCellR()`. lineH = `fontSize*1.3`, padV=4pt, minRowH=18pt. Header via `drawTableHeader()` mit Mindesthöhe 22pt |
+| 5 | **Block 4 — Verteilungsergebnis**: Bezeichnung 9pt, Schlüssel 7.5pt/38mm, je max 2 Zeilen. Sektionszeilen 16pt, Zwischensummen 20pt, Grand-Total 22pt olive. `fmt()` für exakte 2-Dezimal-EUR-Formatierung |
+| 6 | **Block 5 — Rechtlicher Hinweis**: boxH = `zeilen * lineH + 12` (strikt). verfügbreite = contentW - 24 (16pt Icon + 8pt Gap). 9.5pt Inter, lineH=13pt |
+| 8 | **Hausgeld-Summary**: Zeile 1 „Jahres" dezent grau (#9ca3af, 8.5pt/9pt). Zeile 2 „Monatlich" prominent (10pt SemiBold, Anteil 11pt Bold olive, 24pt Höhe, hb-ultralight bg) |
+| 9 | **Betragsformatierung**: `fmt()` mit `Math.round((v+EPSILON)*100)/100`, `maximumFractionDigits:2` + ' €' — gilt für JEDEN Betrag im PDF |
 | 7 | **Font-Files**: `fonts/Inter-Regular.ttf`, `fonts/Inter-SemiBold.ttf`, `fonts/Inter-Bold.ttf` zum Projekt hinzugefügt |
 
 ---
