@@ -624,6 +624,13 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
 
         let y = dividerY - 14;
 
+        // Shared table constants (must be before Block 2 which uses them)
+        const padV = 4;          // vertical cell padding
+        const minRowH = 18;      // minimum row height
+        const sectionH  = 16;    // section header height
+        const subtotalH = 20;    // subtotal row height
+        const grandTotalH = 22;  // grand total row height
+
         // ── BLOCK 2: HAUSGELD-SUMMARY ───────────────────────────
         // Pre-calculate totals for this apartment
         let totalPlanned = 0;
@@ -667,12 +674,6 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
         y -= summRow2H + 14;
 
         // ── TABLE DRAWING ENGINE (Pflicht-Algorithmus) ────────────
-        // Shared constants (FIX 3: unified row heights)
-        const padV = 4;          // vertical cell padding
-        const minRowH = 18;      // minimum row height
-        const sectionH  = 16;    // section header height
-        const subtotalH = 20;    // subtotal row height
-        const grandTotalH = 22;  // grand total row height
 
         // Split text into lines that fit maxWidth; max N lines, truncate with "…"
         function splitLines(text, font, fs, maxW, maxL) {
