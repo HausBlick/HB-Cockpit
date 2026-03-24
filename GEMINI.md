@@ -1,17 +1,16 @@
-GEMINI.md — HB-Mieterportal (Master Manifest)
-
 Dieses Dokument ist die "Single Source of Truth" für das strategische Gesamtkonzept, die Vision und alle geplanten Workflows.
 
-0. 🤖 KI-Protokoll: Workflow für Gemini & Claude
+🤖 KI-Protokoll: Workflow für Gemini & Claude
 
-Anweisung an Claude Code (Terminal) & Gemini (Web):
+Anweisung an Claude Code (Terminal) & Gemini (Gemini CLI):
 Dieses Projekt nutzt eine Zwei-Datei-Architektur zur Steuerung der KIs:
 
-GEMINI.md (Dieses Dokument): Enthält das strategische Konzept, die Vision, funktionale Anforderungen und die nächsten Umsetzungs-Pakete (Übergaben).
+GEMINI.md (Dieses Dokument): Enthält das strategische Konzept, die Vision, funktionale Anforderungen und die nächsten Umsetzungs-Pakete (Übergaben). Hieran arbeitet der Projektadmin (Niko) immer mit Gemini CLI.
+Gemini gibt zu Änderungen immer eine kurze Übersicht über neue Inhalte im Konzeot unter dem Punkt "0. Update-Log", damit Claude immer gleich Sieht, was sich an dem gesamten Konzept geändert hat.
 
 Regel für Claude: Claude liest dieses Dokument, um zu verstehen, was gebaut werden soll und wie die UX gedacht ist. Claude darf dieses Dokument niemals verändern oder löschen.
 
-CLAUDE.md (Technisches Logbuch): Enthält den exakten technischen Ist-Zustand (DB-Schema, Farb-Tokens, implementierte JS-Module, RLS-Policies).
+CLAUDE.md (Technisches Logbuch): Enthält den exakten technischen Ist-Zustand (DB-Schema, Farb-Tokens, implementierte JS-Module, RLS-Policies). Hieran arbeitet der Projektadmin (Niko) immer mit Claude Code.
 
 Regel für Claude: Nach der erfolgreichen Umsetzung eines Pakets aus der GEMINI.md MUSS Claude zwingend das Changelog und den technischen Stand in der CLAUDE.md aktualisieren.
 
@@ -188,7 +187,3 @@ Digitale Versammlungen: Hybride ETVs (Video-Integration) im Portal.
 KI-Buchhaltung: KI-gestützte Belegerfassung (OCR) für automatische Buchungsvorschläge.
 
 API-Schnittstellen: Automatischer Datenabruf bei Techem, Ista & Co.
-
-[UMSETZUNGS-ÜBERGABE FÜR CLAUDE]
-
-(Hier fügen wir ab jetzt immer den nächsten Umsetzungs-Block für Claude ein)
