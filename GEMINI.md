@@ -16,6 +16,7 @@ Regel für Claude: Nach der erfolgreichen Umsetzung eines Pakets aus der GEMINI.
 
 0. Update-Log
 
+- **Übergabe-Paket hinzugefügt (6.10):** Neues Paket für Verteilerschlüssel-Management, HeizKV-Splits und Einzelwirtschaftspläne am Ende des Dokuments zur Umsetzung hinterlegt. Empfehlungen aus dem Briefing (Client-Side PDF-Generierung, Initialbefüllung der System-Schlüssel) wurden als Anweisung für Claude integriert.
 - **Konzept-Erweiterung (Finanzen):** Einzelwirtschaftsplan inkl. PDF-Design und Bulk-Generierung (Master-PDF in einem Rutsch) als Teil der Verteilerschlüssel-Logik in Modul 4 hinzugefügt.
 - **Übergabe-Paket hinzugefügt:** Detaillierte Anforderungen für Admin-Einstellungen (7.1) und Official Letter Engine (6.9) am Ende des Dokuments zur Umsetzung für Claude hinterlegt.
 - **Frontend-Rahmenbedingungen hinzugefügt:** Strikte Vorgaben für Design-Konsistenz (Vermeidung von Wildwuchs), Mobile-First "App-Feeling" und PWA-Readiness etabliert.
@@ -236,3 +237,36 @@ Die Hausverwaltung benötigt die Möglichkeit, ihre Unternehmens-Stammdaten (Log
 ### 5. Offene Entwickler-Entscheidungen (Claude)
 - **PDF-Library:** Entscheidung für eine leichtgewichtige Client-Side PDF Library, die gut via CDN funktioniert und idealerweise ein bestehendes PDF als Hintergrund (Template) laden kann. (Empfehlung prüfen: `pdf-lib` oder `html2pdf.js`).
 - **Speicherung Settings:** Soll `global_settings` eine Tabelle mit exakt einer Zeile (ID=1) sein, oder ein Key-Value Store? (Eine strukturierte Single-Row-Tabelle ist für Typisierung oft robuster).
+
+---
+
+[UMSETZUNGS-ÜBERGABE FÜR CLAUDE]
+
+## Paket: Verteilerschlüssel-Management & Einzelwirtschaftspläne (6.10)
+
+### 1. Ziel
+Einführung einer WEMoG-konformen Verwaltung von Verteilerschlüsseln pro Gebäude. Dies ist die gesetzliche Basis (§ 16 WEG), um Gemeinschaftskosten auf die Einheiten umzulegen. Darauf aufbauend soll die "Official Letter Engine" befähigt werden, Einzelwirtschaftspläne (inkl. Briefkopf-Integration) als Bulk-PDF für alle Einheiten eines Gebäudes in einem Rutsch zu generieren.
+
+### 2. Anforderungen
+- **Schlüssel-Typen:** Das System unterscheidet zwischen "System-Schlüsseln" (7 feste Standardtypen: MEA voll, MEA Wohnen, MEA ohne Garage, Anzahl Einheiten, Wohnfläche, Verbrauch, Festbetrag) und "Benutzerdefinierten Schlüsseln" (frei benennbar).
+- **Zuweisung:** Jede Einheit in einem Gebäude bekommt einen numerischen Anteilwert (Value) für jeden konfigurierten Schlüssel zugewiesen. Die Summe aller Anteile muss der "Gesamtumlage" entsprechen.
+- **Konten-Verknüpfung:** Jedes Finanzkonto (Aufwände/Rücklagen) in einem Gebäude muss mit einem "Primären Schlüssel" verknüpft werden.
+- **HeizKV-Split:** Für Heizkosten muss ein "Doppelschlüssel" (Primär- + Sekundärschlüssel inkl. %-Split, z.B. 60% Verbrauch / 40% Wohnfläche) unterstützt werden.
+- **Umlagefähigkeit:** In der Anzeige der Pläne müssen Kosten zwingend in "umlagefähig" (für Mieter) und "nicht umlagefähig" unterteilt werden.
+- **PDF-Generierung (Einzelwirtschaftsplan):** Nutzung des bestehenden Briefbogens (`letterhead_url` aus `global_settings`) als Hintergrund. Dynamische Befüllung der Adressfelder, des Schlüssels, der Anteile und Kosten. Generierung aller Pläne eines Gebäudes als ein einziges, zusammenhängendes Master-PDF (Bulk-Export).
+
+### 3. DB-Änderungen (Supabase)
+- **Tabelle `distribution_keys`:** `id`, `building_id` (FK), `name`, `type` (enum), `total_value` (numeric), `is_system_default` (boolean).
+- **Tabelle `distribution_key_units`:** `id`, `distribution_key_id` (FK), `apartment_id` (FK), `value` (numeric). Unique Constraint auf (key_id, apartment_id).
+- **Änderung an `accounts`:** Hinzufügen von `primary_key_id` (UUID), `secondary_key_id` (UUID) und `secondary_key_percentage` (numeric 5,2).
+- **Initial-Trigger:** Beim Erstellen eines Gebäudes sollten die 7 System-Schlüssel automatisch via Supabase Function (oder im Client) mit leeren Werten angelegt werden.
+
+### 4. UI-Vorgaben
+- **Neuer Tab "Verteilerschlüssel":** Im Gebäude-Detail (`mod-objekte.js`). Übersichtstabelle der Schlüssel. Ein Klick auf einen Schlüssel öffnet eine Tabelle aller Einheiten zur Eingabe der individuellen Anteile.
+- **Live-Validierung:** In der Einheiten-Ansicht muss unten eine Live-Summe stehen (z.B. "Summe: 950 / 1000"). Rot bei Abweichung, Grün bei Übereinstimmung.
+- **Konten-Verknüpfung:** In `mod-finanzen.js` (Tab Übersicht) Dropdowns für die Schlüsselzuweisung je Konto hinzufügen. Checkbox für "HeizKV-Split" toggelt das zweite Dropdown.
+- **Design:** Strikte Einhaltung der HB-Olive CI (`rounded-[15px]`, `divide-hb-olive/10`).
+
+### 5. Offene Entwickler-Entscheidungen (Claude)
+- **PDF-Generierung:** Bitte bleibe konsequent bei der Client-Side Generierung via **`pdf-lib`** (Option B aus dem Briefing), um den Serverless-Charakter beizubehalten. Lade das Admin-Briefbogen-Bild aus dem Storage und lege es als Layer unter den Text.
+- **Historisierung:** Keine komplexe Tabellen-Historisierung (valid_from/to) implementieren! Es reicht, wenn die errechneten Werte in den final erzeugten Buchungen oder PDFs (Snapshots) als fixer Wert eingefroren werden. Leerstände werden berechnet (Eigentümer zahlt).
