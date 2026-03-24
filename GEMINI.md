@@ -14,6 +14,9 @@ CLAUDE.md (Technisches Logbuch): Enthält den exakten technischen Ist-Zustand (D
 
 Regel für Claude: Nach der erfolgreichen Umsetzung eines Pakets aus der GEMINI.md MUSS Claude zwingend das Changelog und den technischen Stand in der CLAUDE.md aktualisieren.
 
+0. Update-Log
+
+
 1. Vision & Zielsetzung
 
 Die Vision: Schaffung einer radikal einfachen, hochgradig automatisierten und rechtssicheren Cloud-Plattform, die Hausverwaltungen, Eigentümer und Mieter in einem einzigen, digitalen Ökosystem ("Single Point of Truth") vereint.
