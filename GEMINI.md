@@ -2,20 +2,22 @@ Dieses Dokument ist die "Single Source of Truth" für das strategische Gesamtkon
 
 🤖 KI-Protokoll: Workflow für Gemini & Claude
 
-Anweisung an Claude Code (Terminal) & Gemini (Gemini CLI):
-Dieses Projekt nutzt eine Zwei-Datei-Architektur zur Steuerung der KIs:
+Dieses Projekt nutzt eine extrem token-effiziente **Drei-Datei-Architektur** zur asynchronen Steuerung der KIs:
 
-GEMINI.md (Dieses Dokument): Enthält das strategische Konzept, die Vision, funktionale Anforderungen und die nächsten Umsetzungs-Pakete (Übergaben). Hieran arbeitet der Projektadmin (Niko) immer mit Gemini CLI.
-Gemini gibt zu Änderungen immer eine kurze Übersicht über neue Inhalte im Konzeot unter dem Punkt "0. Update-Log", damit Claude immer gleich Sieht, was sich an dem gesamten Konzept geändert hat.
+1. **GEMINI.md (Das Master Manifest):** Enthält das strategische Konzept, die Vision und die Umsetzungs-Pakete. 
+   - **Regel für Gemini:** Pflegt diese Datei, führt das Update-Log.
+   - **Regel für Claude:** Darf diese Datei *niemals* verändern. Liest sie nur zu Beginn eines neuen Pakets (und prüft nur den Update-Log, um Tokens zu sparen).
 
-Regel für Claude: Claude liest dieses Dokument, um zu verstehen, was gebaut werden soll und wie die UX gedacht ist. Claude darf dieses Dokument niemals verändern oder löschen.
+2. **CLAUDE.md (Das Technische Logbuch):** Enthält den exakten technischen Ist-Zustand (DB-Schema, JS-Module, Changelog).
+   - **Regel für Claude:** Pflegt diese Datei nach jedem erfolgreichen Commit zwingend.
+   - **Regel für Gemini:** Liest diese Datei nur, wenn technischer Kontext für ein neues Konzept zwingend nötig ist.
 
-CLAUDE.md (Technisches Logbuch): Enthält den exakten technischen Ist-Zustand (DB-Schema, Farb-Tokens, implementierte JS-Module, RLS-Policies). Hieran arbeitet der Projektadmin (Niko) immer mit Claude Code.
-
-Regel für Claude: Nach der erfolgreichen Umsetzung eines Pakets aus der GEMINI.md MUSS Claude zwingend das Changelog und den technischen Stand in der CLAUDE.md aktualisieren.
+3. **BRIEFING.md (Der Kommunikations-Kanal):** Lokale Datei für den direkten, token-sparenden Austausch (Fragen, Antworten, Fehler-Reports) zwischen Projektadmin (Niko), Gemini und Claude.
+   - **Der Workflow:** Anstatt riesige Chat-Verläufe in die Prompts zu kopieren, schreibt der Admin (oder eine der KIs) Fragen, Feedback oder Teil-Briefings in diese Datei. Die angesprochene KI liest *nur* diese Datei, erledigt den Task, und dokumentiert die Antwort ebenfalls dort oder leert sie wieder. Das spart massive Kontext-Tokens!
 
 0. Update-Log
 
+- **Workflow-Update (Drei-Datei-Architektur):** Einführung der lokalen `BRIEFING.md` als token-effizienter Kommunikationskanal zwischen den KIs und dem Admin hinzugefügt. Das KI-Protokoll wurde entsprechend angepasst.
 - **Übergabe-Paket hinzugefügt (6.10):** Neues Paket für Verteilerschlüssel-Management, HeizKV-Splits und Einzelwirtschaftspläne am Ende des Dokuments zur Umsetzung hinterlegt. Empfehlungen aus dem Briefing (Client-Side PDF-Generierung, Initialbefüllung der System-Schlüssel) wurden als Anweisung für Claude integriert.
 - **Konzept-Erweiterung (Finanzen):** Einzelwirtschaftsplan inkl. PDF-Design und Bulk-Generierung (Master-PDF in einem Rutsch) als Teil der Verteilerschlüssel-Logik in Modul 4 hinzugefügt.
 - **Übergabe-Paket hinzugefügt:** Detaillierte Anforderungen für Admin-Einstellungen (7.1) und Official Letter Engine (6.9) am Ende des Dokuments zur Umsetzung für Claude hinterlegt.
