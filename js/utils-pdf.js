@@ -882,19 +882,21 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
         drawR(page, fmt(grandShare), cAnteilR - 2, y - gtH + 6, 8.5, fBold, white);
         y -= gtH + 16;
 
-        // ── BLOCK 5: RECHTLICHER HINWEIS (FIX 5: exakte Höhe) ───
+        // ── BLOCK 5: RECHTLICHER HINWEIS ────────────────────────
         const hintText = 'Dieser Wirtschaftsplan wurde maschinell erstellt und ist rechtlich bindend nach Beschlussfassung der WEG-Gemeinschaft. Die aus dem Wirtschaftsplan resultierenden monatlichen Hausgelder sind über den Planungszeitraum hinaus weiter zu zahlen, bis ein neuer Wirtschaftsplan beschlossen wurde.';
+        const hintPad    = 10;
         const hintFS     = 9.5;
         const hintLH     = Math.ceil(hintFS * 1.3); // 13pt
-        const hintIconW  = 16;       // icon area width
-        const hintIconGap = 8;       // gap icon → text
-        const hintTextW  = contentW - hintIconW - hintIconGap; // verfügbreite = boxWidth - 24
+        const hintIconD  = 10;
+        const hintIconGap = 6;
+        const hintIconArea = hintPad + hintIconD + hintIconGap; // 26pt
+        const hintTextW  = contentW - hintIconArea - hintPad;
         const hintLines  = _pdfSplitText(hintText, fReg, hintFS, hintTextW);
-        const hintBoxH   = hintLines.length * hintLH + 12; // 6pt oben + 6pt unten, strikt
+        const hintBoxH   = hintPad * 2 + hintLines.length * hintLH;
 
         const hintTopY = Math.max(y, hintBoxH + 30);
 
-        // Box: hb-orange/8% on white
+        // Box: hb-orange/8% on white, 1pt orange border
         page.drawRectangle({
             x: mLeft, y: hintTopY - hintBoxH,
             width: contentW, height: hintBoxH,
@@ -902,20 +904,19 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
             color: rgb(0.996, 0.972, 0.958),
         });
 
-        // "i" icon: orange circle (10pt), white "i" (7pt), centered to first text line
-        const iconCX = mLeft + 8; // center of 16pt icon area
-        const firstTextY = hintTopY - 6 - hintLH; // 6pt top padding
-        const iconCY = firstTextY + hintLH * 0.4;
-        page.drawCircle({ x: iconCX, y: iconCY, size: 5, color: orange });
+        // "i" icon: orange circle with white "i", centered to first text line
+        const iconCX = mLeft + hintPad + hintIconD / 2;
+        const iconCY = hintTopY - hintPad - hintLH / 2;
+        page.drawCircle({ x: iconCX, y: iconCY, size: hintIconD / 2, color: orange });
         const iCharW = fBold.widthOfTextAtSize('i', 7);
         page.drawText('i', { x: iconCX - iCharW / 2, y: iconCY - 2.5, size: 7, font: fBold, color: white });
 
         // Text lines
-        const hintTextX = mLeft + hintIconW + hintIconGap;
+        const hintTextX = mLeft + hintIconArea;
         hintLines.forEach((line, i) => {
             page.drawText(line, {
                 x: hintTextX,
-                y: hintTopY - 6 - hintLH - (i * hintLH),
+                y: hintTopY - hintPad - hintLH * 0.85 - (i * hintLH),
                 size: hintFS, font: fReg, color: offblack,
             });
         });
