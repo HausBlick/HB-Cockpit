@@ -1547,10 +1547,14 @@ function _finRenderWirtschaftsplan(plan, planItems) {
                     <select onchange="_finChangeWPFY(this.value)" class="text-sm w-24">${fyOpts}</select>
                     ${plan ? statusBadge(plan.status) : ''}
                 </div>
-                <div class="flex gap-2">
+                <div class="flex gap-2 flex-wrap">
                     ${statusAction}
                     ${!plan ? `<button onclick="_finNewPlan()" class="btn-primary text-sm px-4 py-2">+ Neuer Plan ${fy}</button>` : ''}
                     ${plan?.status === 'draft' ? `<button onclick="_finOpenAddItemModal()" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 border border-hb-olive/20">+ Position hinzufügen</button>` : ''}
+                    ${plan ? `<button onclick="generateWirtschaftsplanPDF(${plan.id})" class="text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg hover:bg-gray-100 border border-gray-200 flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                        PDF
+                    </button>` : ''}
                 </div>
             </div>
             ${!plan ? `<p class="text-sm text-gray-400">Kein Wirtschaftsplan für ${fy} vorhanden.</p>` : `
@@ -2770,7 +2774,12 @@ async function _finLoadMahnwesen() {
             <td class="px-4 py-3 text-sm text-right text-hb-orange">${Number(n.fee||0).toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
             <td class="px-4 py-3 text-sm font-bold text-right">${(Number(n.amount||0)+Number(n.fee||0)).toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
             <td class="px-4 py-3 text-center">
-                ${n.status!=='paid'?`<button onclick="_finNoticePaid(${n.id},${n.payment_demand_id})" class="text-xs text-hb-olive bg-hb-ultralight px-2 py-1 rounded-lg hover:bg-gray-100">Bezahlt</button>`:'<span class="text-xs text-green-600 font-semibold">Bezahlt</span>'}
+                <div class="flex items-center justify-center gap-1">
+                    ${n.status!=='paid'?`<button onclick="_finNoticePaid(${n.id},${n.payment_demand_id})" class="text-xs text-hb-olive bg-hb-ultralight px-2 py-1 rounded-lg hover:bg-gray-100">Bezahlt</button>`:'<span class="text-xs text-green-600 font-semibold">Bezahlt</span>'}
+                    <button onclick="generateMahnungPDF(${n.id})" class="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded-lg hover:bg-gray-100" title="Als PDF herunterladen">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                    </button>
+                </div>
             </td>
         </tr>`).join('');
 
