@@ -16,6 +16,8 @@ Regel für Claude: Nach der erfolgreichen Umsetzung eines Pakets aus der GEMINI.
 
 0. Update-Log
 
+- **Frontend-Rahmenbedingungen hinzugefügt:** Strikte Vorgaben für Design-Konsistenz (Vermeidung von Wildwuchs), Mobile-First "App-Feeling" und PWA-Readiness etabliert.
+
 
 1. Vision & Zielsetzung
 
@@ -43,13 +45,17 @@ Frontend: Vanilla JavaScript (ES6 Modules), HTML5, Tailwind CSS (via CDN) – ke
 
 Hosting: GitHub Pages (Continuous Deployment aus dem main-Branch).
 
-Das Design-System
+Das Design-System & Frontend-Rahmenbedingungen
 
-Minimalistisch, fokussiert und professionell:
+Minimalistisch, fokussiert und professionell. Um "Wildwuchs" zu vermeiden, gelten strikte Design-Vorgaben für alle Module:
 
-Farben: hb-olive (#687451) für Aktionen, hb-ultralight (#F9FAF8) als Hintergrund, hb-offblack (#373737) für Typografie.
+CI-Farben: hb-olive (#687451) für Aktionen/Primäres, hb-ultralight (#F9FAF8) als Hintergrund, hb-offblack (#373737) für Typografie. Keine Fremdfarben!
 
-Formensprache: Weiche UI-Karten (rounded-[15px]), dezente Schatten, viel Whitespace.
+Konsistenz-Zwang: Alle Module müssen exakt dieselbe Formensprache (Weiche UI-Karten `rounded-[15px]`, identische Tabellen, einheitliche Button-Styles) nutzen.
+
+Mobile First & App-Feeling: Die mobile Ansicht ist keine zweitrangige Web-Ansicht, sondern muss sich wie eine native App anfühlen (Sticky-Header, flüssige Swipe-Menüs, gut greifbare Touch-Zonen).
+
+PWA-Ready: Das Portal wird als Progressive Web App (PWA) konzipiert, sodass Nutzer es sich als "echte App" auf ihr Smartphone (iOS/Android) herunterladen und auf dem Homescreen ablegen können.
 
 3. Rollen & Berechtigungskonzept (Die Kaskade)
 
