@@ -1,0 +1,194 @@
+GEMINI.md — HB-Mieterportal (Master Manifest)
+
+Dieses Dokument ist die "Single Source of Truth" für das strategische Gesamtkonzept, die Vision und alle geplanten Workflows.
+
+0. 🤖 KI-Protokoll: Workflow für Gemini & Claude
+
+Anweisung an Claude Code (Terminal) & Gemini (Web):
+Dieses Projekt nutzt eine Zwei-Datei-Architektur zur Steuerung der KIs:
+
+GEMINI.md (Dieses Dokument): Enthält das strategische Konzept, die Vision, funktionale Anforderungen und die nächsten Umsetzungs-Pakete (Übergaben).
+
+Regel für Claude: Claude liest dieses Dokument, um zu verstehen, was gebaut werden soll und wie die UX gedacht ist. Claude darf dieses Dokument niemals verändern oder löschen.
+
+CLAUDE.md (Technisches Logbuch): Enthält den exakten technischen Ist-Zustand (DB-Schema, Farb-Tokens, implementierte JS-Module, RLS-Policies).
+
+Regel für Claude: Nach der erfolgreichen Umsetzung eines Pakets aus der GEMINI.md MUSS Claude zwingend das Changelog und den technischen Stand in der CLAUDE.md aktualisieren.
+
+1. Vision & Zielsetzung
+
+Die Vision: Schaffung einer radikal einfachen, hochgradig automatisierten und rechtssicheren Cloud-Plattform, die Hausverwaltungen, Eigentümer und Mieter in einem einzigen, digitalen Ökosystem ("Single Point of Truth") vereint.
+
+Kerneigenschaften:
+
+GoBD- & WEG-konform: Strikte Einhaltung deutscher Rechtsnormen (Echte doppelte Buchführung, Geldfluss- vs. Leistungsprinzip, WEMoG-Konformität).
+
+Automatisierung first: Eliminierung manueller "Manufaktur-Aufgaben" durch Auto-Naming von Dokumenten, intelligente Sollstellungen und smarte Zuweisungen.
+
+Transparenz: Kaskadierendes Berechtigungssystem, das jedem Akteur (vom Mieter bis zum Verwalter) exakt die relevanten Daten, Dokumente und Finanzen in Echtzeit auf seinem Dashboard präsentiert.
+
+2. Technische Architektur & Stack
+
+Das System ist auf maximale Skalierbarkeit, Sicherheit und Performance ohne unnötigen Overhead ausgelegt:
+
+Backend & Datenbank: Supabase (PostgreSQL 17). Nutzt Row Level Security (RLS) für absolut sichere Mandantentrennung auf Datenbankebene.
+
+Authentifizierung: Supabase Auth (Magic Links, Passwort-Resets, rollenbasierter Zugriff).
+
+Storage: Supabase Storage (Privater Bucket documents mit signierten URLs für sicheren Dokumentenzugriff).
+
+Frontend: Vanilla JavaScript (ES6 Modules), HTML5, Tailwind CSS (via CDN) – keine schweren Frameworks, extrem schnelle Ladezeiten.
+
+Hosting: GitHub Pages (Continuous Deployment aus dem main-Branch).
+
+Das Design-System
+
+Minimalistisch, fokussiert und professionell:
+
+Farben: hb-olive (#687451) für Aktionen, hb-ultralight (#F9FAF8) als Hintergrund, hb-offblack (#373737) für Typografie.
+
+Formensprache: Weiche UI-Karten (rounded-[15px]), dezente Schatten, viel Whitespace.
+
+3. Rollen & Berechtigungskonzept (Die Kaskade)
+
+Das System steuert Sichtbarkeiten und Funktionen strikt hierarchisch über definierte Haupt- und Sonderrollen:
+
+Verwalter (admin):
+
+Status: Super-Admin (Geschäftsführer/Inhaber).
+
+Rechte: Vollzugriff auf alle Gebäude, Einheiten, Finanzen und globalen Einstellungen.
+
+Fokus: Steuerung des Gesamtunternehmens und Hauptkommunikation zu den Eigentümern.
+
+Objektverwalter (manager):
+
+Status: Mitarbeiter der Hausverwaltung.
+
+Rechte: Identische Admin-Rechte, jedoch strikt limitiert auf zugewiesene Objekte.
+
+Fokus: Laufendes operatives Geschäft, Einstellungen für eigene Objekte und Betreuung der dortigen Eigentümer.
+
+Eigentümer (owner):
+
+Status: Primärer Kunde der Hausverwaltung.
+
+Rechte: Einsicht in alle WEG-relevanten Dokumente (Abrechnungen, Protokolle), Finanz-Dashboards und Stammdaten der eigenen Einheiten. Kommunikation mit admin/manager.
+
+Sonderrolle 3.1: Verwaltungsbeirat (advisory): Von der Verwaltung ernannte owner mit erweiterten Prüfrechten (Belegprüfung, Auftragsfreigabe).
+
+Sonderrolle 3.2: Vermieter (landlord): owner, die vermieten. Dürfen Mieter anlegen, Dokumente durchreichen und mit Mietern über Tickets kommunizieren.
+
+Mieter (tenant):
+
+Status: Endnutzer / Bewohner.
+
+Rechte: Lesezugriff auf technische Details der Einheit, das Kontaktbuch und vom landlord freigegebene Dokumente. Ticket-Kommunikation mit dem Vermieter.
+
+4. Die Kernmodule (Funktionaler Scope)
+
+Modul 1: CRM & Gebäude-Management (Das Fundament)
+
+Internes CRM (Globales Adressbuch): Zentrale Verwaltungs-Datenbank (persons) für alle Akteure. Keine Dubletten. Nur für admin und manager.
+
+Nutzer-Onboarding: Workflow zur Einladung neuer Nutzer via E-Mail oder PDF-Brief (Registrierungscode).
+
+Objekt-Struktur & Historisierung: Tiefe Verknüpfung Gebäude ➔ Einheiten. Tagesgenaue Erfassung (Start/Enddatum) von Verträgen für Pro-rata-temporis-Abrechnungen.
+
+Objekt-Onboarding: Wizard zur Übernahme neuer WEGs (Eröffnungsbilanz, Alt-Salden, Rücklagen).
+
+Wartungsvertrags- & Schlüsselverwaltung: Fristenüberwachung von Dienstleistern und Lückenlose Dokumentation der Schließanlage.
+
+Modul 2: Kommunikation & Service
+
+Schwarzes Brett (Info-Kaskade): Verwalter postet globale/objektspezifische News. Vermieter können diese an Mieter durchreichen oder eigene News erstellen.
+
+Massen-E-Mail: Serienbrieffunktion für schnelle Text-Infos an alle Bewohner eines Objekts.
+
+Ticket-System (Helpdesk & Routing): Zammad-Style Helpdesk. Strikte Trennung "Gesendet" / "Erhalten". Eskalationslogik (tenant ➔ landlord ➔ manager).
+
+Auftragsmanagement: Generierung von offiziellen "Auftrags-PDFs" für Handwerker direkt aus einem Ticket heraus.
+
+Dienstleister-Verzeichnis: Externes Kontaktbuch für Bewohner inkl. Notfall-Badges und Disclaimer.
+
+Modul 3: Dokumenten-Cloud & ETV-Management
+
+Staging & Auto-Naming: Hochgeladene/generierte Dokumente werden standardisiert benannt und landen im "Staging"-Bereich.
+
+Striktes Zero-Auto-Publish & Bulk-Release: Kein Dokument ist sofort öffentlich. Zwingende explizite Freigabe (ggf. als Massen-Freigabe z.B. für 150 Abrechnungen).
+
+Das Mieter-Silo: Der Mieter sieht ausschließlich Dokumente, die aktiv von seinem Vermieter hochgeladen/durchgereicht wurden. Kein Zugriff auf WEG-Interna.
+
+Personenbezogene Dokumente: Gezielte Zuweisung an eine Person (statt Einheit) inkl. Benachrichtigung.
+
+Automatisierte ETV-Dokumente & Beschlusssammlung: Generierung von ETV-Einladungen/Protokollen. Automatische Führung der gesetzlichen Beschlusssammlung (§ 24 Abs. 7 WEG).
+
+Digitale Umlaufbeschlüsse: Tool für rechtsgültige, asynchrone Online-Abstimmungen (§ 23 Abs. 3 WEG).
+
+Modul 4: Finanzen & Abrechnung (Das Herzstück)
+
+Echte Doppik & Kontenrahmen: GoBD-konformes Journal. Strikte Kategorisierung der Konten in "umlegbar" (Betriebskosten für Mieter) und "nicht umlegbar" (Verwaltergebühren, Instandhaltung, Rücklagenzuführung). Das ist die zwingende Basis für die spätere Nebenkostenabrechnung der Vermieter.
+
+Objektspezifische Verteilerschlüssel: Dynamische Anlage und Verwaltung individueller Schlüssel pro Gebäude (z.B. Verteilung nach speziellen Wasserzählern, Miteigentumsanteilen, Wohnfläche oder festen Beträgen).
+
+Automatischer Zahlungsabgleich (Banking): Matching von Bankumsätzen zu offenen Sollstellungen.
+
+Zählerstands-Management: Erfassungsmaske für Ablesewerte (Stichtage, Mieterwechsel).
+
+Rücklagen-Cockpit: Sub-Modul zur strikten Führung der Erhaltungsrücklage getrennt vom Hausgeldkonto.
+
+Die Abrechnungen: Wizards inkl. HeizkostenV und §35a EStG. Das System trennt bei der Ausweisung automatisch die umlegbaren von den nicht umlegbaren Kosten.
+
+Official Letter Engine: Erstellung von Abrechnungen, Plänen und Mahnungen als rechtssicheres PDF mit Briefkopf.
+
+Mahnwesen & DATEV-Export: 3-stufiger Mahnlauf und CSV-Export für Steuerberater.
+
+Modul 5: Rollenspezifische Dashboards & UX
+
+Das Mieter-Dashboard (tenant): Quick-Actions, "Mein Ansprechpartner", Tickets, aktuelle Miete & Zahlungsart, Gebäude-Kalender und Dokumente vom Vermieter.
+
+Das Eigentümer-Dashboard (owner): Hausgeld-Saldo, WEG-News, ETV-Termine, Ticket-Routing.
+
+Vermieter (landlord): Zusatz-Widget "Meine Mieter" inkl. Mieter-Tickets.
+
+Beirat (advisory): Zusatz-Widget für digitale Belegprüfung und Auftragsfreigabe.
+
+Das Verwalter-Dashboard (admin/manager): Leitstand. Prioritäts-Tickets, Staging-Freigaben, ablaufende Compliance-Fristen, überfällige Forderungen.
+
+5.4 In-App Hilfe & Onboarding: Jedes Kernmodul besitzt ein kontextbezogenes "Fragezeichen-Symbol". Klickt der User darauf, öffnet sich eine kurze Dokumentation/Guided-Tour, die ihm die Funktionen und Workflows dieses Bereichs erklärt.
+
+Modul 6: System, Einstellungen & Benachrichtigungen
+
+Admin-Einstellungen (Portal-Config): Globale Konfiguration durch den admin.
+
+Hinterlegung von Firmenanschrift, Steuernummer, Logo und offiziellem PDF-Briefkopf.
+
+Definition von Standard-Werten (z.B. Höhe der Standard-Mahngebühr, Basiszins).
+
+E-Mail-Benachrichtigungssystem: Automatischer Push-Service, um Nutzer ins Portal zu holen.
+
+Trigger: E-Mail-Versand bei neuen Tickets, Statusänderungen in Tickets, neu freigegebenen Dokumenten oder neuen Beiträgen am Schwarzen Brett.
+
+Nutzer-Einstellungen (User Profile): Jeder User (admin bis tenant) hat ein Profil-Menü.
+
+Ändern von Passwort und persönlichen Login-Daten.
+
+Notification Opt-Ins: Individuelle Einstellung, worüber der Nutzer per Mail informiert werden möchte (z.B. "Keine E-Mails bei News-Updates", "Sofortige E-Mail bei neuen Tickets").
+
+System-Logs (Audit Trail): Eine für den Admin sichtbare, revisionssichere Historie aller systemkritischen Aktionen (Wer hat wann welches Konto gelöscht oder eine Abrechnung freigegeben?).
+
+5. Zukunfts-Vision & Ausblick (Phase 7+)
+
+Das System ist darauf ausgelegt, mit den Marktanforderungen zu wachsen:
+
+Nebenkostenabrechnung (Vermieter-Erweiterung): Modul für den landlord. Das System zieht die umlegbaren Betriebskosten direkt aus der WEG-Abrechnung vor. Der Vermieter ergänzt mieterspezifische Kosten (z.B. Grundsteuer) und generiert per Knopfdruck eine Nebenkostenabrechnung als PDF.
+
+Digitale Versammlungen: Hybride ETVs (Video-Integration) im Portal.
+
+KI-Buchhaltung: KI-gestützte Belegerfassung (OCR) für automatische Buchungsvorschläge.
+
+API-Schnittstellen: Automatischer Datenabruf bei Techem, Ista & Co.
+
+[UMSETZUNGS-ÜBERGABE FÜR CLAUDE]
+
+(Hier fügen wir ab jetzt immer den nächsten Umsetzungs-Block für Claude ein)
