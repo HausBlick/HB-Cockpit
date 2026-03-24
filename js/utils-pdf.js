@@ -27,7 +27,13 @@ async function _pdfCreateDoc(settings) {
     }
 
     const { PDFDocument } = PDFLib;
-    const resp = await fetch(settings.letterhead_pdf_url);
+
+    // Signed URL für privaten Bucket erzeugen (60 Sekunden reichen zum Laden)
+    const { data: signedData, error: signedErr } = await _supabase.storage
+        .from('documents').createSignedUrl(settings.letterhead_pdf_url, 60);
+    if (signedErr || !signedData?.signedUrl) throw new Error('FETCH_FAILED');
+
+    const resp = await fetch(signedData.signedUrl);
     if (!resp.ok) throw new Error('FETCH_FAILED');
 
     const templateBytes = await resp.arrayBuffer();

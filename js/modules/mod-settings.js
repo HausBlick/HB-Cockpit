@@ -20,12 +20,20 @@ async function loadSettings() {
         return;
     }
 
-    _settingsRender(s || {});
+    const settings = s || {};
+
+    // Signed URL für Logo-Vorschau erzeugen (privater Bucket)
+    if (settings.logo_url) {
+        const { data: d } = await _supabase.storage.from('documents').createSignedUrl(settings.logo_url, 300);
+        settings._logoSignedUrl = d?.signedUrl || null;
+    }
+
+    _settingsRender(settings);
 }
 
 function _settingsRender(s) {
-    const logoPreview = s.logo_url
-        ? `<img src="${s.logo_url}" alt="Logo" class="h-16 object-contain mb-2 rounded-lg border border-gray-100">`
+    const logoPreview = s._logoSignedUrl
+        ? `<img src="${s._logoSignedUrl}" alt="Logo" class="h-16 object-contain mb-2 rounded-lg border border-gray-100">`
         : `<div class="h-16 w-32 bg-gray-100 rounded-lg flex items-center justify-center text-xs text-gray-400 mb-2">Kein Logo</div>`;
 
     const letterheadPreview = s.letterhead_pdf_url
@@ -194,8 +202,7 @@ async function _settingsUploadLogo(input) {
     const { error: upErr } = await _supabase.storage.from('documents').upload(path, file, { upsert: true });
     if (upErr) { showToast('Upload fehlgeschlagen: ' + upErr.message, 'error'); return; }
 
-    const { data: { publicUrl } } = _supabase.storage.from('documents').getPublicUrl(path);
-    const { error } = await _supabase.from('global_settings').update({ logo_url: publicUrl, updated_at: new Date().toISOString() }).eq('id', 1);
+    const { error } = await _supabase.from('global_settings').update({ logo_url: path, updated_at: new Date().toISOString() }).eq('id', 1);
     if (error) { showToast('Fehler beim Speichern der URL: ' + error.message, 'error'); return; }
 
     showToast('Logo gespeichert.');
@@ -213,8 +220,7 @@ async function _settingsUploadLetterhead(input) {
     const { error: upErr } = await _supabase.storage.from('documents').upload(path, file, { upsert: true, contentType: 'application/pdf' });
     if (upErr) { showToast('Upload fehlgeschlagen: ' + upErr.message, 'error'); return; }
 
-    const { data: { publicUrl } } = _supabase.storage.from('documents').getPublicUrl(path);
-    const { error } = await _supabase.from('global_settings').update({ letterhead_pdf_url: publicUrl, updated_at: new Date().toISOString() }).eq('id', 1);
+    const { error } = await _supabase.from('global_settings').update({ letterhead_pdf_url: path, updated_at: new Date().toISOString() }).eq('id', 1);
     if (error) { showToast('Fehler beim Speichern der URL: ' + error.message, 'error'); return; }
 
     showToast('Briefbogen gespeichert.');
