@@ -157,7 +157,7 @@ async function generateMahnungPDF(noticeId) {
     const [settingsRes, noticeRes] = await Promise.all([
         _pdfGetSettings(),
         _supabase.from('dunning_notices')
-            .select('*, person:profiles(full_name, email), demand:payment_demands(due_date, demand_type, apartment:apartments(apartment_number, buildings(street, house_number, file_number, zip, city)))')
+            .select('*, person:profiles(full_name, email), demand:payment_demands(due_date, demand_type, apartment:apartments(apartment_number, buildings(street, house_number, file_number, name)))')
             .eq('id', noticeId).single(),
     ]);
 
@@ -184,7 +184,7 @@ async function generateMahnungPDF(noticeId) {
     const apt    = notice.demand?.apartment;
     const bld    = apt?.buildings;
     const addr1  = bld ? `${bld.street || ''} ${bld.house_number || ''}, WE ${apt.apartment_number || ''}`.trim() : '';
-    const addr2  = bld ? `${bld.zip || ''} ${bld.city || ''}`.trim() : '';
+    const addr2  = bld ? formatBuildingName(bld) : '';
     _pdfDrawAddressField(page, reg, notice.person?.full_name || '—', addr1, addr2);
 
     // Datum
@@ -264,7 +264,7 @@ async function generateWirtschaftsplanPDF(planId) {
 
     const [settingsRes, planRes, itemsRes] = await Promise.all([
         _pdfGetSettings(),
-        _supabase.from('budget_plans').select('*, building:buildings(street, house_number, file_number, zip, city, name)').eq('id', planId).single(),
+        _supabase.from('budget_plans').select('*, building:buildings(id, name, file_number, street, house_number)').eq('id', planId).single(),
         _supabase.from('budget_plan_items').select('*, account:accounts(account_number, account_name)').eq('budget_plan_id', planId).order('account_id'),
     ]);
 
