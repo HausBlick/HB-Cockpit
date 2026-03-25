@@ -410,7 +410,7 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
 
     const settings = await _pdfGetSettings();
     const { data: plan } = await _supabase.from('budget_plans')
-        .select('*, building:buildings(id, name, file_number, street, house_number)')
+        .select('*, building:buildings(id, name, file_number, street, house_number, zip_code, city)')
         .eq('id', planId).single();
     if (!plan) { showToast('Wirtschaftsplan nicht gefunden.', 'error'); return; }
 
@@ -421,7 +421,7 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
         _supabase.from('accounts').select('id, account_number, account_name, account_type, primary_key_id, secondary_key_id, secondary_key_percentage').eq('building_id', bid).eq('is_active', true),
         _supabase.from('distribution_keys').select('id, name, type, total_value, heiz_split_percent').eq('building_id', bid),
         _supabase.from('distribution_key_units').select('distribution_key_id, apartment_id, value'),
-        _supabase.from('ownerships').select('apartment_id, owner:persons!owner_id(full_name, street, zip_code, city)').eq('is_active', true),
+        _supabase.from('ownerships').select('apartment_id, owner:persons!ownerships_owner_id_fkey(first_name, last_name, street, house_number, zip_code, city)').eq('is_active', true),
     ]);
 
     const planItems = itemsRes.data || [];
@@ -443,7 +443,18 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
         dkUnitMap[u.distribution_key_id][u.apartment_id] = Number(u.value) || 0;
     });
     const ownerMap = {};
-    owners.forEach(o => { if (o.owner) ownerMap[o.apartment_id] = o.owner; });
+    const aptIds = new Set(apts.map(a => a.id));
+    owners.forEach(o => {
+        if (o.owner && aptIds.has(o.apartment_id)) {
+            const p = o.owner;
+            ownerMap[o.apartment_id] = {
+                name: [p.first_name, p.last_name].filter(Boolean).join(' '),
+                street: [p.street, p.house_number].filter(Boolean).join(' '),
+                zip_code: p.zip_code,
+                city: p.city,
+            };
+        }
+    });
 
     // Load letterhead template
     const { PDFDocument, rgb } = PDFLib;
@@ -575,70 +586,189 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
     }
 
     // Date string
-    const dateStr = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
-    const place   = settings.zip_city ? settings.zip_city.replace(/^\d+\s*/, '') : '';
+    const dateStr = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const bldAddr = plan.building ? `${plan.building.street || ''} ${plan.building.house_number || ''}`.trim() : '';
+    const bldZipCity = plan.building ? `${plan.building.zip_code || ''} ${plan.building.city || ''}`.trim() : '';
+    const bldFullAddr = [bldAddr, bldZipCity].filter(Boolean).join(', ');
+    const zeitraum = `01.01.${plan.fiscal_year}`;
+    const zeitraumEnd = `31.12.${plan.fiscal_year}`;
+    const planZeitraum = `${zeitraum} – ${zeitraumEnd}`;
 
-    // ── Generate one page per apartment ─────────────────────────
-    for (const apt of apts) {
+    // WEG header line for all pages
+    const wegHeaderText = `Wirtschaftsplan | WEG ${bldFullAddr}`;
+
+    // Shared table constants
+    const padV = 4;
+    const minRowH = 18;
+    const sectionH  = 16;
+    const subtotalH = 20;
+    const grandTotalH = 22;
+
+    // Table drawing helpers (defined once, reused across pages)
+    function splitLines(text, font, fs, maxW, maxL) {
+        const all = _pdfSplitText(text, font, fs, maxW);
+        if (all.length <= maxL) return all;
+        const out = all.slice(0, maxL);
+        let last = out[maxL - 1];
+        while (last.length > 3 && font.widthOfTextAtSize(last + '…', fs) > maxW) last = last.slice(0, -1);
+        out[maxL - 1] = last + '…';
+        return out;
+    }
+    function drawCell(pg, lines, x, cellTop, lineH, fs, font, color) {
+        let textY = cellTop - padV - lineH;
+        for (const line of lines) {
+            pg.drawText(line, { x: x + 2, y: textY, size: fs, font, color });
+            textY -= lineH;
+        }
+    }
+    function drawCellSingle(pg, text, x, cellTop, lineH, fs, font, color) {
+        pg.drawText(text, { x: x + 2, y: cellTop - padV - lineH, size: fs, font, color });
+    }
+    function drawCellR(pg, text, xRight, cellTop, lineH, fs, font, color) {
+        const w = font.widthOfTextAtSize(text, fs);
+        pg.drawText(text, { x: xRight - w - 2, y: cellTop - padV - lineH, size: fs, font, color });
+    }
+
+    // Cost table column positions
+    const bezFS  = 9;
+    const keyFS  = 7.5;
+    const costLH = Math.ceil(bezFS * 1.3);
+    const cKonto   = mLeft + 2;
+    const cBez     = mLeft + 39;
+    const cBezW    = 138;
+    const cKey     = mLeft + 183;
+    const cKeyW    = 108;
+    const cGesamtR = mLeft + 380;
+    const cAnteilR = mRight - 2;
+
+    // Umlageschlüssel table column positions
+    const dkFS  = 7.5;
+    const dkLH  = Math.ceil(dkFS * 1.3);
+    const dk0   = mLeft + 2;
+    const dk1   = mLeft + 30;
+    const dk1W  = 115;
+    const dk2   = mLeft + 149;
+    const dk3   = mLeft + 211;
+    const dk4r  = mLeft + 344;
+    const dk5r  = mLeft + 415;
+    const dk6r  = mRight - 2;
+
+    const dividerColor = rgb(0.88, 0.89, 0.86);
+    const zebraColor   = rgb(0.976, 0.98, 0.973);
+    const grayDeemph   = rgb(0.612, 0.639, 0.682);
+    const mBottom = 60; // min. bottom margin
+
+    // ── PAGE CREATION HELPERS ────────────────────────────────
+    const contentStartY = 100; // offset from top — below letterhead logo (~85-90pt)
+
+    // Draw compact header for continuation pages (Seite 2+)
+    function drawPageHeaderCompact(pg, pgHeight) {
+        const headerY = pgHeight - contentStartY;
+        pg.drawText(wegHeaderText, { x: mLeft, y: headerY, size: 8.5, font: fBold, color: offblack });
+        drawR(pg, dateStr, mRight, headerY, 8.5, fReg, gray50);
+        pg.drawLine({ start: { x: mLeft, y: headerY - 6 }, end: { x: mRight, y: headerY - 6 }, thickness: 0.5, color: dividerColor });
+        return headerY - 16;
+    }
+
+    // Create continuation page (Seite 2+): letterhead + compact header
+    async function addPage() {
         const [copied] = await pdfDoc.copyPages(templateDoc, [0]);
-        const page     = pdfDoc.addPage(copied);
-        const { height } = page.getSize();
+        const pg = pdfDoc.addPage(copied);
+        const pgH = pg.getSize().height;
+        const startY = drawPageHeaderCompact(pg, pgH);
+        return { page: pg, height: pgH, y: startY };
+    }
 
+    // Create first page: letterhead, NO compact header line, only date
+    async function addFirstPage() {
+        const [copied] = await pdfDoc.copyPages(templateDoc, [0]);
+        const pg = pdfDoc.addPage(copied);
+        const pgH = pg.getSize().height;
+        const startY = pgH - contentStartY;
+        // Only date, right-aligned, no header text or line
+        drawR(pg, dateStr, mRight, startY, 8.5, fReg, gray50);
+        return { page: pg, height: pgH, y: startY };
+    }
+
+    // ── Generate pages per apartment ─────────────────────────
+    for (const apt of apts) {
         const owner = ownerMap[apt.id] || {};
-        const ownerName = owner.full_name || 'Leerstand (Eigentümergemeinschaft)';
+        const ownerName = owner.name || 'Eigentümergemeinschaft (Leerstand)';
 
-        // ── BLOCK 1: META-HEADER ────────────────────────────────
-        // Title
-        page.drawText(`Einzelwirtschaftsplan ${plan.fiscal_year}`, {
-            x: mLeft, y: height - 98, size: 14, font: fBold, color: offblack,
-        });
+        // ── PAGE 1: Full header (no compact header line) ─────
+        let { page, height, y } = await addFirstPage();
 
-        // Left: Owner name + address
-        let leftY = height - 118;
-        page.drawText(ownerName, { x: mLeft, y: leftY, size: 9, font: fSemi, color: offblack });
-        if (owner.street) {
-            leftY -= 13;
-            page.drawText(owner.street, { x: mLeft, y: leftY, size: 8.5, font: fReg, color: gray50 });
-        }
-        if (owner.zip_code || owner.city) {
-            leftY -= 13;
-            page.drawText([owner.zip_code, owner.city].filter(Boolean).join(' '), { x: mLeft, y: leftY, size: 8.5, font: fReg, color: gray50 });
-        }
+        // ── TITEL ────────────────────────────────────────────
+        page.drawText('Wirtschaftsplan', { x: mLeft, y, size: 16, font: fBold, color: offblack });
+        y -= 18;
+        page.drawText('Einzelwirtschaftsplan', { x: mLeft, y, size: 12, font: fSemi, color: gray50 });
+        y -= 22;
 
-        // Right: Info block (right-aligned key-value pairs)
-        const rX = mRight;
-        let rightY = height - 118;
-        const infoRows = [
-            ['Datum', place ? `${place}, ${dateStr}` : dateStr],
-            ['Wirtschaftsplan', `${plan.fiscal_year}`],
-            ['Einheit', `WE ${apt.apartment_number}${apt.floor ? ' – ' + apt.floor : ''}`],
-            ['Gebäude', bldStreet || bldName],
-            ['MEA', apt.mea ? `${apt.mea}` : '—'],
-            ['Wohnfläche', apt.sq_meters ? `${apt.sq_meters} m²` : '—'],
-        ];
-        for (const [label, value] of infoRows) {
-            const labelW = fReg.widthOfTextAtSize(label + ':  ', 8);
-            drawR(page, value, rX, rightY, 8, fSemi, offblack);
-            const valW = fSemi.widthOfTextAtSize(value, 8);
-            page.drawText(label + ':', { x: rX - valW - labelW, y: rightY, size: 8, font: fReg, color: gray50 });
-            rightY -= 12;
-        }
+        // ── OBJEKT- & VERWALTER-BLOCK (zweispaltig, Box) ─────
+        const boxTop = y;
+        const boxPad = 6;
+        const halfW  = (contentW - 8) / 2;
 
-        // Divider line after header
-        const dividerY = Math.min(leftY, rightY) - 6;
-        page.drawLine({ start: { x: mLeft, y: dividerY }, end: { x: mRight, y: dividerY }, thickness: 0.5, color: rgb(0.88, 0.89, 0.86) });
+        // Pre-calc box height
+        const rColX = mLeft + halfW + 8;
+        let lH = boxPad + 10 + 10 + 12 + 10; // Objekt label+value + Planzeitraum label+value
+        let rH = boxPad + 10 + 10; // Verwalter label + company
+        if (settings.street) rH += 10;
+        if (settings.zip_city) rH += 10;
+        if (settings.tax_number) rH += 10;
+        const boxH = Math.max(lH, rH) + boxPad;
+        const boxBottom = boxTop - boxH;
 
-        let y = dividerY - 14;
+        // Draw box first, then text
+        page.drawRectangle({ x: mLeft, y: boxBottom, width: contentW, height: boxH, borderColor: dividerColor, borderWidth: 0.75, color: rgb(1, 1, 1) });
+        page.drawLine({ start: { x: mLeft + halfW, y: boxTop - 3 }, end: { x: mLeft + halfW, y: boxBottom + 3 }, thickness: 0.5, color: dividerColor });
 
-        // Shared table constants (must be before Block 2 which uses them)
-        const padV = 4;          // vertical cell padding
-        const minRowH = 18;      // minimum row height
-        const sectionH  = 16;    // section header height
-        const subtotalH = 20;    // subtotal row height
-        const grandTotalH = 22;  // grand total row height
+        // Left: Objekt
+        let lY = boxTop - boxPad - 7;
+        page.drawText('Objekt', { x: mLeft + boxPad, y: lY, size: 6.5, font: fBold, color: gray50 });
+        lY -= 10;
+        page.drawText(bldFullAddr || bldName, { x: mLeft + boxPad, y: lY, size: 8.5, font: fSemi, color: offblack });
+        lY -= 12;
+        page.drawText('Planzeitraum', { x: mLeft + boxPad, y: lY, size: 6.5, font: fBold, color: gray50 });
+        lY -= 10;
+        page.drawText(planZeitraum, { x: mLeft + boxPad, y: lY, size: 8.5, font: fReg, color: offblack });
 
-        // ── BLOCK 2: HAUSGELD-SUMMARY ───────────────────────────
-        // Pre-calculate totals for this apartment
+        // Right: Verwalter
+        let rY = boxTop - boxPad - 7;
+        page.drawText('Verwalter', { x: rColX, y: rY, size: 6.5, font: fBold, color: gray50 });
+        rY -= 10;
+        if (settings.company_name) { page.drawText(settings.company_name, { x: rColX, y: rY, size: 8.5, font: fSemi, color: offblack }); rY -= 10; }
+        if (settings.street)       { page.drawText(settings.street, { x: rColX, y: rY, size: 8, font: fReg, color: gray40 }); rY -= 10; }
+        if (settings.zip_city)     { page.drawText(settings.zip_city, { x: rColX, y: rY, size: 8, font: fReg, color: gray40 }); rY -= 10; }
+        if (settings.tax_number)   { page.drawText('St.-Nr. ' + settings.tax_number, { x: rColX, y: rY, size: 7.5, font: fReg, color: gray50 }); rY -= 10; }
+
+        y = boxBottom - 8;
+
+        // ── EIGENTÜMER-BOX (umrandet, kompakt) ─────────────
+        const ownBoxTop = y;
+        let ownH = boxPad + 7 + 10; // label + name
+        if (owner.street) ownH += 10;
+        if (owner.zip_code || owner.city) ownH += 10;
+        ownH += 11 + 10 + boxPad; // VE label + value + bottom pad
+        const ownBoxBottom = ownBoxTop - ownH;
+
+        page.drawRectangle({ x: mLeft, y: ownBoxBottom, width: contentW, height: ownH, borderColor: olive, borderWidth: 0.75, color: rgb(1, 1, 1) });
+
+        let oY = ownBoxTop - boxPad - 7;
+        page.drawText('Eigentümer:', { x: mLeft + boxPad, y: oY, size: 6.5, font: fBold, color: gray50 });
+        oY -= 10;
+        page.drawText(ownerName, { x: mLeft + boxPad, y: oY, size: 9, font: fBold, color: offblack });
+        if (owner.street) { oY -= 10; page.drawText(owner.street, { x: mLeft + boxPad, y: oY, size: 8, font: fReg, color: gray40 }); }
+        if (owner.zip_code || owner.city) { oY -= 10; page.drawText([owner.zip_code, owner.city].filter(Boolean).join(' '), { x: mLeft + boxPad, y: oY, size: 8, font: fReg, color: gray40 }); }
+        oY -= 11;
+        page.drawText('Verwaltungseinheit:', { x: mLeft + boxPad, y: oY, size: 6.5, font: fBold, color: gray50 });
+        oY -= 10;
+        page.drawText(`WE ${apt.apartment_number}${apt.floor ? ' – ' + apt.floor : ''}    |    MEA: ${apt.mea || '—'}    |    Fläche: ${apt.sq_meters ? apt.sq_meters + ' m²' : '—'}`, {
+            x: mLeft + boxPad, y: oY, size: 8, font: fReg, color: offblack });
+
+        y = ownBoxBottom - 12;
+
+        // ── BLOCK 2: HAUSGELD-SUMMARY ───────────────────────
         let totalPlanned = 0;
         let totalShare   = 0;
         for (const item of planItems) {
@@ -646,86 +776,43 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
             totalShare   += calcShare(item, apt.id).share;
         }
 
-        // Section label
         page.drawText('Hausgeld-Übersicht', { x: mLeft, y, size: 10, font: fBold, color: olive });
         y -= 10;
 
-        // Header
-        const summCols = [
+        y -= drawTableHeader(page, y, [
             { x: mLeft + 4, label: 'Hausgeld', align: 'left' },
             { x: mLeft + contentW * 0.55, label: 'Objekt gesamt', align: 'right' },
             { x: mRight - 4, label: 'Ihr Anteil', align: 'right' },
-        ];
-        y -= drawTableHeader(page, y, summCols);
+        ]);
 
-        // FIX 4: Row 1 "Jahres-Hausgeld" — dezent, grau
-        const summRow1H = minRowH;
-        const grayDeemph = rgb(0.612, 0.639, 0.682); // #9ca3af
+        // Row 1: Jahres-Hausgeld (dezent)
         const jr1base = y - padV - Math.ceil(8.5 * 1.3);
         page.drawText('Jahres-Hausgeld', { x: mLeft + 4, y: jr1base, size: 8.5, font: fReg, color: grayDeemph });
         drawR(page, fmt(totalPlanned), mLeft + contentW * 0.55, jr1base, 9, fReg, grayDeemph);
         drawR(page, fmt(totalShare), mRight - 4, jr1base, 9, fReg, grayDeemph);
-        y -= summRow1H;
+        y -= minRowH;
 
-        // Divider
-        page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.3, color: rgb(0.88, 0.89, 0.86) });
+        page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.3, color: dividerColor });
 
-        // Row 2 "Monatliches Hausgeld" — einheitlich hb-olive, gleiche Größe
+        // Row 2: Monatliches Hausgeld (prominent, olive)
         const summRow2H = 24;
-        page.drawRectangle({ x: mLeft, y: y - summRow2H, width: contentW, height: summRow2H, color: rgb(0.976, 0.98, 0.973) }); // hb-ultralight
+        page.drawRectangle({ x: mLeft, y: y - summRow2H, width: contentW, height: summRow2H, color: zebraColor });
         const jr2base = y - padV - Math.ceil(10 * 1.3);
         page.drawText('Monatliches Hausgeld', { x: mLeft + 4, y: jr2base, size: 10, font: fSemi, color: olive });
         drawR(page, fmt(totalPlanned / 12), mLeft + contentW * 0.55, jr2base, 10, fSemi, olive);
         drawR(page, fmt(totalShare / 12), mRight - 4, jr2base, 10, fBold, olive);
-        y -= summRow2H + 24;
+        y -= summRow2H + 20;
 
-        // ── TABLE DRAWING ENGINE (Pflicht-Algorithmus) ────────────
-
-        // Split text into lines that fit maxWidth; max N lines, truncate with "…"
-        function splitLines(text, font, fs, maxW, maxL) {
-            const all = _pdfSplitText(text, font, fs, maxW);
-            if (all.length <= maxL) return all;
-            const out = all.slice(0, maxL);
-            let last = out[maxL - 1];
-            while (last.length > 3 && font.widthOfTextAtSize(last + '…', fs) > maxW) last = last.slice(0, -1);
-            out[maxL - 1] = last + '…';
-            return out;
-        }
-
-        // Draw multi-line text inside a cell, vertically centered
-        function drawCell(pg, lines, x, cellTop, lineH, fs, font, color) {
-            let textY = cellTop - padV - lineH;
-            for (const line of lines) {
-                pg.drawText(line, { x: x + 2, y: textY, size: fs, font, color });
-                textY -= lineH;
-            }
-        }
-        // Draw single-line text at first-line baseline of cell
-        function drawCellSingle(pg, text, x, cellTop, lineH, fs, font, color) {
-            pg.drawText(text, { x: x + 2, y: cellTop - padV - lineH, size: fs, font, color });
-        }
-        // Draw single-line right-aligned at first-line baseline of cell
-        function drawCellR(pg, text, xRight, cellTop, lineH, fs, font, color) {
-            const w = font.widthOfTextAtSize(text, fs);
-            pg.drawText(text, { x: xRight - w - 2, y: cellTop - padV - lineH, size: fs, font, color });
-        }
-
-        // ── BLOCK 3: UMLAGESCHLÜSSEL-TABELLE ────────────────────
+        // ── BLOCK 3: UMLAGESCHLÜSSEL-TABELLE ────────────────
         const usedKeys = collectUsedKeys(apt.id);
+
+        // Check if enough space for header + at least 2 rows
+        if (y - 60 < mBottom) {
+            ({ page, height, y } = await addPage());
+        }
+
         page.drawText('Umlageschlüssel', { x: mLeft, y, size: 10, font: fBold, color: olive });
         y -= 10;
-
-        // (dkHeaderH computed by drawTableHeader)
-        const dkFS  = 7.5;
-        const dkLH  = Math.ceil(dkFS * 1.3); // 10pt
-        const dk0   = mLeft + 2;
-        const dk1   = mLeft + 30;
-        const dk1W  = 115;          // Schlüssel text width
-        const dk2   = mLeft + 149;
-        const dk3   = mLeft + 211;
-        const dk4r  = mLeft + 344;
-        const dk5r  = mLeft + 415;
-        const dk6r  = mRight - 2;
 
         y -= drawTableHeader(page, y, [
             { x: dk0,  label: 'Nr.',           align: 'left' },
@@ -737,9 +824,7 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
             { x: dk6r, label: 'Ihr Anteil',     align: 'right' },
         ]);
 
-        const zeitraum = `01.01.–31.12.${plan.fiscal_year}`;
-
-        // SCHRITT 1+2: Pre-calc ALL row heights, then draw with accumulated y
+        const dkZeitraum = `01.01.–31.12.${plan.fiscal_year}`;
         const dkPreCalc = usedKeys.map(uk => {
             const nameLines = splitLines(uk.key.name, fReg, dkFS, dk1W - 4, 2);
             const nLines = Math.max(nameLines.length, 1);
@@ -747,58 +832,37 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
             return { uk, nameLines, rowH };
         });
 
-        let dkY = y;
-        dkPreCalc.forEach((row, ki) => {
-            if (dkY - row.rowH < 80) return;
-            const cellTop = dkY;
-
-            // Zebra bg
-            if (ki % 2 === 1) {
-                page.drawRectangle({ x: mLeft, y: cellTop - row.rowH, width: contentW, height: row.rowH, color: rgb(0.976, 0.98, 0.973) });
+        for (let ki = 0; ki < dkPreCalc.length; ki++) {
+            const row = dkPreCalc[ki];
+            if (y - row.rowH < mBottom) {
+                ({ page, height, y } = await addPage());
+                y -= drawTableHeader(page, y, [
+                    { x: dk0,  label: 'Nr.',           align: 'left' },
+                    { x: dk1,  label: 'Schlüssel',     align: 'left' },
+                    { x: dk2,  label: 'Umlage-Typ',    align: 'left' },
+                    { x: dk3,  label: 'Zeitraum',       align: 'left' },
+                    { x: dk4r, label: 'Tage',           align: 'right' },
+                    { x: dk5r, label: 'Gesamtumlage',   align: 'right' },
+                    { x: dk6r, label: 'Ihr Anteil',     align: 'right' },
+                ]);
             }
-
-            // SCHRITT 3: draw each cell at cellTop
+            const cellTop = y;
+            if (ki % 2 === 1) {
+                page.drawRectangle({ x: mLeft, y: cellTop - row.rowH, width: contentW, height: row.rowH, color: zebraColor });
+            }
             drawCellSingle(page, `${row.uk.nr}`, dk0, cellTop, dkLH, dkFS, fReg, gray40);
             drawCell(page, row.nameLines, dk1, cellTop, dkLH, dkFS, fReg, offblack);
             drawCellSingle(page, typeLabels[row.uk.key.type] || row.uk.key.type, dk2, cellTop, dkLH, dkFS, fReg, gray50);
-            drawCellSingle(page, zeitraum, dk3, cellTop, dkLH, 7, fReg, gray50);
+            drawCellSingle(page, dkZeitraum, dk3, cellTop, dkLH, 7, fReg, gray50);
             drawCellR(page, '365',                dk4r, cellTop, dkLH, dkFS, fReg, gray50);
             drawCellR(page, fmtVal(row.uk.total),    dk5r, cellTop, dkLH, dkFS, fReg, gray40);
             drawCellR(page, fmtVal(row.uk.unitVal),  dk6r, cellTop, dkLH, dkFS, fSemi, offblack);
+            page.drawLine({ start: { x: mLeft, y: cellTop - row.rowH }, end: { x: mRight, y: cellTop - row.rowH }, thickness: 0.3, color: dividerColor });
+            y -= row.rowH;
+        }
+        y -= 20;
 
-            // Divider at bottom of row
-            page.drawLine({ start: { x: mLeft, y: cellTop - row.rowH }, end: { x: mRight, y: cellTop - row.rowH }, thickness: 0.3, color: rgb(0.88, 0.89, 0.86) });
-            dkY -= row.rowH;
-        });
-        y = dkY - 24;
-
-        // ── BLOCK 4: VERTEILUNGSERGEBNIS (Kostentabelle) ────────
-        // Konto 13mm | Bezeichnung 50mm | Schlüssel 40mm | Gesamtkosten 30mm | Ihr Anteil 30mm
-        page.drawText('Verteilungsergebnis', { x: mLeft, y, size: 10, font: fBold, color: olive });
-        y -= 10;
-
-        // (costHeaderH computed by drawTableHeader)
-        const bezFS  = 9;
-        const keyFS  = 7.5;
-        const costLH = Math.ceil(bezFS * 1.3); // 12pt (use the larger fontSize for row lineH)
-
-        const cKonto   = mLeft + 2;
-        const cBez     = mLeft + 39;
-        const cBezW    = 138;          // 50mm - 4pt cell padding
-        const cKey     = mLeft + 183;
-        const cKeyW    = 108;          // 38mm text area
-        const cGesamtR = mLeft + 380;
-        const cAnteilR = mRight - 2;
-
-        y -= drawTableHeader(page, y, [
-            { x: cKonto,    label: 'Konto',        align: 'left' },
-            { x: cBez,      label: 'Bezeichnung',   align: 'left' },
-            { x: cKey,      label: 'Schlüssel',     align: 'left' },
-            { x: cGesamtR,  label: 'Gesamtkosten',  align: 'right' },
-            { x: cAnteilR,  label: 'Ihr Anteil',    align: 'right' },
-        ]);
-
-        // Split items into umlagefähig (expense) and nicht umlagefähig (other)
+        // ── BLOCK 4: VERTEILUNGSERGEBNIS (Kostentabelle) ────
         const expenseItems = planItems.filter(it => {
             const acc = it.account || accounts.find(a => a.id === it.account_id);
             return acc && acc.account_type === 'expense';
@@ -808,18 +872,40 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
             return !acc || acc.account_type !== 'expense';
         });
 
-        function drawCostSection(page, label, items, startY, startIdx) {
+        // Check space for section header + table header + 1 row min
+        if (y - 70 < mBottom) {
+            ({ page, height, y } = await addPage());
+        }
+
+        page.drawText('Verteilungsergebnis', { x: mLeft, y, size: 10, font: fBold, color: olive });
+        y -= 10;
+
+        const costCols = [
+            { x: cKonto,    label: 'Konto',        align: 'left' },
+            { x: cBez,      label: 'Bezeichnung',   align: 'left' },
+            { x: cKey,      label: 'Schlüssel',     align: 'left' },
+            { x: cGesamtR,  label: 'Gesamtkosten',  align: 'right' },
+            { x: cAnteilR,  label: 'Ihr Anteil',    align: 'right' },
+        ];
+        y -= drawTableHeader(page, y, costCols);
+
+        // Draw cost section with page-break support
+        const drawCostSection = async function(label, items, startY, startIdx) {
             let cy = startY;
             let ri = startIdx;
-            let sectionTotal = 0;
-            let sectionShare = 0;
+            let sTotal = 0, sShare = 0;
+            let curPage = page;
 
-            // Section header: fixed 16pt, full-width colspan
-            page.drawRectangle({ x: mLeft, y: cy - sectionH, width: contentW, height: sectionH, color: rgb(0.94, 0.95, 0.93) });
-            page.drawText(label, { x: mLeft + 4, y: cy - sectionH + 4, size: 8, font: fSemi, color: olive });
+            // Section header
+            if (cy - sectionH < mBottom) {
+                const np = await addPage();
+                curPage = np.page; page = np.page; height = np.height; cy = np.y;
+                cy -= drawTableHeader(curPage, cy, costCols);
+            }
+            curPage.drawRectangle({ x: mLeft, y: cy - sectionH, width: contentW, height: sectionH, color: rgb(0.94, 0.95, 0.93) });
+            curPage.drawText(label, { x: mLeft + 4, y: cy - sectionH + 4, size: 8, font: fSemi, color: olive });
             cy -= sectionH;
 
-            // SCHRITT 1: Pre-calc ALL data row heights
             const rowData = items.map(item => {
                 const planned = Number(item.planned_amount || 0);
                 const { share, keyName } = calcShare(item, apt.id);
@@ -830,99 +916,103 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
                 return { item, planned, share, bezLines, keyLines, rowH };
             });
 
-            // SCHRITT 2: Draw rows with accumulated y
             for (const rd of rowData) {
-                if (cy - rd.rowH < 80) break;
-                sectionTotal += rd.planned;
-                sectionShare += rd.share;
+                if (cy - rd.rowH < mBottom) {
+                    const np = await addPage();
+                    curPage = np.page; page = np.page; height = np.height; cy = np.y;
+                    cy -= drawTableHeader(curPage, cy, costCols);
+                }
+                sTotal += rd.planned;
+                sShare += rd.share;
                 const cellTop = cy;
 
-                // Zebra bg
                 if (ri % 2 === 1) {
-                    page.drawRectangle({ x: mLeft, y: cellTop - rd.rowH, width: contentW, height: rd.rowH, color: rgb(0.976, 0.98, 0.973) });
+                    curPage.drawRectangle({ x: mLeft, y: cellTop - rd.rowH, width: contentW, height: rd.rowH, color: zebraColor });
                 }
-
-                // SCHRITT 3: Draw each cell, text inside cell bounds
-                drawCellSingle(page, rd.item.account?.account_number || '–', cKonto, cellTop, costLH, 8, fReg, gray40);
-                drawCell(page, rd.bezLines, cBez, cellTop, costLH, bezFS, fReg, offblack);
-                drawCell(page, rd.keyLines, cKey, cellTop, costLH, keyFS, fReg, gray50);
-                drawCellR(page, fmt(rd.planned), cGesamtR, cellTop, costLH, 8, fReg, gray40);
+                drawCellSingle(curPage, rd.item.account?.account_number || '–', cKonto, cellTop, costLH, 8, fReg, gray40);
+                drawCell(curPage, rd.bezLines, cBez, cellTop, costLH, bezFS, fReg, offblack);
+                drawCell(curPage, rd.keyLines, cKey, cellTop, costLH, keyFS, fReg, gray50);
+                drawCellR(curPage, fmt(rd.planned), cGesamtR, cellTop, costLH, 8, fReg, gray40);
 
                 const sFont  = rd.share > 0 ? fSemi : fReg;
                 const sColor = rd.share > 0 ? offblack : rgb(0.6, 0.6, 0.6);
-                drawCellR(page, fmt(rd.share), cAnteilR, cellTop, costLH, 8, sFont, sColor);
+                drawCellR(curPage, fmt(rd.share), cAnteilR, cellTop, costLH, 8, sFont, sColor);
 
-                // Divider at exact bottom of row
-                page.drawLine({ start: { x: mLeft, y: cellTop - rd.rowH }, end: { x: mRight, y: cellTop - rd.rowH }, thickness: 0.3, color: rgb(0.88, 0.89, 0.86) });
+                curPage.drawLine({ start: { x: mLeft, y: cellTop - rd.rowH }, end: { x: mRight, y: cellTop - rd.rowH }, thickness: 0.3, color: dividerColor });
                 cy -= rd.rowH;
                 ri++;
             }
 
-            // Subtotal: fixed 18pt, full-width colspan, bold
-            page.drawRectangle({ x: mLeft, y: cy - subtotalH, width: contentW, height: subtotalH, color: rgb(0.94, 0.95, 0.93) });
-            page.drawText(`Zwischensumme ${label}`, { x: mLeft + 4, y: cy - subtotalH + 5, size: 8, font: fSemi, color: offblack });
-            drawR(page, fmt(sectionTotal), cGesamtR - 2, cy - subtotalH + 5, 8, fSemi, gray40);
-            drawR(page, fmt(sectionShare), cAnteilR - 2, cy - subtotalH + 5, 8, fBold, olive);
+            // Subtotal
+            if (cy - subtotalH < mBottom) {
+                const np = await addPage();
+                curPage = np.page; page = np.page; height = np.height; cy = np.y;
+            }
+            curPage.drawRectangle({ x: mLeft, y: cy - subtotalH, width: contentW, height: subtotalH, color: rgb(0.94, 0.95, 0.93) });
+            curPage.drawText(`Zwischensumme ${label}`, { x: mLeft + 4, y: cy - subtotalH + 5, size: 8, font: fSemi, color: offblack });
+            drawR(curPage, fmt(sTotal), cGesamtR - 2, cy - subtotalH + 5, 8, fSemi, gray40);
+            drawR(curPage, fmt(sShare), cAnteilR - 2, cy - subtotalH + 5, 8, fBold, olive);
             cy -= subtotalH;
 
-            return { y: cy, ri, total: sectionTotal, share: sectionShare };
-        }
+            return { y: cy, ri, total: sTotal, share: sShare };
+        };
 
         let costIdx = 0;
         let grandTotal = 0, grandShare = 0;
 
         if (expenseItems.length) {
-            const res = drawCostSection(page, 'Umlagefähige Kosten', expenseItems, y, costIdx);
+            const res = await drawCostSection('Umlagefähige Kosten', expenseItems, y, costIdx);
             y = res.y; costIdx = res.ri; grandTotal += res.total; grandShare += res.share;
         }
         if (otherItems.length) {
-            const res = drawCostSection(page, 'Nicht umlagefähige Kosten', otherItems, y, costIdx);
+            const res = await drawCostSection('Nicht umlagefähige Kosten', otherItems, y, costIdx);
             y = res.y; costIdx = res.ri; grandTotal += res.total; grandShare += res.share;
         }
 
-        // Grand total row (full-width, olive bg)
-        const gtH = grandTotalH;
-        page.drawRectangle({ x: mLeft, y: y - gtH, width: contentW, height: gtH, color: olive });
-        page.drawText('Gesamt Jahres-Hausgeld', { x: mLeft + 4, y: y - gtH + 6, size: 8.5, font: fBold, color: white });
-        drawR(page, fmt(grandTotal), cGesamtR - 2, y - gtH + 6, 8.5, fBold, white);
-        drawR(page, fmt(grandShare), cAnteilR - 2, y - gtH + 6, 8.5, fBold, white);
-        y -= gtH + 16;
+        // Grand total row
+        if (y - grandTotalH < mBottom) {
+            ({ page, height, y } = await addPage());
+        }
+        page.drawRectangle({ x: mLeft, y: y - grandTotalH, width: contentW, height: grandTotalH, color: olive });
+        page.drawText('Gesamt Jahres-Hausgeld', { x: mLeft + 4, y: y - grandTotalH + 6, size: 8.5, font: fBold, color: white });
+        drawR(page, fmt(grandTotal), cGesamtR - 2, y - grandTotalH + 6, 8.5, fBold, white);
+        drawR(page, fmt(grandShare), cAnteilR - 2, y - grandTotalH + 6, 8.5, fBold, white);
+        y -= grandTotalH + 16;
 
-        // ── BLOCK 5: RECHTLICHER HINWEIS ────────────────────────
+        // ── BLOCK 5: RECHTLICHER HINWEIS ────────────────────
         const hintText = 'Dieser Wirtschaftsplan wurde maschinell erstellt und ist rechtlich bindend nach Beschlussfassung der WEG-Gemeinschaft. Die aus dem Wirtschaftsplan resultierenden monatlichen Hausgelder sind über den Planungszeitraum hinaus weiter zu zahlen, bis ein neuer Wirtschaftsplan beschlossen wurde.';
         const hintPad    = 10;
         const hintFS     = 9.5;
-        const hintLH     = Math.ceil(hintFS * 1.3); // 13pt
+        const hintLH     = Math.ceil(hintFS * 1.3);
         const hintIconD  = 10;
         const hintIconGap = 6;
-        const hintIconArea = hintPad + hintIconD + hintIconGap; // 26pt
+        const hintIconArea = hintPad + hintIconD + hintIconGap;
         const hintTextW  = contentW - hintIconArea - hintPad;
         const hintLines  = _pdfSplitText(hintText, fReg, hintFS, hintTextW);
         const hintBoxH   = hintPad * 2 + hintLines.length * hintLH;
 
-        const hintTopY = Math.max(y, hintBoxH + 30);
+        if (y - hintBoxH < mBottom) {
+            ({ page, height, y } = await addPage());
+        }
 
-        // Box: hb-orange/8% on white, 1pt orange border
         page.drawRectangle({
-            x: mLeft, y: hintTopY - hintBoxH,
+            x: mLeft, y: y - hintBoxH,
             width: contentW, height: hintBoxH,
             borderColor: orange, borderWidth: 1,
             color: rgb(0.996, 0.972, 0.958),
         });
 
-        // "i" icon: orange circle with white "i", centered to first text line
         const iconCX = mLeft + hintPad + hintIconD / 2;
-        const iconCY = hintTopY - hintPad - hintLH / 2;
+        const iconCY = y - hintPad - hintLH / 2;
         page.drawCircle({ x: iconCX, y: iconCY, size: hintIconD / 2, color: orange });
         const iCharW = fBold.widthOfTextAtSize('i', 7);
         page.drawText('i', { x: iconCX - iCharW / 2, y: iconCY - 2.5, size: 7, font: fBold, color: white });
 
-        // Text lines
         const hintTextX = mLeft + hintIconArea;
         hintLines.forEach((line, i) => {
             page.drawText(line, {
                 x: hintTextX,
-                y: hintTopY - hintPad - hintLH * 0.85 - (i * hintLH),
+                y: y - hintPad - hintLH * 0.85 - (i * hintLH),
                 size: hintFS, font: fReg, color: offblack,
             });
         });
