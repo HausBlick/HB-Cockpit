@@ -519,8 +519,9 @@ js/
 | # | Was wurde gemacht |
 |---|---|
 | 1 | **Gesamtumlage-Feld im "Neuer Schlüssel"-Modal**: Optionales Eingabefeld für `total_value`. Wenn manuell gesetzt (z.B. MEA 800 von 1000 weil Garagen ausgenommen), wird der Wert beim Speichern NICHT durch die Einheitenwerte-Summe überschrieben |
-| 2 | **Gesamtumlage im Werte-Modal**: Checkbox „Gesamtumlage manuell" + Eingabefeld. Automatische Erkennung ob manuell/automatisch anhand Differenz zum summierten Wert. `_dkToggleManualTotal()`, `_dkSaveValues()` respektiert manuellen Wert |
+| 2 | **Gesamtumlage im Werte-Modal — UX-Redesign**: Radio-Toggle „Automatisch (Summe)" / „Manuell festlegen" statt Checkbox. Prominente Gesamtumlage-Anzeige mit Live-Update (`_dkUpdateTotalDisplay()`). Manuelles Eingabefeld mit Platzhalter. Auto-Erkennung ob manuell/auto beim Öffnen. **Bugfix:** Arrow-Funktionen (`=>`) in HTML-Template-Attributen brachen das Rendering — alle Expressions vor das Template verschoben, `.map()` mit `function()` statt Arrow |
 | 3 | **EUR-Suffix bei Schlüsselwerten entfernt**: `utils-pdf.js` Block 3 (Umlageschlüssel-Tabelle) — `fmt()` (mit €) durch neuen Helper `fmtVal()` (ohne €) ersetzt für `total` und `unitVal`. Verteilerschlüssel-Werte sind dimensionslose Anteile (MEA, m², Einheiten), keine EUR-Beträge |
+| 4 | **"Auf 0"-Button**: "Leeren"-Button im Schnell-Befüllen-Bereich umbenannt zu "Auf 0" für klarere Semantik |
 
 ---
 
