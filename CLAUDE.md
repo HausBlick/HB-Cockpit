@@ -525,6 +525,28 @@ js/
 
 ---
 
+### PDF-Redesign — Kopfbereich Einzelwirtschaftsplan (Immoware24-Orientierung)
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Kopfzeile (alle Seiten)**: „Wirtschaftsplan | WEG [Adresse]" links (Bold), Erstellungsdatum rechts, dünne Trennlinie. `drawPageHeader()` Hilfsfunktion |
+| 2 | **Titel-Block**: „Wirtschaftsplan" (16pt Bold) + „Einzelwirtschaftsplan" (12pt SemiBold) |
+| 3 | **Objekt- & Verwalter-Block**: Zweispaltige Box mit Rahmen. Links: Objekt-Adresse + Planzeitraum (DD.MM.YYYY – DD.MM.YYYY). Rechts: Verwalter-Daten aus `global_settings` (company_name, street, zip_city, tax_number). Vertikale Trennlinie |
+| 4 | **Eigentümer-Box**: Olive-umrandete Box mit Name (Bold), Adresse, Verwaltungseinheit (WE-Nr. + Lage + MEA + Fläche) |
+| 5 | **Leerstand**: Einheiten ohne Eigentümer zeigen „Eigentümergemeinschaft (Leerstand)" als Fallback-Name |
+| 6 | **Seite 2+ kompakter Header**: Nur Kopfzeile + Trennlinie, kein Eigentümer/Objekt-Block — aber Briefbogen als Hintergrund auf allen Seiten. `addPage()` kopiert immer das Briefbogen-Template |
+| 7 | **Seitenumbruch-Logik**: Jeder Block prüft `y - blockH < mBottom` vor dem Zeichnen. Bei Platzmangel → neue Seite mit kompaktem Header. Tabellen-Header wird auf neuer Seite wiederholt |
+| 8 | **buildings-Query erweitert**: `zip_code, city` hinzugefügt für vollständige Gebäude-Adresse im PDF |
+| 9 | **Table-Drawing-Helpers refactored**: `splitLines`, `drawCell`, `drawCellSingle`, `drawCellR` aus der for-Schleife herausgezogen (einmal definiert, wiederverwendbar über Seitengrenzen) |
+| 10 | **drawCostSection async**: Unterstützt jetzt Seitenumbrüche mitten in der Kostentabelle |
+| 11 | **Seite 1 ohne Kopfzeile**: `addFirstPage()` zeigt nur Datum (rechtsbündig), keine Kopfzeile/Trennlinie — Seite 2+ behält kompakten Header via `addPage()` |
+| 12 | **Content unter Logo**: Alle Seiten starten bei `pageHeight - 100` (unter Briefbogen-Logo ~85-90pt) |
+| 13 | **Boxen kompakter**: Padding 10→6pt, Zeilenabstand reduziert, beide Boxen zusammen ~110pt statt ~180pt |
+| 14 | **Eigentümer-Query gefixt**: `persons` hat kein `full_name` → Query auf `first_name, last_name, street, house_number, zip_code, city` geändert. FK-Hint `persons!ownerships_owner_id_fkey`. ownerMap baut Name/Adresse aus Einzelfeldern zusammen |
+| 15 | **Box-Zeichenreihenfolge**: Boxes werden vor Text gezeichnet (Hintergrund zuerst), damit weißer Fill den Text nicht überdeckt |
+
+---
+
 ### Phase 7-A — Admin-Einstellungen & Official Letter Engine
 
 | # | Was wurde gemacht |
