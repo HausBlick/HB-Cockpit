@@ -496,6 +496,12 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
         return r.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
     }
 
+    // Helper: format dimensionless value (no € suffix)
+    function fmtVal(v) {
+        const r = Number(v || 0);
+        return r.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+    }
+
     // Helper: distribution key type labels
     const typeLabels = { mea: 'MEA', sqm: 'Fläche (m²)', units: 'Einheiten', consumption: 'Verbrauch', persons: 'Personen', heizkosten: 'HeizKV', custom: 'Individuell' };
 
@@ -757,8 +763,8 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
             drawCellSingle(page, typeLabels[row.uk.key.type] || row.uk.key.type, dk2, cellTop, dkLH, dkFS, fReg, gray50);
             drawCellSingle(page, zeitraum, dk3, cellTop, dkLH, 7, fReg, gray50);
             drawCellR(page, '365',                dk4r, cellTop, dkLH, dkFS, fReg, gray50);
-            drawCellR(page, fmt(row.uk.total),    dk5r, cellTop, dkLH, dkFS, fReg, gray40);
-            drawCellR(page, fmt(row.uk.unitVal),  dk6r, cellTop, dkLH, dkFS, fSemi, offblack);
+            drawCellR(page, fmtVal(row.uk.total),    dk5r, cellTop, dkLH, dkFS, fReg, gray40);
+            drawCellR(page, fmtVal(row.uk.unitVal),  dk6r, cellTop, dkLH, dkFS, fSemi, offblack);
 
             // Divider at bottom of row
             page.drawLine({ start: { x: mLeft, y: cellTop - row.rowH }, end: { x: mRight, y: cellTop - row.rowH }, thickness: 0.3, color: rgb(0.88, 0.89, 0.86) });
