@@ -421,7 +421,7 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
         _supabase.from('accounts').select('id, account_number, account_name, account_type, primary_key_id, secondary_key_id, secondary_key_percentage').eq('building_id', bid).eq('is_active', true),
         _supabase.from('distribution_keys').select('id, name, type, total_value, heiz_split_percent').eq('building_id', bid),
         _supabase.from('distribution_key_units').select('distribution_key_id, apartment_id, value'),
-        _supabase.from('ownerships').select('apartment_id, person:persons(full_name, street, zip_code, city)').eq('active', true),
+        _supabase.from('ownerships').select('apartment_id, owner:persons!owner_id(full_name, street, zip_code, city)').eq('is_active', true),
     ]);
 
     const planItems = itemsRes.data || [];
@@ -443,7 +443,7 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
         dkUnitMap[u.distribution_key_id][u.apartment_id] = Number(u.value) || 0;
     });
     const ownerMap = {};
-    owners.forEach(o => { if (o.person) ownerMap[o.apartment_id] = o.person; });
+    owners.forEach(o => { if (o.owner) ownerMap[o.apartment_id] = o.owner; });
 
     // Load letterhead template
     const { PDFDocument, rgb } = PDFLib;
