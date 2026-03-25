@@ -641,7 +641,7 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
         }
 
         // Section label
-        page.drawText('Hausgeld-Übersicht', { x: mLeft, y, size: 10, font: fBold, color: offblack });
+        page.drawText('Hausgeld-Übersicht', { x: mLeft, y, size: 10, font: fBold, color: olive });
         y -= 10;
 
         // Header
@@ -664,14 +664,14 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
         // Divider
         page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.3, color: rgb(0.88, 0.89, 0.86) });
 
-        // FIX 4: Row 2 "Monatliches Hausgeld" — PROMINENT, 24pt height
+        // Row 2 "Monatliches Hausgeld" — einheitlich hb-olive, gleiche Größe
         const summRow2H = 24;
         page.drawRectangle({ x: mLeft, y: y - summRow2H, width: contentW, height: summRow2H, color: rgb(0.976, 0.98, 0.973) }); // hb-ultralight
         const jr2base = y - padV - Math.ceil(10 * 1.3);
-        page.drawText('Monatliches Hausgeld', { x: mLeft + 4, y: jr2base, size: 10, font: fSemi, color: offblack });
-        drawR(page, fmt(totalPlanned / 12), mLeft + contentW * 0.55, jr2base, 10, fSemi, offblack);
-        drawR(page, fmt(totalShare / 12), mRight - 4, jr2base, 11, fBold, olive);
-        y -= summRow2H + 14;
+        page.drawText('Monatliches Hausgeld', { x: mLeft + 4, y: jr2base, size: 10, font: fSemi, color: olive });
+        drawR(page, fmt(totalPlanned / 12), mLeft + contentW * 0.55, jr2base, 10, fSemi, olive);
+        drawR(page, fmt(totalShare / 12), mRight - 4, jr2base, 10, fBold, olive);
+        y -= summRow2H + 24;
 
         // ── TABLE DRAWING ENGINE (Pflicht-Algorithmus) ────────────
 
@@ -706,7 +706,7 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
 
         // ── BLOCK 3: UMLAGESCHLÜSSEL-TABELLE ────────────────────
         const usedKeys = collectUsedKeys(apt.id);
-        page.drawText('Umlageschlüssel', { x: mLeft, y, size: 10, font: fBold, color: offblack });
+        page.drawText('Umlageschlüssel', { x: mLeft, y, size: 10, font: fBold, color: olive });
         y -= 10;
 
         // (dkHeaderH computed by drawTableHeader)
@@ -764,11 +764,11 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
             page.drawLine({ start: { x: mLeft, y: cellTop - row.rowH }, end: { x: mRight, y: cellTop - row.rowH }, thickness: 0.3, color: rgb(0.88, 0.89, 0.86) });
             dkY -= row.rowH;
         });
-        y = dkY - 14;
+        y = dkY - 24;
 
         // ── BLOCK 4: VERTEILUNGSERGEBNIS (Kostentabelle) ────────
         // Konto 13mm | Bezeichnung 50mm | Schlüssel 40mm | Gesamtkosten 30mm | Ihr Anteil 30mm
-        page.drawText('Verteilungsergebnis', { x: mLeft, y, size: 10, font: fBold, color: offblack });
+        page.drawText('Verteilungsergebnis', { x: mLeft, y, size: 10, font: fBold, color: olive });
         y -= 10;
 
         // (costHeaderH computed by drawTableHeader)
