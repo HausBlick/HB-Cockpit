@@ -1150,6 +1150,11 @@ window._dkOpenNewModal = function(buildingId) {
                     <input id="dk-new-heiz-split" type="number" min="1" max="99" step="1" value="70" class="w-full">
                     <p class="text-xs text-gray-400 mt-1">z.B. 70 = 70% Verbrauch / 30% Fläche (gem. HeizkostenV)</p>
                 </div>
+                <div>
+                    <label class="text-xs font-bold text-gray-500 mb-1 block">Gesamtumlage (optional)</label>
+                    <input id="dk-new-total" type="number" step="0.0001" min="0" placeholder="leer = Summe der Einheitenwerte" class="w-full">
+                    <p class="text-xs text-gray-400 mt-1">Nur setzen, wenn nicht alle Einheiten umlagepflichtig sind (z.B. MEA 800 von 1000)</p>
+                </div>
             </div>
             <div class="flex gap-3 mt-6 justify-end">
                 <button onclick="document.getElementById('dk-new-overlay').remove()"
@@ -1172,6 +1177,11 @@ window._dkSaveNew = async function(buildingId) {
     if (!name) { showToast('Bitte einen Namen eingeben.', 'error'); return; }
 
     const payload = { building_id: buildingId, name, type };
+    const manualTotal = document.getElementById('dk-new-total')?.value;
+    if (manualTotal !== '' && manualTotal != null) {
+        const tv = parseFloat(manualTotal);
+        if (!isNaN(tv) && tv > 0) payload.total_value = tv;
+    }
     if (type === 'heizkosten') {
         const split = parseFloat(document.getElementById('dk-new-heiz-split')?.value);
         if (isNaN(split) || split < 1 || split > 99) { showToast('Verbrauchsanteil muss zwischen 1 und 99 liegen.', 'error'); return; }
@@ -1269,10 +1279,22 @@ window._dkOpenValuesModal = async function(keyId, buildingId) {
                     </tbody>
                 </table>
             </div>
-            <div class="px-6 py-3 border-t border-gray-100 flex items-center justify-between flex-shrink-0">
-                <div class="text-sm">
-                    <span class="text-gray-500">Summe:</span>
-                    <span id="dk-sum-display" class="font-bold text-hb-offblack ml-2">—</span>
+            <div class="px-6 py-3 border-t border-gray-100 flex-shrink-0 space-y-2">
+                <div class="flex items-center justify-between text-sm">
+                    <div>
+                        <span class="text-gray-500">Summe Einheitenwerte:</span>
+                        <span id="dk-sum-display" class="font-bold text-hb-offblack ml-2">—</span>
+                    </div>
+                    <label class="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
+                        <input type="checkbox" id="dk-manual-total-check" ${key.total_value != null && Math.abs(Number(key.total_value) - Object.values(valMap).reduce((s,v) => s + Number(v || 0), 0)) > 0.0001 ? 'checked' : ''}
+                            onchange="_dkToggleManualTotal()" class="rounded border-gray-300">
+                        Gesamtumlage manuell
+                    </label>
+                </div>
+                <div id="dk-manual-total-row" class="${key.total_value != null && Math.abs(Number(key.total_value) - Object.values(valMap).reduce((s,v) => s + Number(v || 0), 0)) > 0.0001 ? '' : 'hidden'} flex items-center gap-3 text-sm">
+                    <span class="text-gray-500">Gesamtumlage:</span>
+                    <input id="dk-manual-total-val" type="number" step="0.0001" min="0" value="${key.total_value ?? ''}" class="w-32 text-right text-sm">
+                    <span class="text-xs text-gray-400">(wird NICHT durch Summe überschrieben)</span>
                 </div>
                 <div class="flex gap-3">
                     <button onclick="document.getElementById('dk-vals-overlay').remove()"
@@ -1308,6 +1330,12 @@ window._dkUpdateSum = function() {
     });
 };
 
+window._dkToggleManualTotal = function() {
+    const checked = document.getElementById('dk-manual-total-check')?.checked;
+    const row = document.getElementById('dk-manual-total-row');
+    if (row) row.classList.toggle('hidden', !checked);
+};
+
 window._dkFillFrom = function(source) {
     const rows = document.querySelectorAll('#dk-vals-body tr');
     const n = rows.length;
@@ -1331,7 +1359,13 @@ window._dkSaveValues = async function(keyId, buildingId) {
         upserts.push({ distribution_key_id: keyId, apartment_id: aptId, value: val });
     });
 
-    const totalValue = upserts.reduce((s, r) => s + r.value, 0);
+    const summedValue = upserts.reduce((s, r) => s + r.value, 0);
+    const isManual = document.getElementById('dk-manual-total-check')?.checked;
+    let totalValue = summedValue;
+    if (isManual) {
+        const manVal = parseFloat(document.getElementById('dk-manual-total-val')?.value);
+        if (!isNaN(manVal) && manVal > 0) totalValue = manVal;
+    }
     const updatePayload = { total_value: totalValue, updated_at: new Date().toISOString() };
 
     // Update heiz_split_percent if applicable
