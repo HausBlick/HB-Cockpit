@@ -1150,11 +1150,6 @@ window._dkOpenNewModal = function(buildingId) {
                     <input id="dk-new-heiz-split" type="number" min="1" max="99" step="1" value="70" class="w-full">
                     <p class="text-xs text-gray-400 mt-1">z.B. 70 = 70% Verbrauch / 30% Fläche (gem. HeizkostenV)</p>
                 </div>
-                <div>
-                    <label class="text-xs font-bold text-gray-500 mb-1 block">Gesamtumlage (optional)</label>
-                    <input id="dk-new-total" type="number" step="0.0001" min="0" placeholder="leer = Summe der Einheitenwerte" class="w-full">
-                    <p class="text-xs text-gray-400 mt-1">Nur setzen, wenn nicht alle Einheiten umlagepflichtig sind (z.B. MEA 800 von 1000)</p>
-                </div>
             </div>
             <div class="flex gap-3 mt-6 justify-end">
                 <button onclick="document.getElementById('dk-new-overlay').remove()"
@@ -1177,11 +1172,6 @@ window._dkSaveNew = async function(buildingId) {
     if (!name) { showToast('Bitte einen Namen eingeben.', 'error'); return; }
 
     const payload = { building_id: buildingId, name, type };
-    const manualTotal = document.getElementById('dk-new-total')?.value;
-    if (manualTotal !== '' && manualTotal != null) {
-        const tv = parseFloat(manualTotal);
-        if (!isNaN(tv) && tv > 0) payload.total_value = tv;
-    }
     if (type === 'heizkosten') {
         const split = parseFloat(document.getElementById('dk-new-heiz-split')?.value);
         if (isNaN(split) || split < 1 || split > 99) { showToast('Verbrauchsanteil muss zwischen 1 und 99 liegen.', 'error'); return; }
@@ -1223,6 +1213,23 @@ window._dkOpenValuesModal = async function(keyId, buildingId) {
 
     const isHeiz = key.type === 'heizkosten';
 
+    // Pre-calc: is total_value manually set (differs from unit sum)?
+    const unitSum = Object.values(valMap).reduce(function(s, v) { return s + Number(v || 0); }, 0);
+    const storedTotal = Number(key.total_value) || 0;
+    const isManualTotal = storedTotal > 0 && Math.abs(storedTotal - unitSum) > 0.0001;
+    const manualChecked = isManualTotal ? 'checked' : '';
+    const manualRowHidden = isManualTotal ? '' : 'hidden';
+    const manualTotalVal = isManualTotal ? storedTotal : '';
+
+    // Quick-fill buttons based on type
+    const fillBtns = [];
+    if (key.type === 'mea' || key.type === 'custom' || key.type === 'heizkosten')
+        fillBtns.push('<button onclick="_dkFillFrom(\'mea\')" class="text-xs text-hb-olive bg-white border border-hb-olive/20 px-2 py-1 rounded-lg hover:bg-hb-ultralight">MEA</button>');
+    if (key.type === 'sqm' || key.type === 'custom' || key.type === 'heizkosten')
+        fillBtns.push('<button onclick="_dkFillFrom(\'sqm\')" class="text-xs text-hb-olive bg-white border border-hb-olive/20 px-2 py-1 rounded-lg hover:bg-hb-ultralight">m²</button>');
+    if (key.type === 'units' || key.type === 'custom')
+        fillBtns.push('<button onclick="_dkFillFrom(\'units\')" class="text-xs text-hb-olive bg-white border border-hb-olive/20 px-2 py-1 rounded-lg hover:bg-hb-ultralight">je 1/n</button>');
+
     const overlay = document.createElement('div');
     overlay.id = 'dk-vals-overlay';
     overlay.className = 'fixed inset-0 bg-black/40 flex items-center justify-center z-50';
@@ -1231,27 +1238,19 @@ window._dkOpenValuesModal = async function(keyId, buildingId) {
             <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center flex-shrink-0">
                 <div>
                     <h3 class="text-base font-extrabold text-hb-offblack">${key.name}</h3>
-                    <p class="text-xs text-gray-500">${_DK_TYPE_LABELS[key.type] || key.type}${isHeiz ? ` · ${key.heiz_split_percent ?? 70}% Verbrauch / ${100 - (key.heiz_split_percent ?? 70)}% Fläche` : ''}</p>
+                    <p class="text-xs text-gray-500">${_DK_TYPE_LABELS[key.type] || key.type}${isHeiz ? ' · ' + (key.heiz_split_percent ?? 70) + '% Verbrauch / ' + (100 - (key.heiz_split_percent ?? 70)) + '% Fläche' : ''}</p>
                 </div>
                 <button onclick="document.getElementById('dk-vals-overlay').remove()"
-                    class="text-gray-400 hover:text-hb-orange text-xl leading-none">×</button>
+                    class="text-gray-400 hover:text-hb-orange text-xl leading-none">&times;</button>
             </div>
-            ${isHeiz ? `
-            <div class="px-6 py-3 bg-hb-ultralight border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
-                <label class="text-xs font-bold text-gray-500">Verbrauchsanteil (%)</label>
-                <input id="dk-heiz-split-val" type="number" min="1" max="99" step="1" value="${key.heiz_split_percent ?? 70}"
-                    class="w-20 text-sm" oninput="_dkUpdateHeizLabel()">
-                <span id="dk-heiz-rest-label" class="text-xs text-gray-400">= ${100 - (key.heiz_split_percent ?? 70)}% Fläche</span>
-            </div>` : ''}
+            ${isHeiz ? '<div class="px-6 py-3 bg-hb-ultralight border-b border-gray-100 flex items-center gap-3 flex-shrink-0">' +
+                '<label class="text-xs font-bold text-gray-500">Verbrauchsanteil (%)</label>' +
+                '<input id="dk-heiz-split-val" type="number" min="1" max="99" step="1" value="' + (key.heiz_split_percent ?? 70) + '" class="w-20 text-sm" oninput="_dkUpdateHeizLabel()">' +
+                '<span id="dk-heiz-rest-label" class="text-xs text-gray-400">= ' + (100 - (key.heiz_split_percent ?? 70)) + '% Fläche</span></div>' : ''}
             <div class="px-6 py-3 bg-hb-ultralight border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
                 <p class="text-xs text-gray-500 flex-grow">Schnell befüllen aus:</p>
-                ${key.type === 'mea' || key.type === 'custom' || key.type === 'heizkosten'
-                    ? `<button onclick="_dkFillFrom('mea')" class="text-xs text-hb-olive bg-white border border-hb-olive/20 px-2 py-1 rounded-lg hover:bg-hb-ultralight">MEA</button>` : ''}
-                ${key.type === 'sqm' || key.type === 'custom' || key.type === 'heizkosten'
-                    ? `<button onclick="_dkFillFrom('sqm')" class="text-xs text-hb-olive bg-white border border-hb-olive/20 px-2 py-1 rounded-lg hover:bg-hb-ultralight">m²</button>` : ''}
-                ${key.type === 'units' || key.type === 'custom'
-                    ? `<button onclick="_dkFillFrom('units')" class="text-xs text-hb-olive bg-white border border-hb-olive/20 px-2 py-1 rounded-lg hover:bg-hb-ultralight">je 1/n</button>` : ''}
-                <button onclick="_dkFillFrom('zero')" class="text-xs text-gray-400 bg-white border border-gray-200 px-2 py-1 rounded-lg hover:bg-gray-50">Leeren</button>
+                ${fillBtns.join('')}
+                <button onclick="_dkFillFrom('zero')" class="text-xs text-gray-400 bg-white border border-gray-200 px-2 py-1 rounded-lg hover:bg-gray-50">Auf 0</button>
             </div>
             <div class="overflow-y-auto flex-grow">
                 <table class="w-full text-sm">
@@ -1263,40 +1262,45 @@ window._dkOpenValuesModal = async function(keyId, buildingId) {
                         </tr>
                     </thead>
                     <tbody id="dk-vals-body" class="divide-y divide-hb-olive/10">
-                        ${apts.map(apt => `
-                        <tr data-apt-id="${apt.id}" data-mea="${apt.mea || 0}" data-sqm="${apt.sq_meters || 0}">
-                            <td class="px-4 py-2 font-semibold">${apt.apartment_number}
-                                <span class="text-xs text-gray-400 font-normal">${apt.floor ? '· ' + apt.floor : ''}</span>
-                            </td>
-                            <td class="px-4 py-1.5 text-right">
-                                <input type="number" step="0.0001" min="0"
-                                    class="dk-val-input w-28 text-right text-sm"
-                                    value="${valMap[apt.id] ?? 0}"
-                                    oninput="_dkUpdateSum()">
-                            </td>
-                            <td class="px-4 py-2 text-right text-xs text-gray-500 dk-pct-cell">—</td>
-                        </tr>`).join('')}
+                        ${apts.map(function(apt) { return '<tr data-apt-id="' + apt.id + '" data-mea="' + (apt.mea || 0) + '" data-sqm="' + (apt.sq_meters || 0) + '">' +
+                            '<td class="px-4 py-2 font-semibold">' + apt.apartment_number +
+                                '<span class="text-xs text-gray-400 font-normal">' + (apt.floor ? '&middot; ' + apt.floor : '') + '</span></td>' +
+                            '<td class="px-4 py-1.5 text-right"><input type="number" step="0.0001" min="0" class="dk-val-input w-28 text-right text-sm" value="' + (valMap[apt.id] ?? 0) + '" oninput="_dkUpdateSum()"></td>' +
+                            '<td class="px-4 py-2 text-right text-xs text-gray-500 dk-pct-cell">&mdash;</td></tr>'; }).join('')}
                     </tbody>
                 </table>
             </div>
-            <div class="px-6 py-3 border-t border-gray-100 flex-shrink-0 space-y-2">
-                <div class="flex items-center justify-between text-sm">
-                    <div>
+            <div class="px-6 py-3 border-t border-gray-100 flex-shrink-0 space-y-3">
+                <div class="flex items-center justify-between">
+                    <div class="text-sm">
                         <span class="text-gray-500">Summe Einheitenwerte:</span>
-                        <span id="dk-sum-display" class="font-bold text-hb-offblack ml-2">—</span>
+                        <span id="dk-sum-display" class="font-bold text-hb-offblack ml-2">&mdash;</span>
                     </div>
-                    <label class="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
-                        <input type="checkbox" id="dk-manual-total-check" ${key.total_value != null && Math.abs(Number(key.total_value) - Object.values(valMap).reduce((s,v) => s + Number(v || 0), 0)) > 0.0001 ? 'checked' : ''}
-                            onchange="_dkToggleManualTotal()" class="rounded border-gray-300">
-                        Gesamtumlage manuell
-                    </label>
                 </div>
-                <div id="dk-manual-total-row" class="${key.total_value != null && Math.abs(Number(key.total_value) - Object.values(valMap).reduce((s,v) => s + Number(v || 0), 0)) > 0.0001 ? '' : 'hidden'} flex items-center gap-3 text-sm">
-                    <span class="text-gray-500">Gesamtumlage:</span>
-                    <input id="dk-manual-total-val" type="number" step="0.0001" min="0" value="${key.total_value ?? ''}" class="w-32 text-right text-sm">
-                    <span class="text-xs text-gray-400">(wird NICHT durch Summe überschrieben)</span>
+                <div class="bg-hb-ultralight rounded-lg px-4 py-3 space-y-2">
+                    <div class="flex items-center gap-4 text-sm">
+                        <span class="text-xs font-bold text-gray-500">Gesamtumlage:</span>
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" name="dk-total-mode" value="auto" ${manualChecked ? '' : 'checked'}
+                                onchange="_dkToggleManualTotal()" class="text-hb-olive focus:ring-hb-olive">
+                            <span class="text-xs text-gray-600">Automatisch (Summe)</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" name="dk-total-mode" value="manual" ${manualChecked ? 'checked' : ''}
+                                onchange="_dkToggleManualTotal()" class="text-hb-olive focus:ring-hb-olive">
+                            <span class="text-xs text-gray-600">Manuell festlegen</span>
+                        </label>
+                    </div>
+                    <div id="dk-manual-total-row" class="${manualRowHidden} flex items-center gap-3">
+                        <input id="dk-manual-total-val" type="number" step="0.0001" min="0" value="${manualTotalVal}"
+                            placeholder="z.B. 800" class="w-32 text-right text-sm" oninput="_dkUpdateTotalDisplay()">
+                        <span class="text-xs text-gray-400">z.B. MEA 800 von 1000 (Garagen ausgenommen)</span>
+                    </div>
+                    <div class="text-sm font-bold text-hb-olive">
+                        Gesamtumlage: <span id="dk-total-display">&mdash;</span>
+                    </div>
                 </div>
-                <div class="flex gap-3">
+                <div class="flex gap-3 justify-end">
                     <button onclick="document.getElementById('dk-vals-overlay').remove()"
                         class="text-sm text-gray-500 px-4 py-2 rounded-lg hover:bg-gray-100">Abbrechen</button>
                     <button onclick="_dkSaveValues('${keyId}', ${buildingId})" class="btn-primary text-sm px-5 py-2">Speichern</button>
@@ -1328,12 +1332,29 @@ window._dkUpdateSum = function() {
         const v = parseFloat(inp.value) || 0;
         pct.textContent = sum > 0 ? (v / sum * 100).toFixed(2) + '%' : '—';
     });
+    _dkUpdateTotalDisplay();
 };
 
 window._dkToggleManualTotal = function() {
-    const checked = document.getElementById('dk-manual-total-check')?.checked;
+    const mode = document.querySelector('input[name="dk-total-mode"]:checked')?.value;
     const row = document.getElementById('dk-manual-total-row');
-    if (row) row.classList.toggle('hidden', !checked);
+    if (row) row.classList.toggle('hidden', mode !== 'manual');
+    _dkUpdateTotalDisplay();
+};
+
+window._dkUpdateTotalDisplay = function() {
+    const mode = document.querySelector('input[name="dk-total-mode"]:checked')?.value;
+    const sumEl = document.getElementById('dk-sum-display');
+    const totalEl = document.getElementById('dk-total-display');
+    if (!totalEl) return;
+    if (mode === 'manual') {
+        const manVal = parseFloat(document.getElementById('dk-manual-total-val')?.value);
+        totalEl.textContent = !isNaN(manVal) && manVal > 0
+            ? manVal.toLocaleString('de-DE', { maximumFractionDigits: 4 }) + ' (manuell)'
+            : '—';
+    } else {
+        totalEl.textContent = sumEl ? sumEl.textContent + ' (auto)' : '—';
+    }
 };
 
 window._dkFillFrom = function(source) {
@@ -1360,7 +1381,8 @@ window._dkSaveValues = async function(keyId, buildingId) {
     });
 
     const summedValue = upserts.reduce((s, r) => s + r.value, 0);
-    const isManual = document.getElementById('dk-manual-total-check')?.checked;
+    const mode = document.querySelector('input[name="dk-total-mode"]:checked')?.value;
+    const isManual = mode === 'manual';
     let totalValue = summedValue;
     if (isManual) {
         const manVal = parseFloat(document.getElementById('dk-manual-total-val')?.value);
