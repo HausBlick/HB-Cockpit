@@ -501,15 +501,16 @@ js/
 
 | # | Was wurde gemacht |
 |---|---|
-| 1 | **Inter-Font eingebettet**: `_pdfLoadInterFonts()` lädt Inter Regular 400, SemiBold 600, Bold 700 als TTF via `fonts/Inter-*.ttf`, cached nach erstem Laden. Kein Helvetica-Fallback im Einzelwirtschaftsplan |
-| 2 | **Block 1 — Meta-Header**: Eigentümer-Name (SemiBold) + Adresse (Street, PLZ/Ort) links. Rechts: 6-zeiliger Info-Block (Datum, WP-Jahr, Einheit, Gebäude, MEA, Wohnfläche) als Key-Value rechtsbündig |
-| 3 | **Block 2 — Hausgeld-Summary**: 3-spaltige Tabelle (Hausgeld, Objekt gesamt, Ihr Anteil), olive Header. Jahres-Hausgeld + Monatliches Hausgeld (olive hervorgehoben). Monatlicher Betrag NUR hier, nicht in Kostentabelle |
-| 4 | **Block 3 — Umlageschlüssel-Tabelle**: `splitLines()` + Pre-Kalkulation, `drawCell()`/`drawCellR()`. lineH = `fontSize*1.3`, padV=4pt, minRowH=18pt. Header via `drawTableHeader()` mit Mindesthöhe 22pt |
-| 5 | **Block 4 — Verteilungsergebnis**: Bezeichnung 9pt, Schlüssel 7.5pt/38mm, je max 2 Zeilen. Sektionszeilen 16pt, Zwischensummen 20pt, Grand-Total 22pt olive. `fmt()` für exakte 2-Dezimal-EUR-Formatierung |
-| 6 | **Block 5 — Rechtlicher Hinweis**: boxH = `zeilen * lineH + 12` (strikt). verfügbreite = contentW - 24 (16pt Icon + 8pt Gap). 9.5pt Inter, lineH=13pt |
-| 8 | **Hausgeld-Summary**: Zeile 1 „Jahres" dezent grau (#9ca3af, 8.5pt/9pt). Zeile 2 „Monatlich" prominent (10pt SemiBold, Anteil 11pt Bold olive, 24pt Höhe, hb-ultralight bg) |
-| 9 | **Betragsformatierung**: `fmt()` mit `Math.round((v+EPSILON)*100)/100`, `maximumFractionDigits:2` + ' €' — gilt für JEDEN Betrag im PDF |
-| 7 | **Font-Files**: `fonts/Inter-Regular.ttf`, `fonts/Inter-SemiBold.ttf`, `fonts/Inter-Bold.ttf` zum Projekt hinzugefügt |
+| 1 | **Inter-Font eingebettet**: `_pdfLoadInterFonts()` lädt Inter Regular 400, SemiBold 600, Bold 700 als TTF via `fonts/Inter-*.ttf`, cached als `Uint8Array` + `.slice()` bei jedem `embedFont()`. `@pdf-lib/fontkit` CDN + `pdfDoc.registerFontkit(fontkit)` |
+| 2 | **Block 1 — Meta-Header**: Eigentümer-Name (SemiBold) + Adresse links. Rechts: 6-zeiliger Info-Block (Datum, WP-Jahr, Einheit, Gebäude, MEA, Wohnfläche) als Key-Value rechtsbündig |
+| 3 | **Block 2 — Hausgeld-Summary**: 3-spaltige Tabelle (Hausgeld, Objekt gesamt, Ihr Anteil), olive Header. Zeile 1 „Jahres" dezent grau (#9ca3af). Zeile 2 „Monatlich" prominent (10pt SemiBold, einheitlich hb-olive, 24pt, hb-ultralight bg). Monatlicher Betrag NUR hier |
+| 4 | **Block 3 — Umlageschlüssel-Tabelle**: 7 Spalten, `splitLines()` + Pre-Kalkulation aller Zeilenhöhen, `drawCell()`/`drawCellR()`. lineH=`fontSize*1.3`, padV=4pt, minRowH=18pt. Header via `drawTableHeader()` Mindesthöhe 22pt |
+| 5 | **Block 4 — Verteilungsergebnis**: Bezeichnung 9pt/50mm, Schlüssel 7.5pt/38mm, je max 2 Zeilen mit „…"-Truncation. Sektionen umlagefähig/nicht umlagefähig (16pt, olive/10), Zwischensummen 20pt, Grand-Total 22pt olive bg |
+| 6 | **Block 5 — Rechtlicher Hinweis**: 10pt Padding, 9.5pt Inter, lineH=13pt. Orange-Kreis (10pt) mit weißem „i", 6pt Gap. Box: orange/8% bg, 1pt border |
+| 7 | **Betragsformatierung**: `fmt()` mit `Math.round((v+EPSILON)*100)/100`, `maximumFractionDigits:2` + ' €' — gilt für JEDEN Betrag im PDF |
+| 8 | **Tabellen-Header**: `drawTableHeader()` berechnet Höhe `max(22, fs*1.35+8)`, Baseline `y - 5 - fontSize`, gibt Höhe zurück. Überschriften 10pt hb-olive, 10pt Abstand zur Tabelle, 24pt Abstand nach Tabelle |
+| 9 | **Eigentümer-Query Bugfix**: `ownerships`-Query korrigiert: `.eq('is_active', true)` statt `.eq('active', true)`, FK-Hint `persons!owner_id` statt `persons` |
+| 10 | **Font-Files**: `fonts/Inter-Regular.ttf`, `fonts/Inter-SemiBold.ttf`, `fonts/Inter-Bold.ttf` zum Projekt hinzugefügt |
 
 ---
 
