@@ -104,6 +104,7 @@ js/
     mod-kontakte.js         # Kontaktbuch (Handwerker, Notfallkontakte, Dienstleister)
     mod-kalender.js         # Monatskalender — Gebäude-Fristen & Ticket-Wiedervorlagen
     mod-finanzen.js         # Buchhaltung (Konten, Buchungen, Wirtschaftsplan, Abrechnung, CSV/SEPA)
+    mod-zeiterfassung.js    # Zeiterfassung & Projekte (Timer, Arbeitspakete, Arbeitsrapport-PDF)
     mod-settings.js         # Admin-Einstellungen (Firmendaten, Finanz-Defaults, Logo/Briefbogen-Upload)
     mod-placeholder.js      # Platzhalter für kommende Module (loadProfile, loadMyUnits, loadMyTenants)
 ```
@@ -137,6 +138,11 @@ js/
 `profiles.role` CHECK erweitert um `landlord`, `advisory` (6 Rollen total)
 `accounts.is_allocatable` (BOOLEAN DEFAULT false — umlagefähig auf Mieter für Betriebskostenabrechnung)
 RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships), 3 Policies für `advisory` (journal_entries, accounts, journal_attachments via board_members + valid_to)
+
+**Zeiterfassung (mod-zeiterfassung.js):**
+`time_projects` (building_id FK, title, description, hourly_rate, billing_increment_min, status ENUM(active/closed), created_by FK→auth.users)
+`time_work_packages` (project_id FK→time_projects, title, status ENUM(open/closed))
+`time_entries` (work_package_id FK→time_work_packages, user_id FK→auth.users, start_time, end_time, description)
 
 **Phase 7 System-Tabellen:**
 `global_settings` (single-row id=1: Firmenstammdaten, Finanz-Defaults, logo_url, letterhead_pdf_url. RLS: lesen=alle, schreiben=admin)
@@ -685,3 +691,21 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | 3 | **Seite 2+ (Einzelabrechnung)**: Objekt/Verwalter-Block, Eigentümer-Box. **Dreispaltige Summary-Tabelle**: Abrechnungsspitze (Gesamtkosten − HG-Soll), Zahlungsdifferenz (HG-Soll − HG-Ist), Abrechnungssaldo (Spitze + Differenz) mit Objekt-gesamt + Ihr-Anteil Spalten. BGH-Hinweis (V ZR 147/11). Umlageschlüssel-Tabelle, Verteilungsergebnis (umlagefähig/nicht umlagefähig), Grand-Total, §28 WEG Hinweis-Box |
 | 4 | **Seitenumbruch-Logik**: Alle Blöcke und Tabellenzeilen prüfen `y < mBottom`, Tabellen-Header wird auf neuer Seite wiederholt. Briefbogen als Hintergrund auf allen Seiten |
 | 5 | **`mod-finanzen.js`**: Button "Abrechnung als PDF exportieren" in `_finJABStep5Html` (Schritt 5 des Wizards). Wrapper `_finJABExportPDF()` übergibt `_finState.jabData` an die PDF-Funktion |
+
+---
+
+### Zeiterfassung-Modul — Integration, CI-Anpassung & Bugfixes
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **`mod-zeiterfassung.js`** (neu): Zeiterfassung für Projekte & Arbeitspakete. Gebäude-Auswahl, Projekt-Cards (Titel, Status, Taktung), Projekt-Detailansicht mit Arbeitspaketen + Zeithistorie-Tabelle, Projekt-Statistik (Netto/Getaktet/Kontrollwert) |
+| 2 | **Timer-Funktion**: Start/Stopp mit Live-Anzeige (HH:MM:SS), laufender Timer wird bei Seitenaufruf wiederhergestellt, Beschreibungs-Modal beim Stoppen |
+| 3 | **Manuelle Zeiterfassung**: Modal mit Datum, Start-/Endzeit, Tätigkeitsbeschreibung |
+| 4 | **Arbeitsrapport PDF**: `_timeGenerateReport()` — Bulk-PDF mit Briefbogen, Inter-Fonts, Tabelle je Arbeitspaket (Datum, Von-Bis, Dauer, Tätigkeit), WP-Summen + Projekt-Gesamtsumme |
+| 5 | **Integration**: `dashboard.html` Script-Tag, `nav.js` Menüpunkt „Zeiterfassung" (icons.clock) unter Finanzen für admin/manager, `config.js` clock-Icon |
+| 6 | **CI-Anpassung**: Projekt-Card-Header → `bg-hb-olive text-white`, Zeithistorie-Header → olive, Projekt-Statistik → olive Titelleiste, Tabellen-Header ohne uppercase, + Button → `bg-white text-hb-olive`, Löschen-Button → Konvention, Timer-Modal → olive Header + Footer, Trennlinien → `border-hb-olive/10` |
+| 7 | **Bugfix: Projekt bearbeiten** (`_timeOpenProjectEditModal`): Fehlende Funktion implementiert — Modal mit Titel, Beschreibung, Stundensatz, Abrechnungstakt, Status |
+| 8 | **Bugfix: Arbeitspaket bearbeiten** (`_timeEditWP`): Fehlende Funktion implementiert — Modal mit Bezeichnung + Status (offen/abgeschlossen) |
+| 9 | **Bugfix: Zeiteintrag bearbeiten** (`_timeEditEntry`): Stift-Icon in Zeithistorie ergänzt, Modal lädt Eintrag per ID und zeigt Datum/Start/Ende/Tätigkeit |
+| 10 | **Bugfix: PDF-Export** (`_timeGenerateReport`): `pdfDoc.registerFontkit(fontkit)` fehlte — Custom-TTF-Fonts schlugen bei `embedFont()` still fehl |
+| 11 | **Migration**: `scripts/migration_zeiterfassung.sql` — 3 Tabellen (`time_projects`, `time_work_packages`, `time_entries`) mit RLS-Policies für admin/manager |
