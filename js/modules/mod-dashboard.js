@@ -99,6 +99,7 @@ async function loadDashboard() {
     if (role === 'admin' || role === 'manager') {
         await _renderAdminDashboard();
     } else {
+        // owner, tenant, landlord, advisory
         await _renderUserDashboard();
     }
 }
@@ -119,7 +120,7 @@ async function _renderAdminDashboard() {
         _supabase.from('documents').select('id', { count: 'exact', head: true }).eq('status', 'draft').eq('is_deleted', false),
         _supabase.from('buildings').select('id, name, file_number, street, house_number, energy_certificate_expiry, next_fire_safety_check, drinking_water_analysis_due, last_legionella_check, legionella_check_interval_months'),
         _supabase.from('tickets')
-            .select(`id, subject, status, created_at, buildings(file_number, street, house_number, name), creator:profiles!tickets_creator_id_fkey(full_name)`)
+            .select(`id, title, status, created_at, buildings(file_number, street, house_number, name), creator:profiles!tickets_creator_id_fkey(full_name)`)
             .in('status', ['Offen', 'In Bearbeitung'])
             .order('created_at', { ascending: false }).limit(5),
         _supabase.from('documents')
@@ -127,12 +128,11 @@ async function _renderAdminDashboard() {
             .eq('status', 'draft').eq('is_deleted', false)
             .order('created_at', { ascending: false }),
         _supabase.from('ticket_messages')
-            .select(`id, content, created_at, tickets(subject), sender:profiles!ticket_messages_sender_id_fkey(full_name)`)
+            .select(`id, message, created_at, tickets(title), sender:profiles!ticket_messages_sender_id_fkey(full_name)`)
             .eq('is_system_message', false)
             .order('created_at', { ascending: false }).limit(6),
         _supabase.from('news')
             .select(`id, title, created_at, author:profiles!news_author_id_fkey(full_name)`)
-            .eq('status', 'active')
             .order('created_at', { ascending: false }).limit(5),
         _supabase.from('documents')
             .select(`id, title, document_title, generated_filename, created_at, uploader:profiles!uploaded_by(full_name)`)
@@ -174,7 +174,7 @@ async function _renderAdminDashboard() {
         ...(msgRes.data || []).map(m => ({
             ts: m.created_at,
             icon: '💬',
-            text: `<b>${m.sender?.full_name || '—'}</b> hat Ticket <b>${m.tickets?.subject || '—'}</b> kommentiert`,
+            text: `<b>${m.sender?.full_name || '—'}</b> hat Ticket <b>${m.tickets?.title || '—'}</b> kommentiert`,
         })),
         ...(newsActRes.data || []).map(n => ({
             ts: n.created_at,
@@ -246,7 +246,7 @@ async function _renderAdminDashboard() {
                             ${(priorityTickRes.data || []).map(t => `
                                 <tr onclick="_dashOpenTicket('${t.id}')" class="cursor-pointer hover:bg-gray-50 transition-colors">
                                     <td class="p-3">
-                                        <div class="font-semibold text-hb-offblack truncate max-w-[180px]">${t.subject}</div>
+                                        <div class="font-semibold text-hb-offblack truncate max-w-[180px]">${t.title}</div>
                                         <div class="text-xs text-gray-400">${t.creator?.full_name || '—'}</div>
                                     </td>
                                     <td class="p-3 text-xs text-gray-600">${formatBuildingName(t.buildings)}</td>
@@ -395,11 +395,11 @@ async function _renderUserDashboard() {
         _supabase.from('documents').select('id').eq('status', 'active').eq('is_deleted', false),
         _supabase.from('document_reads').select('document_id').eq('user_id', uid),
 
-        _supabase.from('news').select('id').eq('status', 'active').eq('is_deleted', false),
+        _supabase.from('news').select('id'),
         _supabase.from('news_reads').select('news_id').eq('user_id', uid),
 
         _supabase.from('tickets')
-            .select('id, subject, category, status, created_at')
+            .select('id, title, category, status, created_at')
             .eq('creator_id', uid).neq('status', 'Erledigt')
             .order('created_at', { ascending: false }),
 
@@ -424,7 +424,7 @@ async function _renderUserDashboard() {
     // ── Hausgeld / Miete ──
     let finLabel = 'Hausgeld / Miete', finValue = '—';
     if (aptData) {
-        if (role === 'owner' && aptData.hausgeld) {
+        if ((role === 'owner' || role === 'landlord' || role === 'advisory') && aptData.hausgeld) {
             finValue = `${Number(aptData.hausgeld).toFixed(2).replace('.', ',')} €`;
             finLabel = 'Hausgeld / Monat';
         } else if (role === 'tenant') {
@@ -441,14 +441,13 @@ async function _renderUserDashboard() {
     if (buildingId) {
         const { data } = await _supabase.from('news')
             .select('id, title, content, created_at')
-            .eq('building_id', buildingId).eq('status', 'active').eq('is_deleted', false)
+            .eq('building_id', buildingId)
             .order('created_at', { ascending: false }).limit(3);
         latestNews = data || [];
     }
     if (!latestNews.length) {
         const { data } = await _supabase.from('news')
             .select('id, title, content, created_at')
-            .eq('status', 'active').eq('is_deleted', false)
             .order('created_at', { ascending: false }).limit(3);
         latestNews = data || [];
     }
@@ -465,7 +464,8 @@ async function _renderUserDashboard() {
         || null
     );
 
-    const roleLabel = role === 'owner' ? 'Eigentümer-Cockpit' : 'Mieter-Portal';
+    const roleLabelMap = { owner: 'Eigentümer-Cockpit', landlord: 'Vermieter-Cockpit', advisory: 'Beirat-Cockpit', tenant: 'Mieter-Portal' };
+    const roleLabel = roleLabelMap[role] || 'Nutzer-Portal';
 
     // ── Render ──
     ca.innerHTML = `
@@ -537,7 +537,7 @@ async function _renderUserDashboard() {
                         <tbody class="divide-y divide-hb-olive/10">
                             ${(myTickRes.data || []).map(t => `
                                 <tr onclick="_dashOpenTicket('${t.id}')" class="cursor-pointer hover:bg-gray-50 transition-colors">
-                                    <td class="p-3 font-semibold text-hb-offblack truncate max-w-[180px]">${t.subject}</td>
+                                    <td class="p-3 font-semibold text-hb-offblack truncate max-w-[180px]">${t.title}</td>
                                     <td class="p-3 text-xs text-gray-600">${t.category || '—'}</td>
                                     <td class="p-3"><span class="text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${STATUS_STYLE[t.status] || ''}">${t.status}</span></td>
                                 </tr>`).join('')}

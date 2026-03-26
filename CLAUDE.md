@@ -77,8 +77,10 @@ Dieses Projekt nutzt zwei KI-gesteuerte Dokumente mit strikter Aufgabenteilung:
 |---|---|
 | `admin` | Vollzugriff auf alle Objekte, Mandanten, Finanzen, Tickets |
 | `manager` | Vollzugriff, limitiert auf zugewiesene Gebäude (`management_assignments`) |
-| `owner` | Lesend: eigene Einheiten, WEG-Dokumente, optional eigene Mieter |
+| `owner` | Lesend: eigene Einheiten, WEG-Dokumente, Tickets, Kontaktbuch |
 | `tenant` | Lesend: eigener Mietvertrag, Dokumente, Schwarzes Brett. Darf Tickets erstellen |
+| `landlord` | Wie owner + Vermieter-Bereich: eigene Mieter sehen, Dokumente durchreichen |
+| `advisory` | Wie owner + Beirat: Lesezugriff auf Finanzdaten (Konten, Buchungen, Belege) via `board_members` |
 
 ---
 
@@ -131,6 +133,11 @@ js/
 `distribution_key_units` (distribution_key_id FK, apartment_id FK, value. UNIQUE(key_id, apartment_id). RLS: lesen=alle, schreiben=admin/manager)
 `accounts`-Erweiterung: `primary_key_id` (FK→distribution_keys), `secondary_key_id` (FK→distribution_keys), `secondary_key_percentage` (numeric 5,2)
 
+**Phase 8.1 Sonderrollen & Finanz-Klassifizierung:**
+`profiles.role` CHECK erweitert um `landlord`, `advisory` (6 Rollen total)
+`accounts.is_allocatable` (BOOLEAN DEFAULT false — umlagefähig auf Mieter für Betriebskostenabrechnung)
+RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships), 3 Policies für `advisory` (journal_entries, accounts, journal_attachments via board_members + valid_to)
+
 **Phase 7 System-Tabellen:**
 `global_settings` (single-row id=1: Firmenstammdaten, Finanz-Defaults, logo_url, letterhead_pdf_url. RLS: lesen=alle, schreiben=admin)
 
@@ -162,6 +169,7 @@ js/
 | Phase 6-F | phase6f_journal_attachments_and_subaccounts | `journal_attachments`-Tabelle (mehrere Belege pro `journal_entries`, RLS admin/manager, Storage-Pfad), `accounts.parent_account_id` (Unterkonto-Hierarchie, self-referencing FK). |
 | Phase 7 | global_settings | Single-row-Tabelle (id=1) für Firmenstammdaten, Finanz-Defaults, logo_url, letterhead_pdf_url. RLS: lesen=authenticated, schreiben=admin. |
 | Phase 6.10 | phase610_distribution_keys | `distribution_keys` + `distribution_key_units` (Verteilerschlüssel je Gebäude + Einheitenwerte), Enum `distribution_key_type`, `accounts`-Erweiterung (primary_key_id, secondary_key_id, secondary_key_percentage), 4 Indexes, RLS-Policies. |
+| Phase 8.1 | phase81_special_roles_and_allocatable | `profiles.role` CHECK auf 6 Rollen erweitert (+landlord, +advisory). `accounts.is_allocatable` BOOLEAN. 6 neue RLS-Policies (3×landlord via ownerships, 3×advisory via board_members+valid_to). |
 
 ---
 
@@ -637,3 +645,20 @@ js/
 | 12 | `nav.js`: `nav-badge-docs` in allen Rollen, `loadNavBadges()` um ungelesene Dokumente erweitert |
 | 13 | Bugfix: `documents.uploaded_by` + `tenant_id` → zwei FKs auf `profiles` → Join-Hint `profiles!uploaded_by(full_name)` |
 | 14 | **Manuelle Voraussetzung:** Supabase Storage-Bucket `documents` (privat, RLS) muss im Dashboard angelegt sein |
+
+---
+
+### Phase 8.1 — Sonderrollen-Architektur & Finanz-Klassifizierung
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Migration `phase81_special_roles_and_allocatable`**: `profiles.role` CHECK-Constraint auf 6 Rollen erweitert (+`landlord`, +`advisory`). `accounts.is_allocatable` BOOLEAN DEFAULT false (Umlagefähigkeit für Betriebskostenabrechnung) |
+| 2 | **6 neue RLS-Policies**: 3× landlord (apartments, persons, documents via ownerships), 3× advisory (journal_entries, accounts, journal_attachments via board_members + valid_to) |
+| 3 | **`mod-finanzen.js`**: Checkbox "Umlagefähig (Betriebskosten)" in Konto-Anlegen- und Konto-Edit-Modal. `is_allocatable` bei INSERT/UPDATE mitgesendet |
+| 4 | **`mod-finanzen.js` WP-Tabelle**: Positionen nach `is_allocatable` gruppiert — Sektions-Header "Umlagefähige Kosten" / "Nicht umlagefähige Kosten" + Zwischensummen |
+| 5 | **`utils-pdf.js` Einzelwirtschaftsplan**: Sektions-Logik von Hardcoded `account_type === 'expense'` auf `is_allocatable` umgestellt. accounts-Select um `is_allocatable` erweitert |
+| 6 | **`mod-persons-edit.js`**: Portal-Tab — Rollen-Dropdown (6 Rollen) für registrierte Personen. Speichert `profiles.role` des verknüpften Auth-Users |
+| 7 | **`nav.js`**: roleLabels um `landlord: 'Vermieter Cockpit'` und `advisory: 'Beirat Cockpit'` erweitert. Eigene Nav-Sektionen: landlord = owner + Meine Mieter, advisory = owner + Belegprüfung. Owner bereinigt (kein Vermieter-Bereich, keine Belegprüfung mehr) |
+| 8 | **`mod-dashboard.js`**: roleLabel-Map erweitert, Hausgeld-KPI für landlord/advisory |
+| 9 | **Bugfix `mod-dashboard.js`**: `tickets.subject` → `tickets.title` (7 Stellen), `news.status`/`news.is_deleted` Filter entfernt (4 Stellen — Spalten existieren nicht in news-Tabelle) |
+| 10 | **Bugfix `mod-kalender.js`**: `tickets.subject` → `tickets.title` in Wiedervorlage-Query und Ticket-Pill-Label |
