@@ -17,6 +17,8 @@ Dieses Projekt nutzt eine extrem token-effiziente **Drei-Datei-Architektur** zur
 
 0. Update-Log
 
+- **Übergabe-Paket hinzugefügt (6.9-B):** Jahresabrechnung PDF-Export — Anschreiben (Seite 1) + Einzelabrechnung (Seite 2), orientiert am Einzelwirtschaftsplan-Design.
+- **feat(arch): native Sonderrollen (landlord/advisory) & Finanz-Klassifizierung (Paket 8.1):** Erweiterung des Rollenmodells und Einführung des is_allocatable-Flags.
 - **Workflow-Update (Prompt-Kette):** Einführung des "Cowork-Claude -> Gemini CLI -> Claude Code"-Workflows. Gemini validiert das Konzept, schreibt lokal in die BRIEFING.md und generiert einen fertigen Copy-Paste-Prompt für Claude Code am Ende jeder Antwort.
 - **Workflow-Update (Drei-Datei-Architektur):** Einführung der lokalen `BRIEFING.md` als token-effizienter Kommunikationskanal zwischen den KIs und dem Admin hinzugefügt. Das KI-Protokoll wurde entsprechend angepasst.
 - **Übergabe-Paket hinzugefügt (6.10):** Neues Paket für Verteilerschlüssel-Management, HeizKV-Splits und Einzelwirtschaftspläne am Ende des Dokuments zur Umsetzung hinterlegt. Empfehlungen aus dem Briefing (Client-Side PDF-Generierung, Initialbefüllung der System-Schlüssel) wurden als Anweisung für Claude integriert.
@@ -74,7 +76,7 @@ Status: Super-Admin (Geschäftsführer/Inhaber).
 
 Rechte: Vollzugriff auf alle Gebäude, Einheiten, Finanzen und globalen Einstellungen.
 
-Fokus: Steuerung des Gesamtunternehmens und Hauptkommunikation zu den Eigentümern.
+Fokus: Steuerung des Gesamtunternehmens und Hauptkommunikation zu den Eigentürmern.
 
 Objektverwalter (manager):
 
@@ -307,5 +309,49 @@ Erweiterung des Rollenmodells um `landlord` (Vermieter) und `advisory` (Beirat) 
 - **Personen-Edit (`mod-persons-edit.js`):** Dropdown-Erweiterung für die neuen Rollen.
 - **Dashboard (`mod-dashboard.js`):** Aktivierung der Rollen-spezifischen Widgets.
 - **Navigation (`nav.js`):** Sichtbarkeits-Logik für neue Menüpunkte.
+
+---
+
+[UMSETZUNGS-ÜBERGABE FÜR CLAUDE]
+
+## Paket: Jahresabrechnung PDF-Export (6.9-B / Phase 6-D.2)
+
+### 1. Ziel
+Erweiterung der `Official Letter Engine` um den PDF-Export der Jahresabrechnung (Hausgeldabrechnung). Das PDF soll professionell gestaltet sein und sich am Design des Einzelwirtschaftsplans (`generateEinzelwirtschaftsplanPDF`) orientieren. Das MVP umfasst ein formelles Anschreiben (Seite 1) und die detaillierte Einzelabrechnung (Seite 2).
+
+### 2. Anforderungen
+**A) Seite 1: Das Anschreiben (Cover Letter)**
+- **Adressfeld:** DIN-konforme Positionierung des Empfängers (aus `ownerships` & `persons`).
+- **Betreff:** "Hausgeldabrechnung für das Jahr [Jahr]" in Fett.
+- **Inhalt:** Personalisierte Anrede, kurzer Erläuterungstext zum Ergebnis der Abrechnung (Nachzahlung/Guthaben) und Hinweis auf die anstehende Beschlussfassung.
+- **Ergebnis-Highlight:** Ein markanter Block (z.B. mit leichtem Olive-Hintergrund), der die "Abrechnungsspitze" (Saldo aus tatsächlichen Kosten minus Soll-Vorschüssen) klar ausweist.
+
+**B) Seite 2: Die Einzelabrechnung (Detail-Ansicht)**
+- **Kopfbereich:** Identisch zum Wirtschaftsplan (Titel, Objekt-Info, Eigentümer-Info-Box).
+- **Zusammenfassungs-Tabelle:** 
+  - Gesamtkosten der Einheit
+  - Hausgeld-Vorschüsse (Soll)
+  - Hausgeld-Vorschüsse (Ist) — optional/Info
+  - Abrechnungsspitze (Ergebnis)
+- **Verteilungstabelle:** Aufschlüsselung aller Konten mit:
+  - Konto-Nr. & Bezeichnung
+  - Gesamtkosten der WEG
+  - Verteilerschlüssel & Anteilswert
+  - Ergebnis-Betrag für die Einheit
+- **Struktur:** Trennung in "Umlagefähig" (`is_allocatable = true`) und "Nicht umlagefähig" (`is_allocatable = false`).
+
+### 3. Technische Umsetzung
+- **Neue Funktion in `utils-pdf.js`:** `generateJahresabrechnungPDF(buildingId, fiscalYear, jabData)`.
+- **Datenquelle:** Nutzt die bereits aggregierten Daten aus `_finState.jabData` (erzeugt im Wizard von `mod-finanzen.js`).
+- **Infrastruktur:** Nutzung der bestehenden Helper `_pdfLoadInterFonts`, `_pdfDrawAddressField`, `drawPageHeader`, `drawTableHeader` etc.
+- **Briefbogen:** Zwingende Nutzung des `letterhead_pdf_url` aus `global_settings` als Hintergrund-Layer.
+
+### 4. UI-Vorgaben
+- **Trigger:** Button "Abrechnung als PDF exportieren" in Schritt 5 (`_finJABStep5Html`) des Abrechnungs-Wizards hinzufügen.
+- **Bulk-Option:** Integration in die "Staging-Freigabe" (später), vorerst als Einzel-Export pro Einheit oder als Gesamt-PDF für alle Einheiten des Objekts (Bulk-Export analog zum Wirtschaftsplan bevorzugt).
+
+### 5. Offene Entwickler-Entscheidungen (Claude)
+- **Datenübergabe:** Da `_finState.jabData` eine flüchtige Variable im Frontend-Modul ist, sollte die PDF-Funktion entweder direkt darauf zugreifen oder eine saubere Schnittstelle erhalten, die alle nötigen Summen pro Einheit bereits vorbereitet bekommt.
+- **Bulk-Handling:** Soll beim Klick auf "Export" ein PDF mit allen Einheiten (getrennt durch Seitenumbrüche) generiert werden? (Empfehlung: Ja, analog zum Wirtschaftsplan).
 
 ---
