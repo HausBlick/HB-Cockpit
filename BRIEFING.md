@@ -1,15 +1,12 @@
-# BRIEFING.md — HB Mieterportal (Lokaler KI-Kanal)
+# BRIEFING.md — HB Mieterportal
 
-> **Zweck:** Token-effizienter Kontext-Kanal zwischen Niko, Gemini CLI und Claude Code.
-> Diese Datei ersetzt das vollständige Lesen von GEMINI.md/CLAUDE.md bei jedem Start.
-> **Regel:** Kurz & präzise. Keine großen Code-Blöcke oder Chat-Verläufe hier einfügen.
->
-> ⚠️ **LOKAL ONLY:** Diese Datei steht in `.gitignore` und wird NICHT gepusht.
-> Beim allerersten Mal: Datei einmalig committen → Claude Code zieht sie → dann zu .gitignore hinzufügen.
+> **Zweck:** Lokaler Kommunikationskanal zwischen Cowork-Claude (Projektadmin), Gemini CLI und Claude Code.
+> **Regel:** Nur die AKTUELLE Aufgabe steht hier. Nach Abschluss wird der Aufgabenbereich geleert.
+> **Wichtig:** Diese Datei wird NICHT gepusht (.gitignore). Cowork-Claude pflegt diese Datei.
 
 ---
 
-## 🏗️ Projekt-Essentials (Permanent — nicht löschen)
+## Projekt-Kontext (permanent)
 
 | | |
 |---|---|
@@ -17,123 +14,115 @@
 | **GitHub** | https://github.com/HausBlick/Mieter-Portal |
 | **Supabase ID** | `unprrlbvylmzxxhpfisr` |
 | **Stack** | Supabase (PostgreSQL 17 + RLS) · Vanilla JS (ES6) · Tailwind CSS CDN · GitHub Pages |
+| **PDF-Library** | `pdf-lib` (client-side). Briefbogen = Hintergrund-Layer aus `global_settings.letterhead_url` |
+| **Schriftart** | Inter (Regular 400, SemiBold 600, Bold 700) — eingebettet via `fonts/Inter-*.ttf` |
 
-**CI-Design-Tokens:**
-- `hb-olive` `#687451` → Buttons, Header, aktive Elemente
-- `hb-offblack` `#373737` → Text, Überschriften
-- `hb-ultralight` `#F9FAF8` → App-Hintergrund
-- `hb-orange` `#EB762D` → Warnungen, Akzente
-- Cards: `rounded-[15px]` · Schatten: `0 4px 20px -2px rgba(0,0,0,0.03)` · Font: Inter
-
-**Rollen:** `admin` (Vollzugriff) · `manager` (Objekt-limitiert) · `owner` · `tenant`
-**Sonderrollen:** `advisory` (Beirat) · `landlord` (vermietender Eigentümer)
-
-**Briefbogen:** Fertig gestaltet (Logo, Adresse, IBAN, Steuernummer sind fix im Bild).
-Liegt in Supabase Storage → `letterhead_url` aus `global_settings`. Kein dynamisches Befüllen nötig.
-**PDF-Library:** `pdf-lib` (client-side, kein Server). Briefbogen = Hintergrund-Layer, Content = darüber.
+**Design-Tokens:** `hb-olive` #687451 · `hb-offblack` #373737 · `hb-ultralight` #F9FAF8 · `hb-orange` #EB762D
+**Rollen:** `admin` · `manager` · `owner` · `tenant` | Sonder: `advisory` (Beirat) · `landlord` (Vermieter)
 
 ---
 
-## 📋 Phasen-Übersicht (Kurzform)
+## Vorgehen
 
-| Phase | Thema | Status |
-|---|---|---|
-| 1–2 | Infrastruktur, CRM | ✅ Abgeschlossen |
-| 3 | Objekte & Zuweisungen | 🔄 Offen: 3.6 Wartungsverträge/Schlüssel |
-| 4 | Kommunikation | 🔄 Offen: 4.10 Massen-E-Mail, 4.11 Auftragsmanagement |
-| 5 | Dokumente & Kontakte | 🔄 Offen: 5.5 Bulk-Release, 5.6 ETV-Dokumente |
-| 6 | Finanzen & Abrechnung | 🔄 Offen: 6.7 Pro-rata, **6.8 Zählerstände**, **6.10 WP PDF-Design** |
-| 7 | System & Einstellungen | 📋 Offen: 7.2 E-Mail-Push, 7.3 Nutzer-Settings, 7.4 Audit, 7.6 PWA |
-| 8 | Automatisierung (optional) | 💡 Zukunft |
+1. **Cowork-Claude** schreibt die Aufgabe in den Abschnitt der zuständigen KI (unten)
+2. **Niko** gibt der KI den Hinweis: `Lies BRIEFING.md — dort steht deine aktuelle Aufgabe.`
+3. Die KI liest, arbeitet, und schreibt ihr Ergebnis/Feedback in den **Antwort-Block**
+4. **Cowork-Claude** liest das Feedback und plant den nächsten Schritt
 
 ---
 
-## 🎯 Aktuelles Paket
+## ⚠️ GENERELLE REGELN FÜR CLAUDE CODE
 
-**Paket:** `6.10-B` — **Einzelwirtschaftsplan PDF-Design**
-**Status:** 🔄 In Umsetzung durch Claude Code
-**Voraussetzung:** Verteilerschlüssel-Logik (6.10-A) ist fertig implementiert ✅
-
-### Aufgabe für Claude Code
-
-Das PDF des Einzelwirtschaftsplans ist funktional korrekt, aber optisch noch nicht
-auf dem finalen Qualitätsniveau. Es soll moderner, professioneller und strikt im
-HausBlick CI gestaltet werden.
-
-**Was geändert werden soll (präzise):**
-
-**1. Meta-Header (Dokumentkopf)**
-- Titel `Einzelwirtschaftsplan 2026` → größer, fetter, in `hb-offblack`
-- Unter dem Titel: Objekt-Zeile (z.B. `0001 – WEG Musterstraße 12 – WE WE01 – EG links`) in mittelgrauer Schrift
-- Eigentümer-Zeile und MEA/Fläche als zweizeilige kompakte Info-Box (leichter `hb-ultralight` Hintergrund, `rounded-[10px]`, linker Olive-Rand `border-l-4 border-hb-olive`)
-- Datum (`Friedrichshafen, 24. März 2026`) → rechtsbündig auf Höhe der Info-Box, klar abgesetzt
-
-**2. Haupttabelle**
-- Header-Zeile: `bg-hb-olive text-white` (wie alle anderen Modul-Tabellen im Portal — KEIN Grau)
-- Spalten: **Konto | Bezeichnung | Gesamt (€) | Schlüssel | Anteil (€)**
-- ❌ KEIN `mtl. (€)` in der Tabelle — die monatliche Berechnung gehört NICHT in die Tabelle
-- Zahlen-Spalten: rechtsbündig
-- `Anteil (€)` > 0 → `font-bold text-hb-offblack`; = 0 → `text-gray-400` (deemphasized)
-- Zeilentrennlinien: `divide-hb-olive/10` (ganz leicht olive)
-- Zebra-Muster: gerade Zeilen `bg-white`, ungerade `bg-hb-ultralight/50` (sehr subtil)
-
-**3. Gesamtzeile & Hausgeld-Berechnung**
-- Summenzeile `Ihr Jahres-Hausgeld:` mit Jahresbetrag → `bg-hb-olive/10`, fett, klar abgesetzt
-- Darunter (außerhalb der Tabelle, als kompakte Info-Box) die monatliche Ableitung:
-  `Ihr monatliches Hausgeld: [Jahresbetrag ÷ 12] €`  — einmalig, klein, grau
-- Diese Monatsberechnung ist eine Übersichtsinfo, keine Tabellenspalte
-
-**4. Rechtlicher Hinweis-Block**
-- Hintergrund: `hb-orange/10` (sehr helles Orange)
-- Rahmen: `border border-hb-orange rounded-[10px]`
-- Kleines ⚠️-Icon oder `i`-Icon in `hb-orange` links
-- Text: `text-sm text-hb-offblack`
-
-**5. Gesamtlayout**
-- Mehr Weißraum zwischen den Sektionen (Header → Tabelle → Summe → Hinweis)
-- Konsistenter seitlicher Innenabstand (mind. 10mm links, 15mm rechts vom Briefbogen-Rand)
-
-**Referenz-Design:** Siehe Immoware24-Beispiel (strukturell ähnlich), aber mit HausBlick CI-Farben
-statt dem Immoware-Grau. Die Olive-Header sind das stärkste visuelle Element.
+1. **RLS-Policies NICHT anfassen!** Die RLS-Policies wurden manuell in Supabase mit `SECURITY DEFINER`-Funktionen repariert. Erstelle KEINE neuen und ändere KEINE bestehenden.
+2. **Dateien NICHT abschneiden!** Du neigst dazu, bei Edits die letzten Zeilen langer Dateien abzuschneiden. **Prüfe nach JEDEM Edit**, dass die letzte Funktion der Datei vollständig vorhanden ist. Zähle die Zeilen vorher und nachher.
+3. **CLAUDE.md immer mit committen** — nach jeder Modul-Änderung im selben Commit aktualisieren.
 
 ---
 
-## 📥 KI-Briefkasten
+## Aufgabe: Claude Code (Folge-Auftrag)
 
-**Von:** Niko
-**An:** Claude Code
-**Datum:** 24.03.2026
+**Status:** 🔄 Neue Aufgabe
+**Paket:** Jahresabrechnung PDF — Anschreiben + Summary-Tabelle Redesign
+**Bezug:** Commit `ed9c344` (Basis-Implementierung)
 
-**Nachricht:**
-Verteilerschlüssel (6.10-A) ist fertig und funktioniert. ✅
-Nächste Aufgabe: PDF-Design des Einzelwirtschaftsplans verbessern (Details oben unter "Aktuelles Paket").
-Nach Umsetzung bitte CLAUDE.md aktualisieren (neuer Eintrag für 6.10-B).
+### Kontext
 
----
+Die Basis-Implementierung der Jahresabrechnung PDF funktioniert. Nach dem ersten Test gibt es drei Änderungen:
 
-## 📤 Antwort / Status
+### Änderung 1: Anschreiben (Seite 1) vereinfachen
 
-**Status:** Offen
-**Antwort:** *(Claude Code trägt hier nach Erledigung den Status ein)*
+**AKTUELL:** Die Summary-Tabelle auf Seite 1 zeigt 4 Zeilen (Gesamtkosten, HG-Vorschüsse Soll, HG-Vorschüsse Ist, Abrechnungsspitze).
 
----
+**NEU:** Die Summary-Tabelle auf Seite 1 komplett **entfernen**. Es soll NUR die Highlight-Box mit dem Ergebnis bleiben:
 
-## 📜 Zuletzt erledigte Pakete
-
-| Paket | Beschreibung | Erledigt |
-|---|---|---|
-| 7.1 | Admin-Einstellungen (global_settings, Briefkopf-Upload) | ✅ |
-| 6.9 | Official Letter Engine Basis (pdf-lib, Mahnung, Wirtschaftsplan) | ✅ |
-| 6.10-A | Verteilerschlüssel-Management (distribution_keys, distribution_key_units, accounts-Erweiterung) | ✅ |
-
----
-
-## 🔧 .gitignore Anweisung (einmalig, für Claude Code)
-
-Beim ersten Mal nach dem Pull dieser Datei:
 ```
-echo "BRIEFING.md" >> .gitignore
-git add .gitignore
-git commit -m "chore: BRIEFING.md lokal halten (nicht pushen)"
+┌─────────────────────────────────────────┐
+│  Abrechnungsspitze:                     │
+│  Nachzahlung          1.662,31 €        │  ← oder "Guthaben"
+└─────────────────────────────────────────┘
 ```
-Danach bleibt BRIEFING.md dauerhaft lokal und wird nie mehr gepusht.
+
+Die detaillierte Herleitung (wie sich der Betrag ergibt) kommt auf Seite 2 in der neuen Summary-Tabelle (siehe Änderung 2).
+
+### Änderung 2: Summary-Tabelle auf Seite 2 — Dreispaltig wie Referenz
+
+Die Summary-Tabelle auf der Einzelabrechnung (Seite 2) soll dreispaltig werden und die vollständige Berechnung zeigen:
+
+**Neues Format (3 Spalten: Bezeichnung | Objekt gesamt | Ihr Anteil):**
+
+```
+┌──────────────────────────┬────────────────┬──────────────┐
+│ Berechnung Ihres Anteils │ Objekt gesamt  │ Ihr Anteil   │
+├──────────────────────────┼────────────────┼──────────────┤
+│   Gesamtkosten           │  123.551,35 €  │   1.374,65 € │
+│ - HG-Vorschuss Soll      │  124.387,00 €  │   1.332,00 € │
+├──────────────────────────┼────────────────┼──────────────┤
+│ = Abrechnungsspitze      │     -835,65 €  │  Unterdeck.  │
+│                          │                │    42,65 €   │
+├──────────────────────────┼────────────────┼──────────────┤
+│   HG-Vorschuss Soll      │  124.387,00 €  │   1.332,00 € │
+│ - HG-Vorschuss Ist       │  119.234,81 €  │   1.332,00 € │
+├──────────────────────────┼────────────────┼──────────────┤
+│ = Zahlungsdifferenz      │    5.152,19 €  │ Planerfüllung│
+│                          │                │     0,00 €   │
+├──────────────────────────┼────────────────┼──────────────┤
+│ = Abrechnungssaldo       │                │ Nachzahlung  │
+│                          │                │    42,65 €   │
+└──────────────────────────┴────────────────┴──────────────┘
+```
+
+**Logik:**
+- **Abrechnungsspitze** = Gesamtkosten − HG-Vorschuss Soll (positiv = Unterdeckung/Nachzahlung, negativ = Überdeckung/Guthaben)
+- **Zahlungsdifferenz** = HG-Vorschuss Soll − HG-Vorschuss Ist (positiv = nicht alles bezahlt, 0 = planmäßig bezahlt)
+- **Abrechnungssaldo** = Abrechnungsspitze + Zahlungsdifferenz (das ist der finale Betrag: Nachzahlung oder Guthaben)
+
+**Hinweis-Box neben oder unter der Summary-Tabelle:**
+> *Zur Beschlussfassung steht ausschließlich die Abrechnungsspitze. Etwaige Zahlungsrückstände basieren auf dem Wirtschaftsplan des Vorjahres. Der Abrechnungssaldo dient lediglich der Information. (BGH-Urteil v. 09.03.2012 V ZR 147/11)*
+
+**Datenquellen:**
+- **Gesamtkosten Objekt gesamt:** Summe aller Aufwands-Buchungen (journal_entries, Soll-Seite auf Aufwandskonten) im Abrechnungszeitraum für das Gebäude
+- **Gesamtkosten Ihr Anteil:** Verteilung über distribution_keys (wie bereits in der Verteilungstabelle berechnet)
+- **HG-Vorschuss Soll:** Summe der payment_demands (demand_type='hausgeld') im Zeitraum — Objekt gesamt = alle Eigentümer, Ihr Anteil = nur diese Person/Einheit
+- **HG-Vorschuss Ist:** Summe der tatsächlich gezahlten payment_demands (status='paid') im Zeitraum
+
+### Änderung 3: Header auf Seite 1 bereinigen
+
+**AKTUELL:** Seite 1 hat dieselbe Kopfzeile + graue Trennlinie wie Seite 2+.
+
+**NEU:** Seite 1 soll **KEINE Kopfzeile** und **KEINE graue Trennlinie** haben — genau wie bei `generateEinzelwirtschaftsplanPDF`, wo `addFirstPage()` verwendet wird (nur Datum rechtsbündig, sonst clean).
+
+### PFLICHT nach der Umsetzung:
+- Prüfe mit `wc -l js/utils-pdf.js`, dass die Datei NICHT kürzer geworden ist (aktuell 1847 Zeilen)
+- Prüfe mit `wc -l js/modules/mod-finanzen.js`, dass die Datei NICHT kürzer geworden ist (aktuell 3757 Zeilen)
+- Committe + pushe mit CLAUDE.md-Update
+- Schreibe dein Ergebnis in den Antwort-Block unten
+
+### Antwort Claude Code
+
+**Erledigt.** Alle 3 Änderungen umgesetzt:
+
+1. **Seite 1 vereinfacht:** Summary-Tabelle entfernt, nur Highlight-Box bleibt.
+2. **Seite 2 — neue 3-spaltige Summary:** Abrechnungsspitze (Kosten − HG-Soll), Zahlungsdifferenz (Soll − Ist), Abrechnungssaldo (Spitze + Differenz). Olive Grand-Total-Zeile. BGH-Hinweis (V ZR 147/11) unter der Tabelle.
+3. **Seite 1 Header:** War bereits korrekt via `addFirstPage()` — nur Datum, keine Kopfzeile.
+
+Datei-Integrität: utils-pdf.js 1879 (vorher 1847), mod-finanzen.js 3757 (unverändert).
