@@ -15,10 +15,12 @@ async function init() {
         userProfile = profile;
 
         const roleLabels = {
-            'admin':   'Verwalter Cockpit',
-            'manager': 'Objektbetreuer',
-            'owner':   'Eigentümer Cockpit',
-            'tenant':  'Mieter Portal'
+            'admin':    'Verwalter Cockpit',
+            'manager':  'Objektbetreuer',
+            'owner':    'Eigentümer Cockpit',
+            'tenant':   'Mieter Portal',
+            'landlord': 'Vermieter Cockpit',
+            'advisory': 'Beirat Cockpit'
         };
         document.getElementById('role-label').textContent    = roleLabels[profile.role] || 'Nutzer Portal';
         document.getElementById('user-avatar').textContent   = profile.full_name.charAt(0).toUpperCase();
@@ -63,10 +65,28 @@ function renderNav(role) {
 
             <li class="nav-section-title">Kommunikation</li>
             <li><a onclick="loadTickets();   setActiveNav(this)" class="nav-link">${icons.tickets}   Meine Tickets <span id="nav-badge-tickets" class="nav-badge"></span></a></li>
+            <li><a onclick="loadContacts();  setActiveNav(this)" class="nav-link">${icons.contact}  Kontaktbuch</a></li>`;
+    } else if (role === 'landlord') {
+        html += `
+            <li class="nav-section-title">Mein Asset</li>
+            <li><a onclick="loadMyUnits();   setActiveNav(this)" class="nav-link">${icons.buildings} Meine Einheiten</a></li>
+            <li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs}      Dokumente <span id="nav-badge-docs" class="nav-badge"></span></a></li>
+
+            <li class="nav-section-title">Kommunikation</li>
+            <li><a onclick="loadTickets();   setActiveNav(this)" class="nav-link">${icons.tickets}   Meine Tickets <span id="nav-badge-tickets" class="nav-badge"></span></a></li>
             <li><a onclick="loadContacts();  setActiveNav(this)" class="nav-link">${icons.contact}  Kontaktbuch</a></li>
 
             <li class="nav-section-title">Vermieter-Bereich</li>
-            <li><a onclick="loadMyTenants(); setActiveNav(this)" class="nav-link">${icons.users}    Meine Mieter</a></li>
+            <li><a onclick="loadMyTenants(); setActiveNav(this)" class="nav-link">${icons.users}    Meine Mieter</a></li>`;
+    } else if (role === 'advisory') {
+        html += `
+            <li class="nav-section-title">Mein Asset</li>
+            <li><a onclick="loadMyUnits();   setActiveNav(this)" class="nav-link">${icons.buildings} Meine Einheiten</a></li>
+            <li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs}      Dokumente <span id="nav-badge-docs" class="nav-badge"></span></a></li>
+
+            <li class="nav-section-title">Kommunikation</li>
+            <li><a onclick="loadTickets();   setActiveNav(this)" class="nav-link">${icons.tickets}   Meine Tickets <span id="nav-badge-tickets" class="nav-badge"></span></a></li>
+            <li><a onclick="loadContacts();  setActiveNav(this)" class="nav-link">${icons.contact}  Kontaktbuch</a></li>
 
             <li class="nav-section-title">Finanzen</li>
             <li><a onclick="loadFinance();   setActiveNav(this)" class="nav-link">${icons.finance}  Belegprüfung</a></li>`;

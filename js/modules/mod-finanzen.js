@@ -318,6 +318,10 @@ async function _finLoadOverview() {
                         </select></div>
                     <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Rücklage-Label (optional)</label>
                         <input id="fin-acc-reserve" type="text" placeholder="z.B. Instandhaltungsrücklage"></div>
+                    <div class="flex items-center gap-3 pt-1">
+                        <input type="checkbox" id="fin-acc-allocatable" class="w-4 h-4 rounded border-gray-300 text-hb-olive focus:ring-hb-olive/30">
+                        <label for="fin-acc-allocatable" class="text-xs font-semibold text-gray-700 cursor-pointer">Umlagefähig (Betriebskosten)</label>
+                    </div>
                 </div>
                 <div class="flex gap-3 mt-5">
                     <button onclick="_finSaveAccount()" class="btn-primary flex-1 text-sm py-2.5">Speichern</button>
@@ -351,6 +355,10 @@ async function _finLoadOverview() {
                         </select></div>
                     <div id="fin-edit-acc-reserve-wrap"><label class="text-xs font-semibold text-gray-500 mb-1 block">Rücklage-Label</label>
                         <input id="fin-edit-acc-reserve" type="text"></div>
+                    <div class="flex items-center gap-3 pt-1">
+                        <input type="checkbox" id="fin-edit-acc-allocatable" class="w-4 h-4 rounded border-gray-300 text-hb-olive focus:ring-hb-olive/30">
+                        <label for="fin-edit-acc-allocatable" class="text-xs font-semibold text-gray-700 cursor-pointer">Umlagefähig (Betriebskosten)</label>
+                    </div>
                     <div class="border-t pt-3 mt-1">
                         <p class="text-xs font-black uppercase tracking-widest text-hb-olive mb-2">Verteilerschlüssel</p>
                         <div class="space-y-3">
@@ -392,6 +400,8 @@ window._finSaveAccount = async () => {
     const reserve  = document.getElementById('fin-acc-reserve')?.value.trim();
     if (!number || !name) { showToast('Kontonummer und Bezeichnung sind Pflicht.', 'error'); return; }
 
+    const allocatable = document.getElementById('fin-acc-allocatable')?.checked || false;
+
     const { error } = await _supabase.from('accounts').insert({
         building_id:       _finState.buildingId,
         account_number:    number,
@@ -399,6 +409,7 @@ window._finSaveAccount = async () => {
         account_type:      type,
         parent_account_id: parentId ? Number(parentId) : null,
         reserve_label:     reserve || null,
+        is_allocatable:    allocatable,
         is_active:         true,
     });
     if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
@@ -419,6 +430,7 @@ window._finEditAccount = (accountId) => {
     document.getElementById('fin-edit-acc-reserve').value = a.reserve_label || '';
     const reserveWrap = document.getElementById('fin-edit-acc-reserve-wrap');
     if (reserveWrap) reserveWrap.style.display = a.is_reserve_account ? '' : 'none';
+    document.getElementById('fin-edit-acc-allocatable').checked = !!a.is_allocatable;
     document.getElementById('fin-edit-acc-pk').value     = a.primary_key_id || '';
     document.getElementById('fin-edit-acc-sk').value     = a.secondary_key_id || '';
     document.getElementById('fin-edit-acc-sk-pct').value = a.secondary_key_percentage || '';
@@ -440,12 +452,15 @@ window._finSaveEditAccount = async () => {
     const skId   = document.getElementById('fin-edit-acc-sk')?.value || null;
     const skPct  = document.getElementById('fin-edit-acc-sk-pct')?.value;
 
+    const allocatable = document.getElementById('fin-edit-acc-allocatable')?.checked || false;
+
     const { error } = await _supabase.from('accounts').update({
         account_number:           number,
         account_name:             name,
         account_type:             type,
         parent_account_id:        parentId ? Number(parentId) : null,
         reserve_label:            reserve || null,
+        is_allocatable:           allocatable,
         primary_key_id:           pkId || null,
         secondary_key_id:         skId || null,
         secondary_key_percentage: skId && skPct ? parseFloat(skPct) : null,
@@ -1517,7 +1532,14 @@ function _finRenderWirtschaftsplan(plan, planItems) {
 
     const totalPlanned = planItems.reduce((s, i) => s + Number(i.planned_amount || 0), 0);
 
-    const itemRows = planItems.map(item => `
+    // Gruppierung nach is_allocatable (aus _finState.accounts nachschlagen)
+    const accMap = new Map((_finState.accounts || []).map(a => [a.id, a]));
+    const allocItems    = planItems.filter(i => accMap.get(i.account_id)?.is_allocatable);
+    const nonAllocItems = planItems.filter(i => !accMap.get(i.account_id)?.is_allocatable);
+    const allocTotal    = allocItems.reduce((s, i) => s + Number(i.planned_amount || 0), 0);
+    const nonAllocTotal = nonAllocItems.reduce((s, i) => s + Number(i.planned_amount || 0), 0);
+
+    const _wpItemRow = (item) => `
         <tr class="hover:bg-gray-50/60">
             <td class="px-4 py-3 text-xs font-mono text-gray-500">${item.account?.account_number || '–'}</td>
             <td class="px-4 py-3 text-sm">${item.account?.account_name || '–'}</td>
@@ -1544,7 +1566,25 @@ function _finRenderWirtschaftsplan(plan, planItems) {
             <td class="px-4 py-3 text-right">
                 ${plan?.status === 'draft' ? `<button onclick="_finDeletePlanItem(${item.id})" class="text-xs text-hb-orange px-2 py-1 rounded-lg hover:bg-hb-orange/5">Entfernen</button>` : ''}
             </td>
-        </tr>`).join('');
+        </tr>`;
+
+    const _wpSectionHeader = (label) => `<tr><td colspan="6" class="px-4 pt-5 pb-2 text-xs font-black uppercase tracking-widest text-hb-olive">${label}</td></tr>`;
+    const _wpSubtotal = (label, amount) => `<tr class="bg-gray-50"><td colspan="4" class="px-4 py-2 text-xs font-bold text-right text-gray-500">${label}:</td><td class="px-4 py-2 text-xs font-bold text-right text-gray-600">${amount.toLocaleString('de-DE', {minimumFractionDigits:2})} €</td><td></td></tr>`;
+
+    let itemRows = '';
+    if (allocItems.length) {
+        itemRows += _wpSectionHeader('Umlagefähige Kosten');
+        itemRows += allocItems.map(_wpItemRow).join('');
+        itemRows += _wpSubtotal('Zwischensumme umlagefähig', allocTotal);
+    }
+    if (nonAllocItems.length) {
+        itemRows += _wpSectionHeader('Nicht umlagefähige Kosten');
+        itemRows += nonAllocItems.map(_wpItemRow).join('');
+        itemRows += _wpSubtotal('Zwischensumme nicht umlagefähig', nonAllocTotal);
+    }
+    if (!allocItems.length && !nonAllocItems.length) {
+        itemRows = '';
+    }
 
     // Status-Aktions-Button
     let statusAction = '';

@@ -416,9 +416,9 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
 
     const bid = plan.building_id;
     const [itemsRes, aptsRes, accsRes, dkRes, dkuRes, ownRes] = await Promise.all([
-        _supabase.from('budget_plan_items').select('*, account:accounts(id, account_number, account_name, account_type, primary_key_id, secondary_key_id, secondary_key_percentage)').eq('budget_plan_id', planId).order('account_id'),
+        _supabase.from('budget_plan_items').select('*, account:accounts(id, account_number, account_name, account_type, is_allocatable, primary_key_id, secondary_key_id, secondary_key_percentage)').eq('budget_plan_id', planId).order('account_id'),
         _supabase.from('apartments').select('id, apartment_number, floor, sq_meters, mea, hausgeld').eq('building_id', bid).order('apartment_number'),
-        _supabase.from('accounts').select('id, account_number, account_name, account_type, primary_key_id, secondary_key_id, secondary_key_percentage').eq('building_id', bid).eq('is_active', true),
+        _supabase.from('accounts').select('id, account_number, account_name, account_type, is_allocatable, primary_key_id, secondary_key_id, secondary_key_percentage').eq('building_id', bid).eq('is_active', true),
         _supabase.from('distribution_keys').select('id, name, type, total_value, heiz_split_percent').eq('building_id', bid),
         _supabase.from('distribution_key_units').select('distribution_key_id, apartment_id, value'),
         _supabase.from('ownerships').select('apartment_id, owner:persons!ownerships_owner_id_fkey(first_name, last_name, street, house_number, zip_code, city)').eq('is_active', true),
@@ -656,7 +656,7 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
     const dividerColor = rgb(0.88, 0.89, 0.86);
     const zebraColor   = rgb(0.976, 0.98, 0.973);
     const grayDeemph   = rgb(0.612, 0.639, 0.682);
-    const mBottom = 60; // min. bottom margin
+    const mBottom = 100; // min. bottom margin — Platz für Briefbogen-Fußzeile
 
     // ── PAGE CREATION HELPERS ────────────────────────────────
     const contentStartY = 100; // offset from top — below letterhead logo (~85-90pt)
@@ -865,11 +865,11 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
         // ── BLOCK 4: VERTEILUNGSERGEBNIS (Kostentabelle) ────
         const expenseItems = planItems.filter(it => {
             const acc = it.account || accounts.find(a => a.id === it.account_id);
-            return acc && acc.account_type === 'expense';
+            return acc && acc.is_allocatable;
         });
         const otherItems = planItems.filter(it => {
             const acc = it.account || accounts.find(a => a.id === it.account_id);
-            return !acc || acc.account_type !== 'expense';
+            return !acc || !acc.is_allocatable;
         });
 
         // Check space for section header + table header + 1 row min

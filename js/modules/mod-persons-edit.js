@@ -61,6 +61,15 @@ async function loadPersonForEdit(personId) {
             .select('id, category, buildings(name)')
             .eq('person_id', personId),
     ]);
+
+    // Profil-Rolle laden falls auth_user_id vorhanden
+    let profileRole = null;
+    const authUid = personRes.data?.auth_user_id;
+    if (authUid) {
+        const { data: prof } = await _supabase.from('profiles').select('role').eq('id', authUid).single();
+        profileRole = prof?.role || null;
+    }
+
     return {
         person: personRes.data,
         bank: bankRes.data,
@@ -68,6 +77,7 @@ async function loadPersonForEdit(personId) {
         ownerships: ownershipsRes.data || [],
         boardMemberships: boardRes.data || [],
         serviceProviders: spRes.data || [],
+        profileRole,
     };
 }
 
@@ -110,6 +120,15 @@ async function savePersonData(personId, isNew) {
     } else {
         const { error } = await _supabase.from('persons').update(personPayload).eq('id', personId);
         if (error) { showToast('Fehler: ' + error.message, 'error'); return null; }
+    }
+
+    // Portal-Rolle speichern (falls registrierter User)
+    const roleSelect = document.getElementById('p_profile_role');
+    if (roleSelect && !isNew) {
+        const { data: person } = await _supabase.from('persons').select('auth_user_id').eq('id', savedId).single();
+        if (person?.auth_user_id) {
+            await _supabase.from('profiles').update({ role: roleSelect.value }).eq('id', person.auth_user_id);
+        }
     }
 
     // Bankdaten speichern
@@ -187,7 +206,7 @@ async function showPersonForm(id = null) {
         <div class="w-8 h-8 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div>
     </div>`;
 
-    let p = {}, bank = {}, tenancies = [], ownerships = [], boardMemberships = [], serviceProviders = [];
+    let p = {}, bank = {}, tenancies = [], ownerships = [], boardMemberships = [], serviceProviders = [], profileRole = null;
     if (!isNew) {
         const data = await loadPersonForEdit(id);
         if (!data.person) { showToast('Person nicht gefunden.', 'error'); loadUserManagement(); return; }
@@ -197,6 +216,7 @@ async function showPersonForm(id = null) {
         ownerships = data.ownerships;
         boardMemberships = data.boardMemberships;
         serviceProviders = data.serviceProviders;
+        profileRole = data.profileRole;
     }
 
     const isCompany = p.is_company || false;
@@ -345,6 +365,18 @@ async function showPersonForm(id = null) {
                             ? `<span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">Aktiv</span>`
                             : `<span class="bg-gray-100 text-gray-500 text-xs font-bold px-3 py-1 rounded-full">Inaktiv</span>`}
                     </div>
+
+                    ${p.auth_user_id ? `<div class="space-y-2">
+                        <label class="text-[10px] uppercase font-bold text-gray-500">Portal-Rolle</label>
+                        <select id="p_profile_role">
+                            <option value="owner" ${profileRole === 'owner' ? 'selected' : ''}>Eigentümer</option>
+                            <option value="tenant" ${profileRole === 'tenant' ? 'selected' : ''}>Mieter</option>
+                            <option value="landlord" ${profileRole === 'landlord' ? 'selected' : ''}>Vermieter</option>
+                            <option value="advisory" ${profileRole === 'advisory' ? 'selected' : ''}>Beirat</option>
+                            <option value="manager" ${profileRole === 'manager' ? 'selected' : ''}>Objektbetreuer</option>
+                            <option value="admin" ${profileRole === 'admin' ? 'selected' : ''}>Administrator</option>
+                        </select>
+                    </div>` : ''}
 
                     <div class="space-y-2">
                         <label class="text-[10px] uppercase font-bold text-gray-500">Einladungscode</label>

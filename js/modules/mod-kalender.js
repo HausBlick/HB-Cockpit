@@ -67,7 +67,7 @@ async function _kalLoadData() {
             'id, name, file_number, street, house_number, energy_certificate_expiry, next_fire_safety_check, drinking_water_analysis_due, last_legionella_check, legionella_check_interval_months'
         ),
         _supabase.from('tickets')
-            .select('id, subject, snooze_until')
+            .select('id, title, snooze_until')
             .eq('status', 'Wiedervorlage')
             .not('snooze_until', 'is', null)
             .or(`creator_id.eq.${uid},assigned_to.eq.${uid}`),
@@ -119,7 +119,7 @@ async function _kalLoadData() {
         const dateStr = t.snooze_until.split('T')[0];
         addEvent(dateStr, {
             type:     'ticket',
-            label:    t.subject,
+            label:    t.title,
             color:    'olive',
             ticketId: t.id,
         });
