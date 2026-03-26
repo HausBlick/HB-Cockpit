@@ -2388,26 +2388,25 @@ function _finJABStep2Html() {
 
 function _finJABStep3Html() {
     const expenseAccs = _finState.accounts.filter(a => a.account_type === 'expense');
-    const distKeys = _finState.jabData.distKeys || {};
-    const rows = expenseAccs.map(a => `
+    const dkList = _finState.distKeys || [];
+    const dkLookup = {};
+    dkList.forEach(function(k) { dkLookup[k.id] = k.name; });
+    const rows = expenseAccs.map(a => {
+        const pkName = a.primary_key_id && dkLookup[a.primary_key_id] ? dkLookup[a.primary_key_id] : '—';
+        const skName = a.secondary_key_id && dkLookup[a.secondary_key_id] ? ' / ' + dkLookup[a.secondary_key_id] + ' (' + (a.secondary_key_percentage || 0) + '%)' : '';
+        return `
         <tr class="hover:bg-gray-50/60">
             <td class="px-4 py-3 text-xs font-mono text-gray-500">${a.account_number}</td>
             <td class="px-4 py-3 text-sm">${a.account_name}</td>
-            <td class="px-4 py-3">
-                <select data-acc-id="${a.id}" class="jab-dist-key text-sm w-40"
-                    onchange="_finJABDistChange(${a.id},this.value)">
-                    <option value="mea"   ${(distKeys[a.id]||'mea')==='mea'   ?'selected':''}>MEA</option>
-                    <option value="sqm"   ${distKeys[a.id]==='sqm'   ?'selected':''}>Wohnfläche m²</option>
-                    <option value="units" ${distKeys[a.id]==='units' ?'selected':''}>Einheiten</option>
-                    <option value="custom"${distKeys[a.id]==='custom'?'selected':''}>Custom</option>
-                </select>
-            </td>
-        </tr>`).join('');
+            <td class="px-4 py-3 text-sm ${pkName === '—' ? 'text-hb-orange font-semibold' : 'text-hb-offblack'}">${pkName}${skName}</td>
+        </tr>`;
+    }).join('');
 
     return `
         <div class="mb-4">
             <h4 class="text-sm font-bold text-hb-offblack mb-1">Umlageschlüssel pro Kostenkonto</h4>
-            <div class="overflow-x-auto rounded-lg border border-hb-olive/10 mb-5">
+            <p class="text-xs text-gray-500 mb-3">Prüfen Sie die zugewiesenen Verteilerschlüssel. Konten ohne Schlüssel (—) werden nicht verteilt.</p>
+            <div class="overflow-x-auto rounded-lg border border-hb-olive/10 mb-3">
                 <table class="w-full">
                     <thead class="bg-gray-50"><tr>
                         <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Kto.</th>
@@ -2417,6 +2416,7 @@ function _finJABStep3Html() {
                     <tbody class="divide-y divide-hb-olive/10">${rows||'<tr><td colspan="3" class="px-4 py-6 text-center text-sm text-gray-400">Keine Aufwandskonten.</td></tr>'}</tbody>
                 </table>
             </div>
+            <p class="text-xs text-gray-400 italic">Schlüsselzuweisung bearbeiten: Kontenblatt → Konto bearbeiten → Verteilerschlüssel</p>
             <h4 class="text-sm font-bold text-hb-offblack mb-2">Heizkosten-Abrechnung</h4>
             <div class="flex gap-4">
                 <label class="flex items-center gap-2 text-sm cursor-pointer">
@@ -2540,9 +2540,25 @@ function _finJABStep4Html() {
 
 function _finJABStep5Html() {
     const d = _finState.jabData;
-    const total = (d.sollIst||[]).reduce((s,r)=>s+(r.soll-r.bezahlt),0);
-    const nachz = (d.sollIst||[]).filter(r=>r.soll-r.bezahlt>0);
-    const gutschr = (d.sollIst||[]).filter(r=>r.soll-r.bezahlt<0);
+    const saldoData = d.abrechnungsSaldo || [];
+    const nachz    = saldoData.filter(r => r.saldo > 0);
+    const gutschr  = saldoData.filter(r => r.saldo < 0);
+    const nettoSaldo = saldoData.reduce((s, r) => s + r.saldo, 0);
+
+    const fmtEur = v => Number(v||0).toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
+
+    const saldoRows = saldoData.map(r => {
+        const label = r.saldo > 0 ? 'Nachzahlung' : r.saldo < 0 ? 'Guthaben' : 'Ausgeglichen';
+        const color = r.saldo > 0 ? 'text-hb-orange' : r.saldo < 0 ? 'text-hb-olive' : 'text-gray-400';
+        return `<tr class="hover:bg-gray-50/60">
+            <td class="px-4 py-3 text-sm font-semibold">${r.apt_number}</td>
+            <td class="px-4 py-3 text-sm text-gray-600">${r.owner_name||'–'}</td>
+            <td class="px-4 py-3 text-sm text-right text-gray-500">${fmtEur(r.istKosten)}</td>
+            <td class="px-4 py-3 text-sm text-right text-gray-500">${fmtEur(r.soll)}</td>
+            <td class="px-4 py-3 text-sm text-right text-gray-500">${fmtEur(r.bezahlt)}</td>
+            <td class="px-4 py-3 text-sm font-bold text-right ${color}">${fmtEur(Math.abs(r.saldo))}<span class="text-[10px] ml-1">${label}</span></td>
+        </tr>`;
+    }).join('');
 
     const stRows = (d.steuerbescheinigung||[]).map(r=>`
         <tr class="hover:bg-gray-50/60">
@@ -2554,17 +2570,32 @@ function _finJABStep5Html() {
     return `
         <div class="grid grid-cols-3 gap-4 mb-5">
             <div class="card p-4 text-center">
-                <div class="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">Gesamtabweichung</div>
-                <div class="text-xl font-extrabold ${total>0?'text-hb-orange':total<0?'text-hb-olive':'text-gray-400'}">${total.toLocaleString('de-DE',{minimumFractionDigits:2})} €</div>
+                <div class="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">Netto-Ergebnis WEG</div>
+                <div class="text-xl font-extrabold ${nettoSaldo>0?'text-hb-orange':nettoSaldo<0?'text-hb-olive':'text-gray-400'}">${fmtEur(nettoSaldo)}</div>
             </div>
             <div class="card p-4 text-center">
                 <div class="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">Nachzahlungen</div>
                 <div class="text-xl font-extrabold text-hb-orange">${nachz.length} Eigentümer</div>
             </div>
             <div class="card p-4 text-center">
-                <div class="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">Gutschriften</div>
+                <div class="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">Guthaben</div>
                 <div class="text-xl font-extrabold text-hb-olive">${gutschr.length} Eigentümer</div>
             </div>
+        </div>
+
+        <h4 class="text-sm font-bold text-hb-offblack mb-2">Abrechnungsergebnis je Eigentümer</h4>
+        <div class="overflow-x-auto rounded-lg border border-hb-olive/10 mb-5">
+            <table class="w-full">
+                <thead class="bg-gray-50"><tr>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Einheit</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Eigentümer</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Ist-Kosten</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">HG-Soll</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">HG-Ist</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Saldo</th>
+                </tr></thead>
+                <tbody class="divide-y divide-hb-olive/10">${saldoRows||'<tr><td colspan="6" class="px-4 py-8 text-center text-sm text-gray-400">Keine Daten.</td></tr>'}</tbody>
+            </table>
         </div>
 
         ${stRows ? `
@@ -2651,11 +2682,11 @@ window._finJABNext = async (fromStep) => {
         _finRenderJAB();
 
     } else if (fromStep === 4) {
-        // §35a Steuerbescheinigung aufbereiten
         const d = _finState.jabData;
         const aptMap = {};
         for (const apt of (_finState.apartments||[])) aptMap[apt.id] = apt;
 
+        // §35a Steuerbescheinigung aufbereiten
         const stMap = {};
         for (const e of (d.entries||[])) {
             if (Number(e.lohn_anteil_35a) > 0) {
@@ -2667,6 +2698,64 @@ window._finJABNext = async (fromStep) => {
         d.steuerbescheinigung = Object.entries(stMap).map(([aptId, lohn35a]) => {
             const row = d.sollIst?.find(r => r.apt_id == aptId);
             return { apt_number: row?.apt_number || 'Allgemein', owner_name: row?.owner_name, lohn35a };
+        });
+
+        // Abrechnungssaldo pro Einheit berechnen (Ist-Kosten via Verteilerschlüssel)
+        const accs = _finState.accounts || [];
+        const dkList = _finState.distKeys || [];
+        const dkMap = {};
+        dkList.forEach(function(k) { dkMap[k.id] = k; });
+
+        // Ist-Kosten pro Aufwandskonto aggregieren
+        const sollPerAcc = {}, habenPerAcc = {};
+        for (const e of (d.entries || [])) {
+            sollPerAcc[e.debit_account_id] = (sollPerAcc[e.debit_account_id] || 0) + Number(e.amount);
+            habenPerAcc[e.credit_account_id] = (habenPerAcc[e.credit_account_id] || 0) + Number(e.amount);
+        }
+        const costItems = [];
+        accs.forEach(function(acc) {
+            const amt = (sollPerAcc[acc.id] || 0) - (habenPerAcc[acc.id] || 0);
+            if (acc.account_type === 'expense' && amt !== 0) costItems.push({ account: acc, ist_amount: amt });
+        });
+
+        // DK-Unit-Werte laden (falls noch nicht geladen)
+        let dkUnitMap = d._dkUnitMap;
+        if (!dkUnitMap) {
+            const { data: dkUnits } = await _supabase.from('distribution_key_units').select('distribution_key_id, apartment_id, value');
+            dkUnitMap = {};
+            (dkUnits || []).forEach(function(u) {
+                if (!dkUnitMap[u.distribution_key_id]) dkUnitMap[u.distribution_key_id] = {};
+                dkUnitMap[u.distribution_key_id][u.apartment_id] = Number(u.value) || 0;
+            });
+            d._dkUnitMap = dkUnitMap;
+        }
+
+        // Anteil pro Einheit berechnen
+        function _calcShareForApt(costItem, aptId) {
+            const acc = costItem.account;
+            if (!acc || !acc.primary_key_id || !dkMap[acc.primary_key_id]) return 0;
+            const pk = dkMap[acc.primary_key_id];
+            const pkTotal = Number(pk.total_value) || 0;
+            const pkVal = (dkUnitMap[pk.id] && dkUnitMap[pk.id][aptId]) || 0;
+            if (pkTotal === 0) return 0;
+            const total = Number(costItem.ist_amount || 0);
+            if (acc.secondary_key_id && acc.secondary_key_percentage && dkMap[acc.secondary_key_id]) {
+                const sk = dkMap[acc.secondary_key_id];
+                const skTotal = Number(sk.total_value) || 0;
+                const skVal = (dkUnitMap[sk.id] && dkUnitMap[sk.id][aptId]) || 0;
+                const pct = acc.secondary_key_percentage;
+                return total * (1 - pct / 100) * (pkVal / pkTotal) + (skTotal > 0 ? total * (pct / 100) * (skVal / skTotal) : 0);
+            }
+            return total * (pkVal / pkTotal);
+        }
+
+        d.abrechnungsSaldo = (d.sollIst || []).map(function(row) {
+            let istKosten = 0;
+            for (const ci of costItems) istKosten += _calcShareForApt(ci, row.apt_id);
+            const spitze = istKosten - row.soll;
+            const zahlDiff = row.soll - row.bezahlt;
+            const saldo = spitze + zahlDiff;
+            return { apt_id: row.apt_id, apt_number: row.apt_number, owner_name: row.owner_name, istKosten, soll: row.soll, bezahlt: row.bezahlt, spitze, zahlDiff, saldo };
         });
 
         _finState.jabStep = 5;
