@@ -2976,7 +2976,7 @@ window._finCreateDunning = async () => {
             interest_rate:     rate,
             interest_amount:   interest,
             total_amount:      amount + fee + interest,
-            status:            'open',
+            status:            'draft',
             created_by:        currentUser.id,
         });
         updateIds.push(demandId);
