@@ -154,7 +154,7 @@ async function generateMahnungPDF(noticeId) {
     const [settingsRes, noticeRes] = await Promise.all([
         _pdfGetSettings(),
         _supabase.from('dunning_notices')
-            .select('*, person:profiles(full_name, email), demand:payment_demands(due_date, demand_type, apartment:apartments(apartment_number, buildings(street, house_number, file_number, name)))')
+            .select('*, person:persons(first_name, last_name, email, street, house_number, zip_code, city), demand:payment_demands(due_date, demand_type, apartment:apartments(apartment_number, buildings(street, house_number, file_number, name)))')
             .eq('id', noticeId).single(),
     ]);
 
@@ -186,7 +186,8 @@ async function generateMahnungPDF(noticeId) {
     const bld    = apt?.buildings;
     const addr1  = bld ? `${bld.street || ''} ${bld.house_number || ''}, WE ${apt.apartment_number || ''}`.trim() : '';
     const addr2  = bld ? formatBuildingName(bld) : '';
-    _pdfDrawAddressField(page, reg, notice.person?.full_name || '—', addr1, addr2);
+    const personName = notice.person ? (notice.person.first_name + ' ' + notice.person.last_name) : '—';
+    _pdfDrawAddressField(page, reg, personName, addr1, addr2);
 
     // Datum
     _pdfDrawDate(page, reg, settings);
@@ -200,13 +201,13 @@ async function generateMahnungPDF(noticeId) {
     });
 
     // Anrede
-    const anrede = notice.person?.full_name ? `Sehr geehrte Damen und Herren,` : 'Sehr geehrte Damen und Herren,';
+    const anrede = 'Sehr geehrte Damen und Herren,';
     page.drawText(anrede, { x: 56.7, y: height - 230, size: 10, font: reg, color: rgb(0.22, 0.22, 0.22) });
 
     // Textblock
     const dueDateFmt = notice.demand?.due_date
         ? new Date(notice.demand.due_date).toLocaleDateString('de-DE') : '—';
-    const totalAmt = (Number(notice.amount || 0) + Number(notice.fee || 0)).toLocaleString('de-DE', { minimumFractionDigits: 2 });
+    const totalAmt = Number(notice.total_amount || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 });
 
     const lines = [
         `trotz unserer Zahlungserinnerung haben wir bis heute keinen Zahlungseingang`,
@@ -214,8 +215,8 @@ async function generateMahnungPDF(noticeId) {
         `ausstehenden Betrag umgehend zu begleichen.`,
         '',
         `Fälligkeitsdatum:     ${dueDateFmt}`,
-        `Offener Betrag:       ${Number(notice.amount || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`,
-        `Mahngebühr:           ${Number(notice.fee || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`,
+        `Offener Betrag:       ${Number(notice.overdue_amount || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`,
+        `Mahngebühr:           ${Number(notice.dunning_fee || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`,
         `Gesamtbetrag:         ${totalAmt} €`,
         '',
         `Bitte überweisen Sie den Gesamtbetrag von ${totalAmt} € binnen 7 Tagen`,
