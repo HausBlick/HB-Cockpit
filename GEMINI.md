@@ -270,6 +270,42 @@ Einführung einer WEMoG-konformen Verwaltung von Verteilerschlüsseln pro Gebäu
 - **Konten-Verknüpfung:** In `mod-finanzen.js` (Tab Übersicht) Dropdowns für die Schlüsselzuweisung je Konto hinzufügen. Checkbox für "HeizKV-Split" toggelt das zweite Dropdown.
 - **Design:** Strikte Einhaltung der HB-Olive CI (`rounded-[15px]`, `divide-hb-olive/10`).
 
-### 5. Offene Entwickler-Entscheidungen (Claude)
 - **PDF-Generierung:** Bitte bleibe konsequent bei der Client-Side Generierung via **`pdf-lib`** (Option B aus dem Briefing), um den Serverless-Charakter beizubehalten. Lade das Admin-Briefbogen-Bild aus dem Storage und lege es als Layer unter den Text.
 - **Historisierung:** Keine komplexe Tabellen-Historisierung (valid_from/to) implementieren! Es reicht, wenn die errechneten Werte in den final erzeugten Buchungen oder PDFs (Snapshots) als fixer Wert eingefroren werden. Leerstände werden berechnet (Eigentümer zahlt).
+
+---
+
+[UMSETZUNGS-ÜBERGABE FÜR CLAUDE]
+
+## Paket: Sonderrollen-Architektur (8.1) & Finanz-Klassifizierung
+
+### 1. Ziel
+Erweiterung des Rollenmodells um `landlord` (Vermieter) und `advisory` (Beirat) als native Rollen in der `profiles`-Tabelle. Gleichzeitig Einführung des `is_allocatable`-Flags für Konten, um die Basis für die spätere Nebenkostenabrechnung zu schaffen.
+
+### 2. Anforderungen
+**A) Rollen-Erweiterung (`profiles.role`):**
+- Registrierung der Rollen `landlord` und `advisory` im System.
+- Dashboard-Logik: 
+  - `landlord`: Erhält Zugriff auf das "Meine Mieter"-Widget (Platzhalter in `mod-dashboard.js` aktivieren).
+  - `advisory`: Erhält Lesezugriff auf Finanzbelege und das "Beirat"-Widget.
+- Navigation: Anpassung von `nav.js`, sodass Landlords ihre Mieter und Dokumente sehen, Beiräte die erweiterten Finanz-Tabs.
+
+**B) Finanz-Erweiterung (`accounts`):**
+- Jedes Konto muss via `is_allocatable BOOLEAN` als "umlagefähig" (für die Betriebskostenabrechnung relevant) oder "nicht umlagefähig" markiert werden können.
+
+**C) RLS-Updates:**
+- `landlord`: Darf Dokumente für seine zugewiesenen Einheiten (`apartments`) "freigeben" (durchreichen an Mieter).
+- `advisory`: Darf alle Datensätze in `ledger`, `invoices` und `bank_transactions` des jeweiligen Objekts lesen (basierend auf `board_members` Verknüpfung).
+
+### 3. DB-Änderungen (Supabase SQL)
+- **Rollen-Update:** Anpassung des Check-Constraints auf `profiles.role` (admin, manager, owner, tenant, landlord, advisory).
+- **Konten-Update:** `ALTER TABLE accounts ADD COLUMN is_allocatable BOOLEAN DEFAULT false;`
+- **RLS-Anpassung:** Neue Policies für die Rollen `landlord` (fokussiert auf eigene Mieter/Einheiten) und `advisory` (objektweiter Lesezugriff Finanzen).
+
+### 4. UI-Vorgaben
+- **Konten-Verwaltung (`mod-finanzen.js`):** Checkbox "Umlagefähig (Betriebskosten)" in Edit-Maske.
+- **Personen-Edit (`mod-persons-edit.js`):** Dropdown-Erweiterung für die neuen Rollen.
+- **Dashboard (`mod-dashboard.js`):** Aktivierung der Rollen-spezifischen Widgets.
+- **Navigation (`nav.js`):** Sichtbarkeits-Logik für neue Menüpunkte.
+
+---
