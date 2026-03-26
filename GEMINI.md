@@ -17,6 +17,7 @@ Dieses Projekt nutzt eine extrem token-effiziente **Drei-Datei-Architektur** zur
 
 0. Update-Log
 
+- **feat(time): Modul Zeiterfassung & Projekte (asynchrones Unterprojekt):** Einführung eines neuen Moduls zur projektbezogenen Zeiterfassung inkl. Arbeitspaketen, Live-Timer und PDF-Arbeitsrapport (Dokumentation am Ende der GEMINI.md hinzugefügt).
 - **Übergabe-Paket hinzugefügt (6.9-B):** Jahresabrechnung PDF-Export — Anschreiben (Seite 1) + Einzelabrechnung (Seite 2), orientiert am Einzelwirtschaftsplan-Design.
 - **feat(arch): native Sonderrollen (landlord/advisory) & Finanz-Klassifizierung (Paket 8.1):** Erweiterung des Rollenmodells und Einführung des is_allocatable-Flags.
 - **Workflow-Update (Prompt-Kette):** Einführung des "Cowork-Claude -> Gemini CLI -> Claude Code"-Workflows. Gemini validiert das Konzept, schreibt lokal in die BRIEFING.md und generiert einen fertigen Copy-Paste-Prompt für Claude Code am Ende jeder Antwort.
@@ -355,3 +356,21 @@ Erweiterung der `Official Letter Engine` um den PDF-Export der Jahresabrechnung 
 - **Bulk-Handling:** Soll beim Klick auf "Export" ein PDF mit allen Einheiten (getrennt durch Seitenumbrüche) generiert werden? (Empfehlung: Ja, analog zum Wirtschaftsplan).
 
 ---
+
+## Modul: Zeiterfassung & Projekte (Asynchrones Unterprojekt)
+
+### 1. Zielsetzung
+Das Modul dient der Erfassung von projektbezogenen Arbeitszeiten (z.B. Sonderleistungen, Sanierungen), um gegenüber dem Eigentümer oder der Gemeinschaft einen detaillierten Arbeitsnachweis (Arbeitsrapport) führen zu können.
+
+### 2. Funktionale Highlights
+- **Projekt- & Phasen-Struktur:** Zuordnung von Arbeitspaketen zu Projekten zur besseren Strukturierung komplexer Aufgaben.
+- **Duale Erfassung:** Live-Timer (Start/Stopp mit Session-Memory) oder manuelle Nacherfassung.
+- **Abrechnungs-Taktung:** Unterstützung von Rundungs-Logiken (1, 15, 30, 60 Min.) zur automatischen Kalkulation der verrechenbaren Zeit.
+- **Interne Kalkulation:** Hinterlegung von Stundensätzen zur internen Projekt-Wert-Anzeige (nicht im PDF-Export sichtbar).
+- **Official Report Engine:** Export eines formatierten Arbeitsrapports als PDF unter Verwendung des Firmen-Briefbogens. Gruppierung nach Arbeitspaketen mit Summenbildung.
+
+### 3. Technische Komponenten
+- **Modul:** `js/modules/mod-zeiterfassung.js`
+- **Datenbank:** Tabellen `time_projects`, `time_work_packages`, `time_entries`.
+- **UI:** Integration im Hauptmenü unter "Finanzen" (nur für admin/manager).
+
