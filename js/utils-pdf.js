@@ -142,27 +142,40 @@ function _pdfSplitText(text, font, fontSize, maxWidth) {
     return lines;
 }
 
-// ─── Mahnung als PDF generieren ───────────────────────────────
-async function generateMahnungPDF(noticeId) {
+// ─── Mahnung als PDF generieren (Sammel-PDF pro Person) ──────
+// Akzeptiert: einzelne noticeId ODER Array von noticeIds
+async function generateMahnungPDF(noticeIdOrIds) {
     if (typeof PDFLib === 'undefined') {
         showToast('PDF-Bibliothek nicht geladen. Bitte Seite neu laden.', 'error'); return;
     }
 
     showToast('PDF wird erstellt…');
 
-    // Daten laden
-    const [settingsRes, noticeRes] = await Promise.all([
+    const ids = Array.isArray(noticeIdOrIds) ? noticeIdOrIds : [noticeIdOrIds];
+
+    // Alle notices laden (ggf. mehrere pro Person)
+    const [settingsRes, noticesRes] = await Promise.all([
         _pdfGetSettings(),
         _supabase.from('dunning_notices')
-            .select('*, person:persons(first_name, last_name, email, street, house_number, zip_code, city), demand:payment_demands(due_date, demand_type, apartment:apartments(apartment_number, buildings(street, house_number, file_number, name)))')
-            .eq('id', noticeId).single(),
+            .select('*, person:persons(first_name, last_name, salutation, email, street, house_number, zip_code, city), demand:payment_demands(due_date, demand_type, apartment:apartments(apartment_number, buildings(street, house_number, file_number, name)))')
+            .in('id', ids),
     ]);
 
     const settings = settingsRes;
-    const notice   = noticeRes.data;
-    if (!notice) { showToast('Mahnung nicht gefunden.', 'error'); return; }
+    const notices  = noticesRes.data || [];
+    if (!notices.length) { showToast('Keine Mahnungen gefunden.', 'error'); return; }
 
-    const { StandardFonts, rgb } = PDFLib;
+    // Höchste Mahnstufe bestimmt den Titel
+    const maxLevel = Math.max(...notices.map(n => n.dunning_level || 1));
+    const levelText = maxLevel === 1 ? 'Zahlungserinnerung'
+        : maxLevel === 2 ? '1. Mahnung' : 'Letzte Mahnung';
+
+    const notice0 = notices[0];
+    const person  = notice0.person;
+    const apt     = notice0.demand?.apartment;
+    const bld     = apt?.buildings;
+
+    const { rgb } = PDFLib;
     let pdfDoc, page;
     try {
         ({ pdfDoc, page } = await _pdfCreateDoc(settings));
@@ -173,83 +186,178 @@ async function generateMahnungPDF(noticeId) {
             showToast('Briefbogen konnte nicht geladen werden: ' + e.message, 'error');
         return;
     }
-    const { height } = page.getSize();
+    const { width, height } = page.getSize();
 
-    const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const reg  = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    // Fonts — Inter wenn verfügbar, sonst Helvetica
+    let bold, reg;
+    try {
+        const interFonts = await _pdfLoadInterFonts(pdfDoc);
+        reg  = interFonts.reg;
+        bold = interFonts.bold;
+    } catch (_) {
+        const { StandardFonts } = PDFLib;
+        bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+        reg  = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    }
+
+    const mLeft   = 56.7;
+    const mRight  = width - 56.7;
+    const mBottom = 100;
 
     // Absender über Adressfeld
     _pdfDrawSenderLine(page, reg, settings);
 
-    // Empfänger-Adressfeld
-    const apt    = notice.demand?.apartment;
-    const bld    = apt?.buildings;
-    const addr1  = bld ? `${bld.street || ''} ${bld.house_number || ''}, WE ${apt.apartment_number || ''}`.trim() : '';
-    const addr2  = bld ? formatBuildingName(bld) : '';
-    const personName = notice.person ? (notice.person.first_name + ' ' + notice.person.last_name) : '—';
-    _pdfDrawAddressField(page, reg, personName, addr1, addr2);
+    // Empfänger-Adressfeld: Postanschrift des Schuldners
+    const personName = person ? (person.first_name + ' ' + person.last_name) : '—';
+    const personAddr = person ? `${person.street || ''} ${person.house_number || ''}`.trim() : '';
+    const personCity = person ? `${person.zip_code || ''} ${person.city || ''}`.trim() : '';
+    _pdfDrawAddressField(page, reg, personName, personAddr, personCity);
 
     // Datum
     _pdfDrawDate(page, reg, settings);
 
     // Betreff
-    const levelText = notice.dunning_level === 1 ? 'Zahlungserinnerung'
-        : notice.dunning_level === 2 ? '1. Mahnung' : 'Letzte Mahnung';
     const betreff = `${levelText} — Offene Hausgeld-Forderung`;
     page.drawText(betreff, {
-        x: 56.7, y: height - 200, size: 11, font: bold, color: rgb(0.22, 0.22, 0.22),
+        x: mLeft, y: height - 200, size: 11, font: bold, color: rgb(0.22, 0.22, 0.22),
     });
 
-    // Anrede
-    const anrede = 'Sehr geehrte Damen und Herren,';
-    page.drawText(anrede, { x: 56.7, y: height - 230, size: 10, font: reg, color: rgb(0.22, 0.22, 0.22) });
+    // Anrede — mit Salutation wenn vorhanden
+    let anrede = 'Sehr geehrte Damen und Herren,';
+    if (person && person.salutation && person.last_name) {
+        const prefix = person.salutation === 'Herr' ? 'Sehr geehrter Herr' : 'Sehr geehrte Frau';
+        anrede = `${prefix} ${person.last_name},`;
+    }
+    page.drawText(anrede, { x: mLeft, y: height - 230, size: 10, font: reg, color: rgb(0.22, 0.22, 0.22) });
 
-    // Textblock
-    const dueDateFmt = notice.demand?.due_date
-        ? new Date(notice.demand.due_date).toLocaleDateString('de-DE') : '—';
-    const totalAmt = Number(notice.total_amount || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 });
+    // Einleitungstext mit WE + WEG
+    const weNr   = apt?.apartment_number || '–';
+    const wegName = bld ? `WEG ${bld.street || ''} ${bld.house_number || ''}`.trim() : '–';
 
-    const lines = [
-        `trotz unserer Zahlungserinnerung haben wir bis heute keinen Zahlungseingang`,
-        `für die unten genannte Forderung feststellen können. Wir bitten Sie, den`,
-        `ausstehenden Betrag umgehend zu begleichen.`,
-        '',
-        `Fälligkeitsdatum:     ${dueDateFmt}`,
-        `Offener Betrag:       ${Number(notice.overdue_amount || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`,
-        `Mahngebühr:           ${Number(notice.dunning_fee || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`,
-        `Gesamtbetrag:         ${totalAmt} €`,
-        '',
-        `Bitte überweisen Sie den Gesamtbetrag von ${totalAmt} € binnen 7 Tagen`,
+    let y = height - 255;
+    const introLines = [
+        `für Ihre Einheit ${weNr} in der ${wegName} haben wir folgende offene`,
+        `Hausgeld-Forderungen festgestellt, die trotz Fälligkeit noch nicht beglichen wurden:`,
+    ];
+    for (const line of introLines) {
+        page.drawText(line, { x: mLeft, y, size: 10, font: reg, color: rgb(0.22, 0.22, 0.22) });
+        y -= 15;
+    }
+    y -= 10;
+
+    // ─── Tabelle: Offene Posten ───
+    const colX     = [mLeft, mLeft + 220, mLeft + 350]; // Bezeichnung, Fälligkeit, Betrag
+    const colW     = [220, 130, mRight - colX[2]];
+    const rowH     = 20;
+    const olive    = rgb(0.408, 0.455, 0.318); // #687451
+    const oliveLight = rgb(0.408, 0.455, 0.318);
+
+    // Table header
+    const headerH = 22;
+    page.drawRectangle({ x: mLeft, y: y - headerH, width: mRight - mLeft, height: headerH, color: olive });
+    const hY = y - headerH + 6;
+    page.drawText('Bezeichnung', { x: colX[0] + 6, y: hY, size: 9, font: bold, color: rgb(1, 1, 1) });
+    page.drawText('Fälligkeit', { x: colX[1] + 6, y: hY, size: 9, font: bold, color: rgb(1, 1, 1) });
+    const amtHeader = 'Betrag';
+    const amtHdrW = bold.widthOfTextAtSize(amtHeader, 9);
+    page.drawText(amtHeader, { x: mRight - 6 - amtHdrW, y: hY, size: 9, font: bold, color: rgb(1, 1, 1) });
+    y -= headerH;
+
+    // Table rows — one per notice
+    const fmtAmt = (v) => Number(v || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 });
+    let subtotal = 0;
+    let totalFee = 0;
+    let totalInterest = 0;
+
+    for (const n of notices) {
+        if (y - rowH < mBottom) break; // Safety
+        const dueFmt = n.demand?.due_date ? new Date(n.demand.due_date).toLocaleDateString('de-DE') : '–';
+        const aptNr  = n.demand?.apartment?.apartment_number || '';
+        const label  = `Hausgeld ${aptNr} ${n.demand?.due_date ? new Date(n.demand.due_date).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' }) : ''}`.trim();
+        const amt    = Number(n.overdue_amount || 0);
+        subtotal += amt;
+        totalFee += Number(n.dunning_fee || 0);
+        totalInterest += Number(n.interest_amount || 0);
+
+        // Row line
+        page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
+        const rY = y - rowH + 6;
+        page.drawText(label, { x: colX[0] + 6, y: rY, size: 9, font: reg, color: rgb(0.22, 0.22, 0.22) });
+        page.drawText(dueFmt, { x: colX[1] + 6, y: rY, size: 9, font: reg, color: rgb(0.4, 0.4, 0.4) });
+        const amtStr = fmtAmt(amt) + ' €';
+        const amtW   = reg.widthOfTextAtSize(amtStr, 9);
+        page.drawText(amtStr, { x: mRight - 6 - amtW, y: rY, size: 9, font: reg, color: rgb(0.22, 0.22, 0.22) });
+        y -= rowH;
+    }
+
+    // Divider
+    page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
+
+    // Zwischensumme
+    const drawSummaryRow = (label, value, isBold, topPad) => {
+        if (topPad) y -= topPad;
+        y -= rowH;
+        const rY  = y + 6;
+        const f   = isBold ? bold : reg;
+        const sz  = isBold ? 10 : 9;
+        const col = isBold ? rgb(0.22, 0.22, 0.22) : rgb(0.4, 0.4, 0.4);
+        page.drawText(label, { x: colX[1] + 6, y: rY, size: sz, font: f, color: col });
+        const vStr = fmtAmt(value) + ' €';
+        const vW   = f.widthOfTextAtSize(vStr, sz);
+        page.drawText(vStr, { x: mRight - 6 - vW, y: rY, size: sz, font: f, color: col });
+    };
+
+    if (notices.length > 1) {
+        drawSummaryRow('Zwischensumme', subtotal, true, 2);
+    }
+    if (totalFee > 0) {
+        drawSummaryRow('Mahngebühr', totalFee, false, notices.length > 1 ? 0 : 2);
+    }
+    if (totalInterest > 0) {
+        drawSummaryRow(`Verzugszinsen (${Number(notices[0].interest_rate || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })} %)`, totalInterest, false, 0);
+    }
+
+    // Gesamtbetrag — olive Hintergrund
+    const grandTotal = subtotal + totalFee + totalInterest;
+    y -= 4;
+    const totalRowH = 24;
+    page.drawRectangle({ x: mLeft, y: y - totalRowH, width: mRight - mLeft, height: totalRowH, color: rgb(0.969, 0.973, 0.961) });
+    page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 1, color: olive });
+    const tY = y - totalRowH + 7;
+    page.drawText('Gesamtbetrag', { x: colX[1] + 6, y: tY, size: 10, font: bold, color: rgb(0.22, 0.22, 0.22) });
+    const gtStr = fmtAmt(grandTotal) + ' €';
+    const gtW   = bold.widthOfTextAtSize(gtStr, 10);
+    page.drawText(gtStr, { x: mRight - 6 - gtW, y: tY, size: 10, font: bold, color: olive });
+    y -= totalRowH;
+
+    // Zahlungsaufforderung
+    y -= 25;
+    const totalAmtFmt = fmtAmt(grandTotal);
+    const closingLines = [
+        `Bitte überweisen Sie den Gesamtbetrag von ${totalAmtFmt} € binnen 7 Tagen`,
         `auf das Ihnen bekannte Konto der WEG.`,
         '',
         `Bei weiterer Nichtzahlung behalten wir uns vor, rechtliche Schritte einzuleiten.`,
         '',
         `Mit freundlichen Grüßen`,
     ];
-
-    let y = height - 255;
-    for (const line of lines) {
+    for (const line of closingLines) {
         if (line === '') { y -= 8; continue; }
-        const isKey = line.includes(':') && !line.startsWith('Mit') && !line.startsWith('Bitte') && !line.startsWith('trotz') && !line.startsWith('für') && !line.startsWith('aus') && !line.startsWith('Bei');
-        page.drawText(line, {
-            x: 56.7, y, size: 10,
-            font: isKey ? bold : reg,
-            color: rgb(0.22, 0.22, 0.22),
-        });
+        page.drawText(line, { x: mLeft, y, size: 10, font: reg, color: rgb(0.22, 0.22, 0.22) });
         y -= 15;
     }
 
-    // Unterschrift-Bereich
+    // Unterschrift
     y -= 25;
     if (settings.company_name) {
-        page.drawText(settings.company_name, { x: 56.7, y, size: 10, font: bold, color: rgb(0.22, 0.22, 0.22) });
+        page.drawText(settings.company_name, { x: mLeft, y, size: 10, font: bold, color: rgb(0.22, 0.22, 0.22) });
     }
     if (settings.ceo_name) {
-        page.drawText(settings.ceo_name, { x: 56.7, y: y - 15, size: 10, font: reg, color: rgb(0.4, 0.4, 0.4) });
+        page.drawText(settings.ceo_name, { x: mLeft, y: y - 15, size: 10, font: reg, color: rgb(0.4, 0.4, 0.4) });
     }
 
     const pdfBytes = await pdfDoc.save();
-    const filename = `Mahnung_${levelText.replace(/ /g, '_')}_${notice.person?.full_name?.replace(/ /g, '_') || noticeId}.pdf`;
+    const filename = `Mahnung_${levelText.replace(/ /g, '_')}_${personName.replace(/ /g, '_')}.pdf`;
     _pdfDownload(pdfBytes, filename);
     showToast('PDF heruntergeladen.');
 }
