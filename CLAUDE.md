@@ -662,3 +662,13 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | 8 | **`mod-dashboard.js`**: roleLabel-Map erweitert, Hausgeld-KPI für landlord/advisory |
 | 9 | **Bugfix `mod-dashboard.js`**: `tickets.subject` → `tickets.title` (7 Stellen), `news.status`/`news.is_deleted` Filter entfernt (4 Stellen — Spalten existieren nicht in news-Tabelle) |
 | 10 | **Bugfix `mod-kalender.js`**: `tickets.subject` → `tickets.title` in Wiedervorlage-Query und Ticket-Pill-Label |
+
+---
+
+### Bugfix — FK-Joins payment_demands/dunning_notices/ownerships (profiles→persons)
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **5 Queries gefixt** in `mod-finanzen.js`: `person:profiles(full_name)` → `person:persons(first_name, last_name)` in `payment_demands`- (Zeilen 1092, 2824) und `dunning_notices`-Queries (Zeile 2829). `owner:profiles(full_name)` → `owner:persons!ownerships_owner_id_fkey(first_name, last_name)` in `ownerships`-Queries (Zeilen 1376, 2684) |
+| 2 | **6 Anzeige-Stellen** von `.full_name` auf `first_name + ' ' + last_name` umgestellt (Sollstellungen, Onboarding, Jahresabrechnung, Mahnwesen) |
+| 3 | **Root Cause:** `payment_demands.person_id` und `dunning_notices.person_id` verweisen per FK auf `persons`, nicht auf `profiles`. `ownerships.owner_id` ebenfalls auf `persons`. Falscher JOIN auf `profiles` lieferte NULL-Ergebnisse |
