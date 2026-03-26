@@ -52,6 +52,7 @@ function renderNav(role) {
 
             <li class="nav-section-title">Finanzen</li>
             <li><a onclick="loadFinance();        setActiveNav(this)" class="nav-link">${icons.finance}   Buchhaltung</a></li>
+            <li><a onclick="loadZeiterfassung();  setActiveNav(this)" class="nav-link">${icons.clock}     Zeiterfassung</a></li>
 
             <li class="nav-section-title">Service & Dokumente</li>
             <li><a onclick="loadDocuments();      setActiveNav(this)" class="nav-link">${icons.docs}      Dokumenten Cloud <span id="nav-badge-docs" class="nav-badge"></span></a></li>
