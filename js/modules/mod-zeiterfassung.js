@@ -919,24 +919,34 @@ async function _timeGenerateReport(projId) {
         // ── Zeiteinträge je Arbeitspaket ─────────────────────
         let totalProjectMin = 0;
 
-        // Tabellen-Spalten
+        // Spalten: Datum | Tätigkeit | Von | Bis | Dauer (rechtsbündig)
+        const cDatum = mLeft + 3;
+        const cTaet  = mLeft + 63;
+        const cVon   = mRight - 130;
+        const cBis   = mRight - 85;
+        const cDauer = mRight - 3; // rechtsbündig
+
         const cols = [
-            { label: 'Datum',      x: mLeft + 3 },
-            { label: 'Von',        x: mLeft + 68 },
-            { label: 'Bis',        x: mLeft + 113 },
-            { label: 'Dauer',      x: mLeft + 213, align: 'right' },
-            { label: 'Tätigkeit',  x: mLeft + 223 }
+            { label: 'Datum',       x: cDatum },
+            { label: 'Tätigkeit',   x: cTaet },
+            { label: 'Von',         x: cVon },
+            { label: 'Bis',         x: cBis },
+            { label: 'Dauer',       x: cDauer, align: 'right' }
         ];
+
+        const descMaxW = cVon - cTaet - 8;
 
         for (const wp of wps) {
             const wpEntries = entries.filter(function(e) { return e.work_package_id === wp.id; });
             if (!wpEntries.length) continue;
 
-            // Sektion: Arbeitspaket-Überschrift
-            await ensureSpace(60);
-            y -= 5;
-            page.drawText(`Arbeitspaket: ${wp.title}`, { x: mLeft, y, size: 10, font: fBold, color: olive });
-            y -= 15;
+            // AP-Gruppierung: olive Balken mit Titel
+            await ensureSpace(65);
+            y -= 8;
+            const apH = 20;
+            page.drawRectangle({ x: mLeft, y: y - apH, width: contentW, height: apH, color: rgb(0.96, 0.97, 0.95), borderColor: olive, borderWidth: 0.5 });
+            page.drawText(wp.title, { x: mLeft + 5, y: y - 14, size: 9, font: fBold, color: olive });
+            y -= apH + 2;
 
             // Olive Tabellen-Header
             drawTableHeader(cols);
@@ -954,7 +964,6 @@ async function _timeGenerateReport(projId) {
                 wpMin += billed;
 
                 const desc = e.description || '—';
-                const descMaxW = mRight - (mLeft + 223) - 5;
                 const descLines = _pdfSplitText(desc, fReg, 8, descMaxW);
                 const rowH = Math.max(16, descLines.length * 11 + 4);
 
@@ -964,25 +973,26 @@ async function _timeGenerateReport(projId) {
                 }
 
                 const textY = y - 11;
-                page.drawText(start.toLocaleDateString('de-DE'), { x: mLeft + 3, y: textY, size: 8, font: fReg, color: offblack });
-                page.drawText(start.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }), { x: mLeft + 68, y: textY, size: 8, font: fReg, color: offblack });
-                page.drawText(end ? end.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '…', { x: mLeft + 113, y: textY, size: 8, font: fReg, color: offblack });
-                drawR(`${billed} Min.`, mLeft + 213, textY, 8, fBold, offblack);
+                page.drawText(start.toLocaleDateString('de-DE'), { x: cDatum, y: textY, size: 8, font: fReg, color: offblack });
+                page.drawText(start.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }), { x: cVon, y: textY, size: 8, font: fReg, color: offblack });
+                page.drawText(end ? end.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '…', { x: cBis, y: textY, size: 8, font: fReg, color: offblack });
+                drawR(`${billed} Min.`, cDauer, textY, 8, fBold, offblack);
 
                 descLines.forEach(function(line, li) {
-                    page.drawText(line, { x: mLeft + 223, y: textY - (li * 11), size: 8, font: fReg, color: gray50 });
+                    page.drawText(line, { x: cTaet, y: textY - (li * 11), size: 8, font: fReg, color: gray50 });
                 });
 
                 y -= rowH;
                 page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.3, color: rgb(0.85, 0.87, 0.83) });
             }
 
-            // WP-Zwischensumme (wie Zwischensummen im Wirtschaftsplan)
-            y -= 4;
-            page.drawRectangle({ x: mLeft, y: y - 18, width: contentW, height: 18, color: rgb(0.96, 0.97, 0.95) });
-            page.drawText(`Summe: ${wp.title}`, { x: mLeft + 3, y: y - 13, size: 8, font: fSemi, color: offblack });
-            drawR(fmtDur(wpMin), mLeft + 213, y - 13, 8, fBold, olive);
-            y -= 18 + 12;
+            // WP-Zwischensumme — Dauer rechtsbündig auf gleicher Position
+            y -= 2;
+            const sumH = 18;
+            page.drawRectangle({ x: mLeft, y: y - sumH, width: contentW, height: sumH, color: rgb(0.96, 0.97, 0.95) });
+            page.drawText(`Summe`, { x: mLeft + 3, y: y - 13, size: 8, font: fSemi, color: offblack });
+            drawR(fmtDur(wpMin), cDauer, y - 13, 8, fBold, olive);
+            y -= sumH + 12;
 
             totalProjectMin += wpMin;
         }
@@ -993,7 +1003,7 @@ async function _timeGenerateReport(projId) {
         const gtH = 24;
         page.drawRectangle({ x: mLeft, y: y - gtH, width: contentW, height: gtH, color: olive });
         page.drawText('Gesamtaufwand Projekt', { x: mLeft + 5, y: y - 16, size: 10, font: fBold, color: white });
-        drawR(fmtDur(totalProjectMin), mRight - 5, y - 16, 10, fBold, white);
+        drawR(fmtDur(totalProjectMin), mRight - 3, y - 16, 10, fBold, white);
         y -= gtH + 20;
 
         // ── Hinweis-Box (orange, wie im Einzelwirtschaftsplan) ─
