@@ -691,6 +691,10 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | 3 | **Seite 2+ (Einzelabrechnung)**: Objekt/Verwalter-Block, Eigentümer-Box. **Dreispaltige Summary-Tabelle**: Abrechnungsspitze (Gesamtkosten − HG-Soll), Zahlungsdifferenz (HG-Soll − HG-Ist), Abrechnungssaldo (Spitze + Differenz) mit Objekt-gesamt + Ihr-Anteil Spalten. BGH-Hinweis (V ZR 147/11). Umlageschlüssel-Tabelle, Verteilungsergebnis (umlagefähig/nicht umlagefähig), Grand-Total, §28 WEG Hinweis-Box |
 | 4 | **Seitenumbruch-Logik**: Alle Blöcke und Tabellenzeilen prüfen `y < mBottom`, Tabellen-Header wird auf neuer Seite wiederholt. Briefbogen als Hintergrund auf allen Seiten |
 | 5 | **`mod-finanzen.js`**: Button "Abrechnung als PDF exportieren" in `_finJABStep5Html` (Schritt 5 des Wizards). Wrapper `_finJABExportPDF()` übergibt `_finState.jabData` an die PDF-Funktion |
+| 6 | **Bugfix: Doppelter Header** auf Seite 2 (Einzelabrechnung) — `addPage()` → `addFirstPage()`, keine Kopfzeile auf erster Seite der Einzelabrechnung |
+| 7 | **Bugfix: Anschreiben Seitenränder** — hardcoded Intro-Zeilenumbrüche → `_pdfSplitText()` für volle Textbreite |
+| 8 | **Wizard Schritt 3 Read-Only** — `<select>`-Dropdowns durch Textanzeige ersetzt, Schlüssel aus `accounts.primary_key_id` angezeigt, Hinweistext „Kontenblatt → Konto bearbeiten → Verteilerschlüssel" |
+| 9 | **Wizard Schritt 5 Saldo-Tabelle** — Owner-Tabelle mit Ist-Kosten, HG-Soll, HG-Ist, Abrechnungssaldo (Nachzahlung hb-orange / Guthaben hb-olive). Netto-Ergebnis WEG als KPI. Saldo-Berechnung via Distribution-Keys in `_finJABNext(4)` |
 
 ---
 

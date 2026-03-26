@@ -1483,28 +1483,17 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData) {
         var weNr = apt.apartment_number || '–';
         var wegLabel = 'WEG ' + bldAddr.trim();
         y = height - 255;
-        var introText;
+        var introStr = 'für Ihre Einheit ' + weNr + ' in der ' + wegLabel + ' übersenden wir Ihnen die Hausgeldabrechnung für das Wirtschaftsjahr ' + fy + '. ';
         if (saldoUnit > 0) {
-            introText = [
-                'für Ihre Einheit ' + weNr + ' in der ' + wegLabel + ' übersenden wir Ihnen',
-                'die Hausgeldabrechnung für das Wirtschaftsjahr ' + fy + '. Aus der Abrechnung',
-                'ergibt sich eine Nachzahlung zu Ihren Lasten.',
-            ];
+            introStr += 'Aus der Abrechnung ergibt sich eine Nachzahlung zu Ihren Lasten.';
         } else if (saldoUnit < 0) {
-            introText = [
-                'für Ihre Einheit ' + weNr + ' in der ' + wegLabel + ' übersenden wir Ihnen',
-                'die Hausgeldabrechnung für das Wirtschaftsjahr ' + fy + '. Aus der Abrechnung',
-                'ergibt sich ein Guthaben zu Ihren Gunsten.',
-            ];
+            introStr += 'Aus der Abrechnung ergibt sich ein Guthaben zu Ihren Gunsten.';
         } else {
-            introText = [
-                'für Ihre Einheit ' + weNr + ' in der ' + wegLabel + ' übersenden wir Ihnen',
-                'die Hausgeldabrechnung für das Wirtschaftsjahr ' + fy + '.',
-                'Ihre geleisteten Vorschüsse entsprechen den tatsächlichen Kosten.',
-            ];
+            introStr += 'Ihre geleisteten Vorschüsse entsprechen den tatsächlichen Kosten.';
         }
-        for (var ti = 0; ti < introText.length; ti++) {
-            page.drawText(introText[ti], { x: mLeft, y: y, size: 10, font: fReg, color: offblack });
+        var introLines = _pdfSplitText(introStr, fReg, 10, contentW);
+        for (var ti = 0; ti < introLines.length; ti++) {
+            page.drawText(introLines[ti], { x: mLeft, y: y, size: 10, font: fReg, color: offblack });
             y -= 15;
         }
         y -= 15;
@@ -1545,7 +1534,7 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData) {
         // ══════════════════════════════════════════════════════════
         // ── SEITE 2+: EINZELABRECHNUNG (wie Einzelwirtschaftsplan)
         // ══════════════════════════════════════════════════════════
-        var pg2 = await addPage();
+        var pg2 = await addFirstPage();
         page = pg2.page; height = pg2.height; y = pg2.y;
 
         // Titel
