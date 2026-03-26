@@ -1519,33 +1519,6 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData) {
         drawR(page, spitzeStr, mRight - 12, boxMid - 2, 16, fBold, spitzeColor);
         y -= boxH + 20;
 
-        // Zusammenfassungs-Tabelle
-        y -= drawTableHeader(page, y, [
-            { x: mLeft + 4, label: 'Position', align: 'left' },
-            { x: mRight - 4, label: 'Betrag', align: 'right' },
-        ]);
-        var summRows = [
-            { label: 'Gesamtkosten Ihrer Einheit',  val: totalCostsUnit },
-            { label: 'Hausgeld-Vorschüsse (Soll)',   val: -sollVorschuesse },
-            { label: 'Hausgeld-Vorschüsse (Ist)',     val: -istBezahlt },
-        ];
-        for (var si = 0; si < summRows.length; si++) {
-            var sr = summRows[si];
-            var rY = y - padV - Math.ceil(9 * 1.3);
-            page.drawText(sr.label, { x: mLeft + 4, y: rY, size: 9, font: fReg, color: offblack });
-            drawR(page, fmt(sr.val), mRight - 4, rY, 9, fReg, offblack);
-            y -= minRowH;
-            page.drawLine({ start: { x: mLeft, y: y }, end: { x: mRight, y: y }, thickness: 0.3, color: dividerColor });
-        }
-        // Total row
-        var totalRowH = 24;
-        page.drawRectangle({ x: mLeft, y: y - totalRowH, width: contentW, height: totalRowH, color: rgb(0.969, 0.973, 0.961) });
-        page.drawLine({ start: { x: mLeft, y: y }, end: { x: mRight, y: y }, thickness: 1, color: olive });
-        var tRY = y - totalRowH + 7;
-        page.drawText('Abrechnungsspitze', { x: mLeft + 4, y: tRY, size: 10, font: fBold, color: offblack });
-        drawR(page, fmt(spitze), mRight - 4, tRY, 10, fBold, spitzeColor);
-        y -= totalRowH + 20;
-
         // Schlusstext
         var closingLines = [
             'Die Abrechnung wird der nächsten Eigentümerversammlung zur',
@@ -1631,39 +1604,98 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData) {
 
         y = ownBoxBottom - 12;
 
-        // ── BLOCK 2: ZUSAMMENFASSUNG ──────────────────────────
+        // ── BLOCK 2: ZUSAMMENFASSUNG (Dreispaltig) ─────────────
         page.drawText('Abrechnungsergebnis', { x: mLeft, y: y, size: 10, font: fBold, color: olive }); y -= 10;
 
-        y -= drawTableHeader(page, y, [
-            { x: mLeft + 4, label: 'Position', align: 'left' },
-            { x: mLeft + contentW * 0.55, label: 'Objekt gesamt', align: 'right' },
-            { x: mRight - 4, label: 'Ihr Anteil', align: 'right' },
-        ]);
-
         var totalCostsAll = costItems.reduce(function(s, ci3) { return s + Number(ci3.ist_amount); }, 0);
+        var sollAll = sollIst.reduce(function(s, r) { return s + Number(r.soll); }, 0);
+        var istAll  = sollIst.reduce(function(s, r) { return s + Number(r.bezahlt); }, 0);
+        var spitzeAll = totalCostsAll - sollAll;
+        var zahlDiffUnit = sollVorschuesse - istBezahlt;
+        var zahlDiffAll  = sollAll - istAll;
+        var saldoUnit    = spitze + zahlDiffUnit;
 
-        var summItems = [
-            { label: 'Ist-Kosten Wirtschaftsjahr', allVal: totalCostsAll, unitVal: totalCostsUnit, bold: false },
-            { label: 'Hausgeld-Vorschüsse (Soll)', allVal: null, unitVal: -sollVorschuesse, bold: false },
+        var colObjR  = mLeft + contentW * 0.62;
+        var colUnitR = mRight - 4;
+        var summCols = [
+            { x: mLeft + 4, label: 'Berechnung Ihres Anteils', align: 'left' },
+            { x: colObjR, label: 'Objekt gesamt', align: 'right' },
+            { x: colUnitR, label: 'Ihr Anteil', align: 'right' },
         ];
-        for (var sj = 0; sj < summItems.length; sj++) {
-            var item = summItems[sj];
-            var rowBase = y - padV - Math.ceil(8.5 * 1.3);
-            page.drawText(item.label, { x: mLeft + 4, y: rowBase, size: 8.5, font: item.bold ? fSemi : fReg, color: item.bold ? offblack : grayDeemph });
-            if (item.allVal !== null) drawR(page, fmt(item.allVal), mLeft + contentW * 0.55, rowBase, 9, fReg, grayDeemph);
-            drawR(page, fmt(item.unitVal), mRight - 4, rowBase, 9, fReg, offblack);
-            y -= minRowH;
-            page.drawLine({ start: { x: mLeft, y: y }, end: { x: mRight, y: y }, thickness: 0.3, color: dividerColor });
-        }
+        y -= drawTableHeader(page, y, summCols);
 
-        // Spitze-Zeile
-        var spRowH = 24;
-        page.drawRectangle({ x: mLeft, y: y - spRowH, width: contentW, height: spRowH, color: zebraColor });
-        page.drawLine({ start: { x: mLeft, y: y }, end: { x: mRight, y: y }, thickness: 1, color: olive });
-        var spBase = y - spRowH + 7;
-        page.drawText('Abrechnungsspitze', { x: mLeft + 4, y: spBase, size: 10, font: fSemi, color: olive });
-        drawR(page, fmt(spitze), mRight - 4, spBase, 10, fBold, spitzeColor);
-        y -= spRowH + 20;
+        var summFS  = 8.5;
+        var summLH  = Math.ceil(summFS * 1.3);
+        var summRH  = 18;
+        var summTRH = 32; // result rows with label + amount
+
+        // Helper: draw a normal summary row
+        var drawSummRow = function(label, objVal, unitVal, isSubtract) {
+            var prefix = isSubtract ? '–  ' : '   ';
+            var rowBase2 = y - padV - summLH;
+            page.drawText(prefix + label, { x: mLeft + 4, y: rowBase2, size: summFS, font: fReg, color: offblack });
+            if (objVal !== null) drawR(page, fmt(objVal), colObjR, rowBase2, summFS, fReg, grayDeemph);
+            drawR(page, fmt(unitVal), colUnitR, rowBase2, summFS, fReg, offblack);
+            y -= summRH;
+            page.drawLine({ start: { x: mLeft, y: y }, end: { x: mRight, y: y }, thickness: 0.3, color: dividerColor });
+        };
+
+        // Helper: draw a result row (label on first line, amount on second)
+        var drawResultRow = function(label, objVal, unitLabel, unitVal, resultColor) {
+            page.drawRectangle({ x: mLeft, y: y - summTRH, width: contentW, height: summTRH, color: zebraColor });
+            page.drawLine({ start: { x: mLeft, y: y }, end: { x: mRight, y: y }, thickness: 0.8, color: olive });
+            var line1Y = y - padV - summLH;
+            page.drawText('=  ' + label, { x: mLeft + 4, y: line1Y, size: summFS, font: fSemi, color: olive });
+            if (objVal !== null) drawR(page, fmt(objVal), colObjR, line1Y, summFS, fSemi, grayDeemph);
+            drawR(page, unitLabel, colUnitR, line1Y, summFS, fSemi, resultColor);
+            var line2Y = line1Y - summLH - 1;
+            drawR(page, fmt(Math.abs(unitVal)), colUnitR, line2Y, 9, fBold, resultColor);
+            y -= summTRH;
+            page.drawLine({ start: { x: mLeft, y: y }, end: { x: mRight, y: y }, thickness: 0.3, color: dividerColor });
+        };
+
+        // Row 1: Gesamtkosten
+        drawSummRow('Gesamtkosten', totalCostsAll, totalCostsUnit, false);
+        // Row 2: - HG-Vorschuss Soll
+        drawSummRow('HG-Vorschuss Soll', sollAll, sollVorschuesse, true);
+        // Row 3: = Abrechnungsspitze
+        var spLabel1 = spitze > 0 ? 'Unterdeck.' : spitze < 0 ? 'Überdeck.' : 'Ausgeglichen';
+        drawResultRow('Abrechnungsspitze', spitzeAll, spLabel1, spitze, spitzeColor);
+
+        y -= 4;
+        // Row 4: HG-Vorschuss Soll
+        drawSummRow('HG-Vorschuss Soll', sollAll, sollVorschuesse, false);
+        // Row 5: - HG-Vorschuss Ist
+        drawSummRow('HG-Vorschuss Ist', istAll, istBezahlt, true);
+        // Row 6: = Zahlungsdifferenz
+        var zdLabel = zahlDiffUnit > 0 ? 'Rückstand' : zahlDiffUnit < 0 ? 'Überzahlung' : 'Planerfüllung';
+        var zdColor = zahlDiffUnit > 0 ? orange : zahlDiffUnit < 0 ? olive : gray50;
+        drawResultRow('Zahlungsdifferenz', zahlDiffAll, zdLabel, zahlDiffUnit, zdColor);
+
+        y -= 4;
+        // Row 7: = Abrechnungssaldo (grand total)
+        var saldoLabel = saldoUnit > 0 ? 'Nachzahlung' : saldoUnit < 0 ? 'Guthaben' : 'Ausgeglichen';
+        var saldoColor = saldoUnit > 0 ? orange : saldoUnit < 0 ? olive : gray50;
+        var saldoRowH  = 28;
+        page.drawRectangle({ x: mLeft, y: y - saldoRowH, width: contentW, height: saldoRowH, color: olive });
+        page.drawLine({ start: { x: mLeft, y: y }, end: { x: mRight, y: y }, thickness: 1.5, color: olive });
+        var sLine1Y = y - padV - summLH;
+        page.drawText('=  Abrechnungssaldo', { x: mLeft + 4, y: sLine1Y, size: 9, font: fBold, color: white });
+        drawR(page, saldoLabel + '  ' + fmt(Math.abs(saldoUnit)), colUnitR, sLine1Y, 9, fBold, white);
+        y -= saldoRowH;
+
+        // BGH-Hinweis unter Summary
+        y -= 10;
+        var bghText = 'Zur Beschlussfassung steht ausschließlich die Abrechnungsspitze. Etwaige Zahlungsrückstände basieren auf dem Wirtschaftsplan des Vorjahres. Der Abrechnungssaldo dient lediglich der Information. (BGH-Urteil v. 09.03.2012 V ZR 147/11)';
+        var bghFS = 7.5;
+        var bghLH = Math.ceil(bghFS * 1.3);
+        var bghLines = _pdfSplitText(bghText, fReg, bghFS, contentW - 8);
+        var bghBoxH  = 8 + bghLines.length * bghLH + 6;
+        page.drawRectangle({ x: mLeft, y: y - bghBoxH, width: contentW, height: bghBoxH, borderColor: dividerColor, borderWidth: 0.5, color: rgb(0.98, 0.98, 0.98) });
+        for (var bgi = 0; bgi < bghLines.length; bgi++) {
+            page.drawText(bghLines[bgi], { x: mLeft + 4, y: y - 8 - bgi * bghLH, size: bghFS, font: fReg, color: gray50 });
+        }
+        y -= bghBoxH + 16;
 
         // ── BLOCK 3: UMLAGESCHLÜSSEL-TABELLE ──────────────────
         var usedKeys = collectUsedKeys(apt.id);
