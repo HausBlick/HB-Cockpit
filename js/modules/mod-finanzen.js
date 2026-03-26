@@ -2821,7 +2821,7 @@ async function _finLoadMahnwesen() {
     const today = new Date().toISOString().split('T')[0];
     const [{ data: overdue }, { data: notices }] = await Promise.all([
         _supabase.from('payment_demands')
-            .select('id, apartment_id, amount, due_date, status, demand_type, apartment:apartments(apartment_number), person:persons(first_name, last_name)')
+            .select('id, apartment_id, person_id, amount, due_date, status, demand_type, apartment:apartments(apartment_number), person:persons(first_name, last_name)')
             .eq('building_id', bid)
             .or(`status.eq.overdue,and(status.eq.open,due_date.lt.${today})`)
             .order('due_date'),
