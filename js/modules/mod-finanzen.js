@@ -2584,6 +2584,7 @@ function _finJABStep5Html() {
             <button onclick="_finState.jabStep=4;_finRenderJAB()" class="btn-secondary text-sm px-5 py-2.5">← Zurück</button>
             <button onclick="_finJABAbschluss()" class="btn-primary text-sm px-6 py-2.5">Abrechnung abschließen & Buchungen sperren</button>
             <button onclick="_finJABExportCSV()" class="text-xs text-hb-olive bg-hb-ultralight border border-hb-olive/20 px-4 py-2.5 rounded-lg font-semibold hover:bg-gray-100 transition-colors">Als CSV exportieren</button>
+            <button onclick="_finJABExportPDF()" class="text-xs text-hb-olive bg-hb-ultralight border border-hb-olive/20 px-4 py-2.5 rounded-lg font-semibold hover:bg-gray-100 transition-colors">Abrechnung als PDF exportieren</button>
         </div>`;
 }
 
@@ -2808,6 +2809,12 @@ window._finJABExportCSV = () => {
     }
     const csv = '\uFEFF' + rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(';')).join('\r\n');
     _finDownloadFile(csv, `Jahresabrechnung_${d.fy}_${_finState.buildingId}.csv`, 'text/csv;charset=utf-8');
+};
+
+window._finJABExportPDF = async () => {
+    var d = _finState.jabData;
+    if (!d || !d.fy) { showToast('Keine Abrechnungsdaten vorhanden. Bitte zuerst den Wizard durchlaufen.', 'error'); return; }
+    await generateJahresabrechnungPDF(_finState.buildingId, d.fy, d);
 };
 
 // ============================================================
