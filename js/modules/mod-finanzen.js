@@ -1089,7 +1089,7 @@ async function _finLoadDemands() {
 
     const [{ data: demands }, { data: apts }] = await Promise.all([
         _supabase.from('payment_demands')
-            .select('*, apartment:apartments(apartment_number), person:profiles(full_name)')
+            .select('*, apartment:apartments(apartment_number), person:persons(first_name, last_name)')
             .eq('building_id', bid)
             .eq('fiscal_year', fy)
             .eq('demand_type', 'hausgeld')
@@ -1118,7 +1118,7 @@ function _finRenderDemands() {
         <tr class="hover:bg-gray-50/60 transition-colors">
             <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(d.due_date)}</td>
             <td class="px-4 py-3 text-sm font-semibold">${d.apartment?.apartment_number || '–'}</td>
-            <td class="px-4 py-3 text-sm text-gray-600">${d.person?.full_name || '–'}</td>
+            <td class="px-4 py-3 text-sm text-gray-600">${d.person ? (d.person.first_name + ' ' + d.person.last_name) : '–'}</td>
             <td class="px-4 py-3 text-sm font-bold text-right">${Number(d.amount).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</td>
             <td class="px-4 py-3">${statusBadge(d)}</td>
             <td class="px-4 py-3 text-right">
@@ -1373,7 +1373,7 @@ window._finOBNext = async (fromStep) => {
         });
 
         const { data: ownerships } = await _supabase.from('ownerships')
-            .select('id, owner_id, apartment_id, apartment:apartments(apartment_number, hausgeld, building_id), owner:profiles(full_name)')
+            .select('id, owner_id, apartment_id, apartment:apartments(apartment_number, hausgeld, building_id), owner:persons!ownerships_owner_id_fkey(first_name, last_name)')
             .eq('is_active', true);
         _finState.onboardOwnerRows = (ownerships || [])
             .filter(o => o.apartment?.building_id == bid)
@@ -1382,7 +1382,7 @@ window._finOBNext = async (fromStep) => {
                 owner_id:        o.owner_id,
                 apartment_id:    o.apartment_id,
                 apartment_number: o.apartment?.apartment_number,
-                owner_name:      o.owner?.full_name || '–',
+                owner_name:      o.owner ? (o.owner.first_name + ' ' + o.owner.last_name) : '–',
                 hausgeld:        o.apartment?.hausgeld,
             }));
         _finState.onboardStep = 3;
@@ -2681,7 +2681,7 @@ async function _finJABLoadSollIst() {
         _supabase.from('payment_demands').select('apartment_id, amount, status, demand_type')
             .eq('building_id', bid).eq('fiscal_year', d.fy).eq('demand_type', 'hausgeld'),
         _supabase.from('special_levies').select('*').eq('building_id', bid).eq('fiscal_year', d.fy),
-        _supabase.from('ownerships').select('apartment_id, owner:profiles(full_name)').eq('is_active', true),
+        _supabase.from('ownerships').select('apartment_id, owner:persons!ownerships_owner_id_fkey(first_name, last_name)').eq('is_active', true),
     ]);
 
     // Per apartment aggregieren
@@ -2690,7 +2690,7 @@ async function _finJABLoadSollIst() {
         aptMap[apt.id] = { apt_id: apt.id, apt_number: apt.apartment_number, soll: 0, bezahlt: 0, owner_name: '' };
     }
     for (const o of (ownerships||[])) {
-        if (aptMap[o.apartment_id]) aptMap[o.apartment_id].owner_name = o.owner?.full_name || '–';
+        if (aptMap[o.apartment_id]) aptMap[o.apartment_id].owner_name = o.owner ? (o.owner.first_name + ' ' + o.owner.last_name) : '–';
     }
     for (const dem of (demands||[])) {
         if (!aptMap[dem.apartment_id]) aptMap[dem.apartment_id] = { apt_id: dem.apartment_id, apt_number: '?', soll: 0, bezahlt: 0, owner_name: '' };
@@ -2821,12 +2821,12 @@ async function _finLoadMahnwesen() {
     const today = new Date().toISOString().split('T')[0];
     const [{ data: overdue }, { data: notices }] = await Promise.all([
         _supabase.from('payment_demands')
-            .select('id, apartment_id, amount, due_date, status, demand_type, apartment:apartments(apartment_number), person:profiles(full_name)')
+            .select('id, apartment_id, amount, due_date, status, demand_type, apartment:apartments(apartment_number), person:persons(first_name, last_name)')
             .eq('building_id', bid)
             .or(`status.eq.overdue,and(status.eq.open,due_date.lt.${today})`)
             .order('due_date'),
         _supabase.from('dunning_notices')
-            .select('*, person:profiles(full_name), demand:payment_demands(apartment_id, apartment:apartments(apartment_number))')
+            .select('*, person:persons(first_name, last_name), demand:payment_demands(apartment_id, apartment:apartments(apartment_number))')
             .eq('building_id', bid)
             .order('created_at', { ascending: false })
             .limit(50),
@@ -2835,10 +2835,10 @@ async function _finLoadMahnwesen() {
     const overdueRows = (overdue||[]).map(d => {
         const days = Math.ceil((Date.now() - new Date(d.due_date).getTime()) / 86400000);
         return `<tr class="hover:bg-gray-50/60">
-            <td class="px-3 py-3"><input type="checkbox" class="mahn-check" data-id="${d.id}" data-amount="${d.amount}" data-person="${d.person?.full_name||''}" data-apt="${d.apartment?.apartment_number||''}"></td>
+            <td class="px-3 py-3"><input type="checkbox" class="mahn-check" data-id="${d.id}" data-amount="${d.amount}" data-person="${d.person ? (d.person.first_name+' '+d.person.last_name) : ''}" data-apt="${d.apartment?.apartment_number||''}"></td>
             <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(d.due_date)}</td>
             <td class="px-4 py-3 text-sm font-semibold">${d.apartment?.apartment_number||'–'}</td>
-            <td class="px-4 py-3 text-sm text-gray-600">${d.person?.full_name||'–'}</td>
+            <td class="px-4 py-3 text-sm text-gray-600">${d.person ? (d.person.first_name + ' ' + d.person.last_name) : '–'}</td>
             <td class="px-4 py-3 text-sm font-bold text-right">${Number(d.amount).toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
             <td class="px-4 py-3 text-center"><span class="text-xs bg-hb-orange/10 text-hb-orange font-semibold px-2 py-0.5 rounded-md">${days} Tage</span></td>
         </tr>`;
@@ -2850,7 +2850,7 @@ async function _finLoadMahnwesen() {
     const noticeRows = (notices||[]).map(n => `
         <tr class="hover:bg-gray-50/60">
             <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(n.created_at)}</td>
-            <td class="px-4 py-3 text-sm text-gray-600">${n.person?.full_name||'–'}</td>
+            <td class="px-4 py-3 text-sm text-gray-600">${n.person ? (n.person.first_name + ' ' + n.person.last_name) : '–'}</td>
             <td class="px-4 py-3 text-sm font-semibold">${n.demand?.apartment?.apartment_number||'–'}</td>
             <td class="px-4 py-3">${dunningBadge(n.dunning_level)}</td>
             <td class="px-4 py-3 text-sm text-right">${Number(n.amount||0).toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
