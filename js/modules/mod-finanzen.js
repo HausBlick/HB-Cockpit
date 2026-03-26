@@ -2859,7 +2859,7 @@ async function _finLoadMahnwesen() {
             <td class="px-4 py-3 text-center">
                 <div class="flex items-center justify-center gap-1">
                     ${n.status!=='paid'?`<button onclick="_finNoticePaid(${n.id},${n.payment_demand_id})" class="text-xs text-hb-olive bg-hb-ultralight px-2 py-1 rounded-lg hover:bg-gray-100">Bezahlt</button>`:'<span class="text-xs text-green-600 font-semibold">Bezahlt</span>'}
-                    <button onclick="generateMahnungPDF(${n.id})" class="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded-lg hover:bg-gray-100" title="Als PDF herunterladen">
+                    <button onclick="_finMahnungPDF('${n.person_id}',${n.building_id})" class="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded-lg hover:bg-gray-100" title="Sammel-PDF für diese Person">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
                     </button>
                 </div>
@@ -2999,6 +2999,15 @@ window._finNoticePaid = async (noticeId, demandId) => {
     ]);
     showToast('Als bezahlt markiert.', 'success');
     await _finLoadMahnwesen();
+};
+
+// Sammel-PDF: alle offenen/draft notices einer Person im Gebäude
+window._finMahnungPDF = async (personId, buildingId) => {
+    const { data } = await _supabase.from('dunning_notices').select('id')
+        .eq('person_id', personId).eq('building_id', buildingId).in('status', ['draft', 'sent']);
+    const ids = (data || []).map(function(n) { return n.id; });
+    if (!ids.length) { showToast('Keine offenen Mahnungen für diese Person.', 'error'); return; }
+    await generateMahnungPDF(ids);
 };
 
 // ============================================================
