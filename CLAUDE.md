@@ -673,3 +673,15 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | 2 | **6 Anzeige-Stellen** von `.full_name` auf `first_name + ' ' + last_name` umgestellt (Sollstellungen, Onboarding, Jahresabrechnung, Mahnwesen) |
 | 3 | **Root Cause:** `payment_demands.person_id` und `dunning_notices.person_id` verweisen per FK auf `persons`, nicht auf `profiles`. `ownerships.owner_id` ebenfalls auf `persons`. Falscher JOIN auf `profiles` lieferte NULL-Ergebnisse |
 | 4 | **Mahnwesen INSERT gefixt** (`_finCreateDunning`): Falsche Spaltennamen `amount`/`fee`/`due_date` → korrekte DB-Spalten `overdue_amount`/`dunning_fee`/`interest_rate`/`interest_amount`/`total_amount`/`dunning_date`. `person_id` ergänzt (aus `data-person-id` an Checkbox). Anzeige der dunning_notices-Tabelle auf `overdue_amount`/`dunning_fee`/`total_amount` umgestellt |
+
+---
+
+### Phase 6.9-B — Jahresabrechnung PDF-Export
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **`utils-pdf.js`: `generateJahresabrechnungPDF(buildingId, fiscalYear, jabData)`** — Bulk-PDF mit Anschreiben + Einzelabrechnung je Einheit. Nutzt jabData.entries für Ist-Kosten-Aggregation, jabData.sollIst für Soll-Ist-Abgleich |
+| 2 | **Seite 1 (Anschreiben)**: DIN-Adressfeld (Eigentümer-Postanschrift), personalisierte Anrede (Salutation), Ergebnis-Highlight-Box (Nachzahlung/Guthaben mit olive/orange Farbkodierung), Zusammenfassungs-Tabelle (Kosten, Soll, Ist, Spitze), Schlusstext mit Verweis auf Beschlussfassung |
+| 3 | **Seite 2+ (Einzelabrechnung)**: Identisch zum Einzelwirtschaftsplan-Layout — Objekt/Verwalter-Block, Eigentümer-Box, Abrechnungsergebnis-Summary (Ist-Kosten/Vorschüsse/Spitze), Umlageschlüssel-Tabelle, Verteilungsergebnis (umlagefähig/nicht umlagefähig mit Zwischensummen), Grand-Total olive-Zeile, Rechtlicher Hinweis (§28 Abs. 2 WEG) |
+| 4 | **Seitenumbruch-Logik**: Alle Blöcke und Tabellenzeilen prüfen `y < mBottom`, Tabellen-Header wird auf neuer Seite wiederholt. Briefbogen als Hintergrund auf allen Seiten |
+| 5 | **`mod-finanzen.js`**: Button "Abrechnung als PDF exportieren" in `_finJABStep5Html` (Schritt 5 des Wizards). Wrapper `_finJABExportPDF()` übergibt `_finState.jabData` an die PDF-Funktion |

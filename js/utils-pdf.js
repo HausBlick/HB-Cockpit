@@ -1134,3 +1134,715 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
     _pdfDownload(pdfBytes, filename);
     showToast(`${apts.length} Einzelwirtschaftspläne als PDF heruntergeladen.`);
 }
+
+// ─── Jahresabrechnung als Bulk-PDF (Anschreiben + Einzelabrechnung je WE) ────
+async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData) {
+    if (typeof PDFLib === 'undefined') {
+        showToast('PDF-Bibliothek nicht geladen. Bitte Seite neu laden.', 'error'); return;
+    }
+
+    showToast('Jahresabrechnungen werden erstellt…');
+
+    const settings = await _pdfGetSettings();
+    const bid = buildingId;
+    const fy  = fiscalYear;
+
+    // Load building, apartments, accounts, distribution keys, ownerships
+    const [bldRes, aptsRes, accsRes, dkRes, dkuRes, ownRes] = await Promise.all([
+        _supabase.from('buildings').select('id, name, file_number, street, house_number, zip_code, city').eq('id', bid).single(),
+        _supabase.from('apartments').select('id, apartment_number, floor, sq_meters, mea, hausgeld').eq('building_id', bid).order('apartment_number'),
+        _supabase.from('accounts').select('id, account_number, account_name, account_type, is_allocatable, primary_key_id, secondary_key_id, secondary_key_percentage').eq('building_id', bid).eq('is_active', true),
+        _supabase.from('distribution_keys').select('id, name, type, total_value, heiz_split_percent').eq('building_id', bid),
+        _supabase.from('distribution_key_units').select('distribution_key_id, apartment_id, value'),
+        _supabase.from('ownerships').select('apartment_id, owner:persons!ownerships_owner_id_fkey(first_name, last_name, salutation, street, house_number, zip_code, city)').eq('is_active', true),
+    ]);
+
+    var bld       = bldRes.data;
+    var apts      = aptsRes.data || [];
+    var accounts  = accsRes.data || [];
+    var distKeys  = dkRes.data || [];
+    var dkUnits   = dkuRes.data || [];
+    var owners    = ownRes.data || [];
+
+    if (!bld) { showToast('Gebäude nicht gefunden.', 'error'); return; }
+    if (!apts.length) { showToast('Keine Einheiten vorhanden.', 'error'); return; }
+
+    // Lookup maps
+    var dkMap = {};
+    distKeys.forEach(function(k) { dkMap[k.id] = k; });
+    var dkUnitMap = {};
+    dkUnits.forEach(function(u) {
+        if (!dkUnitMap[u.distribution_key_id]) dkUnitMap[u.distribution_key_id] = {};
+        dkUnitMap[u.distribution_key_id][u.apartment_id] = Number(u.value) || 0;
+    });
+    var ownerMap = {};
+    var aptIdSet = new Set(apts.map(function(a) { return a.id; }));
+    owners.forEach(function(o) {
+        if (o.owner && aptIdSet.has(o.apartment_id)) {
+            var p = o.owner;
+            ownerMap[o.apartment_id] = {
+                name: [p.first_name, p.last_name].filter(Boolean).join(' '),
+                salutation: p.salutation,
+                lastName: p.last_name,
+                street: [p.street, p.house_number].filter(Boolean).join(' '),
+                zip_code: p.zip_code,
+                city: p.city,
+            };
+        }
+    });
+
+    // Aggregate Ist-Kosten aus jabData.entries pro Konto (Aufwandskonten: Soll-Seite)
+    var entries = jabData.entries || [];
+    var accMap = {};
+    accounts.forEach(function(a) { accMap[a.id] = a; });
+
+    var sollPerAcc = {};
+    var habenPerAcc = {};
+    for (var ei = 0; ei < entries.length; ei++) {
+        var e = entries[ei];
+        sollPerAcc[e.debit_account_id] = (sollPerAcc[e.debit_account_id] || 0) + Number(e.amount);
+        habenPerAcc[e.credit_account_id] = (habenPerAcc[e.credit_account_id] || 0) + Number(e.amount);
+    }
+
+    // Build cost items: each expense account with its Ist-amount (Soll-Seite = cost)
+    var costItems = [];
+    accounts.forEach(function(acc) {
+        var amount = (sollPerAcc[acc.id] || 0) - (habenPerAcc[acc.id] || 0);
+        if (acc.account_type === 'expense' && amount !== 0) {
+            costItems.push({ account: acc, ist_amount: amount });
+        }
+    });
+
+    // sollIst from jabData for Soll-Ist-Abgleich per apartment
+    var sollIst = jabData.sollIst || [];
+
+    // Letterhead template
+    var PDFDocument = PDFLib.PDFDocument;
+    var rgb = PDFLib.rgb;
+    if (!settings.letterhead_pdf_url) {
+        showToast('Kein Briefbogen hinterlegt. Bitte unter Einstellungen → Briefpapier & Logo hochladen.', 'error'); return;
+    }
+    var signedRes = await _supabase.storage.from('documents').createSignedUrl(settings.letterhead_pdf_url, 120);
+    if (!signedRes.data?.signedUrl) { showToast('Briefbogen konnte nicht geladen werden.', 'error'); return; }
+    var lhResp = await fetch(signedRes.data.signedUrl);
+    if (!lhResp.ok) { showToast('Briefbogen konnte nicht geladen werden.', 'error'); return; }
+    var templateBytes = await lhResp.arrayBuffer();
+    var templateDoc   = await PDFDocument.load(templateBytes);
+
+    var pdfDoc = await PDFDocument.create();
+    pdfDoc.registerFontkit(fontkit);
+
+    // Embed Inter fonts
+    var fReg, fSemi, fBold;
+    try {
+        var fonts = await _pdfLoadInterFonts(pdfDoc);
+        fReg = fonts.reg; fSemi = fonts.semi; fBold = fonts.bold;
+    } catch (err) {
+        console.error('Inter font load error:', err);
+        showToast('Inter-Schriftart konnte nicht geladen werden: ' + err.message, 'error'); return;
+    }
+
+    // Colors
+    var olive    = rgb(0.408, 0.455, 0.318);
+    var offblack = rgb(0.216, 0.216, 0.216);
+    var orange   = rgb(0.922, 0.463, 0.176);
+    var gray50   = rgb(0.5, 0.5, 0.5);
+    var gray40   = rgb(0.4, 0.4, 0.4);
+    var white    = rgb(1, 1, 1);
+
+    // Page margins
+    var mLeft    = 56.7;
+    var mRight   = 538.6;
+    var contentW = mRight - mLeft;
+    var mBottom  = 100;
+    var contentStartY = 100;
+
+    var bldName   = formatBuildingName(bld);
+    var bldAddr   = (bld.street || '') + ' ' + (bld.house_number || '');
+    var bldZipCity = (bld.zip_code || '') + ' ' + (bld.city || '');
+    var bldFullAddr = [bldAddr.trim(), bldZipCity.trim()].filter(Boolean).join(', ');
+    var dateStr    = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    var zeitraum   = '01.01.' + fy + ' – 31.12.' + fy;
+
+    // Header text for continuation pages
+    var wegHeaderText = 'Hausgeldabrechnung | WEG ' + bldFullAddr;
+
+    // Helpers
+    function drawR(pg, text, xRight, yPos, size, font, color) {
+        var w = font.widthOfTextAtSize(text, size);
+        pg.drawText(text, { x: xRight - w, y: yPos, size: size, font: font, color: color });
+    }
+    function fmt(v) {
+        var r = Math.round((Number(v || 0) + Number.EPSILON) * 100) / 100;
+        return r.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+    }
+    function fmtVal(v) {
+        return Number(v || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+    }
+    var typeLabels = { mea: 'MEA', sqm: 'Fläche (m²)', units: 'Einheiten', consumption: 'Verbrauch', persons: 'Personen', heizkosten: 'HeizKV', custom: 'Individuell' };
+
+    // Distribution key share calculation
+    function calcShare(costItem, aptId) {
+        var acc = costItem.account;
+        if (!acc) return { share: 0, keyName: '—' };
+        var pkId = acc.primary_key_id;
+        var skId = acc.secondary_key_id;
+        var skPct = acc.secondary_key_percentage;
+        var total = Number(costItem.ist_amount || 0);
+        if (!pkId || !dkMap[pkId]) return { share: 0, keyName: '—' };
+        var pk = dkMap[pkId];
+        var pkTotal = Number(pk.total_value) || 0;
+        var pkVal   = (dkUnitMap[pkId] && dkUnitMap[pkId][aptId]) || 0;
+        var keyName = pk.name;
+        if (pkTotal === 0) return { share: 0, keyName: keyName };
+        if (skId && skPct && dkMap[skId]) {
+            var sk = dkMap[skId];
+            var skTotal = Number(sk.total_value) || 0;
+            var skVal   = (dkUnitMap[skId] && dkUnitMap[skId][aptId]) || 0;
+            var primaryShare   = total * (1 - skPct / 100) * (pkVal / pkTotal);
+            var secondaryShare = skTotal > 0 ? total * (skPct / 100) * (skVal / skTotal) : 0;
+            keyName = pk.name + '/' + sk.name;
+            return { share: primaryShare + secondaryShare, keyName: keyName };
+        }
+        return { share: total * (pkVal / pkTotal), keyName: keyName };
+    }
+
+    // Table helpers
+    var hdrFS = 8;
+    var padV = 4;
+    var minRowH = 18;
+    var sectionH = 16;
+    var subtotalH = 20;
+    var grandTotalH = 22;
+    var dividerColor = rgb(0.88, 0.89, 0.86);
+    var zebraColor   = rgb(0.976, 0.98, 0.973);
+    var grayDeemph   = rgb(0.612, 0.639, 0.682);
+
+    function drawTableHeader(pg, yPos, cols) {
+        var hH = Math.max(22, hdrFS * 1.35 + 8);
+        pg.drawRectangle({ x: mLeft, y: yPos - hH, width: contentW, height: hH, color: olive });
+        var baseY = yPos - 5 - hdrFS;
+        cols.forEach(function(c) {
+            if (c.align === 'right') drawR(pg, c.label, c.x, baseY, hdrFS, fBold, white);
+            else pg.drawText(c.label, { x: c.x, y: baseY, size: hdrFS, font: fBold, color: white });
+        });
+        return hH;
+    }
+    function splitLines(text, font, fs, maxW, maxL) {
+        var all = _pdfSplitText(text, font, fs, maxW);
+        if (all.length <= maxL) return all;
+        var out = all.slice(0, maxL);
+        var last = out[maxL - 1];
+        while (last.length > 3 && font.widthOfTextAtSize(last + '…', fs) > maxW) last = last.slice(0, -1);
+        out[maxL - 1] = last + '…';
+        return out;
+    }
+    function drawCell(pg, lines, x, cellTop, lineH, fs, font, color) {
+        var textY = cellTop - padV - lineH;
+        for (var li = 0; li < lines.length; li++) {
+            pg.drawText(lines[li], { x: x + 2, y: textY, size: fs, font: font, color: color });
+            textY -= lineH;
+        }
+    }
+    function drawCellSingle(pg, text, x, cellTop, lineH, fs, font, color) {
+        pg.drawText(text, { x: x + 2, y: cellTop - padV - lineH, size: fs, font: font, color: color });
+    }
+    function drawCellR(pg, text, xRight, cellTop, lineH, fs, font, color) {
+        var w = font.widthOfTextAtSize(text, fs);
+        pg.drawText(text, { x: xRight - w - 2, y: cellTop - padV - lineH, size: fs, font: font, color: color });
+    }
+
+    // Cost table column positions
+    var bezFS  = 9;
+    var keyFS  = 7.5;
+    var costLH = Math.ceil(bezFS * 1.3);
+    var cKonto   = mLeft + 2;
+    var cBez     = mLeft + 39;
+    var cBezW    = 138;
+    var cKey     = mLeft + 183;
+    var cKeyW    = 108;
+    var cGesamtR = mLeft + 380;
+    var cAnteilR = mRight - 2;
+
+    // Umlageschlüssel table columns
+    var dkFS  = 7.5;
+    var dkLH  = Math.ceil(dkFS * 1.3);
+    var dk0   = mLeft + 2;
+    var dk1   = mLeft + 30;
+    var dk1W  = 115;
+    var dk2   = mLeft + 149;
+    var dk3   = mLeft + 211;
+    var dk4r  = mLeft + 344;
+    var dk5r  = mLeft + 415;
+    var dk6r  = mRight - 2;
+
+    // Page creation helpers
+    function drawPageHeaderCompact(pg, pgHeight) {
+        var headerY = pgHeight - contentStartY;
+        pg.drawText(wegHeaderText, { x: mLeft, y: headerY, size: 8.5, font: fBold, color: offblack });
+        drawR(pg, dateStr, mRight, headerY, 8.5, fReg, gray50);
+        pg.drawLine({ start: { x: mLeft, y: headerY - 6 }, end: { x: mRight, y: headerY - 6 }, thickness: 0.5, color: dividerColor });
+        return headerY - 16;
+    }
+    async function addPage() {
+        var copied = (await pdfDoc.copyPages(templateDoc, [0]))[0];
+        var pg = pdfDoc.addPage(copied);
+        var pgH = pg.getSize().height;
+        var startY = drawPageHeaderCompact(pg, pgH);
+        return { page: pg, height: pgH, y: startY };
+    }
+    async function addFirstPage() {
+        var copied = (await pdfDoc.copyPages(templateDoc, [0]))[0];
+        var pg = pdfDoc.addPage(copied);
+        var pgH = pg.getSize().height;
+        var startY = pgH - contentStartY;
+        drawR(pg, dateStr, mRight, startY, 8.5, fReg, gray50);
+        return { page: pg, height: pgH, y: startY };
+    }
+
+    // Collect unique distribution keys used by cost items
+    function collectUsedKeys(aptId) {
+        var seen = new Set();
+        var result = [];
+        for (var ci = 0; ci < costItems.length; ci++) {
+            var acc = costItems[ci].account;
+            if (!acc || !acc.primary_key_id || !dkMap[acc.primary_key_id]) continue;
+            var pk = dkMap[acc.primary_key_id];
+            if (seen.has(pk.id)) continue;
+            seen.add(pk.id);
+            var pkTotal = Number(pk.total_value) || 0;
+            var pkVal   = (dkUnitMap[pk.id] && dkUnitMap[pk.id][aptId]) || 0;
+            result.push({ nr: result.length + 1, key: pk, unitVal: pkVal, total: pkTotal });
+            if (acc.secondary_key_id && dkMap[acc.secondary_key_id]) {
+                var sk = dkMap[acc.secondary_key_id];
+                if (!seen.has(sk.id)) {
+                    seen.add(sk.id);
+                    var skTotal = Number(sk.total_value) || 0;
+                    var skVal   = (dkUnitMap[sk.id] && dkUnitMap[sk.id][aptId]) || 0;
+                    result.push({ nr: result.length + 1, key: sk, unitVal: skVal, total: skTotal });
+                }
+            }
+        }
+        return result;
+    }
+
+    // ── Generate pages per apartment ─────────────────────────
+    for (var ai = 0; ai < apts.length; ai++) {
+        var apt = apts[ai];
+        var owner = ownerMap[apt.id] || {};
+        var ownerName = owner.name || 'Eigentümergemeinschaft (Leerstand)';
+
+        // Soll-Ist for this apartment
+        var aptSollIst = sollIst.find(function(r) { return r.apt_id === apt.id; }) || { soll: 0, bezahlt: 0 };
+
+        // Total costs for this unit (distributed via keys)
+        var totalCostsUnit = 0;
+        for (var ci2 = 0; ci2 < costItems.length; ci2++) {
+            totalCostsUnit += calcShare(costItems[ci2], apt.id).share;
+        }
+        var sollVorschuesse = Number(aptSollIst.soll) || 0;
+        var istBezahlt      = Number(aptSollIst.bezahlt) || 0;
+        var spitze          = totalCostsUnit - sollVorschuesse; // positiv = Nachzahlung
+
+        // ══════════════════════════════════════════════════════════
+        // ── SEITE 1: ANSCHREIBEN ─────────────────────────────────
+        // ══════════════════════════════════════════════════════════
+        var pg1 = await addFirstPage();
+        var page = pg1.page;
+        var height = pg1.height;
+        var y = pg1.y;
+
+        // Absender-Zeile
+        _pdfDrawSenderLine(page, fReg, settings);
+
+        // Empfänger-Adressfeld
+        var addrName = ownerName;
+        var addrStreet = owner.street || '';
+        var addrCity = [owner.zip_code, owner.city].filter(Boolean).join(' ');
+        _pdfDrawAddressField(page, fReg, addrName, addrStreet, addrCity);
+
+        // Datum
+        _pdfDrawDate(page, fReg, settings);
+
+        // Betreff
+        page.drawText('Hausgeldabrechnung für das Jahr ' + fy, {
+            x: mLeft, y: height - 200, size: 11, font: fBold, color: offblack,
+        });
+
+        // Anrede
+        var anrede = 'Sehr geehrte Damen und Herren,';
+        if (owner.salutation && owner.lastName) {
+            var prefix = owner.salutation === 'Herr' ? 'Sehr geehrter Herr' : 'Sehr geehrte Frau';
+            anrede = prefix + ' ' + owner.lastName + ',';
+        }
+        page.drawText(anrede, { x: mLeft, y: height - 230, size: 10, font: fReg, color: offblack });
+
+        // Einleitungstext
+        var weNr = apt.apartment_number || '–';
+        var wegLabel = 'WEG ' + bldAddr.trim();
+        y = height - 255;
+        var introText;
+        if (spitze > 0) {
+            introText = [
+                'für Ihre Einheit ' + weNr + ' in der ' + wegLabel + ' übersenden wir Ihnen',
+                'die Hausgeldabrechnung für das Wirtschaftsjahr ' + fy + '. Aus der Abrechnung',
+                'ergibt sich eine Nachzahlung zu Ihren Lasten.',
+            ];
+        } else if (spitze < 0) {
+            introText = [
+                'für Ihre Einheit ' + weNr + ' in der ' + wegLabel + ' übersenden wir Ihnen',
+                'die Hausgeldabrechnung für das Wirtschaftsjahr ' + fy + '. Aus der Abrechnung',
+                'ergibt sich ein Guthaben zu Ihren Gunsten.',
+            ];
+        } else {
+            introText = [
+                'für Ihre Einheit ' + weNr + ' in der ' + wegLabel + ' übersenden wir Ihnen',
+                'die Hausgeldabrechnung für das Wirtschaftsjahr ' + fy + '.',
+                'Ihre geleisteten Vorschüsse entsprechen den tatsächlichen Kosten.',
+            ];
+        }
+        for (var ti = 0; ti < introText.length; ti++) {
+            page.drawText(introText[ti], { x: mLeft, y: y, size: 10, font: fReg, color: offblack });
+            y -= 15;
+        }
+        y -= 15;
+
+        // Ergebnis-Highlight-Box
+        var boxH = 52;
+        page.drawRectangle({ x: mLeft, y: y - boxH, width: contentW, height: boxH, color: rgb(0.969, 0.973, 0.961), borderColor: olive, borderWidth: 0.75 });
+        var boxMid = y - boxH / 2;
+        page.drawText('Abrechnungsspitze:', { x: mLeft + 12, y: boxMid + 6, size: 9, font: fSemi, color: gray50 });
+        var spitzeLabel = spitze > 0 ? 'Nachzahlung' : spitze < 0 ? 'Guthaben' : 'Ausgeglichen';
+        var spitzeColor = spitze > 0 ? orange : spitze < 0 ? olive : gray50;
+        page.drawText(spitzeLabel, { x: mLeft + 12, y: boxMid - 10, size: 10, font: fSemi, color: spitzeColor });
+        var spitzeStr = fmt(Math.abs(spitze));
+        drawR(page, spitzeStr, mRight - 12, boxMid - 2, 16, fBold, spitzeColor);
+        y -= boxH + 20;
+
+        // Zusammenfassungs-Tabelle
+        y -= drawTableHeader(page, y, [
+            { x: mLeft + 4, label: 'Position', align: 'left' },
+            { x: mRight - 4, label: 'Betrag', align: 'right' },
+        ]);
+        var summRows = [
+            { label: 'Gesamtkosten Ihrer Einheit',  val: totalCostsUnit },
+            { label: 'Hausgeld-Vorschüsse (Soll)',   val: -sollVorschuesse },
+            { label: 'Hausgeld-Vorschüsse (Ist)',     val: -istBezahlt },
+        ];
+        for (var si = 0; si < summRows.length; si++) {
+            var sr = summRows[si];
+            var rY = y - padV - Math.ceil(9 * 1.3);
+            page.drawText(sr.label, { x: mLeft + 4, y: rY, size: 9, font: fReg, color: offblack });
+            drawR(page, fmt(sr.val), mRight - 4, rY, 9, fReg, offblack);
+            y -= minRowH;
+            page.drawLine({ start: { x: mLeft, y: y }, end: { x: mRight, y: y }, thickness: 0.3, color: dividerColor });
+        }
+        // Total row
+        var totalRowH = 24;
+        page.drawRectangle({ x: mLeft, y: y - totalRowH, width: contentW, height: totalRowH, color: rgb(0.969, 0.973, 0.961) });
+        page.drawLine({ start: { x: mLeft, y: y }, end: { x: mRight, y: y }, thickness: 1, color: olive });
+        var tRY = y - totalRowH + 7;
+        page.drawText('Abrechnungsspitze', { x: mLeft + 4, y: tRY, size: 10, font: fBold, color: offblack });
+        drawR(page, fmt(spitze), mRight - 4, tRY, 10, fBold, spitzeColor);
+        y -= totalRowH + 20;
+
+        // Schlusstext
+        var closingLines = [
+            'Die Abrechnung wird der nächsten Eigentümerversammlung zur',
+            'Beschlussfassung vorgelegt. Bis dahin gilt der aktuelle Wirtschaftsplan.',
+            '',
+            'Die detaillierte Einzelabrechnung finden Sie auf der folgenden Seite.',
+            '',
+            'Mit freundlichen Grüßen',
+        ];
+        for (var cli = 0; cli < closingLines.length; cli++) {
+            if (closingLines[cli] === '') { y -= 8; continue; }
+            page.drawText(closingLines[cli], { x: mLeft, y: y, size: 10, font: fReg, color: offblack });
+            y -= 15;
+        }
+        y -= 25;
+        if (settings.company_name) {
+            page.drawText(settings.company_name, { x: mLeft, y: y, size: 10, font: fBold, color: offblack });
+        }
+        if (settings.ceo_name) {
+            page.drawText(settings.ceo_name, { x: mLeft, y: y - 15, size: 10, font: fReg, color: gray40 });
+        }
+
+        // ══════════════════════════════════════════════════════════
+        // ── SEITE 2+: EINZELABRECHNUNG (wie Einzelwirtschaftsplan)
+        // ══════════════════════════════════════════════════════════
+        var pg2 = await addPage();
+        page = pg2.page; height = pg2.height; y = pg2.y;
+
+        // Titel
+        page.drawText('Hausgeldabrechnung ' + fy, { x: mLeft, y: y, size: 16, font: fBold, color: offblack });
+        y -= 18;
+        page.drawText('Einzelabrechnung', { x: mLeft, y: y, size: 12, font: fSemi, color: gray50 });
+        y -= 22;
+
+        // Objekt- & Verwalter-Block (zweispaltig)
+        var boxPad = 6;
+        var halfW  = (contentW - 8) / 2;
+        var rColX  = mLeft + halfW + 8;
+        var lH2 = boxPad + 10 + 10 + 12 + 10;
+        var rH2 = boxPad + 10 + 10;
+        if (settings.street) rH2 += 10;
+        if (settings.zip_city) rH2 += 10;
+        if (settings.tax_number) rH2 += 10;
+        var boxH2 = Math.max(lH2, rH2) + boxPad;
+        var boxBottom2 = y - boxH2;
+
+        page.drawRectangle({ x: mLeft, y: boxBottom2, width: contentW, height: boxH2, borderColor: dividerColor, borderWidth: 0.75, color: white });
+        page.drawLine({ start: { x: mLeft + halfW, y: y - 3 }, end: { x: mLeft + halfW, y: boxBottom2 + 3 }, thickness: 0.5, color: dividerColor });
+
+        var lY2 = y - boxPad - 7;
+        page.drawText('Objekt', { x: mLeft + boxPad, y: lY2, size: 6.5, font: fBold, color: gray50 }); lY2 -= 10;
+        page.drawText(bldFullAddr || bldName, { x: mLeft + boxPad, y: lY2, size: 8.5, font: fSemi, color: offblack }); lY2 -= 12;
+        page.drawText('Abrechnungszeitraum', { x: mLeft + boxPad, y: lY2, size: 6.5, font: fBold, color: gray50 }); lY2 -= 10;
+        page.drawText(zeitraum, { x: mLeft + boxPad, y: lY2, size: 8.5, font: fReg, color: offblack });
+
+        var rY2 = y - boxPad - 7;
+        page.drawText('Verwalter', { x: rColX, y: rY2, size: 6.5, font: fBold, color: gray50 }); rY2 -= 10;
+        if (settings.company_name) { page.drawText(settings.company_name, { x: rColX, y: rY2, size: 8.5, font: fSemi, color: offblack }); rY2 -= 10; }
+        if (settings.street)       { page.drawText(settings.street, { x: rColX, y: rY2, size: 8, font: fReg, color: gray40 }); rY2 -= 10; }
+        if (settings.zip_city)     { page.drawText(settings.zip_city, { x: rColX, y: rY2, size: 8, font: fReg, color: gray40 }); rY2 -= 10; }
+        if (settings.tax_number)   { page.drawText('St.-Nr. ' + settings.tax_number, { x: rColX, y: rY2, size: 7.5, font: fReg, color: gray50 }); }
+
+        y = boxBottom2 - 8;
+
+        // Eigentümer-Box
+        var ownBoxTop = y;
+        var ownH = boxPad + 7 + 10;
+        if (owner.street) ownH += 10;
+        if (owner.zip_code || owner.city) ownH += 10;
+        ownH += 11 + 10 + boxPad;
+        var ownBoxBottom = ownBoxTop - ownH;
+
+        page.drawRectangle({ x: mLeft, y: ownBoxBottom, width: contentW, height: ownH, borderColor: olive, borderWidth: 0.75, color: white });
+        var oY = ownBoxTop - boxPad - 7;
+        page.drawText('Eigentümer:', { x: mLeft + boxPad, y: oY, size: 6.5, font: fBold, color: gray50 }); oY -= 10;
+        page.drawText(ownerName, { x: mLeft + boxPad, y: oY, size: 9, font: fBold, color: offblack });
+        if (owner.street) { oY -= 10; page.drawText(owner.street, { x: mLeft + boxPad, y: oY, size: 8, font: fReg, color: gray40 }); }
+        if (owner.zip_code || owner.city) { oY -= 10; page.drawText([owner.zip_code, owner.city].filter(Boolean).join(' '), { x: mLeft + boxPad, y: oY, size: 8, font: fReg, color: gray40 }); }
+        oY -= 11;
+        page.drawText('Verwaltungseinheit:', { x: mLeft + boxPad, y: oY, size: 6.5, font: fBold, color: gray50 }); oY -= 10;
+        page.drawText('WE ' + apt.apartment_number + (apt.floor ? ' – ' + apt.floor : '') + '    |    MEA: ' + (apt.mea || '—') + '    |    Fläche: ' + (apt.sq_meters ? apt.sq_meters + ' m²' : '—'), {
+            x: mLeft + boxPad, y: oY, size: 8, font: fReg, color: offblack });
+
+        y = ownBoxBottom - 12;
+
+        // ── BLOCK 2: ZUSAMMENFASSUNG ──────────────────────────
+        page.drawText('Abrechnungsergebnis', { x: mLeft, y: y, size: 10, font: fBold, color: olive }); y -= 10;
+
+        y -= drawTableHeader(page, y, [
+            { x: mLeft + 4, label: 'Position', align: 'left' },
+            { x: mLeft + contentW * 0.55, label: 'Objekt gesamt', align: 'right' },
+            { x: mRight - 4, label: 'Ihr Anteil', align: 'right' },
+        ]);
+
+        var totalCostsAll = costItems.reduce(function(s, ci3) { return s + Number(ci3.ist_amount); }, 0);
+
+        var summItems = [
+            { label: 'Ist-Kosten Wirtschaftsjahr', allVal: totalCostsAll, unitVal: totalCostsUnit, bold: false },
+            { label: 'Hausgeld-Vorschüsse (Soll)', allVal: null, unitVal: -sollVorschuesse, bold: false },
+        ];
+        for (var sj = 0; sj < summItems.length; sj++) {
+            var item = summItems[sj];
+            var rowBase = y - padV - Math.ceil(8.5 * 1.3);
+            page.drawText(item.label, { x: mLeft + 4, y: rowBase, size: 8.5, font: item.bold ? fSemi : fReg, color: item.bold ? offblack : grayDeemph });
+            if (item.allVal !== null) drawR(page, fmt(item.allVal), mLeft + contentW * 0.55, rowBase, 9, fReg, grayDeemph);
+            drawR(page, fmt(item.unitVal), mRight - 4, rowBase, 9, fReg, offblack);
+            y -= minRowH;
+            page.drawLine({ start: { x: mLeft, y: y }, end: { x: mRight, y: y }, thickness: 0.3, color: dividerColor });
+        }
+
+        // Spitze-Zeile
+        var spRowH = 24;
+        page.drawRectangle({ x: mLeft, y: y - spRowH, width: contentW, height: spRowH, color: zebraColor });
+        page.drawLine({ start: { x: mLeft, y: y }, end: { x: mRight, y: y }, thickness: 1, color: olive });
+        var spBase = y - spRowH + 7;
+        page.drawText('Abrechnungsspitze', { x: mLeft + 4, y: spBase, size: 10, font: fSemi, color: olive });
+        drawR(page, fmt(spitze), mRight - 4, spBase, 10, fBold, spitzeColor);
+        y -= spRowH + 20;
+
+        // ── BLOCK 3: UMLAGESCHLÜSSEL-TABELLE ──────────────────
+        var usedKeys = collectUsedKeys(apt.id);
+        if (y - 60 < mBottom) {
+            var np = await addPage();
+            page = np.page; height = np.height; y = np.y;
+        }
+        page.drawText('Umlageschlüssel', { x: mLeft, y: y, size: 10, font: fBold, color: olive }); y -= 10;
+
+        var dkCols = [
+            { x: dk0, label: 'Nr.', align: 'left' },
+            { x: dk1, label: 'Schlüssel', align: 'left' },
+            { x: dk2, label: 'Umlage-Typ', align: 'left' },
+            { x: dk3, label: 'Zeitraum', align: 'left' },
+            { x: dk4r, label: 'Tage', align: 'right' },
+            { x: dk5r, label: 'Gesamtumlage', align: 'right' },
+            { x: dk6r, label: 'Ihr Anteil', align: 'right' },
+        ];
+        y -= drawTableHeader(page, y, dkCols);
+
+        var dkZeitraum = '01.01.–31.12.' + fy;
+        for (var ki = 0; ki < usedKeys.length; ki++) {
+            var uk = usedKeys[ki];
+            var nameLines = splitLines(uk.key.name, fReg, dkFS, dk1W - 4, 2);
+            var nLines = Math.max(nameLines.length, 1);
+            var dkRowH = Math.max(minRowH, nLines * dkLH + padV * 2);
+            if (y - dkRowH < mBottom) {
+                var np2 = await addPage();
+                page = np2.page; height = np2.height; y = np2.y;
+                y -= drawTableHeader(page, y, dkCols);
+            }
+            var cellTop = y;
+            if (ki % 2 === 1) page.drawRectangle({ x: mLeft, y: cellTop - dkRowH, width: contentW, height: dkRowH, color: zebraColor });
+            drawCellSingle(page, '' + uk.nr, dk0, cellTop, dkLH, dkFS, fReg, gray40);
+            drawCell(page, nameLines, dk1, cellTop, dkLH, dkFS, fReg, offblack);
+            drawCellSingle(page, typeLabels[uk.key.type] || uk.key.type, dk2, cellTop, dkLH, dkFS, fReg, gray50);
+            drawCellSingle(page, dkZeitraum, dk3, cellTop, dkLH, 7, fReg, gray50);
+            drawCellR(page, '365', dk4r, cellTop, dkLH, dkFS, fReg, gray50);
+            drawCellR(page, fmtVal(uk.total), dk5r, cellTop, dkLH, dkFS, fReg, gray40);
+            drawCellR(page, fmtVal(uk.unitVal), dk6r, cellTop, dkLH, dkFS, fSemi, offblack);
+            page.drawLine({ start: { x: mLeft, y: cellTop - dkRowH }, end: { x: mRight, y: cellTop - dkRowH }, thickness: 0.3, color: dividerColor });
+            y -= dkRowH;
+        }
+        y -= 20;
+
+        // ── BLOCK 4: VERTEILUNGSERGEBNIS ──────────────────────
+        var expenseItems = costItems.filter(function(it) { return it.account && it.account.is_allocatable; });
+        var otherItems   = costItems.filter(function(it) { return !it.account || !it.account.is_allocatable; });
+
+        if (y - 70 < mBottom) {
+            var np3 = await addPage();
+            page = np3.page; height = np3.height; y = np3.y;
+        }
+        page.drawText('Verteilungsergebnis', { x: mLeft, y: y, size: 10, font: fBold, color: olive }); y -= 10;
+
+        var costCols = [
+            { x: cKonto, label: 'Konto', align: 'left' },
+            { x: cBez, label: 'Bezeichnung', align: 'left' },
+            { x: cKey, label: 'Schlüssel', align: 'left' },
+            { x: cGesamtR, label: 'Ist-Kosten', align: 'right' },
+            { x: cAnteilR, label: 'Ihr Anteil', align: 'right' },
+        ];
+        y -= drawTableHeader(page, y, costCols);
+
+        // Draw cost section with page-break support
+        var drawCostSection = async function(sectionLabel, items, startY, startIdx) {
+            var cy = startY;
+            var ri = startIdx;
+            var sTotal = 0, sShare = 0;
+            var curPage = page;
+
+            // Section header
+            if (cy - sectionH < mBottom) {
+                var npc = await addPage();
+                curPage = npc.page; page = npc.page; height = npc.height; cy = npc.y;
+                cy -= drawTableHeader(curPage, cy, costCols);
+            }
+            curPage.drawRectangle({ x: mLeft, y: cy - sectionH, width: contentW, height: sectionH, color: rgb(0.94, 0.95, 0.93) });
+            curPage.drawText(sectionLabel, { x: mLeft + 4, y: cy - sectionH + 4, size: 8, font: fSemi, color: olive });
+            cy -= sectionH;
+
+            var rowData = items.map(function(costItem) {
+                var istAmt = Number(costItem.ist_amount || 0);
+                var shareRes = calcShare(costItem, apt.id);
+                var bezLines2 = splitLines(costItem.account?.account_name || '–', fReg, bezFS, cBezW, 2);
+                var keyLines2 = splitLines(shareRes.keyName, fReg, keyFS, cKeyW, 2);
+                var maxLines2 = Math.max(bezLines2.length, keyLines2.length, 1);
+                var rowH2 = Math.max(minRowH, maxLines2 * costLH + padV * 2);
+                return { item: costItem, istAmt: istAmt, share: shareRes.share, bezLines: bezLines2, keyLines: keyLines2, rowH: rowH2 };
+            });
+
+            for (var rdi = 0; rdi < rowData.length; rdi++) {
+                var rd = rowData[rdi];
+                if (cy - rd.rowH < mBottom) {
+                    var npc2 = await addPage();
+                    curPage = npc2.page; page = npc2.page; height = npc2.height; cy = npc2.y;
+                    cy -= drawTableHeader(curPage, cy, costCols);
+                }
+                sTotal += rd.istAmt;
+                sShare += rd.share;
+                var ct = cy;
+                if (ri % 2 === 1) curPage.drawRectangle({ x: mLeft, y: ct - rd.rowH, width: contentW, height: rd.rowH, color: zebraColor });
+                drawCellSingle(curPage, rd.item.account?.account_number || '–', cKonto, ct, costLH, 8, fReg, gray40);
+                drawCell(curPage, rd.bezLines, cBez, ct, costLH, bezFS, fReg, offblack);
+                drawCell(curPage, rd.keyLines, cKey, ct, costLH, keyFS, fReg, gray50);
+                drawCellR(curPage, fmt(rd.istAmt), cGesamtR, ct, costLH, 8, fReg, gray40);
+                var sFont  = rd.share > 0 ? fSemi : fReg;
+                var sColor = rd.share > 0 ? offblack : rgb(0.6, 0.6, 0.6);
+                drawCellR(curPage, fmt(rd.share), cAnteilR, ct, costLH, 8, sFont, sColor);
+                curPage.drawLine({ start: { x: mLeft, y: ct - rd.rowH }, end: { x: mRight, y: ct - rd.rowH }, thickness: 0.3, color: dividerColor });
+                cy -= rd.rowH;
+                ri++;
+            }
+
+            // Subtotal
+            if (cy - subtotalH < mBottom) {
+                var npc3 = await addPage();
+                curPage = npc3.page; page = npc3.page; height = npc3.height; cy = npc3.y;
+            }
+            curPage.drawRectangle({ x: mLeft, y: cy - subtotalH, width: contentW, height: subtotalH, color: rgb(0.94, 0.95, 0.93) });
+            curPage.drawText('Zwischensumme ' + sectionLabel, { x: mLeft + 4, y: cy - subtotalH + 5, size: 8, font: fSemi, color: offblack });
+            drawR(curPage, fmt(sTotal), cGesamtR - 2, cy - subtotalH + 5, 8, fSemi, gray40);
+            drawR(curPage, fmt(sShare), cAnteilR - 2, cy - subtotalH + 5, 8, fBold, olive);
+            cy -= subtotalH;
+            return { y: cy, ri: ri, total: sTotal, share: sShare };
+        };
+
+        var costIdx = 0;
+        var grandTotal = 0, grandShare = 0;
+        if (expenseItems.length) {
+            var res1 = await drawCostSection('Umlagefähige Kosten', expenseItems, y, costIdx);
+            y = res1.y; costIdx = res1.ri; grandTotal += res1.total; grandShare += res1.share;
+        }
+        if (otherItems.length) {
+            var res2 = await drawCostSection('Nicht umlagefähige Kosten', otherItems, y, costIdx);
+            y = res2.y; costIdx = res2.ri; grandTotal += res2.total; grandShare += res2.share;
+        }
+
+        // Grand total row
+        if (y - grandTotalH < mBottom) {
+            var np4 = await addPage();
+            page = np4.page; height = np4.height; y = np4.y;
+        }
+        page.drawRectangle({ x: mLeft, y: y - grandTotalH, width: contentW, height: grandTotalH, color: olive });
+        page.drawText('Gesamt Ist-Kosten', { x: mLeft + 4, y: y - grandTotalH + 6, size: 8.5, font: fBold, color: white });
+        drawR(page, fmt(grandTotal), cGesamtR - 2, y - grandTotalH + 6, 8.5, fBold, white);
+        drawR(page, fmt(grandShare), cAnteilR - 2, y - grandTotalH + 6, 8.5, fBold, white);
+        y -= grandTotalH + 16;
+
+        // ── BLOCK 5: RECHTLICHER HINWEIS ──────────────────────
+        var hintText = 'Diese Hausgeldabrechnung wurde maschinell erstellt. Die Abrechnung ist gemäß § 28 Abs. 2 WEG durch Beschluss der Eigentümerversammlung zu genehmigen. Etwaige Nachzahlungen bzw. Guthaben werden nach Beschlussfassung fällig bzw. erstattet.';
+        var hintPad    = 10;
+        var hintFS     = 9.5;
+        var hintLH     = Math.ceil(hintFS * 1.3);
+        var hintIconD  = 10;
+        var hintIconGap = 6;
+        var hintIconArea = hintPad + hintIconD + hintIconGap;
+        var hintTextW  = contentW - hintIconArea - hintPad;
+        var hintLines  = _pdfSplitText(hintText, fReg, hintFS, hintTextW);
+        var hintBoxH   = hintPad * 2 + hintLines.length * hintLH;
+
+        if (y - hintBoxH < mBottom) {
+            var np5 = await addPage();
+            page = np5.page; height = np5.height; y = np5.y;
+        }
+        page.drawRectangle({ x: mLeft, y: y - hintBoxH, width: contentW, height: hintBoxH, borderColor: orange, borderWidth: 1, color: rgb(0.996, 0.972, 0.958) });
+        var iconCX = mLeft + hintPad + hintIconD / 2;
+        var iconCY = y - hintPad - hintLH / 2;
+        page.drawCircle({ x: iconCX, y: iconCY, size: hintIconD / 2, color: orange });
+        var iCharW = fBold.widthOfTextAtSize('i', 7);
+        page.drawText('i', { x: iconCX - iCharW / 2, y: iconCY - 2.5, size: 7, font: fBold, color: white });
+        var hintTextX = mLeft + hintIconArea;
+        for (var hi = 0; hi < hintLines.length; hi++) {
+            page.drawText(hintLines[hi], { x: hintTextX, y: y - hintPad - hintLH * 0.85 - (hi * hintLH), size: hintFS, font: fReg, color: offblack });
+        }
+    }
+
+    var pdfBytes = await pdfDoc.save();
+    var filename = 'Jahresabrechnung_' + fy + '_' + bldName.replace(/[^a-zA-Z0-9]/g, '_') + '.pdf';
+    _pdfDownload(pdfBytes, filename);
+    showToast(apts.length + ' Einzelabrechnungen als PDF heruntergeladen.');
+}
