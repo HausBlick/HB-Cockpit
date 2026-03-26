@@ -1443,6 +1443,8 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData) {
         var sollVorschuesse = Number(aptSollIst.soll) || 0;
         var istBezahlt      = Number(aptSollIst.bezahlt) || 0;
         var spitze          = totalCostsUnit - sollVorschuesse; // positiv = Nachzahlung
+        var zahlDiffUnit    = sollVorschuesse - istBezahlt;     // positiv = Rückstand
+        var saldoUnit       = spitze + zahlDiffUnit;            // das zahlt/bekommt der Eigentümer
 
         // ══════════════════════════════════════════════════════════
         // ── SEITE 1: ANSCHREIBEN ─────────────────────────────────
@@ -1482,13 +1484,13 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData) {
         var wegLabel = 'WEG ' + bldAddr.trim();
         y = height - 255;
         var introText;
-        if (spitze > 0) {
+        if (saldoUnit > 0) {
             introText = [
                 'für Ihre Einheit ' + weNr + ' in der ' + wegLabel + ' übersenden wir Ihnen',
                 'die Hausgeldabrechnung für das Wirtschaftsjahr ' + fy + '. Aus der Abrechnung',
                 'ergibt sich eine Nachzahlung zu Ihren Lasten.',
             ];
-        } else if (spitze < 0) {
+        } else if (saldoUnit < 0) {
             introText = [
                 'für Ihre Einheit ' + weNr + ' in der ' + wegLabel + ' übersenden wir Ihnen',
                 'die Hausgeldabrechnung für das Wirtschaftsjahr ' + fy + '. Aus der Abrechnung',
@@ -1507,16 +1509,15 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData) {
         }
         y -= 15;
 
-        // Ergebnis-Highlight-Box
+        // Ergebnis-Highlight-Box (Abrechnungssaldo)
+        var saldoLabel1 = saldoUnit > 0 ? 'Nachzahlung' : saldoUnit < 0 ? 'Guthaben' : 'Ausgeglichen';
+        var saldoColor1 = saldoUnit > 0 ? orange : saldoUnit < 0 ? olive : gray50;
         var boxH = 52;
         page.drawRectangle({ x: mLeft, y: y - boxH, width: contentW, height: boxH, color: rgb(0.969, 0.973, 0.961), borderColor: olive, borderWidth: 0.75 });
         var boxMid = y - boxH / 2;
-        page.drawText('Abrechnungsspitze:', { x: mLeft + 12, y: boxMid + 6, size: 9, font: fSemi, color: gray50 });
-        var spitzeLabel = spitze > 0 ? 'Nachzahlung' : spitze < 0 ? 'Guthaben' : 'Ausgeglichen';
-        var spitzeColor = spitze > 0 ? orange : spitze < 0 ? olive : gray50;
-        page.drawText(spitzeLabel, { x: mLeft + 12, y: boxMid - 10, size: 10, font: fSemi, color: spitzeColor });
-        var spitzeStr = fmt(Math.abs(spitze));
-        drawR(page, spitzeStr, mRight - 12, boxMid - 2, 16, fBold, spitzeColor);
+        page.drawText('Abrechnungssaldo:', { x: mLeft + 12, y: boxMid + 6, size: 9, font: fSemi, color: gray50 });
+        page.drawText(saldoLabel1, { x: mLeft + 12, y: boxMid - 10, size: 10, font: fSemi, color: saldoColor1 });
+        drawR(page, fmt(Math.abs(saldoUnit)), mRight - 12, boxMid - 2, 16, fBold, saldoColor1);
         y -= boxH + 20;
 
         // Schlusstext
@@ -1611,9 +1612,7 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData) {
         var sollAll = sollIst.reduce(function(s, r) { return s + Number(r.soll); }, 0);
         var istAll  = sollIst.reduce(function(s, r) { return s + Number(r.bezahlt); }, 0);
         var spitzeAll = totalCostsAll - sollAll;
-        var zahlDiffUnit = sollVorschuesse - istBezahlt;
         var zahlDiffAll  = sollAll - istAll;
-        var saldoUnit    = spitze + zahlDiffUnit;
 
         var colObjR  = mLeft + contentW * 0.62;
         var colUnitR = mRight - 4;
@@ -1660,6 +1659,7 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData) {
         drawSummRow('HG-Vorschuss Soll', sollAll, sollVorschuesse, true);
         // Row 3: = Abrechnungsspitze
         var spLabel1 = spitze > 0 ? 'Unterdeck.' : spitze < 0 ? 'Überdeck.' : 'Ausgeglichen';
+        var spitzeColor = spitze > 0 ? orange : spitze < 0 ? olive : gray50;
         drawResultRow('Abrechnungsspitze', spitzeAll, spLabel1, spitze, spitzeColor);
 
         y -= 4;
