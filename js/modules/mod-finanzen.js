@@ -2835,7 +2835,7 @@ async function _finLoadMahnwesen() {
     const overdueRows = (overdue||[]).map(d => {
         const days = Math.ceil((Date.now() - new Date(d.due_date).getTime()) / 86400000);
         return `<tr class="hover:bg-gray-50/60">
-            <td class="px-3 py-3"><input type="checkbox" class="mahn-check" data-id="${d.id}" data-amount="${d.amount}" data-person="${d.person ? (d.person.first_name+' '+d.person.last_name) : ''}" data-apt="${d.apartment?.apartment_number||''}"></td>
+            <td class="px-3 py-3"><input type="checkbox" class="mahn-check" data-id="${d.id}" data-amount="${d.amount}" data-person-id="${d.person_id||''}" data-person="${d.person ? (d.person.first_name+' '+d.person.last_name) : ''}" data-apt="${d.apartment?.apartment_number||''}"></td>
             <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(d.due_date)}</td>
             <td class="px-4 py-3 text-sm font-semibold">${d.apartment?.apartment_number||'–'}</td>
             <td class="px-4 py-3 text-sm text-gray-600">${d.person ? (d.person.first_name + ' ' + d.person.last_name) : '–'}</td>
@@ -2853,9 +2853,9 @@ async function _finLoadMahnwesen() {
             <td class="px-4 py-3 text-sm text-gray-600">${n.person ? (n.person.first_name + ' ' + n.person.last_name) : '–'}</td>
             <td class="px-4 py-3 text-sm font-semibold">${n.demand?.apartment?.apartment_number||'–'}</td>
             <td class="px-4 py-3">${dunningBadge(n.dunning_level)}</td>
-            <td class="px-4 py-3 text-sm text-right">${Number(n.amount||0).toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
-            <td class="px-4 py-3 text-sm text-right text-hb-orange">${Number(n.fee||0).toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
-            <td class="px-4 py-3 text-sm font-bold text-right">${(Number(n.amount||0)+Number(n.fee||0)).toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3 text-sm text-right">${Number(n.overdue_amount||0).toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3 text-sm text-right text-hb-orange">${Number(n.dunning_fee||0).toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3 text-sm font-bold text-right">${Number(n.total_amount||0).toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
             <td class="px-4 py-3 text-center">
                 <div class="flex items-center justify-center gap-1">
                     ${n.status!=='paid'?`<button onclick="_finNoticePaid(${n.id},${n.payment_demand_id})" class="text-xs text-hb-olive bg-hb-ultralight px-2 py-1 rounded-lg hover:bg-gray-100">Bezahlt</button>`:'<span class="text-xs text-green-600 font-semibold">Bezahlt</span>'}
@@ -2968,10 +2968,14 @@ window._finCreateDunning = async () => {
         inserts.push({
             payment_demand_id: demandId,
             building_id:       bid,
+            person_id:         inp.dataset.personId || null,
             dunning_level:     level,
-            amount:            amount,
-            fee:               totalFee,
-            due_date:          due || new Date(Date.now()+14*86400000).toISOString().split('T')[0],
+            dunning_date:      new Date().toISOString().split('T')[0],
+            overdue_amount:    amount,
+            dunning_fee:       fee,
+            interest_rate:     rate,
+            interest_amount:   interest,
+            total_amount:      amount + fee + interest,
             status:            'open',
             created_by:        currentUser.id,
         });
