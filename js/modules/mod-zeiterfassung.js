@@ -752,167 +752,278 @@ async function _timeSaveEntryEdit(entryId) {
 
 async function _timeGenerateReport(projId) {
     if (typeof PDFLib === 'undefined') {
-        showToast('PDF-Bibliothek wird geladen...', 'info');
-        // Falls pdf-lib noch nicht da ist, kurz warten oder Toast zeigen
+        showToast('PDF-Bibliothek nicht geladen. Bitte Seite neu laden.', 'error');
         return;
     }
 
-    showToast('Erstelle Arbeitsrapport...');
+    showToast('Erstelle Arbeitsrapport…');
 
-    const [projRes, wpRes, settingsRes] = await Promise.all([
-        _supabase.from('time_projects').select('*, building:buildings(*)').eq('id', projId).single(),
-        _supabase.from('time_work_packages').select('*').eq('project_id', projId).order('id'),
-        _pdfGetSettings()
-    ]);
+    try {
+        // ── Daten laden ──────────────────────────────────────
+        const [projRes, wpRes, settings] = await Promise.all([
+            _supabase.from('time_projects').select('*, building:buildings(id, name, file_number, street, house_number, zip_code, city)').eq('id', projId).single(),
+            _supabase.from('time_work_packages').select('*').eq('project_id', projId).order('id'),
+            _pdfGetSettings()
+        ]);
 
-    const p = projRes.data;
-    const wps = wpRes.data || [];
-    const settings = settingsRes;
+        const p = projRes.data;
+        if (!p) { showToast('Projekt nicht gefunden.', 'error'); return; }
+        const wps = wpRes.data || [];
+        if (!wps.length) { showToast('Keine Arbeitspakete vorhanden.', 'error'); return; }
 
-    const { data: entries } = await _supabase.from('time_entries')
-        .select('*')
-        .in('work_package_id', wps.map(x => x.id))
-        .order('start_time', { ascending: true });
+        const { data: entries } = await _supabase.from('time_entries')
+            .select('*')
+            .in('work_package_id', wps.map(x => x.id))
+            .order('start_time', { ascending: true });
 
-    const { PDFDocument, rgb, StandardFonts } = PDFLib;
-    const pdfDoc = await PDFDocument.create();
-    pdfDoc.registerFontkit(fontkit);
+        if (!entries || !entries.length) { showToast('Keine Zeiteinträge vorhanden.', 'error'); return; }
 
-    // Briefbogen laden
-    let templateDoc;
-    if (settings.letterhead_pdf_url) {
-        const resp = await fetch(settings.letterhead_pdf_url);
-        const bytes = await resp.arrayBuffer();
-        templateDoc = await PDFDocument.load(bytes);
-    }
+        // ── PDF-Dokument + Briefbogen ────────────────────────
+        const { PDFDocument, rgb } = PDFLib;
 
-    const { reg, semi, bold } = await _pdfLoadInterFonts(pdfDoc);
-    const olive = rgb(104/255, 116/255, 81/255);
-    const offblack = rgb(55/255, 55/255, 55/255);
-    const gray50 = rgb(107/255, 114/255, 128/255);
+        if (!settings.letterhead_pdf_url) {
+            showToast('Kein Briefbogen hinterlegt. Bitte unter Einstellungen → Briefpapier & Logo hochladen.', 'error');
+            return;
+        }
 
-    let page, pgH, y;
-    const mLeft = 56, mRight = 539, mBottom = 50;
-    const contentW = mRight - mLeft;
+        const { data: signedData } = await _supabase.storage.from('documents').createSignedUrl(settings.letterhead_pdf_url, 120);
+        if (!signedData?.signedUrl) { showToast('Briefbogen konnte nicht geladen werden.', 'error'); return; }
+        const lhResp = await fetch(signedData.signedUrl);
+        if (!lhResp.ok) { showToast('Briefbogen konnte nicht geladen werden.', 'error'); return; }
+        const templateBytes = await lhResp.arrayBuffer();
+        const templateDoc   = await PDFDocument.load(templateBytes);
 
-    const addNewPage = async () => {
-        if (templateDoc) {
+        const pdfDoc = await PDFDocument.create();
+        pdfDoc.registerFontkit(fontkit);
+
+        let fReg, fSemi, fBold;
+        try {
+            ({ reg: fReg, semi: fSemi, bold: fBold } = await _pdfLoadInterFonts(pdfDoc));
+        } catch (e) {
+            console.error('Inter font load error:', e);
+            showToast('Inter-Schriftart konnte nicht geladen werden: ' + e.message, 'error');
+            return;
+        }
+
+        // ── Farben & Maße ────────────────────────────────────
+        const olive    = rgb(0.408, 0.455, 0.318);
+        const offblack = rgb(0.216, 0.216, 0.216);
+        const orange   = rgb(0.922, 0.463, 0.176);
+        const gray50   = rgb(0.5, 0.5, 0.5);
+        const white    = rgb(1, 1, 1);
+
+        const mLeft = 56.7, mRight = 538.6, mBottom = 60;
+        const contentW = mRight - mLeft;
+        const bld = p.building;
+        const bldName   = bld ? formatBuildingName(bld) : '—';
+        const bldStreet = bld ? `${bld.street || ''} ${bld.house_number || ''}`.trim() : '';
+        const bldCity   = bld ? `${bld.zip_code || ''} ${bld.city || ''}`.trim() : '';
+        const today     = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
+
+        let page, pgH, y;
+
+        // ── Hilfs-Funktionen ─────────────────────────────────
+        function drawR(text, xRight, yPos, size, font, color) {
+            const w = font.widthOfTextAtSize(text, size);
+            page.drawText(text, { x: xRight - w, y: yPos, size, font, color });
+        }
+
+        function fmtDur(min) {
+            const h = Math.floor(min / 60);
+            const m = Math.round(min % 60);
+            if (h > 0) return `${h} Std. ${m} Min.`;
+            return `${m} Min.`;
+        }
+
+        // Olive Table-Header (wie Einzelwirtschaftsplan)
+        function drawTableHeader(cols) {
+            const hH = 22;
+            page.drawRectangle({ x: mLeft, y: y - hH, width: contentW, height: hH, color: olive });
+            const baseY = y - 5 - 8;
+            cols.forEach(function(c) {
+                if (c.align === 'right') {
+                    drawR(c.label, c.x, baseY, 8, fBold, white);
+                } else {
+                    page.drawText(c.label, { x: c.x, y: baseY, size: 8, font: fBold, color: white });
+                }
+            });
+            y -= hH;
+        }
+
+        // ── Seite 1 (ohne Kopfzeile, wie addFirstPage) ──────
+        async function addFirstPage() {
             const [copied] = await pdfDoc.copyPages(templateDoc, [0]);
             page = pdfDoc.addPage(copied);
-        } else {
-            page = pdfDoc.addPage([595.28, 841.89]);
+            pgH = page.getSize().height;
+            y = pgH - 100;
+            // Nur Datum rechtsbündig
+            drawR(today, mRight, y, 9, fReg, gray50);
+            y -= 25;
         }
-        pgH = page.getSize().height;
-        y = pgH - 100; // Unter dem Logo starten
-        
-        // Header line (klein)
-        page.drawText(`Arbeitsrapport | ${p.title} | ${formatBuildingName(p.building)}`, { x: mLeft, y: pgH - 40, size: 8, font: reg, color: gray50 });
-        page.drawLine({ start: { x: mLeft, y: pgH - 45 }, end: { x: mRight, y: pgH - 45 }, thickness: 0.5, color: gray50 });
-    };
 
-    await addNewPage();
+        // Folgeseiten mit kompakter Kopfzeile
+        async function addPage() {
+            const [copied] = await pdfDoc.copyPages(templateDoc, [0]);
+            page = pdfDoc.addPage(copied);
+            pgH = page.getSize().height;
+            // Kopfzeile
+            page.drawText(`Arbeitsrapport | ${p.title} | ${bldName}`, { x: mLeft, y: pgH - 40, size: 8, font: fReg, color: gray50 });
+            page.drawLine({ start: { x: mLeft, y: pgH - 45 }, end: { x: mRight, y: pgH - 45 }, thickness: 0.5, color: gray50 });
+            y = pgH - 100;
+        }
 
-    // TITEL
-    page.drawText('Arbeitsrapport', { x: mLeft, y, size: 18, font: bold, color: offblack });
-    y -= 25;
-    page.drawText(`Projekt: ${p.title}`, { x: mLeft, y, size: 12, font: semi, color: offblack });
-    y -= 15;
-    page.drawText(`Gebäude: ${formatBuildingName(p.building)}`, { x: mLeft, y, size: 10, font: reg, color: gray50 });
-    y -= 30;
+        async function ensureSpace(needed) {
+            if (y - needed < mBottom) await addPage();
+        }
 
-    let totalProjectMin = 0;
+        // ── Seite 1: Titel + Info-Boxen ──────────────────────
+        await addFirstPage();
 
-    for (const wp of wps) {
-        const wpEntries = entries.filter(e => e.work_package_id === wp.id);
-        if (!wpEntries.length) continue;
-
-        if (y < 150) await addNewPage();
-
-        // WP Header
-        page.drawRectangle({ x: mLeft, y: y - 20, width: contentW, height: 20, color: rgb(0.96, 0.97, 0.95) });
-        page.drawText(`Arbeitspaket: ${wp.title}`, { x: mLeft + 5, y: y - 13, size: 10, font: bold, color: olive });
+        // Titel
+        page.drawText('Arbeitsrapport', { x: mLeft, y, size: 16, font: fBold, color: offblack });
+        y -= 20;
+        page.drawText('Zeitnachweis', { x: mLeft, y, size: 12, font: fSemi, color: gray50 });
         y -= 25;
 
-        // Table Header
-        const colW = [60, 50, 50, 60, 260];
-        const colX = [mLeft, mLeft+60, mLeft+110, mLeft+160, mLeft+220];
-        const headers = ['Datum', 'Von', 'Bis', 'Dauer', 'Tätigkeit'];
-        
-        headers.forEach((h, i) => {
-            page.drawText(h, { x: colX[i] + 2, y: y - 10, size: 8, font: bold, color: gray50 });
-        });
-        y -= 15;
-        page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.5, color: olive });
-        y -= 5;
+        // Objekt- & Verwalter-Block (zweispaltig, wie Einzelwirtschaftsplan)
+        const boxH = 60;
+        const halfW = contentW / 2;
+        page.drawRectangle({ x: mLeft, y: y - boxH, width: contentW, height: boxH, borderColor: olive, borderWidth: 0.5, color: white });
+        page.drawLine({ start: { x: mLeft + halfW, y }, end: { x: mLeft + halfW, y: y - boxH }, thickness: 0.5, color: olive });
 
-        let wpMin = 0;
+        // Links: Objekt
+        const boxPad = 8;
+        page.drawText('Objekt', { x: mLeft + boxPad, y: y - 12, size: 7, font: fBold, color: gray50 });
+        page.drawText(bldName, { x: mLeft + boxPad, y: y - 24, size: 9, font: fSemi, color: offblack });
+        if (bldStreet) page.drawText(`${bldStreet}, ${bldCity}`, { x: mLeft + boxPad, y: y - 36, size: 8, font: fReg, color: gray50 });
 
-        for (const e of wpEntries) {
-            if (y < mBottom + 20) await addNewPage();
+        // Rechts: Verwalter
+        const rX = mLeft + halfW + boxPad;
+        page.drawText('Verwalter', { x: rX, y: y - 12, size: 7, font: fBold, color: gray50 });
+        if (settings.company_name) page.drawText(settings.company_name, { x: rX, y: y - 24, size: 9, font: fSemi, color: offblack });
+        const verwalterAddr = [settings.street, settings.zip_city].filter(Boolean).join(', ');
+        if (verwalterAddr) page.drawText(verwalterAddr, { x: rX, y: y - 36, size: 8, font: fReg, color: gray50 });
+        y -= boxH + 10;
 
-            const start = new Date(e.start_time);
-            const end = e.end_time ? new Date(e.end_time) : null;
-            const durMin = end ? (end - start) / 60000 : 0;
-            const billedMin = _timeRound(durMin, p.billing_increment_min);
-            wpMin += billedMin;
+        // Projekt-Box (olive-umrandet, wie Eigentümer-Box)
+        const projBoxH = 48;
+        page.drawRectangle({ x: mLeft, y: y - projBoxH, width: contentW, height: projBoxH, borderColor: olive, borderWidth: 0.5, color: white });
+        page.drawText('Projekt', { x: mLeft + boxPad, y: y - 12, size: 7, font: fBold, color: gray50 });
+        page.drawText(p.title, { x: mLeft + boxPad, y: y - 24, size: 10, font: fBold, color: offblack });
+        const projMeta = `Taktung: ${p.billing_increment_min} Min.  |  Status: ${p.status === 'active' ? 'Aktiv' : 'Abgeschlossen'}`;
+        page.drawText(projMeta, { x: mLeft + boxPad, y: y - 38, size: 8, font: fReg, color: gray50 });
+        // Erstellungsdatum rechts
+        drawR(`Erstellt: ${today}`, mRight - boxPad, y - 38, 8, fReg, gray50);
+        y -= projBoxH + 20;
 
-            const row = [
-                start.toLocaleDateString('de-DE'),
-                start.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}),
-                end ? end.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}) : '...',
-                `${billedMin} Min.`,
-                e.description || ''
-            ];
+        // ── Zeiteinträge je Arbeitspaket ─────────────────────
+        let totalProjectMin = 0;
 
-            // Multi-line description?
-            const descLines = _pdfSplitText(row[4], reg, 8, colW[4] - 10);
-            const rowH = Math.max(15, descLines.length * 10 + 5);
+        // Tabellen-Spalten
+        const cols = [
+            { label: 'Datum',      x: mLeft + 3 },
+            { label: 'Von',        x: mLeft + 68 },
+            { label: 'Bis',        x: mLeft + 113 },
+            { label: 'Dauer',      x: mLeft + 213, align: 'right' },
+            { label: 'Tätigkeit',  x: mLeft + 223 }
+        ];
 
-            page.drawText(row[0], { x: colX[0] + 2, y: y - 10, size: 8, font: reg });
-            page.drawText(row[1], { x: colX[1] + 2, y: y - 10, size: 8, font: reg });
-            page.drawText(row[2], { x: colX[2] + 2, y: y - 10, size: 8, font: reg });
-            page.drawText(row[3], { x: colX[3] + 2, y: y - 10, size: 8, font: bold });
-            
-            descLines.forEach((line, li) => {
-                page.drawText(line, { x: colX[4] + 2, y: y - 10 - (li * 10), size: 8, font: reg, color: gray50 });
-            });
+        for (const wp of wps) {
+            const wpEntries = entries.filter(function(e) { return e.work_package_id === wp.id; });
+            if (!wpEntries.length) continue;
 
-            y -= rowH;
-            page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.2, color: rgb(0.9, 0.9, 0.9) });
+            // Sektion: Arbeitspaket-Überschrift
+            await ensureSpace(60);
+            y -= 5;
+            page.drawText(`Arbeitspaket: ${wp.title}`, { x: mLeft, y, size: 10, font: fBold, color: olive });
+            y -= 15;
+
+            // Olive Tabellen-Header
+            drawTableHeader(cols);
+            y -= 2;
+
+            let wpMin = 0;
+
+            for (const e of wpEntries) {
+                await ensureSpace(30);
+
+                const start = new Date(e.start_time);
+                const end   = e.end_time ? new Date(e.end_time) : null;
+                const durMin  = end ? (end - start) / 60000 : 0;
+                const billed  = _timeRound(durMin, p.billing_increment_min);
+                wpMin += billed;
+
+                const desc = e.description || '—';
+                const descMaxW = mRight - (mLeft + 223) - 5;
+                const descLines = _pdfSplitText(desc, fReg, 8, descMaxW);
+                const rowH = Math.max(16, descLines.length * 11 + 4);
+
+                // Zebra (ungerade = hb-ultralight)
+                if ((wpEntries.indexOf(e) % 2) === 1) {
+                    page.drawRectangle({ x: mLeft, y: y - rowH, width: contentW, height: rowH, color: rgb(0.976, 0.98, 0.973) });
+                }
+
+                const textY = y - 11;
+                page.drawText(start.toLocaleDateString('de-DE'), { x: mLeft + 3, y: textY, size: 8, font: fReg, color: offblack });
+                page.drawText(start.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }), { x: mLeft + 68, y: textY, size: 8, font: fReg, color: offblack });
+                page.drawText(end ? end.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '…', { x: mLeft + 113, y: textY, size: 8, font: fReg, color: offblack });
+                drawR(`${billed} Min.`, mLeft + 213, textY, 8, fBold, offblack);
+
+                descLines.forEach(function(line, li) {
+                    page.drawText(line, { x: mLeft + 223, y: textY - (li * 11), size: 8, font: fReg, color: gray50 });
+                });
+
+                y -= rowH;
+                page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.3, color: rgb(0.85, 0.87, 0.83) });
+            }
+
+            // WP-Zwischensumme (wie Zwischensummen im Wirtschaftsplan)
+            y -= 4;
+            page.drawRectangle({ x: mLeft, y: y - 18, width: contentW, height: 18, color: rgb(0.96, 0.97, 0.95) });
+            page.drawText(`Summe: ${wp.title}`, { x: mLeft + 3, y: y - 13, size: 8, font: fSemi, color: offblack });
+            drawR(fmtDur(wpMin), mLeft + 213, y - 13, 8, fBold, olive);
+            y -= 18 + 12;
+
+            totalProjectMin += wpMin;
         }
 
-        // WP Summe
-        y -= 15;
-        const wpSumStr = `${Math.floor(wpMin / 60)} Std. ${Math.round(wpMin % 60)} Min.`;
-        page.drawText(`Summe Arbeitspaket:`, { x: colX[3] - 80, y: y + 5, size: 8, font: semi, color: offblack });
-        page.drawText(wpSumStr, { x: colX[3] + 2, y: y + 5, size: 8, font: bold, color: olive });
-        y -= 20;
+        // ── Gesamtsumme (Grand Total, olive bg wie im WP-PDF) ─
+        await ensureSpace(50);
+        y -= 5;
+        const gtH = 24;
+        page.drawRectangle({ x: mLeft, y: y - gtH, width: contentW, height: gtH, color: olive });
+        page.drawText('Gesamtaufwand Projekt', { x: mLeft + 5, y: y - 16, size: 10, font: fBold, color: white });
+        drawR(fmtDur(totalProjectMin), mRight - 5, y - 16, 10, fBold, white);
+        y -= gtH + 20;
 
-        totalProjectMin += wpMin;
+        // ── Hinweis-Box (orange, wie im Einzelwirtschaftsplan) ─
+        await ensureSpace(50);
+        const hintText = 'Dieses Dokument dient als Arbeitsnachweis für die erbrachten Leistungen. ' +
+            'Originalbelege und detaillierte Zeitprotokolle können beim Verwalter eingesehen werden.';
+        const hintPad = 10;
+        const hintFS = 8;
+        const hintLines = _pdfSplitText(hintText, fReg, hintFS, contentW - hintPad * 2 - 18);
+        const hintBoxH = hintLines.length * 12 + hintPad * 2;
+
+        page.drawRectangle({ x: mLeft, y: y - hintBoxH, width: contentW, height: hintBoxH,
+            color: white, borderColor: orange, borderWidth: 1 });
+        // Orange "i" circle
+        const circleY = y - hintPad - 5;
+        page.drawCircle({ x: mLeft + hintPad + 5, y: circleY, size: 5, color: orange });
+        page.drawText('i', { x: mLeft + hintPad + 3, y: circleY - 3.5, size: 7, font: fBold, color: white });
+
+        hintLines.forEach(function(line, i) {
+            page.drawText(line, { x: mLeft + hintPad + 18, y: y - hintPad - 9 - (i * 12), size: hintFS, font: fReg, color: offblack });
+        });
+
+        // ── Download ─────────────────────────────────────────
+        const pdfBytes = await pdfDoc.save();
+        const filename = `Arbeitsrapport_${p.title.replace(/[^a-zA-Z0-9äöüÄÖÜß]/g, '_')}.pdf`;
+        _pdfDownload(pdfBytes, filename);
+        showToast('Arbeitsrapport wurde generiert.');
+
+    } catch (err) {
+        console.error('Arbeitsrapport PDF Fehler:', err);
+        showToast('PDF konnte nicht erstellt werden: ' + err.message, 'error');
     }
-
-    // Projekt-Gesamtsumme
-    if (y < 100) await addNewPage();
-    y -= 20;
-    const totalH = Math.floor(totalProjectMin / 60);
-    const totalM = Math.round(totalProjectMin % 60);
-    
-    page.drawRectangle({ x: mRight - 150, y: y - 30, width: 150, height: 30, color: rgb(0.96, 0.97, 0.95), borderColor: olive, borderWidth: 1 });
-    page.drawText('Gesamtaufwand Projekt:', { x: mRight - 140, y: y - 10, size: 8, font: semi, color: gray50 });
-    page.drawText(`${totalH} Std. ${totalM} Min.`, { x: mRight - 140, y: y - 22, size: 10, font: bold, color: olive });
-
-    // Fußzeile Hinweis
-    y -= 60;
-    const footerLines = [
-        'Dieses Dokument dient als Arbeitsnachweis für die erbrachten Leistungen.',
-        'Originalbelege und detaillierte Zeitprotokolle können beim Verwalter eingesehen werden.'
-    ];
-    footerLines.forEach((line, i) => {
-        page.drawText(line, { x: mLeft, y: y - (i * 12), size: 8, font: reg, color: gray50 });
-    });
-
-    const pdfBytes = await pdfDoc.save();
-    const filename = `Arbeitsrapport_${p.title.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-    _pdfDownload(pdfBytes, filename);
-    showToast('Arbeitsrapport wurde generiert.');
 }
