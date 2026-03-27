@@ -17,7 +17,7 @@ const _etvState = {
 /**
  * Haupt-Einstiegspunkt: Lädt die ETV-Übersicht für das aktive Gebäude
  */
-export async function loadETV() {
+async function loadETV() {
     const bid = _config.activeBuildingId;
     if (!bid) {
         document.getElementById('content-area').innerHTML = `
