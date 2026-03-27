@@ -3156,6 +3156,7 @@ window._finNoticePaidConfirm = async () => {
     const { noticeId, demandId, overdueAmt, interestAmt, feeAmt } = m;
 
     const date = document.getElementById('fin-paid-date')?.value || new Date().toISOString().split('T')[0];
+    const fiscalYear = new Date(date).getFullYear();
     const bid  = _finState.buildingId;
     const accs = _finState.accounts.length ? _finState.accounts : await _finGetAccounts(bid);
     _finState.accounts = accs;
@@ -3172,26 +3173,25 @@ window._finNoticePaidConfirm = async () => {
     const entries = [];
     if (overdueAmt > 0) {
         if (!acc1200 || !acc1400) { showToast('Konto 1200 oder 1400 nicht gefunden.', 'error'); return; }
-        entries.push({ building_id: bid, entry_date: date, debit_account_id: acc1200, credit_account_id: acc1400, amount: overdueAmt, description: 'Mahnzahlung: Hauptforderung', entry_type: 'payment' });
+        entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, debit_account_id: acc1200, credit_account_id: acc1400, amount: overdueAmt, description: 'Mahnzahlung: Hauptforderung', entry_type: 'payment' });
     }
     if (interestAmt > 0) {
         if (!acc8010) { showToast('Konto 8010 (Verzugszinsen) fehlt — bitte Migration ausführen.', 'error'); return; }
-        entries.push({ building_id: bid, entry_date: date, debit_account_id: acc1200, credit_account_id: acc8010, amount: interestAmt, description: 'Mahnzahlung: Verzugszinsen', entry_type: 'payment' });
+        entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, debit_account_id: acc1200, credit_account_id: acc8010, amount: interestAmt, description: 'Mahnzahlung: Verzugszinsen', entry_type: 'payment' });
     }
     if (feeAmt > 0) {
         if (!acc8020) { showToast('Konto 8020 (Mahngebühren) fehlt — bitte Migration ausführen.', 'error'); return; }
-        entries.push({ building_id: bid, entry_date: date, debit_account_id: acc1200, credit_account_id: acc8020, amount: feeAmt, description: 'Mahnzahlung: Mahngebühr', entry_type: 'payment' });
+        entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, debit_account_id: acc1200, credit_account_id: acc8020, amount: feeAmt, description: 'Mahnzahlung: Mahngebühr', entry_type: 'payment' });
     }
 
-    const ops = [
-        _supabase.from('dunning_notices').update({ status: 'paid' }).eq('id', noticeId),
-        demandId ? _supabase.from('payment_demands').update({ status: 'paid', updated_at: new Date().toISOString() }).eq('id', demandId) : Promise.resolve(),
-    ];
-    if (entries.length) ops.push(_supabase.from('journal_entries').insert(entries));
+    // Bug 2 fix: Buchung ZUERST — nur bei Erfolg Status-Updates
+    if (entries.length) {
+        const { error: journalError } = await _supabase.from('journal_entries').insert(entries);
+        if (journalError) { showToast('Buchung fehlgeschlagen: ' + journalError.message, 'error'); return; }
+    }
 
-    const results = await Promise.all(ops);
-    const errs = results.filter(function(r) { return r && r.error; }).map(function(r) { return r.error.message; });
-    if (errs.length) { showToast('Fehler: ' + errs[0], 'error'); return; }
+    await _supabase.from('dunning_notices').update({ status: 'paid' }).eq('id', noticeId);
+    if (demandId) await _supabase.from('payment_demands').update({ status: 'paid', updated_at: new Date().toISOString() }).eq('id', demandId);
 
     showToast('Zahlung erfasst — ' + entries.length + ' Buchungssatz/-sätze erstellt.', 'success');
     await _finLoadMahnwesen();
