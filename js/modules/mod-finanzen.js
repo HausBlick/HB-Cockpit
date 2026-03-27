@@ -620,7 +620,7 @@ async function _finRenderBookings() {
     const accounts = _finState.accounts;
 
     const { data: entries } = await _supabase.from('journal_entries')
-        .select('*, debit_account:accounts!debit_account_id(account_number,account_name), credit_account:accounts!credit_account_id(account_number,account_name)')
+        .select('*, debit_account:accounts!debit_account_id(account_number,account_name), credit_account:accounts!credit_account_id(account_number,account_name), apartment:apartments(id,apartment_number)')
         .eq('building_id', bid)
         .eq('fiscal_year', fy)
         .order('entry_date', { ascending: false });
@@ -647,7 +647,10 @@ async function _finRenderBookings() {
             const canStorno = !isStorno && !hasStorno && !e.is_locked;
             return `<tr class="hover:bg-gray-50/60 transition-colors cursor-pointer ${isStorno ? 'opacity-60' : ''}" onclick="_finOpenEntryDetail(${e.id})">
                 <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(e.entry_date)}</td>
-                <td class="px-4 py-3 text-sm text-hb-offblack max-w-[200px] truncate" title="${e.description}">${e.description}</td>
+                <td class="px-4 py-3 text-sm text-hb-offblack max-w-[200px]">
+                    <span class="truncate block" title="${e.description}">${e.description}</span>
+                    ${e.apartment?.apartment_number ? `<span class="text-[10px] font-semibold bg-hb-olive/10 text-hb-olive px-1.5 py-0.5 rounded mt-0.5 inline-block">${e.apartment.apartment_number}</span>` : ''}
+                </td>
                 <td class="px-4 py-3 text-xs text-gray-600">${e.debit_account?.account_number} ${e.debit_account?.account_name}</td>
                 <td class="px-4 py-3 text-xs text-gray-600">${e.credit_account?.account_number} ${e.credit_account?.account_name}</td>
                 <td class="px-4 py-3 text-sm font-semibold text-right">${Number(e.amount).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</td>
@@ -744,7 +747,10 @@ window._finFilterJournal = (q) => {
         const canStorno = !isStorno && !hasStorno && !e.is_locked;
         return `<tr class="hover:bg-gray-50/60 transition-colors cursor-pointer ${isStorno ? 'opacity-60' : ''}" onclick="_finOpenEntryDetail(${e.id})">
             <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(e.entry_date)}</td>
-            <td class="px-4 py-3 text-sm text-hb-offblack max-w-[200px] truncate" title="${e.description}">${e.description}</td>
+            <td class="px-4 py-3 text-sm text-hb-offblack max-w-[200px]">
+                <span class="truncate block" title="${e.description}">${e.description}</span>
+                ${e.apartment?.apartment_number ? `<span class="text-[10px] font-semibold bg-hb-olive/10 text-hb-olive px-1.5 py-0.5 rounded mt-0.5 inline-block">${e.apartment.apartment_number}</span>` : ''}
+            </td>
             <td class="px-4 py-3 text-xs text-gray-600">${e.debit_account?.account_number} ${e.debit_account?.account_name}</td>
             <td class="px-4 py-3 text-xs text-gray-600">${e.credit_account?.account_number} ${e.credit_account?.account_name}</td>
             <td class="px-4 py-3 text-sm font-semibold text-right">${Number(e.amount).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</td>
@@ -821,12 +827,14 @@ window._finOpenEntryDetail = async (entryId) => {
     const panel = document.createElement('div');
     panel.id = 'fin-entry-panel';
     Object.assign(panel.style, { position:'fixed', right:'0', top:'0', height:'100%', width:'420px', maxWidth:'100vw', zIndex:'50', transform:'translateX(100%)', transition:'transform 0.3s ease-in-out', display:'flex', flexDirection:'column', backgroundColor:'#F9FAF8', boxShadow:'-4px 0 24px rgba(0,0,0,0.1)' });
+    const canEdit = !e.is_locked && e.entry_type !== 'storno';
     panel.innerHTML = `
         <div style="background:#687451;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
             <div>
-                <span style="font-size:14px;font-weight:700;color:white">Buchungsdetail</span>
+                <span style="font-size:14px;font-weight:700;color:white">Buchungsdetail #${e.id}</span>
                 <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
                     <span style="font-size:11px;font-weight:600;background:rgba(255,255,255,0.2);color:white;padding:1px 8px;border-radius:6px">${entryTypeLabels[e.entry_type] || e.entry_type}</span>
+                    ${e.is_locked ? '<span style="font-size:11px;font-weight:600;background:rgba(235,118,45,0.3);color:white;padding:1px 8px;border-radius:6px">🔒 Gesperrt</span>' : ''}
                     ${stornoHint}
                 </div>
             </div>
@@ -835,16 +843,23 @@ window._finOpenEntryDetail = async (entryId) => {
         <div style="flex:1;overflow-y:auto;padding:20px">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
                 ${field('Datum', _finFormatDate(e.entry_date))}
+                ${field('Wirtschaftsjahr', e.fiscal_year)}
                 ${field('Wertstellung', _finFormatDate(e.value_date))}
+                ${field('Einheit', e.apartment?.apartment_number || '—')}
                 <div style="grid-column:1/-1">${field('Soll-Konto', `${e.debit_account?.account_number || ''} ${e.debit_account?.account_name || ''}`.trim())}</div>
                 <div style="grid-column:1/-1">${field('Haben-Konto', `${e.credit_account?.account_number || ''} ${e.credit_account?.account_name || ''}`.trim())}</div>
                 ${field('Betrag', Number(e.amount).toLocaleString('de-DE', {minimumFractionDigits:2}) + ' €')}
                 ${field('Referenznummer', e.reference_number)}
-                ${e.lohn_anteil_35a > 0 ? field('§35a Lohnanteil', Number(e.lohn_anteil_35a).toLocaleString('de-DE', {minimumFractionDigits:2}) + ' €') : ''}
+                ${Number(e.lohn_anteil_35a) > 0 ? field('§35a Lohnanteil', Number(e.lohn_anteil_35a).toLocaleString('de-DE', {minimumFractionDigits:2}) + ' €') : ''}
                 <div style="grid-column:1/-1">${field('Beschreibung', e.description)}</div>
                 <div style="grid-column:1/-1">${attachmentSection}</div>
             </div>
-        </div>`;
+        </div>
+        ${canEdit ? `
+        <div style="padding:16px 20px;border-top:1px solid rgba(104,116,81,0.15);flex-shrink:0;display:flex;gap:8px">
+            <button onclick="_finEditEntry(${e.id})" style="flex:1;background:#687451;color:white;border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer">Metadaten bearbeiten</button>
+        </div>` : ''}
+        `;
     document.body.appendChild(panel);
     requestAnimationFrame(() => panel.style.transform = 'translateX(0)');
 };
@@ -872,6 +887,68 @@ window._finUploadAttachment = (entryId) => {
         _finOpenEntryDetail(entryId);
     };
     input.click();
+};
+
+window._finEditEntry = (entryId) => {
+    const e = _finState.entries.find(x => x.id == entryId);
+    if (!e) return;
+    const aptOpts = '<option value="">– Keine Einheit –</option>' +
+        (_finState.apartments || []).map(a =>
+            `<option value="${a.id}" ${e.apartment_id == a.id ? 'selected' : ''}>${a.apartment_number}</option>`
+        ).join('');
+
+    const modal = document.createElement('div');
+    modal.id = 'fin-entry-edit-modal';
+    modal.innerHTML = `<div class="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4" onclick="if(event.target===this)document.getElementById('fin-entry-edit-modal').remove()">
+        <div class="bg-white rounded-[15px] p-6 w-full max-w-md shadow-xl">
+            <h3 class="text-base font-bold text-hb-offblack mb-1">Buchung bearbeiten #${e.id}</h3>
+            <p class="text-xs text-gray-400 mb-4">Finanzielle Felder (Konten, Betrag, Datum) sind GoBD-geschützt und können nicht geändert werden. Bitte Storno + Neubuchung für Korrekturen nutzen.</p>
+            <div class="space-y-3">
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Einheit (Direktzuweisung)</label>
+                    <select id="fee-apt" class="w-full text-sm rounded-lg border border-gray-200 bg-hb-ultralight px-3 py-2">${aptOpts}</select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Beschreibung</label>
+                    <input id="fee-desc" type="text" value="${(e.description || '').replace(/"/g, '&quot;')}" class="w-full text-sm rounded-lg border border-gray-200 bg-hb-ultralight px-3 py-2">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Referenznummer</label>
+                    <input id="fee-ref" type="text" value="${e.reference_number || ''}" class="w-full text-sm rounded-lg border border-gray-200 bg-hb-ultralight px-3 py-2">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">§35a Lohnanteil (€)</label>
+                    <input id="fee-35a" type="number" step="0.01" min="0" value="${e.lohn_anteil_35a || ''}" class="w-full text-sm rounded-lg border border-gray-200 bg-hb-ultralight px-3 py-2">
+                </div>
+            </div>
+            <div class="flex gap-3 justify-end mt-5">
+                <button onclick="document.getElementById('fin-entry-edit-modal').remove()" class="btn-secondary text-sm px-4 py-2">Abbrechen</button>
+                <button onclick="_finSaveEntryEdit(${entryId})" class="btn-primary text-sm px-5 py-2">Speichern</button>
+            </div>
+        </div>
+    </div>`;
+    document.body.appendChild(modal);
+};
+
+window._finSaveEntryEdit = async (entryId) => {
+    const aptVal = document.getElementById('fee-apt')?.value;
+    const desc   = document.getElementById('fee-desc')?.value || '';
+    const ref    = document.getElementById('fee-ref')?.value || null;
+    const lohn   = parseFloat(document.getElementById('fee-35a')?.value) || null;
+
+    const { error } = await _supabase.from('journal_entries').update({
+        apartment_id:    aptVal ? Number(aptVal) : null,
+        description:     desc,
+        reference_number: ref || null,
+        lohn_anteil_35a: lohn,
+    }).eq('id', entryId);
+
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+
+    document.getElementById('fin-entry-edit-modal')?.remove();
+    _finCloseEntryPanel();
+    await _finRenderBookings();
+    showToast('Buchung aktualisiert.', 'success');
 };
 
 window._finSubmitBooking = async () => {
@@ -2817,15 +2894,27 @@ window._finJABNext = async (fromStep) => {
         const dkMap = {};
         dkList.forEach(function(k) { dkMap[k.id] = k; });
 
-        // Ist-Kosten pro Aufwandskonto aggregieren
-        const sollPerAcc = {}, habenPerAcc = {};
+        // Einheit-direkte vs. verteilbare Buchungen trennen
+        const directSollPerAptAcc = {};   // [aptId][accId] = Betrag (Soll)
+        const directHabenPerAptAcc = {};  // [aptId][accId] = Betrag (Haben)
+        const sharedSoll = {}, sharedHaben = {};
+
         for (const e of (d.entries || [])) {
-            sollPerAcc[e.debit_account_id] = (sollPerAcc[e.debit_account_id] || 0) + Number(e.amount);
-            habenPerAcc[e.credit_account_id] = (habenPerAcc[e.credit_account_id] || 0) + Number(e.amount);
+            if (e.apartment_id) {
+                if (!directSollPerAptAcc[e.apartment_id])  directSollPerAptAcc[e.apartment_id]  = {};
+                if (!directHabenPerAptAcc[e.apartment_id]) directHabenPerAptAcc[e.apartment_id] = {};
+                directSollPerAptAcc[e.apartment_id][e.debit_account_id]   = (directSollPerAptAcc[e.apartment_id][e.debit_account_id]   || 0) + Number(e.amount);
+                directHabenPerAptAcc[e.apartment_id][e.credit_account_id] = (directHabenPerAptAcc[e.apartment_id][e.credit_account_id] || 0) + Number(e.amount);
+            } else {
+                sharedSoll[e.debit_account_id]   = (sharedSoll[e.debit_account_id]   || 0) + Number(e.amount);
+                sharedHaben[e.credit_account_id] = (sharedHaben[e.credit_account_id] || 0) + Number(e.amount);
+            }
         }
+
+        // Verteilbare Ist-Kosten nur aus Buchungen ohne Einheit
         const costItems = [];
         accs.forEach(function(acc) {
-            const amt = (sollPerAcc[acc.id] || 0) - (habenPerAcc[acc.id] || 0);
+            const amt = (sharedSoll[acc.id] || 0) - (sharedHaben[acc.id] || 0);
             if (acc.account_type === 'expense' && amt !== 0) costItems.push({ account: acc, ist_amount: amt });
         });
 
@@ -2861,8 +2950,18 @@ window._finJABNext = async (fromStep) => {
         }
 
         d.abrechnungsSaldo = (d.sollIst || []).map(function(row) {
+            // 1. Verteilbarer Anteil via Schlüssel
             let istKosten = 0;
             for (const ci of costItems) istKosten += _calcShareForApt(ci, row.apt_id);
+
+            // 2. Direktkosten dieser Einheit (Buchungen mit apartment_id)
+            const dSoll  = directSollPerAptAcc[row.apt_id]  || {};
+            const dHaben = directHabenPerAptAcc[row.apt_id] || {};
+            const allDirectAccIds = new Set([...Object.keys(dSoll), ...Object.keys(dHaben)].map(Number));
+            for (const accId of allDirectAccIds) {
+                istKosten += (dSoll[accId] || 0) - (dHaben[accId] || 0);
+            }
+
             const spitze = istKosten - row.soll;
             const zahlDiff = row.soll - row.bezahlt;
             const saldo = spitze + zahlDiff;
@@ -3073,7 +3172,7 @@ async function _finLoadMahnwesen() {
                            <button onclick="_finNoticeReverse(${n.id})" class="text-xs text-hb-orange px-2 py-1 rounded-lg hover:bg-hb-orange/5">Stornieren</button>`
                         : n.status==='cancelled'
                         ? '<span class="text-xs text-gray-400 font-semibold">Storniert</span>'
-                        : `<button onclick="_finNoticePaidModal(${n.id},${n.payment_demand_id||'null'},${Number(n.overdue_amount||0).toFixed(2)},${Number(n.interest_amount||0).toFixed(2)},${Number(n.dunning_fee||0).toFixed(2)})" class="text-xs text-hb-olive bg-hb-ultralight px-2 py-1 rounded-lg hover:bg-gray-100">Bezahlt</button>`
+                        : `<button onclick="_finNoticePaidModal(${n.id},${n.payment_demand_id||'null'},${Number(n.overdue_amount||0).toFixed(2)},${Number(n.interest_amount||0).toFixed(2)},${Number(n.dunning_fee||0).toFixed(2)},${n.demand?.apartment_id||'null'})" class="text-xs text-hb-olive bg-hb-ultralight px-2 py-1 rounded-lg hover:bg-gray-100">Bezahlt</button>`
                     }
                     <button onclick="_finMahnungPDF('${n.person_id}',${n.building_id})" class="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded-lg hover:bg-gray-100" title="Sammel-PDF für diese Person">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
@@ -3209,8 +3308,8 @@ window._finCreateDunning = async () => {
 };
 
 // Öffnet Zahlungs-Bestätigungs-Modal mit Buchungs-Split-Vorschau
-window._finNoticePaidModal = (noticeId, demandId, overdueAmt, interestAmt, feeAmt) => {
-    _finState._paidModal = { noticeId, demandId, overdueAmt, interestAmt, feeAmt };
+window._finNoticePaidModal = (noticeId, demandId, overdueAmt, interestAmt, feeAmt, apartmentId) => {
+    _finState._paidModal = { noticeId, demandId, overdueAmt, interestAmt, feeAmt, apartmentId: apartmentId || null };
     const today = new Date().toISOString().split('T')[0];
     const total = overdueAmt + interestAmt + feeAmt;
     const fmt = function(v) { return Number(v).toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €'; };
@@ -3257,7 +3356,7 @@ window._finNoticePaidModal = (noticeId, demandId, overdueAmt, interestAmt, feeAm
 window._finNoticePaidConfirm = async () => {
     const m = _finState._paidModal || {};
     if (!m.noticeId) return;
-    const { noticeId, demandId, overdueAmt, interestAmt, feeAmt } = m;
+    const { noticeId, demandId, overdueAmt, interestAmt, feeAmt, apartmentId } = m;
 
     const date = document.getElementById('fin-paid-date')?.value || new Date().toISOString().split('T')[0];
     const fiscalYear = new Date(date).getFullYear();
@@ -3277,15 +3376,15 @@ window._finNoticePaidConfirm = async () => {
     const entries = [];
     if (overdueAmt > 0) {
         if (!acc1200 || !acc1400) { showToast('Konto 1200 oder 1400 nicht gefunden.', 'error'); return; }
-        entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, debit_account_id: acc1200, credit_account_id: acc1400, amount: overdueAmt, description: 'Mahnzahlung: Hauptforderung', entry_type: 'manual' });
+        entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, apartment_id: apartmentId || null, debit_account_id: acc1200, credit_account_id: acc1400, amount: overdueAmt, description: 'Mahnzahlung: Hauptforderung', entry_type: 'manual' });
     }
     if (interestAmt > 0) {
         if (!acc8010) { showToast('Konto 8010 (Verzugszinsen) fehlt — bitte Migration ausführen.', 'error'); return; }
-        entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, debit_account_id: acc1200, credit_account_id: acc8010, amount: interestAmt, description: 'Mahnzahlung: Verzugszinsen', entry_type: 'manual' });
+        entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, apartment_id: apartmentId || null, debit_account_id: acc1200, credit_account_id: acc8010, amount: interestAmt, description: 'Mahnzahlung: Verzugszinsen', entry_type: 'manual' });
     }
     if (feeAmt > 0) {
         if (!acc8020) { showToast('Konto 8020 (Mahngebühren) fehlt — bitte Migration ausführen.', 'error'); return; }
-        entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, debit_account_id: acc1200, credit_account_id: acc8020, amount: feeAmt, description: 'Mahnzahlung: Mahngebühr', entry_type: 'manual' });
+        entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, apartment_id: apartmentId || null, debit_account_id: acc1200, credit_account_id: acc8020, amount: feeAmt, description: 'Mahnzahlung: Mahngebühr', entry_type: 'manual' });
     }
 
     // Bug 2 fix: Buchung ZUERST — nur bei Erfolg Status-Updates
