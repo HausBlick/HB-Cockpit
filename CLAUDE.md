@@ -716,6 +716,16 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 
 ---
 
+### Bugfix — Mahnwesen Buchungslogik greift nicht
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **`_finLoadMahnwesen` Konten-Laden**: Standard-Pattern `_finState.accounts.length ? ... : await _finGetAccounts(bid)` am Anfang ergänzt — verhindert "Konto nicht gefunden"-Fehler wenn Mahnwesen-Tab direkt aufgerufen wird |
+| 2 | **`_finNoticePaidConfirm` Defensive**: `accs = _finState.accounts.length ? ... : await _finGetAccounts(bid)` statt `_finState.accounts \|\| []` — Konten werden nachladen falls zwischen Modal-Öffnung und Bestätigung verloren |
+| 3 | **`_finCreateDunning` Fix**: `payment_demands.update({ status: 'overdue' })` entfernt — Sollstellungs-Status wird beim Erstellen einer Mahnung NICHT mehr geändert. Nur `_finNoticePaidConfirm` setzt `status='paid'` nach tatsächlichem Zahlungseingang |
+
+---
+
 ### Phase 6-D.3 — WEG-Standard-Kontenrahmen + Mahnungs-Buchungslogik
 
 | # | Was wurde gemacht |
