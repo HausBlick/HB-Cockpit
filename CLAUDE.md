@@ -732,6 +732,16 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | 2 | **Atomare Reihenfolge**: `Promise.all()` (Buchung + Status-Updates parallel) durch sequenzielle Ausführung ersetzt. Erst `journal_entries.insert()`, bei Fehler sofortiger Abbruch mit Toast — Status-Updates (`dunning_notices` + `payment_demands`) erfolgen NUR nach erfolgreichem INSERT |
 | 3 | **`entry_type` korrigiert**: DB-Constraint erlaubt nur `manual/sollstellung/sonderumlage/ruecklage/abrechnungsspitze/erhoeffnungsbilanz/storno`. `'payment'` existiert nicht — alle 3 Mahnzahlungs-Buchungen auf `'manual'` geändert |
 
+### Jahresabrechnung Schritt 1 — Konto-Checkliste
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Zweiphasiger Schritt 1**: Erste Phase zeigt nur Zeitraum-Eingabe + "Konten laden →"-Button. Nach dem Laden erscheint die Konto-Checkliste (alle Konten mit Buchungen im Zeitraum, sortiert nach Kontonummer) |
+| 2 | **Konto-Checkliste**: Tabelle mit Checkbox, Kto.-Nr., Kontoname, Typ-Badge (Aufwand/Ertrag/Aktiva/Passiva), Buchungsanzahl. Default: alle Konten angehakt. "Alle / Keine"-Schnellauswahl |
+| 3 | **Filterung**: Nur die angehakten Konten fließen in `jabData.entries` ein — alle nachfolgenden Schritte (Ist-Zahlen, Verteilerschlüssel, Saldo-Berechnung) arbeiten nur mit den ausgewählten Buchungen |
+| 4 | **`jabData.rawEntries`**: Vollständige ungefilterte Buchungen werden separat gespeichert — "↺ Neu laden"-Button setzt `step1Loaded = false` ohne DB-Neuabfrage zu erzwingen |
+| 5 | **Neue Globals**: `_finJABStep1Reset()` (Phase zurücksetzen), `_finJABSelectAll(val)` (alle an/ab) |
+
 ---
 
 ### Phase 6-D.3 — WEG-Standard-Kontenrahmen + Mahnungs-Buchungslogik

@@ -2324,23 +2324,91 @@ function _finRenderJAB() {
 function _finJABStep1Html(fy) {
     const fyOpts = [fy+1, fy, fy-1, fy-2].map(y => `<option value="${y}" ${y==fy?'selected':''}>${y}</option>`).join('');
     const hasPlan = _finState.plans.some(p => p.fiscal_year == fy && ['active','approved'].includes(p.status));
+    const d = _finState.jabData;
+    const loaded = !!d?.step1Loaded;
+
+    // Konto-Checkliste (nur nach Laden)
+    let accountList = '';
+    if (loaded && d.rawEntries) {
+        const accs = _finState.accounts;
+        const accMap = {};
+        for (const a of accs) accMap[a.id] = a;
+
+        const accIds = new Set();
+        const counts = {};
+        for (const e of d.rawEntries) {
+            if (e.debit_account_id)  { accIds.add(e.debit_account_id);  counts[e.debit_account_id]  = (counts[e.debit_account_id]  || 0) + 1; }
+            if (e.credit_account_id) { accIds.add(e.credit_account_id); counts[e.credit_account_id] = (counts[e.credit_account_id] || 0) + 1; }
+        }
+
+        const selIds = d.selectedAccIds ? new Set(d.selectedAccIds) : accIds;
+        const typeLabel = { expense: 'Aufwand', revenue: 'Ertrag', asset: 'Aktiva', liability: 'Passiva' };
+
+        const rows = [...accIds].sort((a, b) => {
+            const na = accMap[a]?.account_number || '9999';
+            const nb = accMap[b]?.account_number || '9999';
+            return na.localeCompare(nb, undefined, { numeric: true });
+        }).map(id => {
+            const a = accMap[id];
+            if (!a) return '';
+            const checked = selIds.has(id) ? 'checked' : '';
+            const tl = typeLabel[a.account_type] || a.account_type || '–';
+            return `<tr class="hover:bg-gray-50/60">
+                <td class="px-3 py-2.5 text-center"><input type="checkbox" data-jab-acc="${id}" ${checked} class="rounded accent-[#687451]"></td>
+                <td class="px-3 py-2.5 text-xs font-mono text-gray-500">${a.account_number}</td>
+                <td class="px-3 py-2.5 text-sm text-hb-offblack">${a.account_name}</td>
+                <td class="px-3 py-2.5"><span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">${tl}</span></td>
+                <td class="px-3 py-2.5 text-xs text-right text-gray-400">${counts[id] || 0} Buchungen</td>
+            </tr>`;
+        }).filter(Boolean).join('');
+
+        accountList = `
+            <div class="mt-5">
+                <div class="flex items-center justify-between mb-1">
+                    <h4 class="text-sm font-bold text-hb-offblack">Konten mit Buchungen im Zeitraum</h4>
+                    <span class="text-xs text-gray-400">${accIds.size} Konten &nbsp;·&nbsp;
+                        <a class="text-hb-olive cursor-pointer hover:underline" onclick="_finJABSelectAll(true)">Alle</a> /
+                        <a class="text-hb-olive cursor-pointer hover:underline" onclick="_finJABSelectAll(false)">Keine</a>
+                    </span>
+                </div>
+                <p class="text-xs text-gray-400 mb-2">Wählen Sie, welche Konten in die Jahresabrechnung einfließen sollen.</p>
+                <div class="overflow-x-auto rounded-lg border border-hb-olive/10 max-h-[320px] overflow-y-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50 sticky top-0"><tr>
+                            <th class="px-3 py-3 w-8"></th>
+                            <th class="px-3 py-3 text-left text-xs font-bold text-gray-500">Kto.</th>
+                            <th class="px-3 py-3 text-left text-xs font-bold text-gray-500">Konto</th>
+                            <th class="px-3 py-3 text-left text-xs font-bold text-gray-500">Typ</th>
+                            <th class="px-3 py-3 text-right text-xs font-bold text-gray-500">Buchungen</th>
+                        </tr></thead>
+                        <tbody class="divide-y divide-hb-olive/10">${rows || '<tr><td colspan="5" class="px-4 py-8 text-center text-sm text-gray-400">Keine Buchungen im Zeitraum gefunden.</td></tr>'}</tbody>
+                    </table>
+                </div>
+            </div>`;
+    }
+
     return `
-        <div class="max-w-lg space-y-4">
+        <div class="max-w-2xl space-y-4">
             <div class="grid grid-cols-2 gap-3">
                 <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Wirtschaftsjahr</label>
-                    <select id="jab-fy" class="text-sm">${fyOpts}</select></div>
+                    <select id="jab-fy" class="text-sm" onchange="_finJABStep1Reset()">${fyOpts}</select></div>
                 <div></div>
                 <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Zeitraum von</label>
-                    <input id="jab-from" type="date" value="${fy}-01-01"></div>
+                    <input id="jab-from" type="date" value="${d?.from || fy+'-01-01'}"></div>
                 <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Zeitraum bis</label>
-                    <input id="jab-to" type="date" value="${fy}-12-31"></div>
+                    <input id="jab-to" type="date" value="${d?.to || fy+'-12-31'}"></div>
             </div>
             ${!hasPlan ? `<div class="bg-hb-orange/10 border border-hb-orange/20 rounded-[15px] p-4 text-sm text-hb-orange font-semibold">
                 ⚠ Kein aktiver Wirtschaftsplan für ${fy} gefunden. Die Abrechnung ist trotzdem möglich.
             </div>` : ''}
+            ${accountList}
         </div>
         <div class="flex gap-3 mt-5">
-            <button onclick="_finJABNext(1)" class="btn-primary text-sm px-6 py-2.5">Weiter →</button>
+            ${loaded
+                ? `<button onclick="_finJABStep1Reset()" class="btn-secondary text-sm px-5 py-2.5">↺ Neu laden</button>
+                   <button onclick="_finJABNext(1)" class="btn-primary text-sm px-6 py-2.5">Weiter →</button>`
+                : `<button onclick="_finJABNext(1)" class="btn-primary text-sm px-6 py-2.5">Konten laden →</button>`
+            }
         </div>`;
 }
 
@@ -2626,6 +2694,15 @@ function _finJABStep5Html() {
         </div>`;
 }
 
+window._finJABStep1Reset = () => {
+    if (_finState.jabData) _finState.jabData.step1Loaded = false;
+    _finRenderJAB();
+};
+
+window._finJABSelectAll = (val) => {
+    document.querySelectorAll('[data-jab-acc]').forEach(function(cb) { cb.checked = val; });
+};
+
 window._finJABDistChange = (accId, val) => {
     if (!_finState.jabData.distKeys) _finState.jabData.distKeys = {};
     _finState.jabData.distKeys[accId] = val;
@@ -2643,13 +2720,40 @@ window._finJABNext = async (fromStep) => {
         const accs = _finState.accounts.length ? _finState.accounts : await _finGetAccounts(bid);
         _finState.accounts = accs;
 
-        const { data: entries } = await _supabase.from('journal_entries').select('*')
-            .eq('building_id', bid)
-            .gte('entry_date', from)
-            .lte('entry_date', to)
-            .order('entry_date');
+        // Phase A: Konten laden und Checkliste anzeigen
+        if (!_finState.jabData?.step1Loaded) {
+            const { data: entries } = await _supabase.from('journal_entries').select('*')
+                .eq('building_id', bid)
+                .gte('entry_date', from)
+                .lte('entry_date', to)
+                .order('entry_date');
 
-        _finState.jabData = { fy, from, to, entries: entries||[], distKeys: {}, heatingMode: 'A', heatingManual: {}, heatSplitV: 70, heatSplitF: 30 };
+            const allAccIds = new Set();
+            for (const e of (entries || [])) {
+                if (e.debit_account_id)  allAccIds.add(e.debit_account_id);
+                if (e.credit_account_id) allAccIds.add(e.credit_account_id);
+            }
+
+            _finState.jabData = {
+                fy, from, to,
+                rawEntries: entries || [],
+                entries: entries || [],
+                selectedAccIds: [...allAccIds],
+                distKeys: {}, heatingMode: 'A', heatingManual: {}, heatSplitV: 70, heatSplitF: 30,
+                step1Loaded: true
+            };
+            _finRenderJAB();
+            return;
+        }
+
+        // Phase B: Auswahl übernehmen und zu Schritt 2 weiter
+        const selectedAccIds = [...document.querySelectorAll('[data-jab-acc]:checked')].map(cb => Number(cb.dataset.jabAcc));
+        if (!selectedAccIds.length) { showToast('Bitte mindestens ein Konto auswählen.', 'error'); return; }
+
+        _finState.jabData.selectedAccIds = selectedAccIds;
+        _finState.jabData.entries = _finState.jabData.rawEntries.filter(function(e) {
+            return selectedAccIds.includes(e.debit_account_id) || selectedAccIds.includes(e.credit_account_id);
+        });
         _finState.jabStep = 2;
         _finRenderJAB();
 
