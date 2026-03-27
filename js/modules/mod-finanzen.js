@@ -2921,6 +2921,9 @@ async function _finLoadMahnwesen() {
     const bid = _finState.buildingId;
     if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-sm">Kein Gebäude gewählt.</p>'; return; }
 
+    const accounts = _finState.accounts.length ? _finState.accounts : await _finGetAccounts(bid);
+    _finState.accounts = accounts;
+
     const today = new Date().toISOString().split('T')[0];
     const [{ data: overdue }, { data: notices }] = await Promise.all([
         _supabase.from('payment_demands')
@@ -3094,9 +3097,9 @@ window._finCreateDunning = async () => {
     const { error } = await _supabase.from('dunning_notices').insert(inserts);
     if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
 
-    if (updateIds.length) {
-        await _supabase.from('payment_demands').update({ status: 'overdue' }).in('id', updateIds);
-    }
+    // payment_demands.status wird hier NICHT geändert — bleibt overdue/open.
+    // Erst _finNoticePaidConfirm setzt status='paid' nach tatsächlichem Zahlungseingang.
+
     showToast(`${inserts.length} Mahnung(en) erstellt.`, 'success');
     await _finLoadMahnwesen();
 };
@@ -3154,7 +3157,8 @@ window._finNoticePaidConfirm = async () => {
 
     const date = document.getElementById('fin-paid-date')?.value || new Date().toISOString().split('T')[0];
     const bid  = _finState.buildingId;
-    const accs = _finState.accounts || [];
+    const accs = _finState.accounts.length ? _finState.accounts : await _finGetAccounts(bid);
+    _finState.accounts = accs;
     const getAccId = function(num) { return (accs.find(function(a) { return a.account_number === num; }) || {}).id; };
 
     document.getElementById('fin-notice-paid-modal')?.remove();
