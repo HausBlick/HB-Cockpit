@@ -3414,7 +3414,7 @@ window._finNoticePaidConfirm = async () => {
     }
     if (interestAmt > 0) {
         if (!acc8010) { showToast('Konto 8010 (Verzugszinsen) fehlt — bitte Migration ausführen.', 'error'); return; }
-        entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, apartment_id: apartmentId || null, debit_account_id: acc1200, credit_account_id: acc8010, amount: interestAmt, description: 'Mahnzahlung: Verzugszinsen', entry_type: 'manual' });
+        entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, apartment_id: null, debit_account_id: acc1200, credit_account_id: acc8010, amount: interestAmt, description: 'Mahnzahlung: Verzugszinsen', entry_type: 'manual' });
     }
     if (feeAmt > 0) {
         // Zahlung löscht die Forderung Mahnwesen (1420) — kein apartment_id, da Gegenbuchung zur Mahnung-Erstellung
