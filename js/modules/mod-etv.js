@@ -20,7 +20,7 @@ const _etvState = {
 export async function loadETV() {
     const bid = _config.activeBuildingId;
     if (!bid) {
-        document.getElementById('main-content').innerHTML = `
+        document.getElementById('content-area').innerHTML = `
             <div class="flex flex-col items-center justify-center h-full p-20 text-gray-400">
                 ${_icons.building || ''}
                 <p class="mt-4 font-bold">Kein Gebäude ausgewählt.</p>
@@ -91,7 +91,7 @@ async function _etvInitOverview() {
             </div>
         </div>
     `;
-    document.getElementById('main-content').innerHTML = html;
+    document.getElementById('content-area').innerHTML = html;
 }
 
 /**
@@ -186,7 +186,7 @@ function _etvRenderMain() {
             </div>
         </div>
     `;
-    document.getElementById('main-content').innerHTML = html;
+    document.getElementById('content-area').innerHTML = html;
 }
 
 function _etvRenderTabContent() {
