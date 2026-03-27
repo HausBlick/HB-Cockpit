@@ -107,6 +107,7 @@ js/
     mod-zeiterfassung.js    # Zeiterfassung & Projekte (Timer, Arbeitspakete, Arbeitsrapport-PDF)
     mod-settings.js         # Admin-Einstellungen (Firmendaten, Finanz-Defaults, Logo/Briefbogen-Upload)
     mod-placeholder.js      # Platzhalter für kommende Module (loadProfile, loadMyUnits, loadMyTenants)
+    mod-etv.js              # Eigentümerversammlung (Planung, Check-in, Abstimmung, Protokoll)
 ```
 
 ### Design-Konventionen (aktuell gültig)
@@ -828,4 +829,16 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | 5 | **`drawCostSection` rowData**: `share = calcShare().share + getDirektShare()` — Konto 4201 zeigt 5,00 € "Ihr Anteil" für WE02, Abrechnungssaldo korrekt |
 | 6 | **Ertragskonten mit Schlüssel**: `costItems` schließt auch `account_type='revenue'` mit `primary_key_id` ein (erscheinen als negative Kosten in "Nicht umlagefähige Kosten") |
 | 7 | **Konto 8010 (Verzugszinserträge, building_id=17)**: `primary_key_id` via SQL auf MEA-Schlüssel "Miteigentumsanteile" gesetzt (System-Konto, UI-Edit gesperrt) |
+| 8 | **`_finNoticePaidConfirm` Zinsen-Buchung**: `apartment_id: null` statt `apartmentId` — Verzugszinsen sind WEG-weiter Ertrag, kein Direktkosten einer Einheit |
+
+---
+
+### ETV-Modul — Integration
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **`mod-etv.js`** (neu, von Gemini): Eigentümerversammlung — Planung (Sessions, TOPs), Check-in (Präsenz/Vollmachten), Abstimmung (MEA/Kopf/Objekt), Protokoll-PDF |
+| 2 | **`dashboard.html`**: Einbindung via `<script type="module">` + Inline-Shim `window.loadETV = loadETV` (nötig da mod-etv.js `export function` nutzt, nicht `window.*`) |
+| 3 | **`nav.js`**: Menüpunkt „Eigentümerversammlung" in Sektion „Service & Dokumente", nur admin/manager, Icon `icons.users` |
+| 4 | **DB-Migration `scripts/migration_etv.sql`**: 4 Tabellen — `etv_sessions`, `etv_agenda_items`, `etv_attendance`, `etv_votes`. Bereits in Supabase ausgeführt. |
 
