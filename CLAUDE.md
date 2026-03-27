@@ -730,6 +730,7 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 |---|---|
 | 1 | **`fiscal_year` ergänzt**: `const fiscalYear = new Date(date).getFullYear()` berechnet das Geschäftsjahr aus dem Buchungsdatum. Alle 3 Einträge im `entries`-Array erhalten `fiscal_year: fiscalYear` — behebt NOT-NULL-Constraint-Fehler |
 | 2 | **Atomare Reihenfolge**: `Promise.all()` (Buchung + Status-Updates parallel) durch sequenzielle Ausführung ersetzt. Erst `journal_entries.insert()`, bei Fehler sofortiger Abbruch mit Toast — Status-Updates (`dunning_notices` + `payment_demands`) erfolgen NUR nach erfolgreichem INSERT |
+| 3 | **`entry_type` korrigiert**: DB-Constraint erlaubt nur `manual/sollstellung/sonderumlage/ruecklage/abrechnungsspitze/erhoeffnungsbilanz/storno`. `'payment'` existiert nicht — alle 3 Mahnzahlungs-Buchungen auf `'manual'` geändert |
 
 ---
 
