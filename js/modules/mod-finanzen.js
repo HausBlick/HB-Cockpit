@@ -3144,7 +3144,7 @@ async function _finLoadMahnwesen() {
     const overdueRows = (overdue||[]).map(d => {
         const days = Math.ceil((Date.now() - new Date(d.due_date).getTime()) / 86400000);
         return `<tr class="hover:bg-gray-50/60">
-            <td class="px-3 py-3"><input type="checkbox" class="mahn-check" data-id="${d.id}" data-amount="${d.amount}" data-person-id="${d.person_id||''}" data-person="${d.person ? (d.person.first_name+' '+d.person.last_name) : ''}" data-apt="${d.apartment?.apartment_number||''}"></td>
+            <td class="px-3 py-3"><input type="checkbox" class="mahn-check" data-id="${d.id}" data-amount="${d.amount}" data-person-id="${d.person_id||''}" data-person="${d.person ? (d.person.first_name+' '+d.person.last_name) : ''}" data-apt="${d.apartment?.apartment_number||''}" data-apt-id="${d.apartment_id||''}"></td>
             <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(d.due_date)}</td>
             <td class="px-4 py-3 text-sm font-semibold">${d.apartment?.apartment_number||'–'}</td>
             <td class="px-4 py-3 text-sm text-gray-600">${d.person ? (d.person.first_name + ' ' + d.person.last_name) : '–'}</td>
@@ -3303,6 +3303,37 @@ window._finCreateDunning = async () => {
     // payment_demands.status wird hier NICHT geändert — bleibt overdue/open.
     // Erst _finNoticePaidConfirm setzt status='paid' nach tatsächlichem Zahlungseingang.
 
+    // Mahngebühr als Aufwand buchen: Debit 4201 (Mahngebühren, mit apartment_id) / Credit 1420 (Forderungen Mahnwesen)
+    // Nur wenn Mahngebühr > 0 — so erscheint sie als Direktkosten in der Jahresabrechnung der verursachenden Einheit.
+    if (fee > 0) {
+        const accs = _finState.accounts.length ? _finState.accounts : await _finGetAccounts(bid);
+        _finState.accounts = accs;
+        const getAId = function(num) { return (accs.find(function(a) { return a.account_number === num; }) || {}).id; };
+        const acc4201 = getAId('4201');
+        const acc1420 = getAId('1420');
+        if (acc4201 && acc1420) {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const fy = new Date().getFullYear();
+            const feeEntries = checked.map(function(inp) {
+                return {
+                    building_id:       bid,
+                    entry_date:        todayStr,
+                    fiscal_year:       fy,
+                    apartment_id:      inp.dataset.aptId || null,
+                    debit_account_id:  acc4201,
+                    credit_account_id: acc1420,
+                    amount:            fee,
+                    description:       'Mahngebühr (Stufe ' + level + ')',
+                    entry_type:        'manual'
+                };
+            });
+            const { error: feeErr } = await _supabase.from('journal_entries').insert(feeEntries);
+            if (feeErr) showToast('Mahngebühr-Buchung fehlgeschlagen: ' + feeErr.message, 'error');
+        } else {
+            showToast('Konto 4201 oder 1420 nicht gefunden — Mahngebühr nicht gebucht.', 'error');
+        }
+    }
+
     showToast(`${inserts.length} Mahnung(en) erstellt.`, 'success');
     await _finLoadMahnwesen();
 };
@@ -3335,7 +3366,7 @@ window._finNoticePaidModal = (noticeId, demandId, overdueAmt, interestAmt, feeAm
                     <span class="font-semibold">${fmt(interestAmt)}</span>
                 </div>
                 <div class="flex justify-between py-1.5 border-b border-gray-100">
-                    <span class="text-gray-600">Bank (1200) → Mahngebühr (8020)</span>
+                    <span class="text-gray-600">Bank (1200) → Forderung Mahnwesen (1420)</span>
                     <span class="font-semibold">${fmt(feeAmt)}</span>
                 </div>
                 <div class="flex justify-between py-1.5 font-bold text-hb-offblack mt-1">
@@ -3371,7 +3402,7 @@ window._finNoticePaidConfirm = async () => {
     const acc1200 = getAccId('1200');
     const acc1400 = getAccId('1400');
     const acc8010 = getAccId('8010');
-    const acc8020 = getAccId('8020');
+    const acc1420 = getAccId('1420');
 
     const entries = [];
     if (overdueAmt > 0) {
@@ -3383,8 +3414,9 @@ window._finNoticePaidConfirm = async () => {
         entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, apartment_id: apartmentId || null, debit_account_id: acc1200, credit_account_id: acc8010, amount: interestAmt, description: 'Mahnzahlung: Verzugszinsen', entry_type: 'manual' });
     }
     if (feeAmt > 0) {
-        if (!acc8020) { showToast('Konto 8020 (Mahngebühren) fehlt — bitte Migration ausführen.', 'error'); return; }
-        entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, apartment_id: apartmentId || null, debit_account_id: acc1200, credit_account_id: acc8020, amount: feeAmt, description: 'Mahnzahlung: Mahngebühr', entry_type: 'manual' });
+        // Zahlung löscht die Forderung Mahnwesen (1420) — kein apartment_id, da Gegenbuchung zur Mahnung-Erstellung
+        if (!acc1420) { showToast('Konto 1420 (Forderungen Mahnwesen) fehlt.', 'error'); return; }
+        entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, apartment_id: null, debit_account_id: acc1200, credit_account_id: acc1420, amount: feeAmt, description: 'Mahnzahlung: Forderung Mahnwesen (Gebühr)', entry_type: 'manual' });
     }
 
     // Bug 2 fix: Buchung ZUERST — nur bei Erfolg Status-Updates
