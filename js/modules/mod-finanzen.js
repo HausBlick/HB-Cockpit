@@ -2954,13 +2954,16 @@ window._finJABNext = async (fromStep) => {
             let istKosten = 0;
             for (const ci of costItems) istKosten += _calcShareForApt(ci, row.apt_id);
 
-            // 2. Direktkosten dieser Einheit (Buchungen mit apartment_id)
+            // 2. Direktkosten dieser Einheit (nur Aufwandskonten, identische Logik wie costItems)
+            // Nur Soll−Haben von expense-Konten zählen — Balance-Sheet-Gegenspieler (z.B. 1420)
+            // dürfen den Aufwand nicht wegkürzen, da sie kein Kostenkonto sind.
             const dSoll  = directSollPerAptAcc[row.apt_id]  || {};
             const dHaben = directHabenPerAptAcc[row.apt_id] || {};
-            const allDirectAccIds = new Set([...Object.keys(dSoll), ...Object.keys(dHaben)].map(Number));
-            for (const accId of allDirectAccIds) {
-                istKosten += (dSoll[accId] || 0) - (dHaben[accId] || 0);
-            }
+            accs.forEach(function(acc) {
+                if (acc.account_type !== 'expense') return;
+                const net = (dSoll[acc.id] || 0) - (dHaben[acc.id] || 0);
+                if (net !== 0) istKosten += net;
+            });
 
             const spitze = istKosten - row.soll;
             const zahlDiff = row.soll - row.bezahlt;
