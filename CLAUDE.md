@@ -724,6 +724,13 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | 2 | **`_finNoticePaidConfirm` Defensive**: `accs = _finState.accounts.length ? ... : await _finGetAccounts(bid)` statt `_finState.accounts \|\| []` — Konten werden nachladen falls zwischen Modal-Öffnung und Bestätigung verloren |
 | 3 | **`_finCreateDunning` Fix**: `payment_demands.update({ status: 'overdue' })` entfernt — Sollstellungs-Status wird beim Erstellen einer Mahnung NICHT mehr geändert. Nur `_finNoticePaidConfirm` setzt `status='paid'` nach tatsächlichem Zahlungseingang |
 
+### Bugfix — `_finNoticePaidConfirm` fiscal_year + Atomarität
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **`fiscal_year` ergänzt**: `const fiscalYear = new Date(date).getFullYear()` berechnet das Geschäftsjahr aus dem Buchungsdatum. Alle 3 Einträge im `entries`-Array erhalten `fiscal_year: fiscalYear` — behebt NOT-NULL-Constraint-Fehler |
+| 2 | **Atomare Reihenfolge**: `Promise.all()` (Buchung + Status-Updates parallel) durch sequenzielle Ausführung ersetzt. Erst `journal_entries.insert()`, bei Fehler sofortiger Abbruch mit Toast — Status-Updates (`dunning_notices` + `payment_demands`) erfolgen NUR nach erfolgreichem INSERT |
+
 ---
 
 ### Phase 6-D.3 — WEG-Standard-Kontenrahmen + Mahnungs-Buchungslogik
