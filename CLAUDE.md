@@ -815,3 +815,17 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 - `journal_no_delete` RULE: aktiv — DELETEs werden still ignoriert (kein Fehler, kein Löschen)
 - `journal_no_update` Trigger `journal_no_update_fn`: aktiv — blockiert Finanzdaten (amount, Konten, Datum, entry_type), erlaubt Metadaten (apartment_id, description, reference_number, lohn_anteil_35a)
 
+---
+
+### Bugfix — Jahresabrechnung PDF: Direktkosten + Ertragskonten
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Direktkosten-Split** in `generateJahresabrechnungPDF`: `entries` werden in `direktDebitPerAcc` (apartment_id gesetzt) und `verteilSollPerAcc/HabenPerAcc` (ohne apartment_id) getrennt. `costItems` erhält neues Feld `verteil_amount` |
+| 2 | **`calcShare()` nutzt `verteil_amount`**: Verteilerschlüssel-Berechnung verteilt nur noch nicht-direkte Buchungen — verhindert Doppelzählung |
+| 3 | **`getDirektShare(accId, aptId)`**: Neue Hilfsfunktion gibt Direktkosten einer Einheit zurück |
+| 4 | **`totalCostsUnit`**: `+= getDirektShare()` pro Konto — WE02 bekommt 5.496 + 5 (Mahngebühr Direktkosten) = 5.501 € |
+| 5 | **`drawCostSection` rowData**: `share = calcShare().share + getDirektShare()` — Konto 4201 zeigt 5,00 € "Ihr Anteil" für WE02, Abrechnungssaldo korrekt |
+| 6 | **Ertragskonten mit Schlüssel**: `costItems` schließt auch `account_type='revenue'` mit `primary_key_id` ein (erscheinen als negative Kosten in "Nicht umlagefähige Kosten") |
+| 7 | **Konto 8010 (Verzugszinserträge, building_id=17)**: `primary_key_id` via SQL auf MEA-Schlüssel "Miteigentumsanteile" gesetzt (System-Konto, UI-Edit gesperrt) |
+

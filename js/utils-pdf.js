@@ -1198,18 +1198,34 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData) {
 
     var sollPerAcc = {};
     var habenPerAcc = {};
+    // Direktkosten (apartment_id gesetzt): pro Konto + Einheit tracken
+    var direktDebitPerAcc  = {}; // { accId: { aptId: amount } }
+    var verteilSollPerAcc  = {};
+    var verteilHabenPerAcc = {};
+
     for (var ei = 0; ei < entries.length; ei++) {
         var e = entries[ei];
-        sollPerAcc[e.debit_account_id] = (sollPerAcc[e.debit_account_id] || 0) + Number(e.amount);
+        sollPerAcc[e.debit_account_id]   = (sollPerAcc[e.debit_account_id]   || 0) + Number(e.amount);
         habenPerAcc[e.credit_account_id] = (habenPerAcc[e.credit_account_id] || 0) + Number(e.amount);
+        if (e.apartment_id) {
+            if (!direktDebitPerAcc[e.debit_account_id]) direktDebitPerAcc[e.debit_account_id] = {};
+            direktDebitPerAcc[e.debit_account_id][e.apartment_id] =
+                (direktDebitPerAcc[e.debit_account_id][e.apartment_id] || 0) + Number(e.amount);
+        } else {
+            verteilSollPerAcc[e.debit_account_id]   = (verteilSollPerAcc[e.debit_account_id]   || 0) + Number(e.amount);
+            verteilHabenPerAcc[e.credit_account_id] = (verteilHabenPerAcc[e.credit_account_id] || 0) + Number(e.amount);
+        }
     }
 
-    // Build cost items: each expense account with its Ist-amount (Soll-Seite = cost)
+    // Build cost items: Aufwandskonten immer; Ertragskonten nur wenn Verteilerschlüssel gesetzt (erscheinen als negative Kosten)
     var costItems = [];
     accounts.forEach(function(acc) {
         var amount = (sollPerAcc[acc.id] || 0) - (habenPerAcc[acc.id] || 0);
-        if (acc.account_type === 'expense' && amount !== 0) {
-            costItems.push({ account: acc, ist_amount: amount });
+        var isExpense = acc.account_type === 'expense';
+        var isKeyedRevenue = acc.account_type === 'revenue' && acc.primary_key_id;
+        if (amount !== 0 && (isExpense || isKeyedRevenue)) {
+            var verteilAmount = (verteilSollPerAcc[acc.id] || 0) - (verteilHabenPerAcc[acc.id] || 0);
+            costItems.push({ account: acc, ist_amount: amount, verteil_amount: verteilAmount });
         }
     });
 
@@ -1288,7 +1304,7 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData) {
         var pkId = acc.primary_key_id;
         var skId = acc.secondary_key_id;
         var skPct = acc.secondary_key_percentage;
-        var total = Number(costItem.ist_amount || 0);
+        var total = Number(costItem.verteil_amount !== undefined ? costItem.verteil_amount : (costItem.ist_amount || 0));
         if (!pkId || !dkMap[pkId]) return { share: 0, keyName: '—' };
         var pk = dkMap[pkId];
         var pkTotal = Number(pk.total_value) || 0;
@@ -1305,6 +1321,11 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData) {
             return { share: primaryShare + secondaryShare, keyName: keyName };
         }
         return { share: total * (pkVal / pkTotal), keyName: keyName };
+    }
+
+    // Direktkosten für eine Einheit: apartment_id-gebuchte Aufwände (nicht über Schlüssel verteilt)
+    function getDirektShare(accId, aptId) {
+        return (direktDebitPerAcc[accId] && direktDebitPerAcc[accId][aptId]) || 0;
     }
 
     // Table helpers
@@ -1439,6 +1460,7 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData) {
         var totalCostsUnit = 0;
         for (var ci2 = 0; ci2 < costItems.length; ci2++) {
             totalCostsUnit += calcShare(costItems[ci2], apt.id).share;
+            totalCostsUnit += getDirektShare(costItems[ci2].account.id, apt.id);
         }
         var sollVorschuesse = Number(aptSollIst.soll) || 0;
         var istBezahlt      = Number(aptSollIst.bezahlt) || 0;
@@ -1769,11 +1791,12 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData) {
             var rowData = items.map(function(costItem) {
                 var istAmt = Number(costItem.ist_amount || 0);
                 var shareRes = calcShare(costItem, apt.id);
+                var totalShare = shareRes.share + getDirektShare(costItem.account.id, apt.id);
                 var bezLines2 = splitLines(costItem.account?.account_name || '–', fReg, bezFS, cBezW, 2);
                 var keyLines2 = splitLines(shareRes.keyName, fReg, keyFS, cKeyW, 2);
                 var maxLines2 = Math.max(bezLines2.length, keyLines2.length, 1);
                 var rowH2 = Math.max(minRowH, maxLines2 * costLH + padV * 2);
-                return { item: costItem, istAmt: istAmt, share: shareRes.share, bezLines: bezLines2, keyLines: keyLines2, rowH: rowH2 };
+                return { item: costItem, istAmt: istAmt, share: totalShare, bezLines: bezLines2, keyLines: keyLines2, rowH: rowH2 };
             });
 
             for (var rdi = 0; rdi < rowData.length; rdi++) {
@@ -1866,4 +1889,181 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData) {
     var filename = 'Jahresabrechnung_' + fy + '_' + bldName.replace(/[^a-zA-Z0-9]/g, '_') + '.pdf';
     _pdfDownload(pdfBytes, filename);
     showToast(apts.length + ' Einzelabrechnungen als PDF heruntergeladen.');
+}
+
+// ─── ETV-PROTOKOLL GENERIERUNG ───────────────────────────────
+async function generateETVProtokollPDF(sessionId) {
+    if (typeof PDFLib === 'undefined') {
+        showToast('PDF-Bibliothek nicht geladen. Bitte Seite neu laden.', 'error'); return;
+    }
+
+    showToast('ETV-Protokoll wird erstellt…');
+
+    const settings = await _pdfGetSettings();
+    const { data: session } = await _supabase.from('etv_sessions').select('*, building:buildings(*)').eq('id', sessionId).single();
+    if (!session) { showToast('Versammlung nicht gefunden.', 'error'); return; }
+
+    const fy  = session.fiscal_year;
+    const bld = session.building;
+
+    const [agendaRes, attRes, votesRes] = await Promise.all([
+        _supabase.from('etv_agenda_items').select('*').eq('session_id', sessionId).order('sort_order'),
+        _supabase.from('etv_attendance').select('*, person:persons(first_name, last_name)').eq('session_id', sessionId),
+        _supabase.from('etv_votes').select('*').in('agenda_item_id', (await _supabase.from('etv_agenda_items').select('id').eq('session_id', sessionId)).data?.map(i => i.id) || [])
+    ]);
+
+    const agenda  = agendaRes.data || [];
+    const att     = attRes.data || [];
+    const votes   = votesRes.data || [];
+
+    // Load letterhead template
+    const { PDFDocument, rgb } = PDFLib;
+    let templateDoc;
+    if (settings.letterhead_pdf_url) {
+        const { data: signedData } = await _supabase.storage.from('documents').createSignedUrl(settings.letterhead_pdf_url, 120);
+        if (signedData?.signedUrl) {
+            const lhResp = await fetch(signedData.signedUrl);
+            const templateBytes = await lhResp.arrayBuffer();
+            templateDoc = await PDFDocument.load(templateBytes);
+        }
+    }
+
+    const pdfDoc = await PDFDocument.create();
+    pdfDoc.registerFontkit(fontkit);
+
+    // Embed Inter fonts
+    const { reg: fReg, semi: fSemi, bold: fBold } = await _pdfLoadInterFonts(pdfDoc);
+
+    // Colors & Layout
+    const olive = rgb(0.408, 0.455, 0.318);
+    const offblack = rgb(0.216, 0.216, 0.216);
+    const orange = rgb(0.922, 0.463, 0.176);
+    const gray50 = rgb(0.5, 0.5, 0.5);
+    const gray40 = rgb(0.4, 0.4, 0.4);
+    const white  = rgb(1, 1, 1);
+    const mLeft = 56.7;
+    const mRight = 538.6;
+    const contentW = mRight - mLeft;
+    const mBottom = 100;
+
+    const bldName = formatBuildingName(bld);
+    const dateStr = new Date(session.meeting_date).toLocaleDateString('de-DE');
+    const timeStr = new Date(session.meeting_date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+    // Page Helper
+    async function addPage() {
+        if (!templateDoc) throw new Error('NO_LETTERHEAD');
+        const [copied] = await pdfDoc.copyPages(templateDoc, [0]);
+        const pg = pdfDoc.addPage(copied);
+        return pg;
+    }
+
+    let page = await addPage();
+    let y = 740; // Start below logo
+
+    // ── TITEL & META ─────────────────────────────────────────
+    page.drawText('PROTOKOLL', { x: mLeft, y, size: 24, font: fBold, color: olive });
+    y -= 28;
+    page.drawText('der Eigentümerversammlung', { x: mLeft, y, size: 14, font: fSemi, color: offblack });
+    y -= 40;
+
+    // Info-Box (Objekt & Termin)
+    page.drawRectangle({ x: mLeft, y: y - 65, width: contentW, height: 65, color: rgb(0.98, 0.98, 0.96), borderColor: rgb(0.9, 0.9, 0.8), borderWidth: 0.5 });
+    page.drawText('Objekt:', { x: mLeft + 10, y: y - 18, size: 8, font: fBold, color: gray50 });
+    page.drawText(bldName, { x: mLeft + 10, y: y - 32, size: 10, font: fSemi, color: offblack });
+    
+    page.drawText('Termin:', { x: mLeft + 250, y: y - 18, size: 8, font: fBold, color: gray50 });
+    page.drawText(`${dateStr} um ${timeStr} Uhr`, { x: mLeft + 250, y: y - 32, size: 10, font: fSemi, color: offblack });
+    
+    page.drawText('Ort:', { x: mLeft + 250, y: y - 48, size: 8, font: fBold, color: gray50 });
+    page.drawText(session.location || 'Vor Ort / Online', { x: mLeft + 275, y: y - 48, size: 8, font: fReg, color: offblack });
+    y -= 85;
+
+    // ── TEILNEHMER & QUORUM ──────────────────────────────────
+    page.drawText('1. Teilnehmer & Beschlussfähigkeit', { x: mLeft, y, size: 11, font: fBold, color: olive });
+    y -= 20;
+
+    const present = att.filter(a => a.is_present);
+    const { data: allApts } = await _supabase.from('apartments').select('mea_numerator').eq('building_id', bld.id);
+    const totalMEA = allApts?.reduce((sum, a) => sum + (Number(a.mea_numerator) || 0), 0) || 1000;
+    
+    const { data: presentApts } = await _supabase.from('apartments').select('mea_numerator').in('id', present.map(p => p.apartment_id));
+    const presentMEA = presentApts?.reduce((sum, a) => sum + (Number(a.mea_numerator) || 0), 0) || 0;
+    const percent = (presentMEA / totalMEA * 100).toFixed(2);
+
+    page.drawText(`Es sind ${present.length} stimmberechtigte Einheiten anwesend oder vertreten.`, { x: mLeft, y, size: 9, font: fReg, color: offblack });
+    y -= 14;
+    page.drawText(`Vertretene Miteigentumsanteile (MEA): ${presentMEA.toLocaleString('de-DE')} von ${totalMEA.toLocaleString('de-DE')} (${percent}%).`, { x: mLeft, y, size: 9, font: fReg, color: offblack });
+    y -= 14;
+    page.drawText(`Die Versammlung ist gemäß § 25 WEG ${percent >= 50 ? 'BESCHLUSSFÄHIG' : 'NICHT BESCHLUSSFÄHIG'}.`, { x: mLeft, y, size: 9, font: fBold, color: percent >= 50 ? olive : orange });
+    y -= 35;
+
+    // ── TAGESORDNUNG & BESCHLÜSSE ──────────────────────────
+    page.drawText('2. Ergebnisse der Tagesordnung', { x: mLeft, y, size: 11, font: fBold, color: olive });
+    y -= 20;
+
+    for (const item of agenda) {
+        if (y < mBottom + 120) { page = await addPage(); y = 740; }
+
+        // TOP Header
+        page.drawRectangle({ x: mLeft, y: y - 22, width: contentW, height: 22, color: rgb(0.95, 0.96, 0.93) });
+        page.drawText(`TOP ${item.sort_order}: ${item.title}`, { x: mLeft + 8, y: y - 15, size: 10, font: fBold, color: olive });
+        y -= 30;
+
+        // Beschlussantrag
+        page.drawText('Beschlussantrag:', { x: mLeft + 10, y, size: 7.5, font: fBold, color: gray50 });
+        y -= 11;
+        const antrext = item.proposed_resolution || 'Kein Beschlussantrag hinterlegt.';
+        const antLines = _pdfSplitText(antrext, fReg, 9, contentW - 25);
+        for (const line of antLines) {
+            page.drawText(line, { x: mLeft + 10, y, size: 9, font: fReg, color: offblack });
+            y -= 13;
+            if (y < mBottom + 40) { page = await addPage(); y = 740; }
+        }
+        y -= 8;
+
+        // Ergebnis
+        const itemVotes = votes.filter(v => v.agenda_item_id === item.id);
+        const yes = itemVotes.filter(v => v.vote === 'yes').reduce((sum, v) => sum + (Number(v.weight_mea) || 0), 0);
+        const no  = itemVotes.filter(v => v.vote === 'no').reduce((sum, v) => sum + (Number(v.weight_mea) || 0), 0);
+        const abs = itemVotes.filter(v => v.vote === 'abstain').reduce((sum, v) => sum + (Number(v.weight_mea) || 0), 0);
+
+        const resLabel = item.result_status.toUpperCase();
+        const resColor = item.result_status === 'approved' ? olive : (item.result_status === 'rejected' ? orange : offblack);
+
+        page.drawText(`Abstimmung (MEA): JA: ${yes.toLocaleString('de-DE')} | NEIN: ${no.toLocaleString('de-DE')} | ENTH.: ${abs.toLocaleString('de-DE')}`, { x: mLeft + 10, y, size: 8, font: fSemi, color: gray50 });
+        y -= 14;
+        page.drawText(`Beschluss-Ergebnis: ${resLabel}`, { x: mLeft + 10, y, size: 9, font: fBold, color: resColor });
+        y -= 30;
+    }
+
+    // ── UNTERSCHRIFTEN ───────────────────────────────────────
+    if (y < 220) { page = await addPage(); y = 740; }
+    y -= 30;
+    page.drawLine({ start: { x: mLeft, y: y + 10 }, end: { x: mRight, y: y + 10 }, thickness: 0.5, color: dividerColor });
+    
+    const signText = `Dieses Protokoll wurde maschinell am ${dateStr} erstellt. Die Richtigkeit der vorstehenden Feststellungen wird durch die Unterschriften der gemäß § 24 Abs. 6 WEG dazu verpflichteten Personen bestätigt.`;
+    const signLines = _pdfSplitText(signText, fReg, 9, contentW);
+    for (const line of signLines) {
+        page.drawText(line, { x: mLeft, y, size: 9, font: fReg, color: gray40 });
+        y -= 13;
+    }
+
+    y -= 50;
+    const fieldW = 145;
+    const fY = y;
+    
+    page.drawLine({ start: { x: mLeft, y: fY }, end: { x: mLeft + fieldW, y: fY }, thickness: 0.5, color: offblack });
+    page.drawText('Versammlungsleiter', { x: mLeft, y: fY - 12, size: 7, font: fReg, color: gray50 });
+
+    page.drawLine({ start: { x: mLeft + 165, y: fY }, end: { x: mLeft + 165 + fieldW, y: fY }, thickness: 0.5, color: offblack });
+    page.drawText('Beirat / Eigentümer', { x: mLeft + 165, y: fY - 12, size: 7, font: fReg, color: gray50 });
+
+    page.drawLine({ start: { x: mLeft + 330, y: fY }, end: { x: mLeft + 330 + fieldW, y: fY }, thickness: 0.5, color: offblack });
+    page.drawText('Beirat / Eigentümer', { x: mLeft + 330, y: fY - 12, size: 7, font: fReg, color: gray50 });
+
+    const pdfBytes = await pdfDoc.save();
+    const filename = `Protokoll_ETV_${fy}_${bldName.replace(/[^a-z0-9]/gi, '_')}.pdf`;
+    _pdfDownload(pdfBytes, filename);
+    showToast('Protokoll erfolgreich generiert.');
 }
