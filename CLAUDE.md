@@ -800,3 +800,18 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | 3 | **Saldo-Berechnung**: War bereits korrekt implementiert (Spitze + Zahlungsdifferenz) — Ergebnis stimmt nun, da Ist-Kosten korrekt berechnet werden |
 | 4 | **Buttons über Tabelle**: „Abrechnung abschließen", „CSV", „PDF exportieren" in flex-Zeile neben Überschrift „Abrechnungsergebnis je Eigentümer" (rechtsbündig). Nur „← Zurück" verbleibt unten |
 
+---
+
+### Bugfix — GoBD-Schutz: journal_no_update war RULE statt Trigger
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Root Cause**: `journal_no_update` und `journal_no_delete` wurden in Phase 6-A als PostgreSQL **RULES** (`DO INSTEAD NOTHING`) angelegt — nicht als Trigger. RULES ersetzen die Operation vollständig, bevor Trigger oder RLS greifen. Auch postgres-Superuser kann RULES nicht umgehen. |
+| 2 | **Folge**: Alle UPDATE-Versuche auf `journal_entries` wurden seit Phase 6-A still ignoriert — inkl. `migration_journal_metadata_update.sql` (der neue Trigger feuerte nie, weil die RULE zuerst griff). |
+| 3 | **Fix via Supabase MCP**: `DROP RULE journal_no_update ON journal_entries` — damit greifen jetzt korrekt nur der Trigger `journal_no_update_fn` (blockiert Finanzdaten, erlaubt Metadaten). `journal_no_delete` RULE bleibt aktiv (GoBD: kein Löschen). |
+| 4 | **Seed-Script**: `scripts/seed_zeppelinstr8_reset.sql` — enthält DROP beider Rules + Daten-Reset + Recreate von `journal_no_delete`. Testszenario: 2024 (perfekt, 0 € Spitze), 2025 (WE02 Juli säumig, Mahnung Stufe 1), 2026 (Entwurf WP). |
+
+**GoBD-Zustand nach Fix:**
+- `journal_no_delete` RULE: aktiv — DELETEs werden still ignoriert (kein Fehler, kein Löschen)
+- `journal_no_update` Trigger `journal_no_update_fn`: aktiv — blockiert Finanzdaten (amount, Konten, Datum, entry_type), erlaubt Metadaten (apartment_id, description, reference_number, lohn_anteil_35a)
+
