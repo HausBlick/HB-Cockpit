@@ -3173,15 +3173,15 @@ window._finNoticePaidConfirm = async () => {
     const entries = [];
     if (overdueAmt > 0) {
         if (!acc1200 || !acc1400) { showToast('Konto 1200 oder 1400 nicht gefunden.', 'error'); return; }
-        entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, debit_account_id: acc1200, credit_account_id: acc1400, amount: overdueAmt, description: 'Mahnzahlung: Hauptforderung', entry_type: 'payment' });
+        entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, debit_account_id: acc1200, credit_account_id: acc1400, amount: overdueAmt, description: 'Mahnzahlung: Hauptforderung', entry_type: 'manual' });
     }
     if (interestAmt > 0) {
         if (!acc8010) { showToast('Konto 8010 (Verzugszinsen) fehlt — bitte Migration ausführen.', 'error'); return; }
-        entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, debit_account_id: acc1200, credit_account_id: acc8010, amount: interestAmt, description: 'Mahnzahlung: Verzugszinsen', entry_type: 'payment' });
+        entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, debit_account_id: acc1200, credit_account_id: acc8010, amount: interestAmt, description: 'Mahnzahlung: Verzugszinsen', entry_type: 'manual' });
     }
     if (feeAmt > 0) {
         if (!acc8020) { showToast('Konto 8020 (Mahngebühren) fehlt — bitte Migration ausführen.', 'error'); return; }
-        entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, debit_account_id: acc1200, credit_account_id: acc8020, amount: feeAmt, description: 'Mahnzahlung: Mahngebühr', entry_type: 'payment' });
+        entries.push({ building_id: bid, entry_date: date, fiscal_year: fiscalYear, debit_account_id: acc1200, credit_account_id: acc8020, amount: feeAmt, description: 'Mahnzahlung: Mahngebühr', entry_type: 'manual' });
     }
 
     // Bug 2 fix: Buchung ZUERST — nur bei Erfolg Status-Updates
