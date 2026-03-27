@@ -194,7 +194,8 @@ async function _finEnsureAccounts(buildingId) {
         account_subtype:   t.account_subtype,
         is_reserve_account: t.is_reserve_account,
         reserve_label:     t.reserve_label,
-        is_system_account: false,
+        is_system_account: t.is_system_account || false,
+        is_allocatable:    t.is_allocatable    || false,
         is_active:         true,
         sort_order:        t.sort_order,
     }));
@@ -252,6 +253,7 @@ async function _finLoadOverview() {
             const isChild = !!a.parent_account_id;
             const namePrefix = isChild ? '<span class="text-gray-400 mr-1.5">└</span>' : '';
             const rowClass = isChild ? 'bg-gray-50/50' : '';
+            const lockIcon = '<svg class="w-3 h-3 inline-block ml-1.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11V7a5 5 0 0110 0v4"/></svg>';
             const actions = a.is_system_account ? '' :
                 `<button onclick="event.stopPropagation();_finEditAccount(${a.id})" title="Bearbeiten"
                     class="text-xs text-hb-olive bg-hb-ultralight px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors">
@@ -263,7 +265,7 @@ async function _finLoadOverview() {
                 </button>`;
             return `<tr class="hover:bg-gray-50/60 transition-colors cursor-pointer ${rowClass}" onclick="_finOpenLedger(${a.id}, '${a.account_name.replace(/'/g, "\\'")}')">
                 <td class="px-4 py-3 text-sm font-mono text-gray-500 ${isChild ? 'pl-8' : ''}">${a.account_number}</td>
-                <td class="px-4 py-3 text-sm font-semibold text-hb-offblack">${namePrefix}${a.account_name}${a.reserve_label ? `<span class="ml-2 text-xs text-gray-400">(${a.reserve_label})</span>` : ''}${a.is_system_account ? '<span class="ml-2 text-[10px] text-gray-300 font-normal">System</span>' : ''}</td>
+                <td class="px-4 py-3 text-sm font-semibold text-hb-offblack">${namePrefix}${a.account_name}${a.reserve_label ? `<span class="ml-2 text-xs text-gray-400">(${a.reserve_label})</span>` : ''}${a.is_system_account ? lockIcon : ''}</td>
                 <td class="px-4 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-md ${typeBadge[a.account_type] || 'bg-gray-100 text-gray-600'}">${typeLabels[a.account_type] || a.account_type}</span></td>
                 <td class="px-4 py-3 text-sm font-bold text-right ${saldoCls}">${saldo.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</td>
                 <td class="px-4 py-3 text-right" onclick="event.stopPropagation()"><div class="flex gap-1 justify-end">${actions}</div></td>
@@ -523,6 +525,7 @@ window._finFilterOverview = (q) => {
         const isChild = !!a.parent_account_id;
         const namePrefix = isChild ? '<span class="text-gray-400 mr-1.5">└</span>' : '';
         const rowClass = isChild ? 'bg-gray-50/50' : '';
+        const lockIcon2 = '<svg class="w-3 h-3 inline-block ml-1.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11V7a5 5 0 0110 0v4"/></svg>';
         const actions = a.is_system_account ? '' :
             `<button onclick="event.stopPropagation();_finEditAccount(${a.id})" title="Bearbeiten"
                 class="text-xs text-hb-olive bg-hb-ultralight px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors">
@@ -534,7 +537,7 @@ window._finFilterOverview = (q) => {
             </button>`;
         return `<tr class="hover:bg-gray-50/60 transition-colors cursor-pointer ${rowClass}" onclick="_finOpenLedger(${a.id}, '${a.account_name.replace(/'/g, "\\'")}')">
             <td class="px-4 py-3 text-sm font-mono text-gray-500 ${isChild ? 'pl-8' : ''}">${a.account_number}</td>
-            <td class="px-4 py-3 text-sm font-semibold text-hb-offblack">${namePrefix}${a.account_name}${a.reserve_label ? `<span class="ml-2 text-xs text-gray-400">(${a.reserve_label})</span>` : ''}${a.is_system_account ? '<span class="ml-2 text-[10px] text-gray-300 font-normal">System</span>' : ''}</td>
+            <td class="px-4 py-3 text-sm font-semibold text-hb-offblack">${namePrefix}${a.account_name}${a.reserve_label ? `<span class="ml-2 text-xs text-gray-400">(${a.reserve_label})</span>` : ''}${a.is_system_account ? lockIcon2 : ''}</td>
             <td class="px-4 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-md ${typeBadge[a.account_type] || 'bg-gray-100 text-gray-600'}">${typeLabels[a.account_type] || a.account_type}</span></td>
             <td class="px-4 py-3 text-sm font-bold text-right ${saldoCls}">${saldo.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</td>
             <td class="px-4 py-3 text-right" onclick="event.stopPropagation()"><div class="flex gap-1 justify-end">${actions}</div></td>
@@ -2958,7 +2961,13 @@ async function _finLoadMahnwesen() {
             <td class="px-4 py-3 text-sm font-bold text-right">${Number(n.total_amount||0).toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
             <td class="px-4 py-3 text-center">
                 <div class="flex items-center justify-center gap-1">
-                    ${n.status!=='paid'?`<button onclick="_finNoticePaid(${n.id},${n.payment_demand_id})" class="text-xs text-hb-olive bg-hb-ultralight px-2 py-1 rounded-lg hover:bg-gray-100">Bezahlt</button>`:'<span class="text-xs text-green-600 font-semibold">Bezahlt</span>'}
+                    ${n.status==='paid'
+                        ? `<span class="text-xs text-green-600 font-semibold">Bezahlt</span>
+                           <button onclick="_finNoticeReverse(${n.id})" class="text-xs text-hb-orange px-2 py-1 rounded-lg hover:bg-hb-orange/5">Stornieren</button>`
+                        : n.status==='cancelled'
+                        ? '<span class="text-xs text-gray-400 font-semibold">Storniert</span>'
+                        : `<button onclick="_finNoticePaidModal(${n.id},${n.payment_demand_id||'null'},${Number(n.overdue_amount||0).toFixed(2)},${Number(n.interest_amount||0).toFixed(2)},${Number(n.dunning_fee||0).toFixed(2)})" class="text-xs text-hb-olive bg-hb-ultralight px-2 py-1 rounded-lg hover:bg-gray-100">Bezahlt</button>`
+                    }
                     <button onclick="_finMahnungPDF('${n.person_id}',${n.building_id})" class="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded-lg hover:bg-gray-100" title="Sammel-PDF für diese Person">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
                     </button>
@@ -3092,12 +3101,136 @@ window._finCreateDunning = async () => {
     await _finLoadMahnwesen();
 };
 
-window._finNoticePaid = async (noticeId, demandId) => {
-    await Promise.all([
+// Öffnet Zahlungs-Bestätigungs-Modal mit Buchungs-Split-Vorschau
+window._finNoticePaidModal = (noticeId, demandId, overdueAmt, interestAmt, feeAmt) => {
+    _finState._paidModal = { noticeId, demandId, overdueAmt, interestAmt, feeAmt };
+    const today = new Date().toISOString().split('T')[0];
+    const total = overdueAmt + interestAmt + feeAmt;
+    const fmt = function(v) { return Number(v).toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €'; };
+
+    document.getElementById('fin-notice-paid-modal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'fin-notice-paid-modal';
+    modal.innerHTML = `<div class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)document.getElementById('fin-notice-paid-modal').remove()">
+        <div class="bg-white rounded-[15px] p-6 w-full max-w-md shadow-xl">
+            <h3 class="text-base font-bold text-hb-offblack mb-4">Zahlung erfassen</h3>
+            <div class="mb-4">
+                <label class="text-xs font-semibold text-gray-500 mb-1 block">Zahlungsdatum</label>
+                <input type="date" id="fin-paid-date" value="${today}" class="w-full rounded-lg border border-gray-200 bg-hb-ultralight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-hb-olive/10">
+            </div>
+            <div class="bg-gray-50 rounded-lg p-4 mb-5 text-sm">
+                <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Buchungs-Split (3 Sätze)</div>
+                <div class="flex justify-between py-1.5 border-b border-gray-100">
+                    <span class="text-gray-600">Bank (1200) → Forderung HG (1400)</span>
+                    <span class="font-semibold">${fmt(overdueAmt)}</span>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-gray-100">
+                    <span class="text-gray-600">Bank (1200) → Verzugszinsen (8010)</span>
+                    <span class="font-semibold">${fmt(interestAmt)}</span>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-gray-100">
+                    <span class="text-gray-600">Bank (1200) → Mahngebühr (8020)</span>
+                    <span class="font-semibold">${fmt(feeAmt)}</span>
+                </div>
+                <div class="flex justify-between py-1.5 font-bold text-hb-offblack mt-1">
+                    <span>Gesamt</span>
+                    <span class="text-hb-olive">${fmt(total)}</span>
+                </div>
+            </div>
+            <div class="flex gap-3 justify-end">
+                <button onclick="document.getElementById('fin-notice-paid-modal').remove()" class="btn-secondary text-sm px-4 py-2">Abbrechen</button>
+                <button onclick="_finNoticePaidConfirm()" class="btn-primary text-sm px-5 py-2">Bestätigen & Buchen</button>
+            </div>
+        </div>
+    </div>`;
+    document.body.appendChild(modal);
+};
+
+// Buchung ausführen nach Bestätigung im Modal
+window._finNoticePaidConfirm = async () => {
+    const m = _finState._paidModal || {};
+    if (!m.noticeId) return;
+    const { noticeId, demandId, overdueAmt, interestAmt, feeAmt } = m;
+
+    const date = document.getElementById('fin-paid-date')?.value || new Date().toISOString().split('T')[0];
+    const bid  = _finState.buildingId;
+    const accs = _finState.accounts || [];
+    const getAccId = function(num) { return (accs.find(function(a) { return a.account_number === num; }) || {}).id; };
+
+    document.getElementById('fin-notice-paid-modal')?.remove();
+    delete _finState._paidModal;
+
+    const acc1200 = getAccId('1200');
+    const acc1400 = getAccId('1400');
+    const acc8010 = getAccId('8010');
+    const acc8020 = getAccId('8020');
+
+    const entries = [];
+    if (overdueAmt > 0) {
+        if (!acc1200 || !acc1400) { showToast('Konto 1200 oder 1400 nicht gefunden.', 'error'); return; }
+        entries.push({ building_id: bid, entry_date: date, debit_account_id: acc1200, credit_account_id: acc1400, amount: overdueAmt, description: 'Mahnzahlung: Hauptforderung', entry_type: 'payment' });
+    }
+    if (interestAmt > 0) {
+        if (!acc8010) { showToast('Konto 8010 (Verzugszinsen) fehlt — bitte Migration ausführen.', 'error'); return; }
+        entries.push({ building_id: bid, entry_date: date, debit_account_id: acc1200, credit_account_id: acc8010, amount: interestAmt, description: 'Mahnzahlung: Verzugszinsen', entry_type: 'payment' });
+    }
+    if (feeAmt > 0) {
+        if (!acc8020) { showToast('Konto 8020 (Mahngebühren) fehlt — bitte Migration ausführen.', 'error'); return; }
+        entries.push({ building_id: bid, entry_date: date, debit_account_id: acc1200, credit_account_id: acc8020, amount: feeAmt, description: 'Mahnzahlung: Mahngebühr', entry_type: 'payment' });
+    }
+
+    const ops = [
         _supabase.from('dunning_notices').update({ status: 'paid' }).eq('id', noticeId),
         demandId ? _supabase.from('payment_demands').update({ status: 'paid', updated_at: new Date().toISOString() }).eq('id', demandId) : Promise.resolve(),
-    ]);
-    showToast('Als bezahlt markiert.', 'success');
+    ];
+    if (entries.length) ops.push(_supabase.from('journal_entries').insert(entries));
+
+    const results = await Promise.all(ops);
+    const errs = results.filter(function(r) { return r && r.error; }).map(function(r) { return r.error.message; });
+    if (errs.length) { showToast('Fehler: ' + errs[0], 'error'); return; }
+
+    showToast('Zahlung erfasst — ' + entries.length + ' Buchungssatz/-sätze erstellt.', 'success');
+    await _finLoadMahnwesen();
+};
+
+// Storno einer bezahlten Mahnung (GoBD: Gegenbuchungen, kein DELETE)
+window._finNoticeReverse = async (noticeId) => {
+    if (!confirm('Zahlung stornieren? Die zugehörigen Journal-Einträge werden durch Gegenbuchungen storniert.')) return;
+
+    const bid  = _finState.buildingId;
+    const accs = _finState.accounts || [];
+    const getAccId = function(num) { return (accs.find(function(a) { return a.account_number === num; }) || {}).id; };
+
+    const { data: notice, error } = await _supabase.from('dunning_notices')
+        .select('overdue_amount, interest_amount, dunning_fee, payment_demand_id')
+        .eq('id', noticeId).single();
+    if (error || !notice) { showToast('Mahnung nicht gefunden.', 'error'); return; }
+
+    const today  = new Date().toISOString().split('T')[0];
+    const acc1200 = getAccId('1200');
+    const acc1400 = getAccId('1400');
+    const acc8010 = getAccId('8010');
+    const acc8020 = getAccId('8020');
+    const stornoEntries = [];
+
+    if (Number(notice.overdue_amount) > 0 && acc1200 && acc1400)
+        stornoEntries.push({ building_id: bid, entry_date: today, debit_account_id: acc1400, credit_account_id: acc1200, amount: Number(notice.overdue_amount), description: 'Storno: Mahnzahlung Hauptforderung', entry_type: 'storno' });
+    if (Number(notice.interest_amount) > 0 && acc1200 && acc8010)
+        stornoEntries.push({ building_id: bid, entry_date: today, debit_account_id: acc8010, credit_account_id: acc1200, amount: Number(notice.interest_amount), description: 'Storno: Mahnzahlung Verzugszinsen', entry_type: 'storno' });
+    if (Number(notice.dunning_fee) > 0 && acc1200 && acc8020)
+        stornoEntries.push({ building_id: bid, entry_date: today, debit_account_id: acc8020, credit_account_id: acc1200, amount: Number(notice.dunning_fee), description: 'Storno: Mahnzahlung Mahngebühr', entry_type: 'storno' });
+
+    const ops = [_supabase.from('dunning_notices').update({ status: 'sent' }).eq('id', noticeId)];
+    if (notice.payment_demand_id) ops.push(
+        _supabase.from('payment_demands').update({ status: 'overdue', updated_at: new Date().toISOString() }).eq('id', notice.payment_demand_id)
+    );
+    if (stornoEntries.length) ops.push(_supabase.from('journal_entries').insert(stornoEntries));
+
+    const results = await Promise.all(ops);
+    const errs = results.filter(function(r) { return r && r.error; }).map(function(r) { return r.error.message; });
+    if (errs.length) { showToast('Fehler: ' + errs[0], 'error'); return; }
+
+    showToast('Storno erfasst — ' + stornoEntries.length + ' Gegenbuchung(en) erstellt.', 'success');
     await _finLoadMahnwesen();
 };
 
