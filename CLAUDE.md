@@ -716,6 +716,22 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 
 ---
 
+### Phase 6-D.3 — WEG-Standard-Kontenrahmen + Mahnungs-Buchungslogik
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **SQL-Migration `migration_phase6d3_mahnung_accounts.sql`**: Konten 1420 (Forderungen Mahnwesen, asset), 8010 (Verzugszinserträge, revenue), 8020 (Mahngebühren-Erstattung, revenue) als System-Templates (building_id=NULL, is_system_account=true) hinzugefügt. Automatisches Kopieren in bestehende Gebäude per INSERT...SELECT. `is_allocatable=true` für alle 4100–4199 Konten (Templates + Gebäude) |
+| 2 | **`_finEnsureAccounts` gefixt**: Kopien übernehmen jetzt `is_system_account: t.is_system_account` (statt hardcoded false) und `is_allocatable: t.is_allocatable` — war bisher nicht kopiert |
+| 3 | **Schloss-Icon für System-Konten**: Beide Render-Pfade (Ledger-Ansicht + Übersicht-Ansicht) ersetzen "System"-Textlabel durch SVG-Schloss-Icon (grau, klein, inline). Löschen-/Bearbeiten-Buttons bleiben für Systemkonten ausgeblendet |
+| 4 | **`_finNoticePaidModal()`**: Neues Modal beim Klick auf "Bezahlt". Zeigt Datumsfeld (Default: heute) + 3-spaltige Buchungs-Split-Vorschau (Hauptforderung → 1400, Zinsen → 8010, Mahngebühr → 8020) mit Gesamtsumme |
+| 5 | **`_finNoticePaidConfirm()`**: Erstellt bis zu 3 `journal_entries` (Bank 1200 → 1400/8010/8020), aktualisiert `dunning_notice.status='paid'` + `payment_demand.status='paid'` — Fallback-Fehlermeldung wenn Konten fehlen |
+| 6 | **`_finNoticeReverse()`**: Storno bezahlter Mahnungen — erstellt GoBD-konforme Gegenbuchungen (1400/8010/8020 → Bank 1200, entry_type='storno'), setzt Notice zurück auf 'sent', Demand auf 'overdue' |
+| 7 | **noticeRows-Buttons**: Offen → "Bezahlt"-Button (→ Modal), Bezahlt → "Bezahlt"-Label + "Stornieren"-Button (hb-orange), Storniert → graues "Storniert"-Label |
+
+**Supabase-Aktion erforderlich:** `scripts/migration_phase6d3_mahnung_accounts.sql` in Supabase SQL-Editor ausführen.
+
+---
+
 ### Bugfix — Jahresabrechnung Wizard Schritt 5: Ist-Kosten immer 0
 
 | # | Was wurde gemacht |
