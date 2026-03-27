@@ -732,6 +732,21 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | 2 | **Atomare Reihenfolge**: `Promise.all()` (Buchung + Status-Updates parallel) durch sequenzielle Ausführung ersetzt. Erst `journal_entries.insert()`, bei Fehler sofortiger Abbruch mit Toast — Status-Updates (`dunning_notices` + `payment_demands`) erfolgen NUR nach erfolgreichem INSERT |
 | 3 | **`entry_type` korrigiert**: DB-Constraint erlaubt nur `manual/sollstellung/sonderumlage/ruecklage/abrechnungsspitze/erhoeffnungsbilanz/storno`. `'payment'` existiert nicht — alle 3 Mahnzahlungs-Buchungen auf `'manual'` geändert |
 
+### Buchungsdetail-Erweiterung + Direktzuweisung Jahresabrechnung
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Journal-Query**: `apartment:apartments(id,apartment_number)` Join ergänzt — `apartment_id`-Daten stehen im Detail und in der Tabelle zur Verfügung |
+| 2 | **Einheit-Badge** in Journal-Tabellenzeile: olive Badge mit Wohnungs-Nr. wenn `apartment_id` gesetzt |
+| 3 | **Buchungsdetail-Panel erweitert**: Wirtschaftsjahr, Einheit, Buchungstyp, Gesperrt-Badge, Buchungs-ID im Header |
+| 4 | **"Metadaten bearbeiten"-Button** im Detail-Panel (nur für nicht gesperrte, nicht-Storno-Buchungen): öffnet Edit-Modal |
+| 5 | **`_finEditEntry` + `_finSaveEntryEdit`**: Metadata-Edit-Modal für apartment_id, Beschreibung, Referenznummer, §35a. GoBD-Hinweis für Finanzdaten |
+| 6 | **`_finNoticePaidModal`/`_finNoticePaidConfirm`**: `apartment_id` aus payment_demand wird jetzt an alle 3 Mahnzahlungs-Buchungen (1200→1400, 1200→8010, 1200→8020) übergeben |
+| 7 | **JAB Schritt 4 — Direktkostenlogik**: Buchungen mit `apartment_id` fließen DIREKT in `istKosten` der betreffenden Einheit (Soll−Haben). Buchungen ohne `apartment_id` werden wie bisher über Verteilerschlüssel verteilt |
+| 8 | **Migration `scripts/migration_journal_metadata_update.sql`**: Modifiziert `journal_no_update` Trigger — erlaubt UPDATE für Metadaten-Felder, blockiert weiterhin Finanzdaten (amount, Konten, Datum, entry_type) |
+
+**Supabase-Aktion erforderlich:** `scripts/migration_journal_metadata_update.sql` im SQL-Editor ausführen (sonst schlägt "Metadaten bearbeiten" fehl).
+
 ### Jahresabrechnung Schritt 1 — Konto-Checkliste
 
 | # | Was wurde gemacht |
