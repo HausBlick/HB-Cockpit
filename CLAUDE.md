@@ -759,6 +759,22 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 
 ---
 
+### Bugfix — Mahngebühr-Buchungsstruktur (korrekte WEG-Kontenlogik)
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Konto 4201 "Mahngebühren"** (expense, Unterkonto 4200, `is_allocatable=false`) via Supabase SQL als System-Template (building_id=NULL) und in Gebäuden 16+17 angelegt |
+| 2 | **`_finCreateDunning` — Aufwandsbuchung bei Mahnung-Erstellung**: Nach erfolgreichem INSERT der dunning_notices wird für jede Mahnung mit Gebühr > 0 ein journal_entry erstellt: Debit 4201 Mahngebühren (mit `apartment_id` = verursachende Einheit) / Credit 1420 Forderungen Mahnwesen. Gebühr erscheint damit als Direktkosten in der JAB der verursachenden Einheit |
+| 3 | **`_finNoticePaidConfirm` — Gebühren-Eintrag korrigiert**: Gebühren-Buchung von `1200→8020 (mit apartment_id)` auf `1200→1420 (ohne apartment_id)` geändert — Zahlung löscht nur die Forderung, erzeugt keine doppelte Kostenposition |
+| 4 | **`_finNoticePaidModal` — Label aktualisiert**: "Bank (1200) → Mahngebühr (8020)" → "Bank (1200) → Forderung Mahnwesen (1420)" |
+| 5 | **Migration `scripts/migration_journal_metadata_update.sql`**: `journal_no_update` Trigger erlaubt UPDATE für Metadaten (apartment_id, description, reference_number, lohn_anteil_35a), blockiert weiterhin Finanzdaten — via Supabase MCP direkt angewendet |
+
+**Korrekte Buchungsfluss Mahngebühr:**
+- Bei Mahnung-Erstellung: Debit 4201 (Aufwand, apt_id=WE02) / Credit 1420 (Forderung) → erscheint als Direktkosten in WE02-JAB
+- Bei Zahlung: Debit 1200 (Bank) / Credit 1420 (löscht Forderung, kein apt_id) → neutral für JAB
+
+---
+
 ### Phase 6-D.3 — WEG-Standard-Kontenrahmen + Mahnungs-Buchungslogik
 
 | # | Was wurde gemacht |
