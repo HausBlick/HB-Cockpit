@@ -221,7 +221,7 @@ async function _finLoadOverview() {
         _finGetAccounts(bid),
         _supabase.from('journal_entries').select('debit_account_id, amount').eq('building_id', bid),
         _supabase.from('journal_entries').select('credit_account_id, amount').eq('building_id', bid),
-        _supabase.from('distribution_keys').select('id, name, type').eq('building_id', bid).order('name'),
+        _supabase.from('distribution_keys').select('id, name, type, total_value, heiz_split_percent').eq('building_id', bid).order('name'),
     ]);
     _finState.accounts = accounts;
     _finState.distKeys = dkData || [];
@@ -2583,7 +2583,14 @@ function _finJABStep5Html() {
             </div>
         </div>
 
-        <h4 class="text-sm font-bold text-hb-offblack mb-2">Abrechnungsergebnis je Eigentümer</h4>
+        <div class="flex items-center justify-between mb-2">
+            <h4 class="text-sm font-bold text-hb-offblack">Abrechnungsergebnis je Eigentümer</h4>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="_finJABExportCSV()" class="text-xs text-hb-olive bg-hb-ultralight border border-hb-olive/20 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors">Als CSV exportieren</button>
+                <button onclick="_finJABExportPDF()" class="text-xs text-hb-olive bg-hb-ultralight border border-hb-olive/20 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors">Abrechnung als PDF exportieren</button>
+                <button onclick="_finJABAbschluss()" class="btn-primary text-xs px-4 py-2">Abrechnung abschließen & sperren</button>
+            </div>
+        </div>
         <div class="overflow-x-auto rounded-lg border border-hb-olive/10 mb-5">
             <table class="w-full">
                 <thead class="bg-gray-50"><tr>
@@ -2611,11 +2618,8 @@ function _finJABStep5Html() {
             </table>
         </div>` : ''}
 
-        <div class="flex flex-wrap gap-3 mt-5">
+        <div class="flex gap-3 mt-5">
             <button onclick="_finState.jabStep=4;_finRenderJAB()" class="btn-secondary text-sm px-5 py-2.5">← Zurück</button>
-            <button onclick="_finJABAbschluss()" class="btn-primary text-sm px-6 py-2.5">Abrechnung abschließen & Buchungen sperren</button>
-            <button onclick="_finJABExportCSV()" class="text-xs text-hb-olive bg-hb-ultralight border border-hb-olive/20 px-4 py-2.5 rounded-lg font-semibold hover:bg-gray-100 transition-colors">Als CSV exportieren</button>
-            <button onclick="_finJABExportPDF()" class="text-xs text-hb-olive bg-hb-ultralight border border-hb-olive/20 px-4 py-2.5 rounded-lg font-semibold hover:bg-gray-100 transition-colors">Abrechnung als PDF exportieren</button>
         </div>`;
 }
 

@@ -713,3 +713,15 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | 9 | **Bugfix: Zeiteintrag bearbeiten** (`_timeEditEntry`): Stift-Icon in Zeithistorie ergänzt, Modal lädt Eintrag per ID und zeigt Datum/Start/Ende/Tätigkeit |
 | 10 | **Bugfix: PDF-Export**: (a) `pdfDoc.registerFontkit(fontkit)` fehlte — Custom-TTF-Fonts schlugen still fehl. (b) `fetch(letterhead_pdf_url)` → `createSignedUrl()` — Storage-Pfad braucht signierte URL. (c) try/catch um gesamte Funktion für saubere Fehlermeldungen |
 | 11 | **Migration**: `scripts/migration_zeiterfassung.sql` — 3 Tabellen (`time_projects`, `time_work_packages`, `time_entries`) mit RLS-Policies für admin/manager |
+
+---
+
+### Bugfix — Jahresabrechnung Wizard Schritt 5: Ist-Kosten immer 0
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **Root Cause**: `_finState.distKeys` wurde mit `.select('id, name, type')` geladen — ohne `total_value`. In `_calcShareForApt` war damit `pkTotal = Number(undefined) \|\| 0 = 0` → Division durch 0 → 0 für alle Einheiten |
+| 2 | **Fix**: Select auf `'id, name, type, total_value, heiz_split_percent'` erweitert (Zeile 224 `mod-finanzen.js`). Jetzt identisch mit dem PDF-Code in `utils-pdf.js` |
+| 3 | **Saldo-Berechnung**: War bereits korrekt implementiert (Spitze + Zahlungsdifferenz) — Ergebnis stimmt nun, da Ist-Kosten korrekt berechnet werden |
+| 4 | **Buttons über Tabelle**: „Abrechnung abschließen", „CSV", „PDF exportieren" in flex-Zeile neben Überschrift „Abrechnungsergebnis je Eigentümer" (rechtsbündig). Nur „← Zurück" verbleibt unten |
+
