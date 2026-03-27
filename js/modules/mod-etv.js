@@ -18,11 +18,11 @@ const _etvState = {
  * Haupt-Einstiegspunkt: Lädt die ETV-Übersicht für das aktive Gebäude
  */
 async function loadETV() {
-    const bid = _config.activeBuildingId;
+    const bid = selectedBuildingId;
     if (!bid) {
         document.getElementById('content-area').innerHTML = `
             <div class="flex flex-col items-center justify-center h-full p-20 text-gray-400">
-                ${_icons.building || ''}
+                ${icons.building || ''}
                 <p class="mt-4 font-bold">Kein Gebäude ausgewählt.</p>
                 <p class="text-sm">Bitte wählen Sie links ein Objekt aus, um die ETV-Planung zu starten.</p>
             </div>
@@ -54,7 +54,7 @@ async function _etvInitOverview() {
                     <p class="text-xs text-gray-500 mt-1 uppercase tracking-widest font-bold">Planung & Durchführung</p>
                 </div>
                 <button onclick="_etvNewSessionModal()" class="bg-hb-olive text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all">
-                    ${_icons.plus || ''} Neue Versammlung planen
+                    ${icons.plus || ''} Neue Versammlung planen
                 </button>
             </div>
             
@@ -73,7 +73,7 @@ async function _etvInitOverview() {
                         <div class="p-6">
                             <div class="text-2xl font-black text-hb-offblack mb-1">${date.toLocaleDateString('de-DE')}</div>
                             <div class="text-xs text-gray-400 mb-6 flex items-center gap-2">
-                                <span class="bg-hb-ultralight p-1.5 rounded-lg text-hb-olive">${_icons.clock || ''}</span>
+                                <span class="bg-hb-ultralight p-1.5 rounded-lg text-hb-olive">${icons.clock || ''}</span>
                                 ${date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr • ${s.location}
                             </div>
                             <button onclick="_etvOpenSession('${s.id}')" class="w-full bg-hb-ultralight text-hb-olive py-3 rounded-xl text-sm font-black hover:bg-hb-olive hover:text-white transition-all">
@@ -149,7 +149,7 @@ function _etvRenderMain() {
             <div class="bg-white border-b border-hb-olive/10 p-4 px-8 flex justify-between items-center shadow-sm">
                 <div class="flex items-center gap-6">
                     <button onclick="loadETV()" class="bg-hb-ultralight text-hb-olive hover:bg-hb-olive hover:text-white p-2.5 rounded-xl transition-all shadow-sm">
-                        ${_icons.back || '←'}
+                        ${icons.back || '←'}
                     </button>
                     <div>
                         <div class="flex items-center gap-2">
@@ -157,7 +157,7 @@ function _etvRenderMain() {
                             <span class="text-hb-offblack font-black text-xl">${new Date(s.meeting_date).toLocaleDateString('de-DE')}</span>
                         </div>
                         <div class="text-xs text-gray-400 mt-0.5 font-bold flex items-center gap-2">
-                            ${_icons.location || ''} ${s.location}
+                            ${icons.location || ''} ${s.location}
                         </div>
                     </div>
                 </div>
@@ -175,7 +175,7 @@ function _etvRenderMain() {
                     </div>
                     <div class="h-10 w-1 bg-hb-olive/10 rounded-full mx-2"></div>
                     <button onclick="_etvEditSessionSettings()" class="bg-hb-ultralight p-3 rounded-xl text-hb-olive hover:bg-gray-100 transition-colors">
-                        ${_icons.settings || '⚙'}
+                        ${icons.settings || '⚙'}
                     </button>
                 </div>
             </div>
@@ -227,13 +227,13 @@ function _etvRenderPrep() {
                                     <p class="text-xs text-gray-400 mt-1 line-clamp-1 italic">${top.proposed_resolution || 'Kein Beschlussantrag hinterlegt.'}</p>
                                 </div>
                                 <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onclick="_etvEditTOP('${top.id}')" class="p-3 text-hb-olive bg-hb-ultralight rounded-xl hover:bg-hb-olive hover:text-white transition-all">${_icons.edit || '✎'}</button>
-                                    <button onclick="_etvDeleteTOP('${top.id}')" class="p-3 text-hb-orange bg-hb-orange/5 rounded-xl hover:bg-hb-orange hover:text-white transition-all">${_icons.delete || '×'}</button>
+                                    <button onclick="_etvEditTOP('${top.id}')" class="p-3 text-hb-olive bg-hb-ultralight rounded-xl hover:bg-hb-olive hover:text-white transition-all">${icons.edit || '✎'}</button>
+                                    <button onclick="_etvDeleteTOP('${top.id}')" class="p-3 text-hb-orange bg-hb-orange/5 rounded-xl hover:bg-hb-orange hover:text-white transition-all">${icons.delete || '×'}</button>
                                 </div>
                             </div>
                         `).join('') : `
                             <div class="flex flex-col items-center justify-center p-20 text-gray-400">
-                                ${_icons.list || ''}
+                                ${icons.list || ''}
                                 <p class="mt-4 font-bold italic">Noch keine TOPs definiert.</p>
                             </div>
                         `}
@@ -245,7 +245,7 @@ function _etvRenderPrep() {
             <div class="space-y-6">
                 <div class="bg-white p-8 rounded-[25px] border border-hb-olive/20 shadow-sm">
                     <h4 class="font-black text-hb-offblack mb-6 flex items-center gap-3">
-                        <span class="bg-hb-olive text-white p-2 rounded-xl scale-75">${_icons.document || ''}</span>
+                        <span class="bg-hb-olive text-white p-2 rounded-xl scale-75">${icons.document || ''}</span>
                         Einladung & Unterlagen
                     </h4>
                     <div class="space-y-4">
@@ -309,7 +309,7 @@ function _etvRenderExec() {
                     </div>
 
                     <button onclick="_etvOpenCheckinModal()" class="w-full mt-8 bg-hb-olive text-white py-4 rounded-2xl font-black shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-3">
-                        ${_icons.user || ''} Digitaler Check-in
+                        ${icons.user || ''} Digitaler Check-in
                     </button>
                 </div>
 
@@ -326,7 +326,7 @@ function _etvRenderExec() {
                                     <span class="text-[10px] text-gray-400 font-bold tracking-tighter">WE ${(_etvState.apartments.find(apt => apt.id === a.apartment_id))?.apartment_number}</span>
                                 </div>
                                 <button onclick="_etvTogglePresent('${a.id}', false)" class="text-hb-orange opacity-0 group-hover:opacity-100 p-2 hover:bg-hb-orange/5 rounded-lg transition-all">
-                                    ${_icons.delete || '×'}
+                                    ${icons.delete || '×'}
                                 </button>
                             </div>
                         `).join('')}
@@ -385,7 +385,7 @@ function _etvRenderExec() {
                                     <div class="text-xs font-black text-hb-offblack italic">Einstimmiges JA</div>
                                 </div>
                                 <button class="bg-white p-3 rounded-2xl border border-hb-olive/10 text-hb-olive hover:bg-hb-olive hover:text-white transition-all shadow-sm">
-                                    ${_icons.edit || '✎'}
+                                    ${icons.edit || '✎'}
                                 </button>
                             </div>
                         </div>
@@ -404,7 +404,7 @@ function _etvRenderFollow() {
         <div class="max-w-4xl mx-auto space-y-8 pb-20">
             <!-- Protokoll-Erstellung -->
             <div class="bg-white p-10 rounded-[35px] border border-hb-olive/20 shadow-xl overflow-hidden relative">
-                <div class="absolute top-0 right-0 p-8 opacity-5 scale-150 rotate-12">${_icons.document || ''}</div>
+                <div class="absolute top-0 right-0 p-8 opacity-5 scale-150 rotate-12">${icons.document || ''}</div>
                 
                 <h2 class="text-3xl font-black text-hb-offblack mb-4 tracking-tighter italic">Protokoll-Finale</h2>
                 <p class="text-sm text-gray-400 max-w-xl leading-relaxed font-bold mb-10">
