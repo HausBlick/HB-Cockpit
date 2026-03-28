@@ -5,6 +5,7 @@
 
 const _etvState = {
     buildingId: null,
+    buildings: [],
     sessionId: null,
     session: null,
     agenda: [],
@@ -15,21 +16,21 @@ const _etvState = {
 };
 
 /**
- * Haupt-Einstiegspunkt: Lädt die ETV-Übersicht für das aktive Gebäude
+ * Haupt-Einstiegspunkt: Lädt die ETV-Übersicht
  */
 async function loadETV() {
-    const bid = selectedBuildingId;
-    if (!bid) {
-        document.getElementById('content-area').innerHTML = `
-            <div class="flex flex-col items-center justify-center h-full p-20 text-gray-400">
-                ${icons.building || ''}
-                <p class="mt-4 font-bold">Kein Gebäude ausgewählt.</p>
-                <p class="text-sm">Bitte wählen Sie links ein Objekt aus, um die ETV-Planung zu starten.</p>
-            </div>
-        `;
+    const ca = document.getElementById('content-area');
+    ca.innerHTML = `<div class="flex justify-center py-16"><div class="w-8 h-8 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div></div>`;
+
+    const { data: buildings } = await _supabase.from('buildings').select('id, name, file_number, street, house_number').order('name');
+    _etvState.buildings = buildings || [];
+    if (_etvState.buildings.length === 0) {
+        ca.innerHTML = `<div class="p-10 card text-center max-w-sm mx-auto mt-10"><p class="text-sm text-gray-500">Keine Gebäude gefunden.</p></div>`;
         return;
     }
-    _etvState.buildingId = bid;
+    if (!_etvState.buildingId || !_etvState.buildings.find(b => b.id === _etvState.buildingId)) {
+        _etvState.buildingId = _etvState.buildings[0].id;
+    }
     await _etvInitOverview();
 }
 
@@ -46,6 +47,10 @@ async function _etvInitOverview() {
 
     if (error) { showToast('Fehler beim Laden der ETVs: ' + error.message, 'error'); return; }
 
+    const buildingOpts = _etvState.buildings.map(b =>
+        `<option value="${b.id}" ${b.id == bid ? 'selected' : ''}>${formatBuildingName(b)}</option>`
+    ).join('');
+
     let html = `
         <div class="p-6 max-w-6xl mx-auto h-full flex flex-col">
             <div class="flex justify-between items-center mb-8">
@@ -53,9 +58,12 @@ async function _etvInitOverview() {
                     <h1 class="text-2xl font-bold text-hb-offblack">Eigentümerversammlungen</h1>
                     <p class="text-xs text-gray-500 mt-1 uppercase tracking-widest font-bold">Planung & Durchführung</p>
                 </div>
-                <button onclick="_etvNewSessionModal()" class="bg-hb-olive text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all">
-                    ${icons.plus || ''} Neue Versammlung planen
-                </button>
+                <div class="flex items-center gap-3">
+                    <select onchange="_etvOnBuildingChange(this.value)" class="w-60 text-sm">${buildingOpts}</select>
+                    <button onclick="_etvNewSessionModal()" class="bg-hb-olive text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all">
+                        + Neue Versammlung planen
+                    </button>
+                </div>
             </div>
             
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto pr-2 pb-10">
@@ -94,6 +102,11 @@ async function _etvInitOverview() {
     document.getElementById('content-area').innerHTML = html;
 }
 
+window._etvOnBuildingChange = async (val) => {
+    _etvState.buildingId = Number(val);
+    await _etvInitOverview();
+};
+
 /**
  * Öffnet eine spezifische Versammlung und lädt alle Daten
  */
@@ -101,13 +114,16 @@ window._etvOpenSession = async (sessionId) => {
     _etvState.sessionId = sessionId;
     
     // Komplett-Check: Session, TOPs, Präsenz, Wohnungen & Eigentümer
-    const [sRes, aRes, attRes, aptRes, ownRes] = await Promise.all([
+    const [sRes, aRes, attRes, aptRes] = await Promise.all([
         _supabase.from('etv_sessions').select('*').eq('id', sessionId).single(),
         _supabase.from('etv_agenda_items').select('*').eq('session_id', sessionId).order('sort_order'),
         _supabase.from('etv_attendance').select('*, person:persons(first_name, last_name)').eq('session_id', sessionId),
         _supabase.from('apartments').select('id, apartment_number, mea_numerator, mea_denominator').eq('building_id', _etvState.buildingId),
-        _supabase.from('ownerships').select('*, person:persons(id, first_name, last_name)').eq('building_id', _etvState.buildingId).eq('is_active', true)
     ]);
+    const aptIds = (aptRes.data || []).map(a => a.id);
+    const ownRes = aptIds.length > 0
+        ? await _supabase.from('ownerships').select('*, person:persons!ownerships_owner_id_fkey(id, first_name, last_name)').in('apartment_id', aptIds).eq('is_active', true)
+        : { data: [] };
 
     _etvState.session = sRes.data;
     _etvState.agenda = aRes.data || [];
@@ -227,8 +243,8 @@ function _etvRenderPrep() {
                                     <p class="text-xs text-gray-400 mt-1 line-clamp-1 italic">${top.proposed_resolution || 'Kein Beschlussantrag hinterlegt.'}</p>
                                 </div>
                                 <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onclick="_etvEditTOP('${top.id}')" class="p-3 text-hb-olive bg-hb-ultralight rounded-xl hover:bg-hb-olive hover:text-white transition-all">${icons.edit || '✎'}</button>
-                                    <button onclick="_etvDeleteTOP('${top.id}')" class="p-3 text-hb-orange bg-hb-orange/5 rounded-xl hover:bg-hb-orange hover:text-white transition-all">${icons.delete || '×'}</button>
+                                    <button onclick="_etvEditTOP('${top.id}')" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100">Bearbeiten</button>
+                                    <button onclick="_etvDeleteTOP('${top.id}')" class="text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5">Löschen</button>
                                 </div>
                             </div>
                         `).join('') : `
@@ -406,7 +422,7 @@ function _etvRenderFollow() {
             <div class="bg-white p-10 rounded-[35px] border border-hb-olive/20 shadow-xl overflow-hidden relative">
                 <div class="absolute top-0 right-0 p-8 opacity-5 scale-150 rotate-12">${icons.document || ''}</div>
                 
-                <h2 class="text-3xl font-black text-hb-offblack mb-4 tracking-tighter italic">Protokoll-Finale</h2>
+                <h2 class="text-3xl font-black text-hb-offblack mb-4 tracking-tighter">Protokoll-Finale</h2>
                 <p class="text-sm text-gray-400 max-w-xl leading-relaxed font-bold mb-10">
                     Die Versammlung ist abgeschlossen. Generieren Sie nun das rechtssichere Protokoll zur Unterschrift und Veröffentlichung.
                 </p>
@@ -435,7 +451,7 @@ function _etvRenderFollow() {
             <div class="bg-white p-10 rounded-[35px] border border-hb-olive/10 shadow-sm">
                 <div class="flex justify-between items-center mb-6">
                     <div>
-                        <h4 class="font-black text-hb-offblack text-xl italic tracking-tight">Transfer in Beschlusssammlung</h4>
+                        <h4 class="font-black text-hb-offblack text-xl tracking-tight">Transfer in Beschlusssammlung</h4>
                         <p class="text-[10px] text-hb-olive font-black uppercase tracking-widest mt-1">Rechtssicherheit gemäß § 24 Abs. 7 WEG</p>
                     </div>
                     <button onclick="_etvSyncCollection()" class="bg-hb-ultralight text-hb-olive px-6 py-3 rounded-2xl text-xs font-black border border-hb-olive/10 hover:bg-hb-olive hover:text-white transition-all">
@@ -470,7 +486,7 @@ window._etvNewSessionModal = () => {
         <div id="etv-session-modal" class="fixed inset-0 bg-hb-offblack/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
             <div class="bg-white rounded-[30px] shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
                 <div class="bg-hb-olive p-6 text-white">
-                    <h3 class="text-xl font-black italic">Neue ETV planen</h3>
+                    <h3 class="text-xl font-black">Neue ETV planen</h3>
                     <p class="text-[10px] uppercase font-bold opacity-70 tracking-widest mt-1">Versammlungsdaten festlegen</p>
                 </div>
                 <div class="p-8 space-y-5">
@@ -534,7 +550,7 @@ window._etvAddTOPModal = () => {
         <div id="etv-top-modal" class="fixed inset-0 bg-hb-offblack/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
             <div class="bg-white rounded-[30px] shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
                 <div class="bg-hb-olive p-6 text-white">
-                    <h3 class="text-xl font-black italic">Tagesordnungspunkt hinzufügen</h3>
+                    <h3 class="text-xl font-black">Tagesordnungspunkt hinzufügen</h3>
                 </div>
                 <div class="p-8 space-y-5 max-h-[70vh] overflow-y-auto">
                     <div class="grid grid-cols-4 gap-4">
@@ -548,8 +564,16 @@ window._etvAddTOPModal = () => {
                         </div>
                     </div>
                     <div>
+                        <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Vorbemerkung <span class="text-gray-400 normal-case font-normal">(erscheint in Einladung & Protokoll)</span></label>
+                        <textarea id="top-prem" rows="2" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm" placeholder="Sachverhaltsdarstellung, Hintergrundinformation..."></textarea>
+                    </div>
+                    <div>
                         <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Beschlussantrag (Wortlaut)</label>
-                        <textarea id="top-res" rows="3" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm italic" placeholder="Die Eigentümerversammlung beschließt..."></textarea>
+                        <textarea id="top-res" rows="3" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm" placeholder="Die Eigentümerversammlung beschließt..."></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Interne Notiz <span class="text-gray-400 normal-case font-normal">(nur intern, nicht in Einladung/Protokoll)</span></label>
+                        <textarea id="top-note" rows="2" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm" placeholder="Interne Hinweise, Vorüberlegungen..."></textarea>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
@@ -584,6 +608,8 @@ window._etvSaveTOP = async () => {
     const title = document.getElementById('top-title').value;
     const sort  = document.getElementById('top-sort').value;
     const res   = document.getElementById('top-res').value;
+    const prem  = document.getElementById('top-prem').value;
+    const note  = document.getElementById('top-note').value;
     const vType = document.getElementById('top-vote-type').value;
     const mType = document.getElementById('top-maj-type').value;
 
@@ -592,8 +618,10 @@ window._etvSaveTOP = async () => {
     const { error } = await _supabase.from('etv_agenda_items').insert({
         session_id: _etvState.sessionId,
         sort_order: parseInt(sort),
-        title: title,
+        title,
+        preliminary_remark: prem || null,
         proposed_resolution: res,
+        internal_note: note || null,
         voting_type: vType,
         majority_type: mType
     });
@@ -602,6 +630,88 @@ window._etvSaveTOP = async () => {
     
     document.getElementById('etv-top-modal').remove();
     showToast('TOP hinzugefügt.');
+    _etvOpenSession(_etvState.sessionId);
+};
+
+window._etvEditTOP = (id) => {
+    const top = _etvState.agenda.find(t => t.id === id);
+    if (!top) return;
+    const voteOpts = ['mea','heads','object'].map(v =>
+        `<option value="${v}" ${top.voting_type === v ? 'selected' : ''}>${v === 'mea' ? 'Wertprinzip (MEA)' : v === 'heads' ? 'Kopfprinzip' : 'Objektprinzip'}</option>`
+    ).join('');
+    const majOpts = ['simple','qualified','double_qualified'].map(v =>
+        `<option value="${v}" ${top.majority_type === v ? 'selected' : ''}>${v === 'simple' ? 'Einfache Mehrheit' : v === 'qualified' ? 'Qualifizierte Mehrheit' : 'Doppelt Qualifiziert'}</option>`
+    ).join('');
+    const html = `
+        <div id="etv-top-edit-modal" class="fixed inset-0 bg-hb-offblack/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div class="bg-white rounded-[30px] shadow-2xl w-full max-w-2xl overflow-hidden">
+                <div class="bg-hb-olive p-6 text-white">
+                    <h3 class="text-xl font-black">Tagesordnungspunkt bearbeiten</h3>
+                </div>
+                <div class="p-8 space-y-5 max-h-[70vh] overflow-y-auto">
+                    <div class="grid grid-cols-4 gap-4">
+                        <div class="col-span-1">
+                            <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Nr.</label>
+                            <input type="number" id="top-edit-sort" value="${top.sort_order}" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm">
+                        </div>
+                        <div class="col-span-3">
+                            <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Titel des TOP</label>
+                            <input type="text" id="top-edit-title" value="${top.title || ''}" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm font-bold">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Vorbemerkung <span class="text-gray-400 normal-case font-normal">(erscheint in Einladung & Protokoll)</span></label>
+                        <textarea id="top-edit-prem" rows="2" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm" placeholder="Sachverhaltsdarstellung...">${top.preliminary_remark || ''}</textarea>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Beschlussantrag (Wortlaut)</label>
+                        <textarea id="top-edit-res" rows="3" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm" placeholder="Die Eigentümerversammlung beschließt...">${top.proposed_resolution || ''}</textarea>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Interne Notiz <span class="text-gray-400 normal-case font-normal">(nur intern, nicht in Einladung/Protokoll)</span></label>
+                        <textarea id="top-edit-note" rows="2" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm" placeholder="Interne Hinweise...">${top.internal_note || ''}</textarea>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Stimmprinzip</label>
+                            <select id="top-edit-vote-type" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm font-bold">${voteOpts}</select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Mehrheit</label>
+                            <select id="top-edit-maj-type" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm font-bold">${majOpts}</select>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-6 bg-hb-ultralight flex gap-3 border-t border-hb-olive/5">
+                    <button onclick="document.getElementById('etv-top-edit-modal').remove()" class="flex-1 py-3 text-sm font-bold text-gray-400 hover:text-hb-offblack transition-colors">Abbrechen</button>
+                    <button onclick="_etvUpdateTOP('${id}')" class="flex-[2] bg-hb-olive text-white py-3 rounded-xl font-black shadow-lg hover:scale-105 transition-all">Speichern</button>
+                </div>
+            </div>
+        </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+};
+
+window._etvUpdateTOP = async (id) => {
+    const title = document.getElementById('top-edit-title').value;
+    const sort  = document.getElementById('top-edit-sort').value;
+    const prem  = document.getElementById('top-edit-prem').value;
+    const res   = document.getElementById('top-edit-res').value;
+    const note  = document.getElementById('top-edit-note').value;
+    const vType = document.getElementById('top-edit-vote-type').value;
+    const mType = document.getElementById('top-edit-maj-type').value;
+    if (!title) { showToast('Titel erforderlich', 'error'); return; }
+    const { error } = await _supabase.from('etv_agenda_items').update({
+        sort_order: parseInt(sort),
+        title,
+        preliminary_remark: prem || null,
+        proposed_resolution: res,
+        internal_note: note || null,
+        voting_type: vType,
+        majority_type: mType
+    }).eq('id', id);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    document.getElementById('etv-top-edit-modal').remove();
+    showToast('TOP aktualisiert.', 'success');
     _etvOpenSession(_etvState.sessionId);
 };
 
@@ -619,7 +729,7 @@ window._etvOpenCheckinModal = () => {
             <div class="bg-white rounded-[35px] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]">
                 <div class="bg-hb-olive p-8 text-white flex justify-between items-center">
                     <div>
-                        <h3 class="text-2xl font-black italic tracking-tight">Präsenzliste</h3>
+                        <h3 class="text-2xl font-black tracking-tight">Präsenzliste</h3>
                         <p class="text-[10px] uppercase font-bold opacity-70 tracking-widest mt-1">Eigentümer ein- und auschecken</p>
                     </div>
                     <div class="text-right">
@@ -707,6 +817,13 @@ window._etvCastVote = async (topId, vote) => {
 
 // ─── PDF & ABSCHLUSS ────────────────────────────────────────
 
+window._etvPreviewEinladung = async () => {
+    if (typeof generateETVEinladungPDF !== 'function') {
+        showToast('PDF-Modul nicht bereit.', 'error'); return;
+    }
+    await generateETVEinladungPDF(_etvState.sessionId);
+};
+
 window._etvGenProtokoll = async () => {
     if (typeof generateETVProtokollPDF !== 'function') {
         showToast('PDF-Modul nicht bereit.', 'error'); return;
@@ -714,13 +831,177 @@ window._etvGenProtokoll = async () => {
     await generateETVProtokollPDF(_etvState.sessionId);
 };
 
+window._etvEditSessionSettings = () => {
+    const s = _etvState.session;
+    const dt = new Date(s.meeting_date);
+    const dateVal = dt.toISOString().split('T')[0];
+    const timeVal = dt.toTimeString().slice(0, 5);
+    const statusOptions = ['planned','active','closed'].map(v =>
+        `<option value="${v}" ${s.status === v ? 'selected' : ''}>${v.toUpperCase()}</option>`
+    ).join('');
+    const html = `
+        <div id="etv-settings-modal" class="fixed inset-0 bg-hb-offblack/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div class="bg-white rounded-[30px] shadow-2xl w-full max-w-lg overflow-hidden">
+                <div class="bg-hb-olive p-6 text-white">
+                    <h3 class="text-xl font-black">Versammlungsdetails bearbeiten</h3>
+                    <p class="text-[10px] uppercase font-bold opacity-70 tracking-widest mt-1">ETV ${s.fiscal_year}</p>
+                </div>
+                <div class="p-8 space-y-5">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Wirtschaftsjahr</label>
+                            <input type="number" id="etv-edit-fy" value="${s.fiscal_year}" class="w-full">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Datum</label>
+                            <input type="date" id="etv-edit-date" value="${dateVal}" class="w-full">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Uhrzeit</label>
+                            <input type="time" id="etv-edit-time" value="${timeVal}" class="w-full">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Status</label>
+                            <select id="etv-edit-status" class="w-full">${statusOptions}</select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Ort / Modus</label>
+                        <input type="text" id="etv-edit-loc" value="${s.location || ''}" class="w-full">
+                    </div>
+                </div>
+                <div class="p-6 bg-hb-ultralight flex gap-3">
+                    <button onclick="document.getElementById('etv-settings-modal').remove()" class="flex-1 py-3 text-sm font-bold text-gray-400 hover:text-hb-offblack transition-colors">Abbrechen</button>
+                    <button onclick="_etvSaveSessionSettings()" class="flex-[2] bg-hb-olive text-white py-3 rounded-xl font-black shadow-lg hover:scale-105 transition-all">Speichern</button>
+                </div>
+            </div>
+        </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+};
+
+window._etvSaveSessionSettings = async () => {
+    const fy   = document.getElementById('etv-edit-fy').value;
+    const date = document.getElementById('etv-edit-date').value;
+    const time = document.getElementById('etv-edit-time').value;
+    const loc  = document.getElementById('etv-edit-loc').value;
+    const status = document.getElementById('etv-edit-status').value;
+    if (!date || !fy) { showToast('Bitte Datum und Jahr angeben.', 'error'); return; }
+    const { error } = await _supabase.from('etv_sessions').update({
+        fiscal_year: parseInt(fy),
+        meeting_date: `${date}T${time}:00`,
+        location: loc,
+        status
+    }).eq('id', _etvState.sessionId);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    document.getElementById('etv-settings-modal').remove();
+    showToast('Versammlung aktualisiert.', 'success');
+    await _etvOpenSession(_etvState.sessionId);
+};
+
 window._etvCloseSession = async () => {
     if (!confirm('Möchten Sie die Versammlung offiziell schließen? Danach sind keine Abstimmungen mehr möglich.')) return;
-    
+
     const { error } = await _supabase.from('etv_sessions').update({ status: 'closed' }).eq('id', _etvState.sessionId);
     if (!error) {
         showToast('Versammlung geschlossen & archiviert.');
         loadETV();
     }
+};
+
+window._etvOpenStaging = async () => {
+    const bid = _etvState.buildingId;
+    const session = _etvState.session;
+    if (!bid || !session) { showToast('Keine aktive Versammlung.', 'error'); return; }
+    const fy = session.fiscal_year;
+
+    // Load apartments for this building
+    const { data: apts } = await _supabase.from('apartments')
+        .select('id, apartment_number, floor')
+        .eq('building_id', bid)
+        .order('apartment_number');
+
+    if (!apts || apts.length === 0) {
+        showToast('Keine Einheiten gefunden.', 'error');
+        return;
+    }
+
+    // Check which staged files exist in Storage
+    const checkFile = async (path) => {
+        try {
+            const { data } = await _supabase.storage.from('documents').createSignedUrl(path, 10);
+            return !!data?.signedUrl;
+        } catch { return false; }
+    };
+
+    const rows = await Promise.all(apts.map(async (apt) => {
+        const wpPath  = `etv-staging/${bid}/${fy}/wp/${apt.id}.pdf`;
+        const jabPath = `etv-staging/${bid}/${fy}/jab/${apt.id}.pdf`;
+        const [hasWP, hasJAB] = await Promise.all([checkFile(wpPath), checkFile(jabPath)]);
+        return { apt, hasWP, hasJAB };
+    }));
+
+    const badge = (ok) => ok
+        ? `<span class="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-lg">Bereit</span>`
+        : `<span class="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-lg">Fehlt</span>`;
+
+    const tableRows = rows.map(r => `
+        <tr class="border-b border-hb-olive/10">
+            <td class="px-4 py-3 text-sm font-semibold">${r.apt.apartment_number || '—'}</td>
+            <td class="px-4 py-3 text-sm text-gray-500">${r.apt.floor || '—'}</td>
+            <td class="px-4 py-3">${badge(r.hasWP)}</td>
+            <td class="px-4 py-3">${badge(r.hasJAB)}</td>
+        </tr>`).join('');
+
+    const readyWP  = rows.filter(r => r.hasWP).length;
+    const readyJAB = rows.filter(r => r.hasJAB).length;
+    const total    = rows.length;
+
+    const html = `
+        <div id="etv-staging-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-[20px] w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl">
+                <div class="bg-hb-olive p-6 rounded-t-[20px] flex items-center justify-between">
+                    <div>
+                        <h3 class="text-white font-bold text-lg">Staging-Status ETV ${fy}</h3>
+                        <p class="text-white/70 text-xs mt-0.5">Vorbereitete Dokumente je Einheit</p>
+                    </div>
+                    <button onclick="document.getElementById('etv-staging-modal').remove()" class="text-white/70 hover:text-white text-2xl leading-none">&times;</button>
+                </div>
+                <div class="p-6 flex gap-6 border-b border-hb-olive/10">
+                    <div class="text-center">
+                        <div class="text-2xl font-black text-hb-olive">${readyWP}/${total}</div>
+                        <div class="text-xs text-gray-500 font-bold uppercase tracking-widest">Wirtschaftspläne</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-black text-hb-olive">${readyJAB}/${total}</div>
+                        <div class="text-xs text-gray-500 font-bold uppercase tracking-widest">Jahresabrechnungen</div>
+                    </div>
+                    <div class="ml-auto text-right text-xs text-gray-400 leading-relaxed self-center">
+                        Dokumente werden über<br>
+                        <span class="font-bold text-hb-olive">Buchhaltung → Wirtschaftsplan</span><br>
+                        bzw. <span class="font-bold text-hb-olive">Jahresabrechnung</span><br>
+                        mit "Für ETV speichern" abgelegt.
+                    </div>
+                </div>
+                <div class="overflow-y-auto flex-grow">
+                    <table class="w-full">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Einheit</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Lage</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Wirtschaftsplan</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Jahresabrechnung</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-hb-olive/10">${tableRows}</tbody>
+                    </table>
+                </div>
+                <div class="p-4 bg-hb-ultralight rounded-b-[20px] flex justify-end">
+                    <button onclick="document.getElementById('etv-staging-modal').remove()" class="btn-secondary text-sm px-6 py-2">Schließen</button>
+                </div>
+            </div>
+        </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
 };
 

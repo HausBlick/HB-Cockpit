@@ -19,6 +19,27 @@ function _pdfDownload(bytes, filename) {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
+async function _pdfSplitAndUpload(combinedBytes, pageRanges, buildingId, fiscalYear, docType) {
+    const { PDFDocument } = PDFLib;
+    let uploaded = 0;
+    for (const range of pageRanges) {
+        try {
+            const srcDoc   = await PDFDocument.load(combinedBytes);
+            const indivDoc = await PDFDocument.create();
+            const indices  = [];
+            for (let i = range.start; i <= range.end; i++) indices.push(i);
+            const copied = await indivDoc.copyPages(srcDoc, indices);
+            copied.forEach(p => indivDoc.addPage(p));
+            const bytes = await indivDoc.save();
+            const path  = `etv-staging/${buildingId}/${fiscalYear}/${docType}/${range.aptId}.pdf`;
+            const { error } = await _supabase.storage.from('documents').upload(path, bytes, { contentType: 'application/pdf', upsert: true });
+            if (!error) uploaded++;
+        } catch(e) { console.error('ETV-Upload Fehler WE', range.aptId, e); }
+    }
+    const label = docType === 'wp' ? 'Wirtschaftspläne' : 'Jahresabrechnungen';
+    showToast(`${uploaded} von ${pageRanges.length} ${label} für ETV gespeichert.`, uploaded === pageRanges.length ? 'success' : 'warning');
+}
+
 // Erstellt ein neues PDFDocument mit dem hochgeladenen Briefbogen als Hintergrund.
 // Wirft einen Fehler, wenn kein Briefbogen hinterlegt ist.
 async function _pdfCreateDoc(settings) {
@@ -512,7 +533,7 @@ async function _pdfLoadInterFonts(pdfDoc) {
 }
 
 // ─── Einzelwirtschaftspläne als Bulk-PDF (1 Seite je WE) ────
-async function generateEinzelwirtschaftsplanPDF(planId) {
+async function generateEinzelwirtschaftsplanPDF(planId, saveForETV = false) {
     if (typeof PDFLib === 'undefined') {
         showToast('PDF-Bibliothek nicht geladen. Bitte Seite neu laden.', 'error'); return;
     }
@@ -802,7 +823,9 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
     }
 
     // ── Generate pages per apartment ─────────────────────────
+    const aptPageRanges = [];
     for (const apt of apts) {
+        const aptPageStart = pdfDoc.getPageCount();
         const owner = ownerMap[apt.id] || {};
         const ownerName = owner.name || 'Eigentümergemeinschaft (Leerstand)';
 
@@ -1127,16 +1150,21 @@ async function generateEinzelwirtschaftsplanPDF(planId) {
                 size: hintFS, font: fReg, color: offblack,
             });
         });
+        aptPageRanges.push({ aptId: apt.id, start: aptPageStart, end: pdfDoc.getPageCount() - 1 });
     }
 
     const pdfBytes = await pdfDoc.save();
-    const filename = `Einzelwirtschaftsplaene_${plan.fiscal_year}_${bldName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-    _pdfDownload(pdfBytes, filename);
-    showToast(`${apts.length} Einzelwirtschaftspläne als PDF heruntergeladen.`);
+    if (saveForETV) {
+        await _pdfSplitAndUpload(pdfBytes, aptPageRanges, plan.building_id, plan.fiscal_year, 'wp');
+    } else {
+        const filename = `Einzelwirtschaftsplaene_${plan.fiscal_year}_${bldName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+        _pdfDownload(pdfBytes, filename);
+        showToast(`${apts.length} Einzelwirtschaftspläne als PDF heruntergeladen.`);
+    }
 }
 
 // ─── Jahresabrechnung als Bulk-PDF (Anschreiben + Einzelabrechnung je WE) ────
-async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData) {
+async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData, saveForETV = false) {
     if (typeof PDFLib === 'undefined') {
         showToast('PDF-Bibliothek nicht geladen. Bitte Seite neu laden.', 'error'); return;
     }
@@ -1448,8 +1476,10 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData) {
     }
 
     // ── Generate pages per apartment ─────────────────────────
+    var aptPageRangesJAB = [];
     for (var ai = 0; ai < apts.length; ai++) {
         var apt = apts[ai];
+        var aptPageStartJAB = pdfDoc.getPageCount();
         var owner = ownerMap[apt.id] || {};
         var ownerName = owner.name || 'Eigentümergemeinschaft (Leerstand)';
 
@@ -1883,12 +1913,17 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData) {
         for (var hi = 0; hi < hintLines.length; hi++) {
             page.drawText(hintLines[hi], { x: hintTextX, y: y - hintPad - hintLH * 0.85 - (hi * hintLH), size: hintFS, font: fReg, color: offblack });
         }
+        aptPageRangesJAB.push({ aptId: apt.id, start: aptPageStartJAB, end: pdfDoc.getPageCount() - 1 });
     }
 
     var pdfBytes = await pdfDoc.save();
-    var filename = 'Jahresabrechnung_' + fy + '_' + bldName.replace(/[^a-zA-Z0-9]/g, '_') + '.pdf';
-    _pdfDownload(pdfBytes, filename);
-    showToast(apts.length + ' Einzelabrechnungen als PDF heruntergeladen.');
+    if (saveForETV) {
+        await _pdfSplitAndUpload(pdfBytes, aptPageRangesJAB, bid, fy, 'jab');
+    } else {
+        var filename = 'Jahresabrechnung_' + fy + '_' + bldName.replace(/[^a-zA-Z0-9]/g, '_') + '.pdf';
+        _pdfDownload(pdfBytes, filename);
+        showToast(apts.length + ' Einzelabrechnungen als PDF heruntergeladen.');
+    }
 }
 
 // ─── ETV-PROTOKOLL GENERIERUNG ───────────────────────────────
@@ -2066,4 +2101,241 @@ async function generateETVProtokollPDF(sessionId) {
     const filename = `Protokoll_ETV_${fy}_${bldName.replace(/[^a-z0-9]/gi, '_')}.pdf`;
     _pdfDownload(pdfBytes, filename);
     showToast('Protokoll erfolgreich generiert.');
+}
+
+// ─── ETV Einladungs-PDF ───────────────────────────────────────
+
+async function generateETVEinladungPDF(sessionId) {
+    if (typeof PDFLib === 'undefined') {
+        showToast('PDF-Bibliothek nicht geladen. Bitte Seite neu laden.', 'error'); return;
+    }
+    showToast('Einladungen werden erstellt…');
+
+    const settings = await _pdfGetSettings();
+    const { data: session } = await _supabase
+        .from('etv_sessions')
+        .select('*, building:buildings(id, name, file_number, street, house_number, zip_code, city)')
+        .eq('id', sessionId).single();
+    if (!session) { showToast('Versammlung nicht gefunden.', 'error'); return; }
+
+    const { data: buildingApts } = await _supabase
+        .from('apartments').select('id').eq('building_id', session.building_id);
+    const aptIds = (buildingApts || []).map(a => a.id);
+
+    const [agendaRes, ownRes] = await Promise.all([
+        _supabase.from('etv_agenda_items').select('*').eq('session_id', sessionId).order('sort_order'),
+        aptIds.length > 0
+            ? _supabase.from('ownerships')
+                .select('apartment_id, person:persons!ownerships_owner_id_fkey(first_name, last_name, salutation, street, house_number, zip_code, city), apartment:apartments(apartment_number, mea_numerator, mea_denominator)')
+                .in('apartment_id', aptIds)
+                .eq('is_active', true)
+            : Promise.resolve({ data: [] })
+    ]);
+
+    const agenda = agendaRes.data || [];
+    const owners = ownRes.data || [];
+    if (owners.length === 0) { showToast('Keine aktiven Eigentümer für dieses Gebäude gefunden.', 'error'); return; }
+
+    const { PDFDocument, rgb } = PDFLib;
+    let templateDoc = null;
+    if (settings.letterhead_pdf_url) {
+        try {
+            const { data: sd } = await _supabase.storage.from('documents').createSignedUrl(settings.letterhead_pdf_url, 120);
+            if (sd?.signedUrl) {
+                templateDoc = await PDFDocument.load(await (await fetch(sd.signedUrl)).arrayBuffer());
+            }
+        } catch(e) { /* kein Briefbogen */ }
+    }
+
+    const pdfDoc = await PDFDocument.create();
+    pdfDoc.registerFontkit(fontkit);
+    const { reg: fReg, semi: fSemi, bold: fBold } = await _pdfLoadInterFonts(pdfDoc);
+
+    const olive    = rgb(0.408, 0.455, 0.318);
+    const offblack = rgb(0.216, 0.216, 0.216);
+    const orange   = rgb(0.922, 0.463, 0.176);
+    const gray50   = rgb(0.5, 0.5, 0.5);
+    const divider  = rgb(0.9, 0.92, 0.88);
+    const mLeft = 56.7, mRight = 538.6, mBottom = 80;
+    const contentW = mRight - mLeft;
+    const pageH = 841.89;
+
+    const bld     = session.building;
+    const bldName = formatBuildingName(bld);
+    const bldAddr = `${bld.street || ''} ${bld.house_number || ''}, ${bld.zip_code || ''} ${bld.city || ''}`.trim().replace(/^,\s*/, '');
+    const dateStr = new Date(session.meeting_date).toLocaleDateString('de-DE');
+    const timeStr = new Date(session.meeting_date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const fy      = session.fiscal_year;
+    const todayStr = new Date().toLocaleDateString('de-DE');
+
+    const addPage = async () => {
+        if (templateDoc) {
+            const [copied] = await pdfDoc.copyPages(templateDoc, [0]);
+            return pdfDoc.addPage(copied);
+        }
+        const pg = pdfDoc.addPage([595.28, pageH]);
+        pg.drawText(settings.company_name || 'Hausverwaltung', { x: mLeft, y: pageH - 50, size: 11, font: fBold, color: olive });
+        return pg;
+    };
+
+    for (const own of owners) {
+        const person = own.person;
+        const apt    = own.apartment;
+        if (!person) continue;
+
+        const fullName = `${person.first_name} ${person.last_name}`;
+        const salut    = person.salutation === 'Herr' ? 'geehrter Herr' : person.salutation === 'Frau' ? 'geehrte Frau' : 'geehrte(r)';
+        const addrLines = [
+            fullName,
+            `${person.street || ''} ${person.house_number || ''}`.trim(),
+            `${person.zip_code || ''} ${person.city || ''}`.trim()
+        ].filter(l => l.length > 0);
+
+        let page = await addPage();
+        let y = 740;
+
+        // Adressfeld
+        addrLines.forEach((line, i) => {
+            page.drawText(line, { x: mLeft, y: y - i * 14, size: 10, font: i === 0 ? fSemi : fReg, color: offblack });
+        });
+        y -= addrLines.length * 14 + 28;
+
+        // Datum rechtsbündig
+        const dW = fReg.widthOfTextAtSize(todayStr, 10);
+        page.drawText(todayStr, { x: mRight - dW, y: y + 14, size: 10, font: fReg, color: gray50 });
+
+        // Überschrift
+        page.drawText('Einladung zur Eigentümerversammlung', { x: mLeft, y, size: 13, font: fBold, color: offblack });
+        y -= 17;
+        page.drawText(`Wirtschaftsjahr ${fy}  |  ${bldName}`, { x: mLeft, y, size: 9, font: fSemi, color: olive });
+        y -= 24;
+
+        // Info-Box
+        const boxH = 50;
+        page.drawRectangle({ x: mLeft, y: y - boxH, width: contentW, height: boxH, color: rgb(0.98, 0.98, 0.96), borderColor: divider, borderWidth: 0.5 });
+        page.drawText('Termin:', { x: mLeft + 10, y: y - 16, size: 8, font: fBold, color: gray50 });
+        page.drawText(`${dateStr}  um  ${timeStr} Uhr`, { x: mLeft + 48, y: y - 16, size: 9, font: fSemi, color: offblack });
+        page.drawText('Ort:', { x: mLeft + 10, y: y - 32, size: 8, font: fBold, color: gray50 });
+        page.drawText(session.location || '—', { x: mLeft + 48, y: y - 32, size: 9, font: fReg, color: offblack });
+        page.drawText('Objekt:', { x: mLeft + 240, y: y - 16, size: 8, font: fBold, color: gray50 });
+        const bldAddrSplit = _pdfSplitText(bldAddr, fReg, 8.5, contentW - 260);
+        bldAddrSplit.forEach((l, i) => page.drawText(l, { x: mLeft + 278, y: y - 16 - i * 12, size: 8.5, font: fReg, color: offblack }));
+        y -= boxH + 16;
+
+        // Anrede + Intro
+        page.drawText(`Sehr ${salut} ${person.last_name},`, { x: mLeft, y, size: 10, font: fReg, color: offblack });
+        y -= 16;
+        const intro = `hiermit laden wir Sie herzlich zur Eigentümerversammlung der WEG ${bldAddr} ein. Die Versammlung findet am ${dateStr} um ${timeStr} Uhr statt (${session.location || 'Versammlungsort'}). Wir bitten um pünktliches Erscheinen.`;
+        for (const line of _pdfSplitText(intro, fReg, 9.5, contentW)) {
+            page.drawText(line, { x: mLeft, y, size: 9.5, font: fReg, color: offblack });
+            y -= 13;
+        }
+        y -= 14;
+
+        // Tagesordnung
+        page.drawText('TAGESORDNUNG', { x: mLeft, y, size: 10, font: fBold, color: olive });
+        y -= 6;
+        page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.5, color: divider });
+        y -= 14;
+
+        for (const item of agenda) {
+            if (y < mBottom + 60) { page = await addPage(); y = 740; }
+
+            // TOP-Zeile
+            page.drawRectangle({ x: mLeft, y: y - 18, width: contentW, height: 22, color: rgb(0.96, 0.97, 0.94), borderColor: divider, borderWidth: 0.3 });
+            page.drawText(`${item.sort_order}.`, { x: mLeft + 6, y: y - 13, size: 9, font: fBold, color: olive });
+            const titleLines = _pdfSplitText(item.title, fBold, 9, contentW - 30);
+            titleLines.forEach((l, i) => page.drawText(l, { x: mLeft + 22, y: y - 13 - i * 12, size: 9, font: fBold, color: offblack }));
+            y -= Math.max(26, 14 + titleLines.length * 12);
+
+            // Vorbemerkung
+            if (item.preliminary_remark) {
+                const lines = _pdfSplitText(item.preliminary_remark, fReg, 9, contentW - 16);
+                for (const line of lines) {
+                    if (y < mBottom + 20) { page = await addPage(); y = 740; }
+                    page.drawText(line, { x: mLeft + 8, y, size: 9, font: fReg, color: gray50 });
+                    y -= 13;
+                }
+                y -= 4;
+            }
+
+            // Beschlussantrag
+            if (item.proposed_resolution) {
+                if (y < mBottom + 30) { page = await addPage(); y = 740; }
+                page.drawText('Beschlussantrag:', { x: mLeft + 8, y, size: 7.5, font: fBold, color: gray50 });
+                y -= 11;
+                const lines = _pdfSplitText(item.proposed_resolution, fReg, 9, contentW - 20);
+                for (const line of lines) {
+                    if (y < mBottom + 20) { page = await addPage(); y = 740; }
+                    page.drawText(line, { x: mLeft + 8, y, size: 9, font: fReg, color: offblack });
+                    y -= 13;
+                }
+            }
+            y -= 12;
+        }
+
+        // Grußformel
+        if (y < mBottom + 60) { page = await addPage(); y = 740; }
+        y -= 10;
+        page.drawText('Mit freundlichen Grüßen', { x: mLeft, y, size: 9.5, font: fReg, color: offblack });
+        y -= 20;
+        page.drawText(settings.company_name || 'Hausverwaltung', { x: mLeft, y, size: 9.5, font: fBold, color: offblack });
+
+        // ── VOLLMACHT (neue Seite) ────────────────────────────
+        page = await addPage();
+        y = 740;
+
+        page.drawText('VOLLMACHT', { x: mLeft, y, size: 14, font: fBold, color: olive });
+        y -= 8;
+        page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.5, color: divider });
+        y -= 20;
+
+        const vollText = `Ich, ${fullName}, Eigentümer der Einheit ${apt?.apartment_number || '—'} in der WEG ${bldAddr}, bevollmächtige hiermit die nachgenannte Person zur Wahrnehmung meiner Stimmrechte auf der Eigentümerversammlung am ${dateStr} um ${timeStr} Uhr (${session.location || 'Versammlungsort'}).`;
+        for (const line of _pdfSplitText(vollText, fReg, 10, contentW)) {
+            page.drawText(line, { x: mLeft, y, size: 10, font: fReg, color: offblack });
+            y -= 14;
+        }
+        y -= 20;
+
+        page.drawText('Bevollmächtigte Person (Vor- und Nachname):', { x: mLeft, y, size: 9, font: fBold, color: gray50 });
+        y -= 16;
+        page.drawLine({ start: { x: mLeft, y }, end: { x: mLeft + 300, y }, thickness: 0.5, color: offblack });
+        y -= 40;
+
+        page.drawLine({ start: { x: mLeft, y }, end: { x: mLeft + 200, y }, thickness: 0.5, color: offblack });
+        page.drawLine({ start: { x: mLeft + 230, y }, end: { x: mLeft + 380, y }, thickness: 0.5, color: offblack });
+        page.drawText('Unterschrift', { x: mLeft, y: y - 12, size: 7, font: fReg, color: gray50 });
+        page.drawText('Datum', { x: mLeft + 230, y: y - 12, size: 7, font: fReg, color: gray50 });
+        y -= 45;
+
+        // Hinweis-Box
+        const hw = 'Die Vollmacht muss im Original vor Beginn der Versammlung beim Versammlungsleiter eingereicht werden. Eine Vollmacht per E-Mail oder Fax ist nur zulässig, wenn die Gemeinschaftsordnung dies ausdrücklich erlaubt.';
+        const hwLines = _pdfSplitText(hw, fReg, 8, contentW - 20);
+        const hwBoxH = hwLines.length * 11 + 20;
+        page.drawRectangle({ x: mLeft, y: y - hwBoxH, width: contentW, height: hwBoxH, color: rgb(1.0, 0.97, 0.94), borderColor: orange, borderWidth: 0.5 });
+        page.drawText('Hinweis:', { x: mLeft + 10, y: y - 14, size: 8, font: fBold, color: orange });
+        hwLines.forEach((l, i) => page.drawText(l, { x: mLeft + 10, y: y - 26 - i * 11, size: 8, font: fReg, color: offblack }));
+
+        // ── Staged Anlagen (WP + JAB) anhängen ───────────────
+        for (const docType of ['wp', 'jab']) {
+            const storagePath = `etv-staging/${bld.id}/${fy}/${docType}/${own.apartment_id}.pdf`;
+            try {
+                const { data: sd } = await _supabase.storage.from('documents').createSignedUrl(storagePath, 120);
+                if (sd?.signedUrl) {
+                    const resp = await fetch(sd.signedUrl);
+                    if (resp.ok) {
+                        const annexBytes = await resp.arrayBuffer();
+                        const annexDoc   = await PDFDocument.load(annexBytes);
+                        const count      = annexDoc.getPageCount();
+                        const copied     = await pdfDoc.copyPages(annexDoc, [...Array(count).keys()]);
+                        copied.forEach(p => pdfDoc.addPage(p));
+                    }
+                }
+            } catch(e) { /* Kein Dokument vorhanden — überspringen */ }
+        }
+    }
+
+    const pdfBytes = await pdfDoc.save();
+    _pdfDownload(pdfBytes, `Einladungen_ETV_${fy}_${bldName.replace(/[^a-z0-9]/gi, '_')}.pdf`);
+    showToast(`${owners.length} Einladungen erfolgreich generiert.`);
 }
