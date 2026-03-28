@@ -842,3 +842,26 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | 3 | **`nav.js`**: Menüpunkt „Eigentümerversammlung" in Sektion „Service & Dokumente", nur admin/manager, Icon `icons.users` |
 | 4 | **DB-Migration `scripts/migration_etv.sql`**: 4 Tabellen — `etv_sessions`, `etv_agenda_items`, `etv_attendance`, `etv_votes`. Bereits in Supabase ausgeführt. |
 
+---
+
+### ETV-Modul — Bugfixes, UX-Overhaul & ETV-Staging-Workflow (2026-03-28)
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **`loadETV()` komplett neu**: lädt Gebäude frisch aus DB, setzt erstes Gebäude als Default, zeigt Spinner — kein „Kein Gebäude ausgewählt"-Deadlock mehr |
+| 2 | **Gebäude-Selektor** im ETV-Übersichts-Header: `<select>`-Dropdown mit `_etvOnBuildingChange` Handler (identisches Pattern wie `loadFinance`) |
+| 3 | **`_etvEditSessionSettings()` implementiert**: Modal mit Datum, Uhrzeit, Ort, Status, Geschäftsjahr + `_etvSaveSessionSettings()` |
+| 4 | **`_etvEditTOP()` + `_etvUpdateTOP()` implementiert**: vorausgefülltes Bearbeiten-Modal für Tagesordnungspunkte |
+| 5 | **`_etvPreviewEinladung()` implementiert**: ruft `generateETVEinladungPDF(sessionId)` auf |
+| 6 | **Kursivschrift in allen Modals entfernt**: `italic`-Klasse aus Überschriften in „Neue ETV planen", „TOP hinzufügen/bearbeiten", „Präsenzliste", „Protokoll-Finale", „Transfer in Beschlusssammlung" |
+| 7 | **Edit/Löschen-Buttons TOPs**: auf Dashboard-Konvention umgestellt (`text-hb-olive bg-hb-ultralight` / `text-hb-orange`) |
+| 8 | **TOP-Modal Felder erweitert**: „Vorbemerkung" (`preliminary_remark`) und „Interne Notiz" (`internal_note`) hinzugefügt — interne Notiz erscheint nicht in Einladung/Protokoll |
+| 9 | **DB-Migration `etv_agenda_items_preliminary_remark_internal_note`**: Spalten `preliminary_remark text` + `internal_note text` zu `etv_agenda_items` — via Supabase MCP angewendet |
+| 10 | **`_etvOpenSession()` Ownerships-Query gefixt**: `ownerships` hat kein `building_id`-Feld — zweistufige Abfrage: erst `apartments` für Building laden, dann `.in('apartment_id', aptIds)` |
+| 11 | **`generateETVEinladungPDF(sessionId)` implementiert** (`utils-pdf.js`): eine personalisierte Einladung + Vollmachtsformular je Eigentümer; lädt gestagede WP/JAB-PDFs aus Storage und hängt sie automatisch an |
+| 12 | **ETV-Staging-Workflow**: `generateEinzelwirtschaftsplanPDF(planId, saveForETV=true)` + `generateJahresabrechnungPDF(bid, fy, data, saveForETV=true)` — Seiten-Range-Tracking (`getPageCount()` vor/nach je Einheit), Split via PDFLib `copyPages`, Upload nach `etv-staging/{bid}/{fy}/{docType}/{aptId}.pdf` |
+| 13 | **`_pdfSplitAndUpload()` Helper** (`utils-pdf.js`): nimmt kombinierten PDF-Blob + PageRanges-Array, splittet und uploaded je Einheit in den `documents`-Storage-Bucket (upsert) |
+| 14 | **„Für ETV speichern"-Button in `mod-finanzen.js`**: im Wirtschaftsplan-Header neben „Einzelpläne PDF" + in JAB-Schritt-5 neben „Abrechnung als PDF exportieren" |
+| 15 | **`window._finJABSaveForETV`** (`mod-finanzen.js`): dünner Wrapper um `generateJahresabrechnungPDF(..., true)` — setzt `jabData` aus `_finState` |
+| 16 | **`window._etvOpenStaging`** (`mod-etv.js`): Modal mit Staging-Status je Einheit — prüft via `createSignedUrl` ob WP/JAB vorhanden, zeigt grüne/graue „Bereit"/„Fehlt"-Badges + Summenzähler |
+

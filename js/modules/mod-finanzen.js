@@ -1718,6 +1718,10 @@ function _finRenderWirtschaftsplan(plan, planItems) {
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
                         Einzelpläne PDF
                     </button>` : ''}
+                    ${plan ? `<button onclick="generateEinzelwirtschaftsplanPDF(${plan.id}, true)" class="text-xs text-hb-orange bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-hb-orange/5 border border-hb-orange/20 flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        Für ETV speichern
+                    </button>` : ''}
                 </div>
             </div>
             ${!plan ? `<p class="text-sm text-gray-400">Kein Wirtschaftsplan für ${fy} vorhanden.</p>` : `
@@ -2736,6 +2740,7 @@ function _finJABStep5Html() {
             <div class="flex flex-wrap gap-2">
                 <button onclick="_finJABExportCSV()" class="text-xs text-hb-olive bg-hb-ultralight border border-hb-olive/20 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors">Als CSV exportieren</button>
                 <button onclick="_finJABExportPDF()" class="text-xs text-hb-olive bg-hb-ultralight border border-hb-olive/20 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors">Abrechnung als PDF exportieren</button>
+                <button onclick="_finJABSaveForETV()" class="text-xs text-hb-orange bg-hb-ultralight border border-hb-orange/20 px-4 py-2 rounded-lg font-semibold hover:bg-hb-orange/5 transition-colors">Für ETV speichern</button>
                 <button onclick="_finJABAbschluss()" class="btn-primary text-xs px-4 py-2">Abrechnung abschließen & sperren</button>
             </div>
         </div>
@@ -3117,6 +3122,12 @@ window._finJABExportPDF = async () => {
     var d = _finState.jabData;
     if (!d || !d.fy) { showToast('Keine Abrechnungsdaten vorhanden. Bitte zuerst den Wizard durchlaufen.', 'error'); return; }
     await generateJahresabrechnungPDF(_finState.buildingId, d.fy, d);
+};
+
+window._finJABSaveForETV = async () => {
+    var d = _finState.jabData;
+    if (!d || !d.fy) { showToast('Keine Abrechnungsdaten vorhanden. Bitte zuerst den Wizard durchlaufen.', 'error'); return; }
+    await generateJahresabrechnungPDF(_finState.buildingId, d.fy, d, true);
 };
 
 // ============================================================
