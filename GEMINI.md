@@ -17,8 +17,8 @@ Dieses Projekt nutzt eine extrem token-effiziente **Drei-Datei-Architektur** zur
 
 0. Update-Log
 
+- **feat(etv): ETV-Begleiter Modul (Phase 7):** Vollständige Implementierung der digitalen Eigentümerversammlung inkl. TOP-Planer, Live-Quorum-Prüfung (MEA-basiert) und PDF-Protokoll-Generierung. Tief vernetzt mit Stammdaten (apartments/ownerships).
 - **Bugfix (6.9-C):** Jahresabrechnung PDF & Wizard — Korrektur doppelter Header, Seitenränder Anschreiben, Read-Only-Status für Umlageschlüssel und Anzeige von Guthaben im Wizard-Abschluss.
-
 - **feat(time): Modul Zeiterfassung & Projekte (asynchrones Unterprojekt):** Einführung eines neuen Moduls zur projektbezogenen Zeiterfassung inkl. Arbeitspaketen, Live-Timer und PDF-Arbeitsrapport (Dokumentation am Ende der GEMINI.md hinzugefügt).
 - **Übergabe-Paket hinzugefügt (6.9-B):** Jahresabrechnung PDF-Export — Anschreiben (Seite 1) + Einzelabrechnung (Seite 2), orientiert am Einzelwirtschaftsplan-Design.
 - **feat(arch): native Sonderrollen (landlord/advisory) & Finanz-Klassifizierung (Paket 8.1):** Erweiterung des Rollenmodells und Einführung des is_allocatable-Flags.
