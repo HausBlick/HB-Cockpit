@@ -17,6 +17,7 @@ Dieses Projekt nutzt eine extrem token-effiziente **Drei-Datei-Architektur** zur
 
 0. Update-Log
 
+- **feat(ui): Phase 1C (Mobile-Audit & Responsive Patterns) abgeschlossen:** Systemweites App-Feeling etabliert inkl. Bottom-Nav, Bottom-Sheets, Swipe-to-Dismiss, Skeleton-Loading und responsiver Umwandlung von 31 Tabellen in Mobile Cards.
 - **feat(etv): ETV-Begleiter Modul (Phase 7):** Vollständige Implementierung der digitalen Eigentümerversammlung inkl. TOP-Planer, Live-Quorum-Prüfung (MEA-basiert) und PDF-Protokoll-Generierung. Tief vernetzt mit Stammdaten (apartments/ownerships).
 - **Bugfix (6.9-C):** Jahresabrechnung PDF & Wizard — Korrektur doppelter Header, Seitenränder Anschreiben, Read-Only-Status für Umlageschlüssel und Anzeige von Guthaben im Wizard-Abschluss.
 - **feat(time): Modul Zeiterfassung & Projekte (asynchrones Unterprojekt):** Einführung eines neuen Moduls zur projektbezogenen Zeiterfassung inkl. Arbeitspaketen, Live-Timer und PDF-Arbeitsrapport (Dokumentation am Ende der GEMINI.md hinzugefügt).
