@@ -15,10 +15,7 @@ async function init() {
         userProfile = profile;
 
         // ROLE_LABELS → definiert in config.js
-        const roleLabel = ROLE_LABELS[profile.role] || 'Nutzer Portal';
-        document.getElementById('role-label').textContent     = roleLabel;
-        const roleMobile = document.getElementById('role-label-mobile');
-        if (roleMobile) roleMobile.textContent = roleLabel;
+        document.getElementById('role-label').textContent = ROLE_LABELS[profile.role] || 'Nutzer Portal';
         document.getElementById('user-avatar').textContent    = profile.full_name.charAt(0).toUpperCase();
         document.getElementById('dropdown-name').textContent  = profile.full_name;
         document.getElementById('dropdown-email').textContent = profile.email;
