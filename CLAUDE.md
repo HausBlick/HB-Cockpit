@@ -120,6 +120,9 @@ js/
 - **Nav-Links:** Farbe `#687451`, aktiv: `bg-hb-olive text-white`
 - **Filter-Chips auf olive Hintergrund:** aktiv `bg-white text-hb-olive border-white`, inaktiv `text-white border-white/50`
 - **Supabase-Joins mit mehreren FKs:** immer expliziten FK-Hint verwenden, z.B. `profiles!uploaded_by(full_name)`
+- **Bottom-Nav (Mobile):** `.bnav-item` gray-400, `.bnav-active` hb-olive + Dot. 5 Items: Home, Tickets, News/Kontakte, Dokumente, Mehr
+- **Skeleton Loading:** `.skeleton` Klasse (Shimmer-Animation, rounded-[15px]). Typen via `showSkeleton()`: list, cards, table
+- **Mobile Scroll-Containment:** Content-Area ist der einzige Scroll-Container. Nie `overflow-y-auto` auf Body oder Main
 
 ---
 
@@ -192,9 +195,10 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
   > Dashboard (`dashboard.html`) für Übersicht + leichte Module. Separate HTML-Seiten für komplexe Tools: Finanzen (`finanzen.html`), ETV (`etv.html`), Zeiterfassung (`zeiterfassung.html`), Dokumentencloud (`dokumente.html`).
   > Im Dashboard bleiben: Startseite/Workspace, Tickets, Schwarzes Brett, Kontaktbuch, Kalender, CRM, Gebäude & Einheiten, Einstellungen.
   > Geteilte Basis: `config.js`, `utils.js`, `nav.js`. Deep-Linking mit Query-Parametern (z.B. `finanzen.html?building=17&tab=verteilerschluessel`). Mieter/Eigentümer-Dashboard bleibt SPA.
-- 1C 🔴 **Mobile-Audit & Responsive Patterns** 📋
-  > Systemweiter Mobile-Audit für Android/Chrome. Bekannte Probleme: fehlende Scroll-Container, Modals außerhalb Viewport, Ticket-Chat nicht erreichbar.
-  > Ziel: App-Feeling. Wiederverwendbare Patterns: Modal-Positioning (zentriert, viewport-gebunden), Scroll-Containment, Touch-Targets min. 44px, Sticky-Header. Betrifft ALLE Module.
+- 1C 🔄 **Mobile-Audit & Responsive Patterns** (Phase A abgeschlossen)
+  > **Phase A (Fundament) ✅:** Scroll-Containment (Body h-screen, Main flex-1 min-h-0, Content overflow-y-auto). Bottom-Navigation (5 Items rollenbasiert, Badge-Sync, Active-State-Sync mit Sidebar). Mobile-Header (Logo + Role-Label, Hamburger durch Bottom-Nav ersetzt). Skeleton-Loading CSS-Pattern. Safe-Area-Inset für Notch-Geräte. Toast-Position über Bottom-Nav.
+  > **Phase B (Modals & Loading) 📋:** Bottom Sheets / Slide-Ins statt zentrierte Desktop-Modals. Skeleton-Loader in Module integrieren.
+  > **Phase C (Modul-Migration) 📋:** Cards statt Tabellen Modul für Modul. Ticket-Chat-Textfeld Bugfix. Touch-Targets 44px Audit.
 
 ### ✅ Phase 2 — Personen-CRM (ABGESCHLOSSEN)
 - 2.1 Supabase-Anbindung (Mock-Daten ersetzt) ✅
@@ -395,4 +399,15 @@ Migration `phase81_special_roles_and_allocatable`: 6 Rollen (+landlord, +advisor
 
 ### Phase 7.7 — SSOT-Audit
 `getMonthlyHausgeld()` berechnet Hausgeld dynamisch aus WP + Verteilerschlüssel (3 Module umgestellt). Basiszins + Mahngebühren aus `global_settings`. Heizkosten-Split aus `distribution_keys.heiz_split_percent`. ETV-Quorum konfigurierbar (`etv_sessions.quorum_percent`, Migration `migration_etv_quorum_percent.sql`). 16 zentrale Enum-Konstanten in `config.js`, 10 Module umgestellt.
+
+### Phase 1C-A — Mobile-Fundament (Bottom-Nav, Scroll-Containment, Skeleton)
+**Architektur-Entscheidungen:** (1) Hamburger-Menü mobil komplett durch Bottom-Nav ersetzt; Sidebar wird über "Mehr"-Item als Slide-In geöffnet. (2) Gesten via Vanilla-JS `touch*`-Events, passive Listeners (vorbereitet für Phase B). (3) Scroll-Containment: Body `h-screen overflow-hidden`, Main `flex-1 min-h-0 overflow-hidden`, Content-Area einziger Scroll-Container (`flex-1 min-h-0 overflow-y-auto`).
+
+`dashboard.html`: Layout-Fix (Body h-screen, Main flex-1, kein doppeltes overflow-y-auto). Mobile-Header ohne Hamburger (Logo + Role-Label). Desktop-Header auf Mobile kompakt (nur Avatar). Bottom-Nav (`#bottom-nav`, md:hidden). CSS: `.bnav-item`/`.bnav-active` (Active-Dot), `.skeleton`/`@keyframes sk-shimmer`, Safe-Area-Inset. Toast-Position `bottom-20 md:bottom-6`.
+
+`nav.js`: `renderBottomNav(role)` (5 Items rollenbasiert: admin/manager, tenant, owner/landlord/advisory). `bottomNavGo(fnName, el)` (Active-State + Sidebar-Sync). `_syncBottomNav(fnName)` (Sidebar→Bottom-Nav, Fallback "Mehr"). `_setBnavBadge(id, count)` (Badge-Sync Sidebar↔Bottom-Nav).
+
+`utils.js`: `showSkeleton({ rows, type })` — Typen: `list` (Avatar + Text), `cards` (Block-Platzhalter), `table` (Header + Zeilen).
+
+`config.js`: `icons.more` (Hamburger-SVG für Bottom-Nav "Mehr"-Item).
 
