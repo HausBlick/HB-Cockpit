@@ -87,6 +87,10 @@
         /* Skeleton Loading */
         .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%); background-size: 200% 100%; animation: sk-shimmer 1.5s ease-in-out infinite; border-radius: 15px; }
         @keyframes sk-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        /* Dokumenten-Designer */
+        .ds-block { transition: box-shadow 0.15s, opacity 0.15s; }
+        .ds-block[draggable="true"]:active { cursor: grabbing; }
+        .ds-block.ring-2 { box-shadow: 0 0 0 2px rgba(104,116,81,0.3); }
     </style>
 </head>
 <body class="font-sans flex flex-col md:flex-row text-left relative overflow-hidden" style="height:100vh;height:100dvh" onclick="closeDropdowns(event)">
@@ -165,7 +169,7 @@
     <script src="js/modules/mod-kontakte.js?v=20260401d"></script>
     <script src="js/modules/mod-kalender.js?v=20260401d"></script>
     <!-- mod-zeiterfassung.js → ausgelagert nach zeiterfassung.html (Phase 1B) -->
-    <script src="js/modules/mod-settings.js?v=20260401d"></script>
+    <script src="js/modules/mod-settings.js?v=20260401e"></script>
     <script src="js/modules/mod-placeholder.js?v=20260401d"></script>
     <!-- mod-etv.js → ausgelagert nach etv.html (Phase 1B) -->
     <script src="js/nav.js?v=20260401d"></script>

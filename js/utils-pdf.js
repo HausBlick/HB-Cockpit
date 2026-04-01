@@ -163,8 +163,332 @@ function _pdfSplitText(text, font, fontSize, maxWidth) {
     return lines;
 }
 
+// ─── Template-Engine: Platzhalter-Parser ─────────────────────
+// Ersetzt {{variable_name}} im Text durch Werte aus dem data-Objekt.
+// Unbekannte Platzhalter bleiben stehen (für Preview mit Dummy-Daten sichtbar).
+function _pdfReplacePlaceholders(text, data) {
+    if (!text || typeof text !== 'string') return text || '';
+    return text.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+        return data.hasOwnProperty(key) ? (data[key] ?? '') : match;
+    });
+}
+
+// ─── Template-Engine: Block-Renderer ─────────────────────────
+// Rendert ein Array von JSON-Blöcken auf ein pdf-lib Dokument.
+// Unterstützte Blocktypen: heading, text, table, spacer, page_break, hint_box
+//
+// Parameter:
+//   blocks  — Array von {type, ...props}
+//   data    — Objekt mit Platzhalter-Werten (z.B. {anrede: 'Sehr geehrter Herr Müller,'})
+//   tables  — Objekt mit Tabellendaten, key = source-Name → Array von Row-Objekten
+//   options — {pdfDoc, page, fonts:{reg,semi,bold}, settings, useLetterhead, templateDoc}
+//
+// Gibt {pdfDoc, pdfBytes} zurück.
+async function generateFromTemplate(blocks, data, tables, options) {
+    const { PDFDocument, rgb } = PDFLib;
+    const { pdfDoc, fonts, settings } = options;
+    let { page } = options;
+    const templateDoc = options.templateDoc || null;
+
+    // Colors
+    const olive    = rgb(0.408, 0.455, 0.318);
+    const offblack = rgb(0.216, 0.216, 0.216);
+    const orange   = rgb(0.922, 0.463, 0.176);
+    const gray50   = rgb(0.5, 0.5, 0.5);
+    const gray40   = rgb(0.4, 0.4, 0.4);
+    const white    = rgb(1, 1, 1);
+
+    const colorMap = {
+        olive: olive, offblack: offblack, orange: orange,
+        gray: gray50, gray50: gray50, gray40: gray40, white: white,
+    };
+    function resolveColor(c) {
+        if (!c) return offblack;
+        if (colorMap[c]) return colorMap[c];
+        return offblack;
+    }
+
+    // Page layout
+    const mLeft    = 56.7;
+    const mRight   = 538.6;
+    const contentW = mRight - mLeft; // 482pt
+    const bottomMargin = 100; // Platz für Briefbogen-Fußzeile
+
+    const { width, height } = page.getSize();
+    const fReg  = fonts.reg;
+    const fSemi = fonts.semi || fonts.reg;
+    const fBold = fonts.bold;
+
+    // Start-Y: nach Adressfeld + Datum (DIN 5008)
+    let y = options.startY || (height - 200);
+
+    // Helper: neue Seite anlegen (mit Briefbogen-Kopie wenn vorhanden)
+    async function addPage() {
+        if (templateDoc) {
+            const [copied] = await pdfDoc.copyPages(templateDoc, [0]);
+            page = pdfDoc.addPage(copied);
+        } else {
+            page = pdfDoc.addPage([width, height]);
+        }
+        y = height - 80; // Kompakter Start auf Folgeseiten
+        return page;
+    }
+
+    // Helper: Seitenumbruch wenn nicht genug Platz
+    async function ensureSpace(needed) {
+        if (y - needed < bottomMargin) {
+            await addPage();
+        }
+    }
+
+    // Helper: right-align text
+    function drawR(text, xRight, yPos, size, font, color) {
+        const w = font.widthOfTextAtSize(text, size);
+        page.drawText(text, { x: xRight - w, y: yPos, size, font, color });
+    }
+
+    // Helper: Euro formatting
+    function fmtEur(v) {
+        const n = Number(v || 0);
+        return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+    }
+
+    // ── Block-Iteration ──────────────────────────────────────
+    for (const block of blocks) {
+        switch (block.type) {
+
+        case 'heading': {
+            const text = _pdfReplacePlaceholders(block.text || '', data);
+            const size = block.size || 13;
+            const font = block.bold !== false ? fBold : fReg;
+            const color = resolveColor(block.color);
+            await ensureSpace(size + 10);
+            page.drawText(text, { x: mLeft, y, size, font, color });
+            y -= size + 8;
+            break;
+        }
+
+        case 'text': {
+            const text = _pdfReplacePlaceholders(block.text || '', data);
+            const size = block.size || 10;
+            const font = block.bold ? fBold : fReg;
+            const color = resolveColor(block.color);
+            const lineH = size + 4;
+            const lines = _pdfSplitText(text, font, size, contentW);
+            await ensureSpace(lines.length * lineH);
+            for (const line of lines) {
+                page.drawText(line, { x: mLeft, y, size, font, color });
+                y -= lineH;
+            }
+            break;
+        }
+
+        case 'spacer': {
+            const h = block.height || 10;
+            y -= h;
+            break;
+        }
+
+        case 'page_break': {
+            await addPage();
+            break;
+        }
+
+        case 'hint_box': {
+            const text = _pdfReplacePlaceholders(block.text || '', data);
+            const pad = 10;
+            const fontSize = block.size || 8;
+            const lines = _pdfSplitText(text, fReg, fontSize, contentW - pad * 2);
+            const lineH = fontSize + 3;
+            const boxH = pad * 2 + lines.length * lineH;
+            await ensureSpace(boxH + 10);
+
+            page.drawRectangle({
+                x: mLeft, y: y - boxH,
+                width: contentW, height: boxH,
+                borderColor: orange, borderWidth: 1.5,
+                color: rgb(1, 0.975, 0.965),
+            });
+
+            if (block.title) {
+                page.drawText(block.title, {
+                    x: mLeft + pad, y: y - pad - 2,
+                    size: fontSize, font: fBold, color: orange,
+                });
+                lines.forEach((line, i) => {
+                    page.drawText(line, {
+                        x: mLeft + pad, y: y - pad - lineH - (i * lineH),
+                        size: fontSize, font: fReg, color: offblack,
+                    });
+                });
+            } else {
+                lines.forEach((line, i) => {
+                    page.drawText(line, {
+                        x: mLeft + pad, y: y - pad - (i * lineH),
+                        size: fontSize, font: fReg, color: offblack,
+                    });
+                });
+            }
+            y -= boxH + 5;
+            break;
+        }
+
+        case 'table': {
+            const source = block.source || '';
+            const rows = (tables && tables[source]) || [];
+            const cols = block.columns || [];
+            if (!cols.length) break;
+
+            const showHeader = block.show_header !== false;
+            const highlightLast = block.highlight_last === true;
+            const rowH = 20;
+            const headerH = showHeader ? 22 : 0;
+
+            await ensureSpace(headerH + rows.length * rowH + 10);
+
+            // Header
+            if (showHeader) {
+                page.drawRectangle({ x: mLeft, y: y - headerH, width: contentW, height: headerH, color: olive });
+                const hY = y - headerH + 6;
+                let colX = mLeft;
+                for (const col of cols) {
+                    const colW = contentW * (col.width || 0.25);
+                    if (col.align === 'right') {
+                        drawR(col.label || '', colX + colW - 6, hY, 9, fBold, white);
+                    } else {
+                        page.drawText(col.label || '', { x: colX + 6, y: hY, size: 9, font: fBold, color: white });
+                    }
+                    colX += colW;
+                }
+                y -= headerH;
+            }
+
+            // Rows
+            for (let ri = 0; ri < rows.length; ri++) {
+                const row = rows[ri];
+                const isLast = ri === rows.length - 1;
+                const isHighlighted = highlightLast && isLast;
+
+                // Separator
+                page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
+
+                if (isHighlighted) {
+                    // Olive background for total row
+                    page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 1, color: olive });
+                    page.drawRectangle({ x: mLeft, y: y - rowH - 4, width: contentW, height: rowH + 4, color: rgb(0.969, 0.973, 0.961) });
+                }
+
+                const rY = y - rowH + 6;
+                let colX = mLeft;
+                for (const col of cols) {
+                    const colW = contentW * (col.width || 0.25);
+                    let val = row[col.key] ?? '';
+                    if (col.format === 'eur' && typeof val === 'number') val = fmtEur(val);
+                    const f = isHighlighted ? fBold : fReg;
+                    const sz = isHighlighted ? 10 : 9;
+                    const c = isHighlighted ? (col.align === 'right' ? olive : offblack) : offblack;
+
+                    if (col.align === 'right') {
+                        drawR(String(val), colX + colW - 6, rY, sz, f, c);
+                    } else {
+                        page.drawText(String(val), { x: colX + 6, y: rY, size: sz, font: f, color: c });
+                    }
+                    colX += colW;
+                }
+                y -= rowH + (isHighlighted ? 4 : 0);
+            }
+
+            // Bottom divider
+            if (rows.length && !highlightLast) {
+                page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
+            }
+            break;
+        }
+
+        default:
+            console.warn('Unbekannter Template-Block-Typ:', block.type);
+        }
+    }
+
+    return { pdfDoc, page, y };
+}
+
+// ─── Template aus DB laden (cached pro Session) ──────────────
+const _templateCache = {};
+async function _pdfLoadTemplate(type) {
+    if (_templateCache[type]) return _templateCache[type];
+    const { data, error } = await _supabase
+        .from('pdf_templates').select('*').eq('type', type).single();
+    if (error || !data) return null;
+    _templateCache[type] = data;
+    return data;
+}
+
+// Cache invalidieren (z.B. nach Speichern im Designer)
+function _pdfClearTemplateCache(type) {
+    if (type) delete _templateCache[type];
+    else Object.keys(_templateCache).forEach(k => delete _templateCache[k]);
+}
+
+// ─── Dummy-Daten für Live-Preview im Designer ───────────────
+const PDF_PREVIEW_DUMMY_DATA = {
+    mahnung: {
+        placeholders: {
+            mahnstufe: 'Zahlungserinnerung',
+            anrede: 'Sehr geehrter Herr Mustermann,',
+            einheit_nr: 'WE-01',
+            weg_name: 'WEG Musterstraße 12',
+            gesamtbetrag: '1.250,00 €',
+            firma: 'HausBlick Verwaltungs GmbH',
+            geschaeftsfuehrer: 'Max Mustermann',
+            empfaenger_name: 'Hans Mustermann',
+            empfaenger_strasse: 'Beispielweg 5',
+            empfaenger_plz_ort: '12345 Berlin',
+        },
+        tables: {
+            offene_posten: [
+                { bezeichnung: 'Hausgeld WE-01 Januar 2026', faelligkeit: '01.01.2026', betrag: 350.00 },
+                { bezeichnung: 'Hausgeld WE-01 Februar 2026', faelligkeit: '01.02.2026', betrag: 350.00 },
+                { bezeichnung: 'Hausgeld WE-01 März 2026', faelligkeit: '01.03.2026', betrag: 350.00 },
+            ],
+            zusammenfassung: [
+                { label: 'Zwischensumme', betrag: 1050.00 },
+                { label: 'Mahngebühr', betrag: 5.00 },
+                { label: 'Verzugszinsen (3,37 %)', betrag: 12.50 },
+                { label: 'Gesamtbetrag', betrag: 1067.50 },
+            ],
+        },
+    },
+};
+
+// ─── Verfügbare Platzhalter pro Template-Typ ─────────────────
+const PDF_TEMPLATE_VARIABLES = {
+    mahnung: [
+        { key: 'mahnstufe', label: 'Mahnstufe (z.B. Zahlungserinnerung)' },
+        { key: 'anrede', label: 'Anrede (Sehr geehrte/r...)' },
+        { key: 'einheit_nr', label: 'Einheitennummer' },
+        { key: 'weg_name', label: 'WEG-Name' },
+        { key: 'gesamtbetrag', label: 'Gesamtbetrag (formatiert)' },
+        { key: 'firma', label: 'Firmenname' },
+        { key: 'geschaeftsfuehrer', label: 'Geschäftsführer' },
+        { key: 'empfaenger_name', label: 'Empfänger Name' },
+        { key: 'empfaenger_strasse', label: 'Empfänger Straße' },
+        { key: 'empfaenger_plz_ort', label: 'Empfänger PLZ Ort' },
+    ],
+};
+
+// ─── Verfügbare Tabellen-Quellen pro Template-Typ ────────────
+const PDF_TEMPLATE_TABLES = {
+    mahnung: [
+        { key: 'offene_posten', label: 'Offene Posten', columns: ['bezeichnung', 'faelligkeit', 'betrag'] },
+        { key: 'zusammenfassung', label: 'Zusammenfassung (Gebühren + Gesamtbetrag)', columns: ['label', 'betrag'] },
+    ],
+};
+
 // ─── Mahnung als PDF generieren (Sammel-PDF pro Person) ──────
 // Akzeptiert: einzelne noticeId ODER Array von noticeIds
+// Nutzt das Template-System wenn ein 'mahnung'-Template in pdf_templates existiert.
+// Fallback: hardcoded Layout (Legacy).
 async function generateMahnungPDF(noticeIdOrIds) {
     if (typeof PDFLib === 'undefined') {
         showToast('PDF-Bibliothek nicht geladen. Bitte Seite neu laden.', 'error'); return;
@@ -175,18 +499,19 @@ async function generateMahnungPDF(noticeIdOrIds) {
     const ids = Array.isArray(noticeIdOrIds) ? noticeIdOrIds : [noticeIdOrIds];
 
     // Alle notices laden (ggf. mehrere pro Person)
-    const [settingsRes, noticesRes] = await Promise.all([
+    const [settingsRes, noticesRes, template] = await Promise.all([
         _pdfGetSettings(),
         _supabase.from('dunning_notices')
             .select('*, person:persons(first_name, last_name, salutation, email, street, house_number, zip_code, city), demand:payment_demands(due_date, demand_type, apartment:apartments(apartment_number, buildings(street, house_number, file_number, name)))')
             .in('id', ids),
+        _pdfLoadTemplate('mahnung'),
     ]);
 
     const settings = settingsRes;
     const notices  = noticesRes.data || [];
     if (!notices.length) { showToast('Keine Mahnungen gefunden.', 'error'); return; }
 
-    // Höchste Mahnstufe bestimmt den Titel
+    // Daten aufbereiten
     const maxLevel = Math.max(...notices.map(function(n) { return n.dunning_level || 1; }));
     const levelText = DUNNING_LEVEL_LABELS[maxLevel] || 'Mahnung';
 
@@ -195,6 +520,130 @@ async function generateMahnungPDF(noticeIdOrIds) {
     const apt     = notice0.demand?.apartment;
     const bld     = apt?.buildings;
 
+    const personName = person ? (person.first_name + ' ' + person.last_name) : '—';
+    const personAddr = person ? ((person.street || '') + ' ' + (person.house_number || '')).trim() : '';
+    const personCity = person ? ((person.zip_code || '') + ' ' + (person.city || '')).trim() : '';
+    const weNr    = apt?.apartment_number || '–';
+    const wegName = bld ? ('WEG ' + (bld.street || '') + ' ' + (bld.house_number || '')).trim() : '–';
+
+    let anrede = 'Sehr geehrte Damen und Herren,';
+    if (person && person.salutation && person.last_name) {
+        const prefix = person.salutation === 'Herr' ? 'Sehr geehrter Herr' : 'Sehr geehrte Frau';
+        anrede = prefix + ' ' + person.last_name + ',';
+    }
+
+    var fmtAmt = function(v) { return Number(v || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 }); };
+
+    // Tabellen-Daten aufbereiten
+    var subtotal = 0, totalFee = 0, totalInterest = 0;
+    var offenePosten = [];
+    for (var ni = 0; ni < notices.length; ni++) {
+        var n = notices[ni];
+        var dueFmt = n.demand?.due_date ? new Date(n.demand.due_date).toLocaleDateString('de-DE') : '–';
+        var aptNr  = n.demand?.apartment?.apartment_number || '';
+        var monthLabel = n.demand?.due_date ? new Date(n.demand.due_date).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' }) : '';
+        var amt = Number(n.overdue_amount || 0);
+        subtotal += amt;
+        totalFee += Number(n.dunning_fee || 0);
+        totalInterest += Number(n.interest_amount || 0);
+        offenePosten.push({
+            bezeichnung: ('Hausgeld ' + aptNr + ' ' + monthLabel).trim(),
+            faelligkeit: dueFmt,
+            betrag: amt,
+        });
+    }
+    var grandTotal = subtotal + totalFee + totalInterest;
+
+    // Zusammenfassung (conditional rows)
+    var zusammenfassung = [];
+    if (notices.length > 1) zusammenfassung.push({ label: 'Zwischensumme', betrag: subtotal });
+    if (totalFee > 0) zusammenfassung.push({ label: 'Mahngebühr', betrag: totalFee });
+    if (totalInterest > 0) {
+        var rateStr = Number(notices[0].interest_rate || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 });
+        zusammenfassung.push({ label: 'Verzugszinsen (' + rateStr + ' %)', betrag: totalInterest });
+    }
+    zusammenfassung.push({ label: 'Gesamtbetrag', betrag: grandTotal });
+
+    // ─── Template-Pfad (bevorzugt) ───
+    if (template && Array.isArray(template.content) && template.content.length) {
+        const { PDFDocument, rgb } = PDFLib;
+
+        // PDF-Dokument mit Briefbogen erstellen
+        let pdfDoc, page, templateDoc = null;
+        const useLetterhead = template.use_letterhead !== false;
+
+        if (useLetterhead && settings.letterhead_pdf_url) {
+            try {
+                ({ pdfDoc, page } = await _pdfCreateDoc(settings));
+                // templateDoc für Folgeseiten laden
+                const { data: sd } = await _supabase.storage.from('documents').createSignedUrl(settings.letterhead_pdf_url, 60);
+                if (sd?.signedUrl) {
+                    const resp = await fetch(sd.signedUrl);
+                    if (resp.ok) templateDoc = await PDFDocument.load(await resp.arrayBuffer());
+                }
+            } catch (e) {
+                if (e.message === 'NO_LETTERHEAD')
+                    showToast('Kein Briefbogen hinterlegt. Bitte unter Einstellungen → Briefpapier & Logo hochladen.', 'error');
+                else
+                    showToast('Briefbogen konnte nicht geladen werden: ' + e.message, 'error');
+                return;
+            }
+        } else {
+            pdfDoc = await PDFDocument.create();
+            page = pdfDoc.addPage([595.28, 841.89]);
+        }
+
+        const { height } = page.getSize();
+
+        // Fonts
+        let fonts;
+        try {
+            pdfDoc.registerFontkit(fontkit);
+            fonts = await _pdfLoadInterFonts(pdfDoc);
+        } catch (_) {
+            const { StandardFonts } = PDFLib;
+            const regF  = await pdfDoc.embedFont(StandardFonts.Helvetica);
+            const boldF = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+            fonts = { reg: regF, semi: regF, bold: boldF };
+        }
+
+        // DIN 5008 Elemente
+        _pdfDrawSenderLine(page, fonts.reg, settings);
+        _pdfDrawAddressField(page, fonts.reg, personName, personAddr, personCity);
+        _pdfDrawDate(page, fonts.reg, settings);
+
+        // Platzhalter-Daten
+        const data = {
+            mahnstufe: levelText,
+            anrede: anrede,
+            einheit_nr: weNr,
+            weg_name: wegName,
+            gesamtbetrag: fmtAmt(grandTotal) + ' €',
+            firma: settings.company_name || '',
+            geschaeftsfuehrer: settings.ceo_name || '',
+            empfaenger_name: personName,
+            empfaenger_strasse: personAddr,
+            empfaenger_plz_ort: personCity,
+        };
+
+        const tables = {
+            offene_posten: offenePosten,
+            zusammenfassung: zusammenfassung,
+        };
+
+        await generateFromTemplate(template.content, data, tables, {
+            pdfDoc, page, fonts, settings, templateDoc,
+            startY: height - 200,
+        });
+
+        var pdfBytes = await pdfDoc.save();
+        var filename = 'Mahnung_' + levelText.replace(/ /g, '_') + '_' + personName.replace(/ /g, '_') + '.pdf';
+        _pdfDownload(pdfBytes, filename);
+        showToast('PDF heruntergeladen.');
+        return;
+    }
+
+    // ─── Legacy-Fallback (hardcoded Layout) ───
     const { rgb } = PDFLib;
     let pdfDoc, page;
     try {
@@ -208,7 +657,6 @@ async function generateMahnungPDF(noticeIdOrIds) {
     }
     const { width, height } = page.getSize();
 
-    // Fonts — Inter wenn verfügbar, sonst Helvetica
     let bold, reg;
     try {
         const interFonts = await _pdfLoadInterFonts(pdfDoc);
@@ -223,35 +671,13 @@ async function generateMahnungPDF(noticeIdOrIds) {
     const mLeft  = 56.7;
     const mRight = width - 56.7;
 
-    // Absender über Adressfeld
     _pdfDrawSenderLine(page, reg, settings);
-
-    // Empfänger-Adressfeld: Postanschrift des Schuldners
-    const personName = person ? (person.first_name + ' ' + person.last_name) : '—';
-    const personAddr = person ? (person.street || '') + ' ' + (person.house_number || '') : '';
-    const personCity = person ? (person.zip_code || '') + ' ' + (person.city || '') : '';
-    _pdfDrawAddressField(page, reg, personName, personAddr.trim(), personCity.trim());
-
-    // Datum
+    _pdfDrawAddressField(page, reg, personName, personAddr, personCity);
     _pdfDrawDate(page, reg, settings);
 
-    // Betreff
     const betreff = levelText + ' — Offene Hausgeld-Forderung';
-    page.drawText(betreff, {
-        x: mLeft, y: height - 200, size: 11, font: bold, color: rgb(0.22, 0.22, 0.22),
-    });
-
-    // Anrede — mit Salutation wenn vorhanden
-    let anrede = 'Sehr geehrte Damen und Herren,';
-    if (person && person.salutation && person.last_name) {
-        const prefix = person.salutation === 'Herr' ? 'Sehr geehrter Herr' : 'Sehr geehrte Frau';
-        anrede = prefix + ' ' + person.last_name + ',';
-    }
+    page.drawText(betreff, { x: mLeft, y: height - 200, size: 11, font: bold, color: rgb(0.22, 0.22, 0.22) });
     page.drawText(anrede, { x: mLeft, y: height - 230, size: 10, font: reg, color: rgb(0.22, 0.22, 0.22) });
-
-    // Einleitungstext mit WE + WEG
-    const weNr    = apt?.apartment_number || '–';
-    const wegName = bld ? ('WEG ' + (bld.street || '') + ' ' + (bld.house_number || '')).trim() : '–';
 
     let y = height - 255;
     const introLines = [
@@ -264,16 +690,12 @@ async function generateMahnungPDF(noticeIdOrIds) {
     }
     y -= 10;
 
-    // ─── Tabelle: Offene Posten ───
     var colBez = mLeft;
     var colDue = mLeft + 220;
     var colAmt = mRight;
     var rowH   = 20;
-    var olive  = rgb(0.408, 0.455, 0.318); // #687451
+    var olive  = rgb(0.408, 0.455, 0.318);
 
-    var fmtAmt = function(v) { return Number(v || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 }); };
-
-    // Table header
     var headerH = 22;
     page.drawRectangle({ x: mLeft, y: y - headerH, width: mRight - mLeft, height: headerH, color: olive });
     var hY = y - headerH + 6;
@@ -284,37 +706,20 @@ async function generateMahnungPDF(noticeIdOrIds) {
     page.drawText(amtHdrTxt, { x: colAmt - 6 - amtHdrW, y: hY, size: 9, font: bold, color: rgb(1, 1, 1) });
     y -= headerH;
 
-    // Table rows — one per notice
-    var subtotal = 0;
-    var totalFee = 0;
-    var totalInterest = 0;
-
-    for (var ni = 0; ni < notices.length; ni++) {
-        var n = notices[ni];
-        var dueFmt = n.demand?.due_date ? new Date(n.demand.due_date).toLocaleDateString('de-DE') : '–';
-        var aptNr  = n.demand?.apartment?.apartment_number || '';
-        var monthLabel = n.demand?.due_date ? new Date(n.demand.due_date).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' }) : '';
-        var label  = ('Hausgeld ' + aptNr + ' ' + monthLabel).trim();
-        var amt    = Number(n.overdue_amount || 0);
-        subtotal += amt;
-        totalFee += Number(n.dunning_fee || 0);
-        totalInterest += Number(n.interest_amount || 0);
-
-        // Row separator
+    for (var pi = 0; pi < offenePosten.length; pi++) {
+        var p = offenePosten[pi];
         page.drawLine({ start: { x: mLeft, y: y }, end: { x: mRight, y: y }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
         var rY = y - rowH + 6;
-        page.drawText(label, { x: colBez + 6, y: rY, size: 9, font: reg, color: rgb(0.22, 0.22, 0.22) });
-        page.drawText(dueFmt, { x: colDue + 6, y: rY, size: 9, font: reg, color: rgb(0.4, 0.4, 0.4) });
-        var amtStr = fmtAmt(amt) + ' €';
+        page.drawText(p.bezeichnung, { x: colBez + 6, y: rY, size: 9, font: reg, color: rgb(0.22, 0.22, 0.22) });
+        page.drawText(p.faelligkeit, { x: colDue + 6, y: rY, size: 9, font: reg, color: rgb(0.4, 0.4, 0.4) });
+        var amtStr = fmtAmt(p.betrag) + ' €';
         var amtW   = reg.widthOfTextAtSize(amtStr, 9);
         page.drawText(amtStr, { x: colAmt - 6 - amtW, y: rY, size: 9, font: reg, color: rgb(0.22, 0.22, 0.22) });
         y -= rowH;
     }
 
-    // Bottom divider
     page.drawLine({ start: { x: mLeft, y: y }, end: { x: mRight, y: y }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
 
-    // Summary helper
     var drawSumRow = function(label, value, useBold, pad) {
         if (pad) y -= pad;
         y -= rowH;
@@ -328,19 +733,13 @@ async function generateMahnungPDF(noticeIdOrIds) {
         page.drawText(vStr, { x: colAmt - 6 - vW, y: sY, size: sz, font: f, color: c });
     };
 
-    if (notices.length > 1) {
-        drawSumRow('Zwischensumme', subtotal, true, 2);
-    }
-    if (totalFee > 0) {
-        drawSumRow('Mahngebühr', totalFee, false, notices.length > 1 ? 0 : 2);
-    }
+    if (notices.length > 1) drawSumRow('Zwischensumme', subtotal, true, 2);
+    if (totalFee > 0) drawSumRow('Mahngebühr', totalFee, false, notices.length > 1 ? 0 : 2);
     if (totalInterest > 0) {
-        var rateStr = Number(notices[0].interest_rate || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 });
-        drawSumRow('Verzugszinsen (' + rateStr + ' %)', totalInterest, false, 0);
+        var rateStr2 = Number(notices[0].interest_rate || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 });
+        drawSumRow('Verzugszinsen (' + rateStr2 + ' %)', totalInterest, false, 0);
     }
 
-    // Gesamtbetrag — olive Hintergrund
-    var grandTotal = subtotal + totalFee + totalInterest;
     y -= 4;
     var totalRowH = 24;
     page.drawRectangle({ x: mLeft, y: y - totalRowH, width: mRight - mLeft, height: totalRowH, color: rgb(0.969, 0.973, 0.961) });
@@ -352,11 +751,9 @@ async function generateMahnungPDF(noticeIdOrIds) {
     page.drawText(gtStr, { x: colAmt - 6 - gtW, y: tY, size: 10, font: bold, color: olive });
     y -= totalRowH;
 
-    // Zahlungsaufforderung
     y -= 25;
-    var totalAmtFmt = fmtAmt(grandTotal);
     var closingLines = [
-        'Bitte überweisen Sie den Gesamtbetrag von ' + totalAmtFmt + ' € binnen 7 Tagen',
+        'Bitte überweisen Sie den Gesamtbetrag von ' + fmtAmt(grandTotal) + ' € binnen 7 Tagen',
         'auf das Ihnen bekannte Konto der WEG.',
         '',
         'Bei weiterer Nichtzahlung behalten wir uns vor, rechtliche Schritte einzuleiten.',
@@ -369,14 +766,9 @@ async function generateMahnungPDF(noticeIdOrIds) {
         y -= 15;
     }
 
-    // Unterschrift
     y -= 25;
-    if (settings.company_name) {
-        page.drawText(settings.company_name, { x: mLeft, y: y, size: 10, font: bold, color: rgb(0.22, 0.22, 0.22) });
-    }
-    if (settings.ceo_name) {
-        page.drawText(settings.ceo_name, { x: mLeft, y: y - 15, size: 10, font: reg, color: rgb(0.4, 0.4, 0.4) });
-    }
+    if (settings.company_name) page.drawText(settings.company_name, { x: mLeft, y: y, size: 10, font: bold, color: rgb(0.22, 0.22, 0.22) });
+    if (settings.ceo_name) page.drawText(settings.ceo_name, { x: mLeft, y: y - 15, size: 10, font: reg, color: rgb(0.4, 0.4, 0.4) });
 
     var pdfBytes = await pdfDoc.save();
     var filename = 'Mahnung_' + levelText.replace(/ /g, '_') + '_' + personName.replace(/ /g, '_') + '.pdf';

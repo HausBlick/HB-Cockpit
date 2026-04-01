@@ -106,7 +106,7 @@ finanzen.html               # Standalone — Buchhaltung (13 Tabs, Tab-Deep-Link
 js/
   config.js                 # Supabase-Client, globale Vars, Icons, EXTERNAL_PAGES Routing
   utils.js                  # Toast, Dropdown, Logout, Mobile-Menu, Modal/Bottom-Sheet
-  utils-pdf.js              # Official Letter Engine (pdf-lib)
+  utils-pdf.js              # Official Letter Engine (pdf-lib) + Template-Engine (generateFromTemplate, Platzhalter-Parser)
   nav.js                    # init(), Multi-Page-Routing, renderNav(), renderBottomNav(), Active-State
   modules/
     mod-dashboard.js        # Dashboard — KPIs, Quick-Actions, Widgets (rollenbasiert)
@@ -120,7 +120,7 @@ js/
     mod-kalender.js         # Monatskalender — Gebäude-Fristen & Ticket-Wiedervorlagen
     mod-finanzen.js         # Buchhaltung (Konten, Buchungen, Wirtschaftsplan, Abrechnung, CSV/SEPA)
     mod-zeiterfassung.js    # Zeiterfassung & Projekte (→ zeiterfassung.html, nicht mehr in dashboard.html)
-    mod-settings.js         # Admin-Einstellungen (Firmendaten, Finanz-Defaults, Logo/Briefbogen-Upload)
+    mod-settings.js         # Admin-Einstellungen (Firmendaten, Finanz-Defaults, Logo/Briefbogen-Upload, Dokumenten-Designer)
     mod-placeholder.js      # Platzhalter für kommende Module (loadProfile, loadMyUnits, loadMyTenants)
     mod-etv.js              # Eigentümerversammlung (Planung, Check-in, Abstimmung, Protokoll)
 ```
@@ -170,6 +170,9 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 **Phase 7 System-Tabellen:**
 `global_settings` (single-row id=1: Firmenstammdaten, Finanz-Defaults, logo_url, letterhead_pdf_url. RLS: lesen=alle, schreiben=admin)
 
+**Phase 7.10 PDF-Vorlagen-System:**
+`pdf_templates` (id UUID, type TEXT UNIQUE, name TEXT, description TEXT, content JSONB, use_letterhead BOOLEAN DEFAULT true, created_at, updated_at. RLS: lesen=authenticated, schreiben=admin. Index auf type.)
+
 **Wichtige Architektur:**
 - Auth-User getrennt von CRM (`persons`) — Verknüpfung über `persons.auth_user_id` + `invite_code`
 - `tenancies.tenant_id` → `persons.id` (nicht `auth.uid()`)
@@ -199,6 +202,7 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | Phase 7 | global_settings | Single-row-Tabelle (id=1) für Firmenstammdaten, Finanz-Defaults, logo_url, letterhead_pdf_url. RLS: lesen=authenticated, schreiben=admin. |
 | Phase 6.10 | phase610_distribution_keys | `distribution_keys` + `distribution_key_units` (Verteilerschlüssel je Gebäude + Einheitenwerte), Enum `distribution_key_type`, `accounts`-Erweiterung (primary_key_id, secondary_key_id, secondary_key_percentage), 4 Indexes, RLS-Policies. |
 | Phase 8.1 | phase81_special_roles_and_allocatable | `profiles.role` CHECK auf 6 Rollen erweitert (+landlord, +advisory). `accounts.is_allocatable` BOOLEAN. 6 neue RLS-Policies (3×landlord via ownerships, 3×advisory via board_members+valid_to). |
+| Phase 7.10 | migration_pdf_templates | `pdf_templates`-Tabelle (type UNIQUE, name, content JSONB, use_letterhead). RLS: lesen=authenticated, schreiben=admin. Index auf type. Default-Template: Mahnung. |
 
 ---
 
@@ -299,11 +303,11 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 - 7.7 **SSOT-Audit** (Hausgeld dynamisch aus WP, Basiszins + Mahngebühren aus `global_settings`, Heizkosten-Split aus `distribution_keys`, ETV-Quorum konfigurierbar, Enums zentralisiert in `config.js`) ✅
 - 7.8 🟡 **Einladungscode & Nutzer-Onboarding** (Admin generiert Registrierungscode → `persons.invite_code` → Registrierungsseite. MVP reicht) 📋
 - 7.9 **Beirat-Auftragsfreigabe** (Advisory-Rolle kann Aufträge/Ausgaben ab Schwellwert freigeben, Freigabe-Status wird bei Buchung geprüft) 📋
-- 7.10 🟡 **PDF-Vorlagen-System (Template-Engine)** 📋
-  > Ablösung hardcodierter PDF-Texte in `utils-pdf.js` durch datenbankgestütztes Vorlagen-System.
-  > Neue Tabelle `pdf_templates` (Typ, JSON-Block-Array). Blocktypen: heading, text, table, spacer, hinweis_box. Textblöcke mit Platzhaltern (`{{eigentuemer_name}}`, `{{abrechnungssaldo}}`). Tabellenblöcke referenzieren Datenquellen.
-  > Admin-UI: Block-Editor in Einstellungen (Drag & Drop, Basic-Formatierung, Platzhalter-Palette).
-  > Umsetzung: (1) Architektur + erster Template-Typ, (2) schrittweise Migration aller PDF-Typen.
+- 7.10 **PDF-Vorlagen-System (Template-Engine)** ✅
+  > `pdf_templates`-Tabelle (type, name, content JSONB, use_letterhead). Blocktypen: heading, text, table, spacer, page_break, hint_box.
+  > Platzhalter-Parser `{{variable_name}}` mit automatischer Ersetzung. Template-Renderer `generateFromTemplate()` in utils-pdf.js.
+  > Dokumenten-Designer in Einstellungen (Splitscreen: Block-Editor + Live-Preview). Drag & Drop, Variablen-Palette, Debounced PDF-Vorschau.
+  > PoC: Mahnung auf Template-System migriert (mit Legacy-Fallback). Weitere PDF-Typen schrittweise migrierbar.
 
 ### 💡 Phase 8 — Automatisierung & Erweiterungen
 *Nach Projektabschluss — optionale Nachrüstung.*
@@ -493,4 +497,22 @@ Migration `phase81_special_roles_and_allocatable`: 6 Rollen (+landlord, +advisor
 
 **Architektur-Ergebnis Phase 1B:**
 Dashboard-Payload von ~15 Scripts auf ~10 reduziert (+3 CDN-Libs entfernt). Jede externe Seite lädt nur 5 eigene + 3 CDN-Scripts. Navigation, Active-State und Building-Kontext funktionieren nahtlos über Seitengrenzen hinweg.
+
+### Phase 7.10 — PDF-Vorlagen-System (Dokumenten-Designer)
+Migration `migration_pdf_templates.sql`: `pdf_templates`-Tabelle (type UNIQUE, name, description, content JSONB, use_letterhead BOOLEAN). RLS: lesen=authenticated, schreiben=admin. Default-Template: Mahnung (17 Blöcke).
+
+**Architektur-Entscheidungen:**
+- **JSON-Block-Struktur:** `content` ist ein Array von Block-Objekten `[{type, ...props}]`. Blocktypen: `heading`, `text`, `table`, `spacer`, `page_break`, `hint_box`. Erweiterbar durch neue Typen ohne Schema-Migration.
+- **Platzhalter-System:** `{{variable_name}}`-Syntax, Parser per Regex. Unbekannte Platzhalter bleiben stehen (sichtbar im Preview). Variablen pro Template-Typ definiert in `PDF_TEMPLATE_VARIABLES`.
+- **Tabellen-Datenquellen:** `table`-Blöcke referenzieren eine `source` (z.B. `offene_posten`). Spalten mit `width` (0–1 relativ), `align`, `format` (z.B. `eur`). Daten werden vom Caller übergeben (nicht vom Template geladen).
+- **Template-Cache:** `_pdfLoadTemplate()` cached pro Session, `_pdfClearTemplateCache()` invalidiert nach Speichern im Designer.
+- **Live-Preview:** Debounced (600ms). Nutzt Dummy-Daten aus `PDF_PREVIEW_DUMMY_DATA`. Rendert PDF via `pdf-lib` im Browser, zeigt als Blob-URL in `<embed>`.
+- **Legacy-Fallback:** `generateMahnungPDF()` prüft ob ein `mahnung`-Template existiert. Wenn ja → Template-Engine. Wenn nein → hardcoded Layout bleibt erhalten.
+
+**Geänderte Dateien:**
+- `utils-pdf.js`: `_pdfReplacePlaceholders()` (Platzhalter-Parser), `generateFromTemplate()` (Block-Renderer mit Seitenumbruch-Logik), `_pdfLoadTemplate()` / `_pdfClearTemplateCache()` (DB-Zugriff + Cache), `PDF_PREVIEW_DUMMY_DATA` (Mahnung-Vorschaudaten), `PDF_TEMPLATE_VARIABLES` / `PDF_TEMPLATE_TABLES` (Variablen-/Tabellen-Definitionen). `generateMahnungPDF()` umgestellt auf Template-First mit Legacy-Fallback.
+- `mod-settings.js`: Tab-Navigation (Allgemein | Dokumenten-Designer). Designer: Template-Selektor, Block-Editor (inline-editierbar, Drag & Drop, Hoch/Runter/Löschen), Variablen-Palette (klicken zum Einfügen), Live-Preview (Splitscreen, Debounced PDF-Rendering), Briefbogen-Checkbox, Speichern-Button.
+- `dashboard.html`: CSS für `.ds-block` (Drag-Transition, Ring-Highlight). Cache-Buster für `mod-settings.js`.
+- `etv.html`, `finanzen.html`, `zeiterfassung.html`: Cache-Buster für `utils-pdf.js`.
+- Neu: `scripts/migration_pdf_templates.sql` — Tabelle + RLS + Default-Mahnung-Template.
 
