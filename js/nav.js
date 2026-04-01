@@ -106,6 +106,9 @@ function renderBottomNav(role) {
     const nav = document.getElementById('bottom-nav');
     if (!nav) return;
 
+    // Fallback-Icon falls icons.more noch nicht definiert (Cache)
+    const moreIcon = icons.more || `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>`;
+
     let items;
     if (role === 'admin' || role === 'manager') {
         items = [
@@ -113,7 +116,7 @@ function renderBottomNav(role) {
             { icon: icons.tickets,   label: 'Tickets',   fn: 'loadTickets',   badge: 'bnav-badge-tickets' },
             { icon: icons.news,      label: 'News',      fn: 'loadNews',      badge: 'bnav-badge-news' },
             { icon: icons.docs,      label: 'Dokumente', fn: 'loadDocuments', badge: 'bnav-badge-docs' },
-            { icon: icons.more,      label: 'Mehr',      fn: '_more' },
+            { icon: moreIcon,        label: 'Mehr',      fn: '_more' },
         ];
     } else if (role === 'tenant') {
         items = [
@@ -121,7 +124,7 @@ function renderBottomNav(role) {
             { icon: icons.tickets,   label: 'Meldungen', fn: 'loadTickets',   badge: 'bnav-badge-tickets' },
             { icon: icons.news,      label: 'News',      fn: 'loadNews',      badge: 'bnav-badge-news' },
             { icon: icons.docs,      label: 'Dokumente', fn: 'loadDocuments', badge: 'bnav-badge-docs' },
-            { icon: icons.more,      label: 'Mehr',      fn: '_more' },
+            { icon: moreIcon,        label: 'Mehr',      fn: '_more' },
         ];
     } else {
         // owner, landlord, advisory
@@ -130,22 +133,27 @@ function renderBottomNav(role) {
             { icon: icons.tickets,   label: 'Tickets',   fn: 'loadTickets',   badge: 'bnav-badge-tickets' },
             { icon: icons.docs,      label: 'Dokumente', fn: 'loadDocuments', badge: 'bnav-badge-docs' },
             { icon: icons.contact,   label: 'Kontakte',  fn: 'loadContacts' },
-            { icon: icons.more,      label: 'Mehr',      fn: '_more' },
+            { icon: moreIcon,        label: 'Mehr',      fn: '_more' },
         ];
     }
 
-    nav.innerHTML = items.map((item, i) => `
-        <button class="bnav-item flex flex-col items-center justify-center flex-1 pt-2 pb-1.5 relative${i === 0 ? ' bnav-active' : ''}"
-                onclick="${item.fn === '_more' ? 'toggleMenu()' : `bottomNavGo('${item.fn}', this)`}"
-                data-fn="${item.fn}">
-            <span class="relative">
-                ${item.icon.replace(/w-5 h-5/g, 'w-6 h-6')}
-                ${item.badge ? `<span id="${item.badge}" class="absolute -top-1.5 -right-2.5 text-[8px] font-black bg-hb-orange text-white rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5 leading-none" style="display:none"></span>` : ''}
-            </span>
-            <span class="text-[10px] font-semibold mt-0.5 leading-tight">${item.label}</span>
-            <span class="bnav-dot"></span>
-        </button>
-    `).join('');
+    try {
+        nav.innerHTML = items.map((item, i) => `
+            <button class="bnav-item flex flex-col items-center justify-center flex-1 pt-2 pb-1.5 relative${i === 0 ? ' bnav-active' : ''}"
+                    onclick="${item.fn === '_more' ? 'toggleMenu()' : `bottomNavGo('${item.fn}', this)`}"
+                    data-fn="${item.fn}">
+                <span class="relative">
+                    ${(item.icon || '').replace(/w-5 h-5/g, 'w-6 h-6')}
+                    ${item.badge ? `<span id="${item.badge}" class="absolute -top-1.5 -right-2.5 text-[8px] font-black bg-hb-orange text-white rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5 leading-none" style="display:none"></span>` : ''}
+                </span>
+                <span class="text-[10px] font-semibold mt-0.5 leading-tight">${item.label}</span>
+                <span class="bnav-dot"></span>
+            </button>
+        `).join('');
+    } catch (e) {
+        console.error('renderBottomNav error:', e);
+        nav.innerHTML = '<div class="text-xs text-red-500 p-2">Nav-Fehler — bitte Seite neu laden</div>';
+    }
 }
 
 function bottomNavGo(fnName, el) {
