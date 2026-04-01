@@ -91,7 +91,22 @@ async function loadFinance() {
     const { data: buildings } = await _supabase.from('buildings').select('id, name, file_number, street, house_number').order('name');
     _finState.buildings = buildings || [];
     if (!_finState.buildingId && _finState.buildings.length > 0) {
-        _finState.buildingId = _finState.buildings[0].id;
+        // Building-Kontext: URL-Param > sessionStorage > erster in Liste
+        const urlBuilding = new URLSearchParams(window.location.search).get('building');
+        const sessionBuilding = sessionStorage.getItem('hb_active_building');
+        const targetId = urlBuilding || sessionBuilding;
+        if (targetId && _finState.buildings.find(b => b.id == targetId)) {
+            _finState.buildingId = Number(targetId);
+        } else {
+            _finState.buildingId = _finState.buildings[0].id;
+        }
+    }
+
+    // Tab Deep-Linking: ?tab=buchungen etc.
+    const urlTab = new URLSearchParams(window.location.search).get('tab');
+    const validTabs = ['uebersicht','buchungen','zaehler','sollstellung','wirtschaftsplan','ruecklage','belegpruefung','jahresabrechnung','mahnwesen','datev','csv_import','sepa_export','onboarding'];
+    if (urlTab && validTabs.includes(urlTab)) {
+        _finState.tab = urlTab;
     }
 
     _finRenderShell();
@@ -144,6 +159,7 @@ function _finRenderShell() {
 
 window._finOnBuildingChange = async (val) => {
     _finState.buildingId = Number(val);
+    sessionStorage.setItem('hb_active_building', String(val));
     _finState.accounts = [];
     await _finLoadTab(_finState.tab);
 };

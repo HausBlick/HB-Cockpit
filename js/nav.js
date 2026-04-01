@@ -79,6 +79,8 @@ async function init() {
             // Externe Seite — Modul direkt initialisieren
             const PAGE_INIT = {
                 'zeiterfassung': typeof loadZeiterfassung === 'function' ? loadZeiterfassung : null,
+                'etv':           typeof loadETV           === 'function' ? loadETV           : null,
+                'finanzen':      typeof loadFinance       === 'function' ? loadFinance       : null,
             };
             if (PAGE_INIT[page]) PAGE_INIT[page]();
         }
