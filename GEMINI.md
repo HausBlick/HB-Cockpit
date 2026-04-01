@@ -52,7 +52,8 @@ Authentifizierung: Supabase Auth (Magic Links, Passwort-Resets, rollenbasierter 
 
 Storage: Supabase Storage (Privater Bucket documents mit signierten URLs für sicheren Dokumentenzugriff).
 
-Frontend: Vanilla JavaScript (ES6 Modules), HTML5, Tailwind CSS (via CDN) – keine schweren Frameworks, extrem schnelle Ladezeiten.
+Frontend-Architektur (Verwalter): Aufteilung des monolithischen Dashboards. Das `dashboard.html` (Startseite/Workspace, Tickets, Schwarzes Brett, Kontaktbuch, Kalender, CRM, Gebäude & Einheiten, Globale Einstellungen) bildet das Zentrum. Komplexe Tools (Finanzen, ETV, Zeiterfassung, Dokumentencloud) öffnen sich als separate HTML-Seiten. Deep-Linking (z.B. `?building=17`) verknüpft die Ansichten.
+Frontend (Basis): Vanilla JavaScript (ES6 Modules), HTML5, Tailwind CSS (via CDN) – keine schweren Frameworks. Das Mieter/Eigentümer-Dashboard bleibt als schlanke SPA unverändert.
 
 Hosting: GitHub Pages (Continuous Deployment aus dem main-Branch).
 
@@ -65,7 +66,13 @@ wichtige Hinweise/Akzente. Keine Fremdfarben!
 
 Konsistenz-Zwang: Alle Module müssen exakt dieselbe Formensprache (Weiche UI-Karten `rounded-[15px]`, identische Tabellen, einheitliche Button-Styles) nutzen.
 
-Mobile First & App-Feeling: Die mobile Ansicht ist keine zweitrangige Web-Ansicht, sondern muss sich wie eine native App anfühlen (Sticky-Header, flüssige Swipe-Menüs, gut greifbare Touch-Zonen).
+Mobile First & App-Feeling (High-End Native Patterns): Die mobile Ansicht ist keine zweitrangige Web-Ansicht. Alle Module unterliegen strikten, nativen UI-Regeln:
+1. Zwingendes Scroll-Containment und Sticky-Header.
+2. Mindestgröße für Touch-Targets (44px).
+3. Bottom Navigation: Feste Navigationsleiste unten für die 4-5 wichtigsten Schnellzugriffe.
+4. Bottom Sheets & Slide-Ins: Formulare und Menüs öffnen sich von unten (Swipe-Up) oder wischen seitwärts von rechts hinein (wie bei Ordnern in Drive). Ein Klick auf "Zurück" wischt die Ansicht wieder flüssig nach rechts heraus. Keine zentrierten Desktop-Modals mehr.
+5. Skeleton Loading: Ladezeiten werden mit grauen Platzhaltern überbrückt, nicht mit Ladekreisen.
+6. Mobile Cards statt Tabellen: Komplexe Tabellen werden auf dem Smartphone automatisch in klickbare Karten untereinander umgewandelt.
 
 PWA-Ready: Das Portal wird als Progressive Web App (PWA) konzipiert, sodass Nutzer es sich als "echte App" auf ihr Smartphone (iOS/Android) herunterladen und auf dem Homescreen ablegen können.
 
