@@ -308,6 +308,11 @@ async function _renderAdminDashboard() {
             </div>
 
         </div>`;
+
+    // Responsive tables
+    document.querySelectorAll('#content-area .card table').forEach(t => {
+        makeTableResponsive(t.closest('.card') || t.parentElement);
+    });
 }
 
 function _dashDraftDocsHtml(docs) {
@@ -614,6 +619,11 @@ async function _renderUserDashboard() {
             </div>
 
         </div>`;
+
+    // Responsive tables
+    document.querySelectorAll('#content-area .card table').forEach(t => {
+        makeTableResponsive(t.closest('.card') || t.parentElement);
+    });
 }
 
 // Hilfsfunktion für News-Navigation (wird im onclick-String verwendet)

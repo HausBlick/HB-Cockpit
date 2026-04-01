@@ -388,6 +388,9 @@ async function _finLoadOverview() {
                 </div>
             </div>
         </div>`;
+
+    // Responsive tables
+    makeTableResponsive(document.querySelector('#fin-content .card'));
 }
 
 window._finOpenNewAccountModal = () => {
@@ -597,6 +600,9 @@ window._finOpenLedger = async (accountId, accountName) => {
                 </table>
             </div>
         </div>`;
+
+    // Responsive tables
+    makeTableResponsive(document.querySelector('#fin-content .card'));
 };
 
 // ─── Tab 2: Buchungen ─────────────────────────────────────────
@@ -724,6 +730,9 @@ async function _finRenderBookings() {
         </div>
 
 `;
+
+    // Responsive tables
+    document.querySelectorAll('#fin-content .card').forEach(c => makeTableResponsive(c));
 }
 
 window._finChangeFY = async (val) => {
@@ -1132,6 +1141,9 @@ function _finRenderMeters() {
             </div>
             <div class="px-5 py-8 text-center text-sm text-gray-400">Wird nach dem ersten Speichern angezeigt.</div>
         </div>`;
+
+    // Responsive tables
+    document.querySelectorAll('#fin-content .card').forEach(c => makeTableResponsive(c));
 }
 
 window._finSaveReadings = async () => {
@@ -1238,6 +1250,9 @@ function _finRenderDemands() {
                 <tbody class="divide-y divide-hb-olive/10">${rows || `<tr><td colspan="6" class="px-4 py-8 text-center text-sm text-gray-400">Keine Sollstellungen für ${fy}. Bitte generieren.</td></tr>`}</tbody>
             </table>
         </div>`;
+
+    // Responsive tables
+    document.querySelectorAll('#fin-content .card').forEach(c => makeTableResponsive(c));
 }
 
 window._finChangeFySolls = async (val) => {
@@ -1429,6 +1444,11 @@ function _finRenderOnboarding() {
             <div class="flex items-center gap-1 mb-6">${stepDots}</div>
             ${stepContent}
         </div>`;
+
+    // Responsive tables
+    document.querySelectorAll('#fin-content .card table').forEach(t => {
+        makeTableResponsive(t.closest('.card') || t.parentElement);
+    });
 }
 
 window._finOBNext = async (fromStep) => {
@@ -1810,6 +1830,11 @@ function _finRenderWirtschaftsplan(plan, planItems) {
                 </div>
             </div>
         </div>`;
+
+    // Responsive tables
+    document.querySelectorAll('#fin-content .card table, #fin-content > .card > table').forEach(t => {
+        makeTableResponsive(t.closest('.card') || t.parentElement);
+    });
 }
 
 window._finChangeWPFY = async (val) => {
@@ -2120,6 +2145,9 @@ function _finRenderRuecklage(reserveAccs, saldoMap, planTargetMap, histEntries) 
                 <tbody class="divide-y divide-hb-olive/10">${histRows || `<tr><td colspan="5" class="px-4 py-8 text-center text-sm text-gray-400">Keine Rücklagebuchungen für ${fy}.</td></tr>`}</tbody>
             </table>
         </div>`;
+
+    // Responsive tables
+    document.querySelectorAll('#fin-content .card').forEach(c => makeTableResponsive(c));
 }
 
 window._finChangeRLFY = async (val) => {
@@ -2266,6 +2294,9 @@ async function _finLoadBelegpruefung() {
                 </div>
             </div>
         </div>`;
+
+    // Responsive tables
+    document.querySelectorAll('#fin-content .card').forEach(c => makeTableResponsive(c));
 }
 
 window._finChangeBPFY = async (val) => {
@@ -2360,6 +2391,9 @@ async function _finRenderBeiratView() {
                 </table>
             </div>
         </div>`;
+
+    // Responsive tables
+    document.querySelectorAll('#content-area .card').forEach(c => makeTableResponsive(c));
 }
 
 // ============================================================
@@ -2401,6 +2435,11 @@ function _finRenderJAB() {
             </div>
             ${content}
         </div>`;
+
+    // Responsive tables
+    document.querySelectorAll('#fin-content table').forEach(t => {
+        makeTableResponsive(t.closest('.card') || t.parentElement);
+    });
 }
 
 function _finJABStep1Html(fy) {
@@ -3277,6 +3316,9 @@ async function _finLoadMahnwesen() {
         const feeEl = document.getElementById('mahn-fee');
         if (feeEl) feeEl.value = fees[this.value] || '0';
     });
+
+    // Responsive tables
+    document.querySelectorAll('#fin-content .card').forEach(c => makeTableResponsive(c));
 }
 
 window._finSelectAllChecks = () => {
@@ -3898,6 +3940,9 @@ function _csvRenderPreview() {
                 </table>
             </div>
         </div>`;
+
+    // Responsive tables
+    makeTableResponsive(document.querySelector('#csv-preview .card'));
 }
 
 window._csvSelectAll = (checked) => {
@@ -4149,6 +4194,9 @@ window._sepaLoadPreview = async () => {
     // store rows on window for export
     window._sepaRows = rows;
     window._sepaDemandsRaw = demands || [];
+
+    // Responsive tables
+    makeTableResponsive(document.querySelector('#sepa-preview .card'));
 };
 
 window._sepaExportXml = () => {

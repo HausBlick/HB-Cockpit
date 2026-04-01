@@ -257,6 +257,11 @@ async function showBuildingInfo(b) {
             </div>
         </div>`;
 
+    // Responsive tables (bank accounts, distribution keys)
+    area.querySelectorAll('table').forEach(t => {
+        makeTableResponsive(t.parentElement);
+    });
+
     await fetchApartmentsForBuilding(b.id);
 }
 
@@ -309,6 +314,7 @@ async function fetchApartmentsForBuilding(bId) {
                 }).join('')}
             </tbody>
         </table>`;
+    makeTableResponsive(list);
 }
 
 // ─── Einheit Info-Ansicht ─────────────────────────────────────
@@ -1122,7 +1128,10 @@ async function _dkRefreshTab(buildingId) {
         .eq('building_id', buildingId).order('is_system_default', { ascending: false });
     const keys = data || [];
     const tab = document.getElementById('bldg-tab-keys');
-    if (tab) tab.innerHTML = _dkRenderTab(keys, buildingId);
+    if (tab) {
+        tab.innerHTML = _dkRenderTab(keys, buildingId);
+        makeTableResponsive(tab);
+    }
 }
 
 window._dkOpenNewModal = function(buildingId) {
@@ -1317,6 +1326,9 @@ window._dkOpenValuesModal = async function(keyId, buildingId) {
         </div>`;
     document.body.appendChild(overlay);
     _dkUpdateSum();
+
+    // Responsive tables
+    makeTableResponsive(overlay);
 };
 
 window._dkUpdateHeizLabel = function() {

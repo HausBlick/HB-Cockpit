@@ -336,6 +336,7 @@ function _renderDocsTable() {
                 <td class="p-4 text-right" onclick="event.stopPropagation()">${actionBtns}</td>
             </tr>`;
     }).join('');
+    makeTableResponsive(tbody.closest('.card'));
 }
 
 // ─── BAUMANSICHT ───────────────────────────────────────────────

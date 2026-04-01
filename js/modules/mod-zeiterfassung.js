@@ -284,6 +284,11 @@ async function _timeOpenProject(id) {
             </div>
         </div>
     `;
+
+    // Responsive tables
+    document.querySelectorAll('#content-area .card table').forEach(t => {
+        makeTableResponsive(t.closest('.card') || t.parentElement);
+    });
 }
 
 // ─── Timer Logik ──────────────────────────────────────────────

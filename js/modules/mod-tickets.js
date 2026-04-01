@@ -30,12 +30,12 @@ async function loadTickets() {
                     <div class="px-4 py-3 flex justify-between items-center bg-hb-olive">
                         <h2 class="text-sm font-bold text-white">Tickets</h2>
                         <button onclick="showCreateTicketModal()"
-                            class="bg-white text-hb-olive w-7 h-7 rounded-full flex items-center justify-center text-lg leading-none hover:bg-hb-ultralight transition-colors">+</button>
+                            class="bg-white text-hb-olive w-9 h-9 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center text-lg leading-none hover:bg-hb-ultralight transition-colors">+</button>
                     </div>
                     <div class="px-2 pt-2 pb-1 flex-shrink-0">
                         <input type="search" id="ticket-search" placeholder="Suchen…"
                             oninput="searchTickets(this.value)"
-                            class="w-full text-xs h-8 px-3 rounded-lg border border-gray-200 bg-gray-50 focus:bg-white focus:border-hb-olive outline-none transition-colors">
+                            class="w-full text-xs h-11 px-3 rounded-lg border border-gray-200 bg-gray-50 focus:bg-white focus:border-hb-olive outline-none transition-colors">
                     </div>
                     <div class="flex-grow overflow-y-auto p-2 space-y-0.5" id="ticket-filter-menu"></div>
                 </div>
@@ -112,7 +112,7 @@ async function _renderFilterMenu() {
 
     menu.innerHTML = filters.map(f => `
         <button onclick="setTicketFilter('${f.id}')" id="tf-${f.id.replace(/\s/g,'-')}"
-            class="ticket-filter-btn w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold
+            class="ticket-filter-btn w-full text-left px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-semibold
                    transition-colors flex items-center gap-2 text-gray-600 hover:bg-gray-50
                    ${_ticketFilter === f.id ? 'bg-hb-ultralight text-hb-olive font-bold' : ''}">
             ${f.icon}${f.label}${f.showBadge ? badge(counts[f.id]) : ''}
@@ -128,7 +128,7 @@ async function _renderFilterMenu() {
             const n = all.filter(t => t.building_id === b.id && t.status !== 'Erledigt').length;
             return `
             <button onclick="setTicketFilter('building-${b.id}')" id="tf-building-${b.id}"
-                class="ticket-filter-btn w-full text-left px-3 py-2 rounded-lg text-xs font-semibold
+                class="ticket-filter-btn w-full text-left px-3 py-2.5 min-h-[44px] rounded-lg text-xs font-semibold
                        text-gray-500 hover:bg-gray-50 transition-colors flex items-center gap-2">
                 <span class="truncate flex-1">${formatBuildingName(b)}</span>${badge(n)}
             </button>`;
@@ -223,7 +223,7 @@ function _renderTicketList(filterId) {
     main.innerHTML = `
         <div class="card lg:h-full flex flex-col overflow-hidden">
             <div class="px-4 py-3 flex items-center gap-3 flex-shrink-0 bg-hb-olive">
-                <button onclick="_backToSidebar()" class="lg:hidden text-white font-bold text-xs flex-shrink-0">← Filter</button>
+                <button onclick="_backToSidebar()" class="lg:hidden text-white font-bold text-xs flex-shrink-0 min-h-[44px] min-w-[44px] px-2">← Filter</button>
                 <h3 class="font-bold text-white">${title}
                     <span class="ml-2 text-xs font-normal text-white/70">(${_ticketsData.length})</span>
                 </h3>
@@ -247,6 +247,7 @@ function _renderTicketList(filterId) {
                 </table>
             </div>
         </div>`;
+    makeTableResponsive(main.querySelector('.card'));
 }
 
 function _ticketRowHtml(t) {
@@ -336,6 +337,7 @@ window.searchTickets = async (query) => {
                 </table>
             </div>
         </div>`;
+    makeTableResponsive(main.querySelector('.card'));
 };
 
 // ─── Ticket-Detail ────────────────────────────────────────────
@@ -373,17 +375,17 @@ window.openTicketDetail = async (ticketId) => {
     }
 
     main.innerHTML = `
-        <div class="card lg:h-full flex flex-col lg:flex-row lg:overflow-hidden">
+        <div class="card relative h-[calc(100dvh-160px)] lg:h-full flex flex-col lg:flex-row overflow-hidden">
             <!-- Chat-Bereich -->
-            <div class="flex-1 flex flex-col min-w-0 lg:border-r border-gray-100">
+            <div class="flex-1 flex flex-col min-w-0 min-h-0 lg:border-r border-gray-100">
                 <div class="px-4 py-3 border-b border-gray-50 flex justify-between items-center flex-shrink-0">
                     <div class="min-w-0">
                         <button onclick="_backToList()"
-                            class="text-xs font-bold text-hb-olive hover:underline">← Zurück</button>
+                            class="text-xs font-bold text-hb-olive hover:underline min-h-[44px] min-w-[44px] flex items-center">← Zurück</button>
                         <p class="font-bold text-hb-offblack mt-0.5 truncate">${t.title}</p>
                     </div>
                     <!-- Mobile: Info-Toggle -->
-                    <button onclick="_toggleMobileInfo()" class="lg:hidden flex-shrink-0 ml-2 text-xs font-bold text-gray-400 border border-gray-200 rounded-lg px-2 py-1">
+                    <button onclick="_toggleMobileInfo()" class="lg:hidden flex-shrink-0 ml-2 text-xs font-bold text-gray-400 border border-gray-200 rounded-lg px-3 py-2 min-h-[44px] min-w-[44px] flex items-center justify-center">
                         Info ▾
                     </button>
                 </div>
@@ -398,18 +400,20 @@ window.openTicketDetail = async (ticketId) => {
                         class="flex-grow resize-none text-sm"
                         onkeydown="if(event.key==='Enter'&&event.ctrlKey)sendTicketMessage('${t.id}')"></textarea>
                     <button onclick="sendTicketMessage('${t.id}')"
-                        class="btn-primary px-3 py-2 text-sm flex-shrink-0">Senden</button>
+                        class="btn-primary px-4 py-2 min-h-[44px] text-sm flex-shrink-0">Senden</button>
                 </div>
             </div>
 
-            <!-- Info-Sidebar (Desktop: rechts fest | Mobile: ausklappbar) -->
-            <div id="ticket-info-sidebar" class="hidden lg:block w-full lg:w-64 xl:w-72 flex-shrink-0 overflow-y-auto p-5 space-y-5 text-left border-t lg:border-t-0">
+            <!-- Info-Sidebar (Desktop: rechts fest | Mobile: Overlay) -->
+            <div id="ticket-info-sidebar" class="hidden lg:block lg:relative lg:w-64 xl:w-72 flex-shrink-0 overflow-y-auto p-5 space-y-5 text-left border-t lg:border-t-0 max-lg:absolute max-lg:inset-0 max-lg:bg-white max-lg:z-10">
+                <!-- Mobile: Close-Button -->
+                <button onclick="_toggleMobileInfo()" class="lg:hidden flex items-center gap-1 text-xs font-bold text-hb-olive min-h-[44px] min-w-[44px] mb-2">← Zurück zum Chat</button>
                 <!-- Status -->
                 <div class="space-y-2">
                     <p class="text-[10px] uppercase font-bold text-gray-400">Status</p>
                     ${isAdmin ? `
                         <select id="ticket-status-sel" onchange="updateTicketStatus('${t.id}', this.value)"
-                            class="text-sm h-9 px-2">
+                            class="text-sm h-11 px-2">
                             ${TICKET_STATUSES.map(s => `<option value="${s}" ${t.status===s?'selected':''}>${s}</option>`).join('')}
                         </select>
                         <div id="snooze-wrap" class="${t.status === 'Wiedervorlage' ? '' : 'hidden'} space-y-1 mt-1">
@@ -429,14 +433,14 @@ window.openTicketDetail = async (ticketId) => {
                 ${t.buildings ? `<div class="space-y-1">
                     <p class="text-[10px] uppercase font-bold text-gray-400">Gebäude</p>
                     <button onclick="navigateToBuilding(${t.buildings.id})"
-                        class="text-sm font-bold text-hb-olive hover:underline">${formatBuildingName(t.buildings)}</button>
+                        class="text-sm font-bold text-hb-olive hover:underline min-h-[44px] flex items-center">${formatBuildingName(t.buildings)}</button>
                 </div>` : ''}
 
                 <!-- Einheit Deep-Link -->
                 ${t.apartments ? `<div class="space-y-1">
                     <p class="text-[10px] uppercase font-bold text-gray-400">Einheit</p>
                     <button onclick="navigateToApartment(${t.buildings?.id}, ${t.apartments.id})"
-                        class="text-sm font-bold text-hb-olive hover:underline">Wohnung ${t.apartments.apartment_number}</button>
+                        class="text-sm font-bold text-hb-olive hover:underline min-h-[44px] flex items-center">Wohnung ${t.apartments.apartment_number}</button>
                 </div>` : ''}
 
                 <!-- Ersteller -->
@@ -444,7 +448,7 @@ window.openTicketDetail = async (ticketId) => {
                     <p class="text-[10px] uppercase font-bold text-gray-400">Erstellt von</p>
                     ${isAdmin
                         ? `<button onclick="navigateToPersonByProfile('${t.creator?.id}')"
-                            class="text-sm font-bold text-hb-olive hover:underline">${t.creator?.full_name || '—'}</button>`
+                            class="text-sm font-bold text-hb-olive hover:underline min-h-[44px] flex items-center">${t.creator?.full_name || '—'}</button>`
                         : `<p class="text-sm font-semibold">${t.creator?.full_name || '—'}</p>`}
                 </div>
 
@@ -452,7 +456,7 @@ window.openTicketDetail = async (ticketId) => {
                 <div class="space-y-2">
                     <p class="text-[10px] uppercase font-bold text-gray-400">Zugewiesen an</p>
                     ${isAdmin ? `
-                        <select onchange="assignTicket('${t.id}', this.value)" class="text-sm h-9 px-2">
+                        <select onchange="assignTicket('${t.id}', this.value)" class="text-sm h-11 px-2">
                             <option value="">— Niemand —</option>
                             ${managers.map(m => `<option value="${m.id}" ${t.assigned_to===m.id?'selected':''}>${m.full_name}</option>`).join('')}
                         </select>` : `<p class="text-sm font-semibold">${t.assignee?.full_name || '—'}</p>`}
@@ -462,7 +466,7 @@ window.openTicketDetail = async (ticketId) => {
                 ${isOwner && t.status !== 'Erledigt' ? `
                     <div class="border-t pt-4">
                         <button onclick="escalateTicket('${t.id}')"
-                            class="btn-secondary w-full text-xs py-2">An Verwalter weiterleiten</button>
+                            class="btn-secondary w-full text-xs py-2 min-h-[44px]">An Verwalter weiterleiten</button>
                     </div>` : ''}
 
                 <!-- Priorität -->
@@ -627,7 +631,7 @@ window.showCreateTicketModal = async () => {
     const modal = showModal('create-ticket-modal', `
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-extrabold text-hb-offblack">Neues Ticket</h3>
-                <button onclick="hideModal('create-ticket-modal')" class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
+                <button onclick="hideModal('create-ticket-modal')" class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none min-h-[44px] min-w-[44px] flex items-center justify-center">✕</button>
             </div>
             <div class="space-y-2">
                 <label class="text-[10px] uppercase font-bold text-gray-500">Betreff *</label>

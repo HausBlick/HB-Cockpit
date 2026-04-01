@@ -127,6 +127,29 @@ function _addSwipeToDismiss(modal) {
     });
 }
 
+// ─── Responsive Table ────────────────────────────────────────
+// Macht eine Tabelle mobil-responsive: liest <th>-Texte, setzt data-label auf <td>,
+// und wickelt den Container in .rtable.
+// Nutzung: makeTableResponsive(document.getElementById('my-table-container'))
+// Oder per ID: makeTableResponsive('my-container-id')
+function makeTableResponsive(elOrId) {
+    const el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
+    if (!el) return;
+    el.classList.add('rtable');
+    const table = el.querySelector('table') || (el.tagName === 'TABLE' ? el : null);
+    if (!table) return;
+    const headers = [...table.querySelectorAll('thead th')].map(th => th.textContent.trim());
+    table.querySelectorAll('tbody tr').forEach(tr => {
+        [...tr.querySelectorAll('td')].forEach((td, i) => {
+            if (headers[i]) td.setAttribute('data-label', headers[i]);
+            // Letzte Spalte mit Buttons/Links → Action-Styling
+            if (i === headers.length - 1 && td.querySelector('button, a, .btn-primary')) {
+                td.classList.add('td-action');
+            }
+        });
+    });
+}
+
 // ─── Skeleton Loading ────────────────────────────────────────
 // Erzeugt HTML-Platzhalter für Ladezustände (Phase 1C Pattern)
 // Nutzung: container.innerHTML = showSkeleton({ rows: 4, type: 'cards' });

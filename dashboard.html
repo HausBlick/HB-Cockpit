@@ -71,6 +71,19 @@
         @supports (padding-bottom: env(safe-area-inset-bottom)) {
             #bottom-nav { padding-bottom: env(safe-area-inset-bottom); }
         }
+        /* Responsive Table → Card (Mobile) */
+        @media (max-width: 767px) {
+            .rtable table, .rtable thead, .rtable tbody, .rtable th, .rtable tr, .rtable td { display: block; }
+            .rtable thead { position: absolute; left: -9999px; }
+            .rtable tbody tr { background: white; border-radius: 15px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid rgba(104,116,81,0.15); box-shadow: 0 2px 8px -2px rgba(0,0,0,0.04); }
+            .rtable tbody tr:active { background: #f9faf8; }
+            .rtable td { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; border: none !important; font-size: 14px; min-height: 28px; }
+            .rtable td::before { content: attr(data-label); font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.03em; flex-shrink: 0; margin-right: 12px; }
+            .rtable td.td-action { justify-content: flex-end; padding-top: 8px; margin-top: 4px; border-top: 1px solid rgba(104,116,81,0.08) !important; }
+            .rtable td.td-action::before { display: none; }
+            .rtable td.td-hide-mobile { display: none; }
+            .rtable .overflow-x-auto { overflow-x: visible; }
+        }
         /* Skeleton Loading */
         .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%); background-size: 200% 100%; animation: sk-shimmer 1.5s ease-in-out infinite; border-radius: 15px; }
         @keyframes sk-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
