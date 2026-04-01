@@ -28,7 +28,15 @@ async function loadZeiterfassung() {
     const { data: blds } = await _supabase.from('buildings').select('id, name, file_number, street, house_number').order('name');
     _timeState.buildings = blds || [];
     if (!_timeState.activeBuilding && _timeState.buildings.length > 0) {
-        _timeState.activeBuilding = _timeState.buildings[0].id;
+        // Building-Kontext: URL-Param > sessionStorage > erster in Liste
+        const urlBuilding = new URLSearchParams(window.location.search).get('building');
+        const sessionBuilding = sessionStorage.getItem('hb_active_building');
+        const targetId = urlBuilding || sessionBuilding;
+        if (targetId && _timeState.buildings.find(b => b.id == targetId)) {
+            _timeState.activeBuilding = parseInt(targetId);
+        } else {
+            _timeState.activeBuilding = _timeState.buildings[0].id;
+        }
     }
 
     // Laufenden Timer prüfen
@@ -572,6 +580,7 @@ async function _timeDeleteEntry(id) {
 
 function _timeChangeBuilding(id) {
     _timeState.activeBuilding = id;
+    sessionStorage.setItem('hb_active_building', String(id));
     _timeRenderShell();
 }
 

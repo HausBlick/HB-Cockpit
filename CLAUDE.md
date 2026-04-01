@@ -86,13 +86,27 @@ Dieses Projekt nutzt zwei KI-gesteuerte Dokumente mit strikter Aufgabenteilung:
 
 ## 5. Frontend-Struktur
 
+### Multi-Page-Architektur (Phase 1B)
+Das Dashboard bleibt SPA für Alltags-Module. Komplexe Tools werden als eigene HTML-Seiten ausgelagert.
+Geteilte Basis: `config.js`, `utils.js`, `nav.js`. Deep-Linking per URL-Params (`?building=17&tab=projekte`).
+Gebäude-Kontext wird via `sessionStorage` (`hb_active_building`) zwischen Seiten transportiert.
+
+| Seite | Module | Zielgruppe |
+|---|---|---|
+| `dashboard.html` | Dashboard, Tickets, News, Kontakte, Kalender, CRM, Objekte, Einstellungen | Alle Rollen |
+| `zeiterfassung.html` | Zeiterfassung & Projekte | admin, manager |
+| `etv.html` *(geplant)* | Eigentümerversammlung | admin, manager |
+| `dokumente.html` *(geplant)* | Dokumenten-Cloud | Alle Rollen |
+| `finanzen.html` *(geplant)* | Buchhaltung & Finanzen | admin, manager, advisory |
+
 ```
-dashboard.html              # HTML-Shell (~130 Zeilen)
+dashboard.html              # HTML-Shell — SPA für Alltags-Module
+zeiterfassung.html          # Standalone — Zeiterfassung & Projekte (Phase 1B PoC)
 js/
-  config.js                 # Supabase-Client, globale Vars, Icons
-  utils.js                  # Toast, Dropdown, Logout, Mobile-Menu
-  utils-pdf.js              # Official Letter Engine (pdf-lib: generateMahnungPDF, generateWirtschaftsplanPDF, generateEinzelwirtschaftsplanPDF)
-  nav.js                    # init(), renderNav(), setActiveNav(), loadNavBadges()
+  config.js                 # Supabase-Client, globale Vars, Icons, EXTERNAL_PAGES Routing
+  utils.js                  # Toast, Dropdown, Logout, Mobile-Menu, Modal/Bottom-Sheet
+  utils-pdf.js              # Official Letter Engine (pdf-lib)
+  nav.js                    # init(), Multi-Page-Routing, renderNav(), renderBottomNav(), Active-State
   modules/
     mod-dashboard.js        # Dashboard — KPIs, Quick-Actions, Widgets (rollenbasiert)
     mod-objekte.js          # Gebäude & Einheiten (CRUD + Zuweisungen)
@@ -104,7 +118,7 @@ js/
     mod-kontakte.js         # Kontaktbuch (Handwerker, Notfallkontakte, Dienstleister)
     mod-kalender.js         # Monatskalender — Gebäude-Fristen & Ticket-Wiedervorlagen
     mod-finanzen.js         # Buchhaltung (Konten, Buchungen, Wirtschaftsplan, Abrechnung, CSV/SEPA)
-    mod-zeiterfassung.js    # Zeiterfassung & Projekte (Timer, Arbeitspakete, Arbeitsrapport-PDF)
+    mod-zeiterfassung.js    # Zeiterfassung & Projekte (→ zeiterfassung.html, nicht mehr in dashboard.html)
     mod-settings.js         # Admin-Einstellungen (Firmendaten, Finanz-Defaults, Logo/Briefbogen-Upload)
     mod-placeholder.js      # Platzhalter für kommende Module (loadProfile, loadMyUnits, loadMyTenants)
     mod-etv.js              # Eigentümerversammlung (Planung, Check-in, Abstimmung, Protokoll)
@@ -125,6 +139,8 @@ js/
 - **Mobile Scroll-Containment:** Content-Area ist der einzige Scroll-Container. Nie `overflow-y-auto` auf Body oder Main
 - **Responsive Tables:** `.rtable`-Klasse auf Container → automatische Card-Umwandlung auf Mobile. `makeTableResponsive(el)` nach jedem Table-Render aufrufen
 - **Touch-Targets:** Alle interaktiven Elemente `min-h-[44px] min-w-[44px]`. Buttons/Links mit `p-3` statt `p-1`
+- **Multi-Page Nav-Links:** Für Module in `EXTERNAL_PAGES` → `<a href="...">`. Für SPA-Module auf Dashboard → `onclick`. Auf externen Seiten → SPA-Links zeigen auf `dashboard.html?m=fnName`
+- **Externe Seiten HTML-Shell:** Identische Struktur wie `dashboard.html` (Sidebar, Header, Content-Area, Bottom-Nav). Nur seitenspezifische `<script>`-Tags. Logo/Header-Klick → `dashboard.html`
 
 ---
 
@@ -193,10 +209,11 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 - 1.3 Supabase Security-Warnings behoben ✅
 - 1.4 Migration-Files eingeführt ✅
 - 1.5 Frontend modularisiert (dashboard.html → Module) ✅
-- 1B 🔴 **Frontend-Architektur: Dashboard vs. externe Tools** 📋
+- 1B 🔄 **Frontend-Architektur: Dashboard vs. externe Tools**
   > Dashboard (`dashboard.html`) für Übersicht + leichte Module. Separate HTML-Seiten für komplexe Tools: Finanzen (`finanzen.html`), ETV (`etv.html`), Zeiterfassung (`zeiterfassung.html`), Dokumentencloud (`dokumente.html`).
   > Im Dashboard bleiben: Startseite/Workspace, Tickets, Schwarzes Brett, Kontaktbuch, Kalender, CRM, Gebäude & Einheiten, Einstellungen.
   > Geteilte Basis: `config.js`, `utils.js`, `nav.js`. Deep-Linking mit Query-Parametern (z.B. `finanzen.html?building=17&tab=verteilerschluessel`). Mieter/Eigentümer-Dashboard bleibt SPA.
+  > **PoC Zeiterfassung ✅:** `zeiterfassung.html` als erste extrahierte Seite. Multi-Page-Routing in `nav.js` (`_navItem`, `_getCurrentPage`, `bottomNavGo`). Auth-Guard, sessionStorage-Sync, Deep-Link-Routing (`?m=loadTickets`). Nächste Schritte: ETV, Dokumente, Finanzen.
 - 1C 🔄 **Mobile-Audit & Responsive Patterns** (Phase A abgeschlossen)
   > **Phase A (Fundament) ✅:** Scroll-Containment (Body h-screen, Main flex-1 min-h-0, Content overflow-y-auto). Bottom-Navigation (5 Items rollenbasiert, Badge-Sync, Active-State-Sync mit Sidebar). Mobile-Header (Logo + Role-Label, Hamburger durch Bottom-Nav ersetzt). Skeleton-Loading CSS-Pattern. Safe-Area-Inset für Notch-Geräte. Toast-Position über Bottom-Nav.
   > **Phase B (Modals & Loading) ✅:** `showModal()`/`hideModal()` Utility (Desktop zentriert, Mobile Bottom Sheet). 8 Modals migriert (Tickets, Dokumente, Kontakte). Swipe-to-Dismiss. Skeleton-Loader im Dashboard.
@@ -443,4 +460,21 @@ Migration `phase81_special_roles_and_allocatable`: 6 Rollen (+landlord, +advisor
 **Ticket-Chat-Fix:** Card `h-[calc(100dvh-160px)]` mit `overflow-hidden`. Chat-Bereich `min-h-0` für korrektes Flex-Shrinking. Info-Sidebar als Overlay auf Mobile (`max-lg:absolute max-lg:inset-0`), "Zurück zum Chat"-Button.
 
 **Touch-Target 44px Audit (mod-tickets.js):** 13 Korrekturen: Create-Button, Filter-Buttons, Gebäude-Filter, Suchfeld, Zurück-Button, Info-Toggle, Send-Button, Modal-Close, Status-Select, Assignee-Select, Deep-Links, Eskalation-Button.
+
+### Phase 1B-PoC — Multi-Page-Architektur (Zeiterfassung)
+**Architektur-Entscheidungen:**
+- **Shared Layout:** Externe HTML-Seiten haben identische DOM-Struktur (Sidebar, Header, Content-Area, Bottom-Nav). `nav.js` injiziert Navigation in dieselben Container-IDs — keine redundante Kopie.
+- **Asset-Loading:** Direkte `<script>`-Tags pro Seite, kein dynamischer Loader. Jede Seite lädt nur benötigte Module.
+- **Navigation:** `_navItem()` erzeugt automatisch `onclick` (SPA auf Dashboard) oder `href` (Cross-Page). Auf externen Seiten zeigen SPA-Links auf `dashboard.html?m=loadXxx`.
+- **Active-State:** Auf Dashboard per `setActiveNav()` onclick-Handler. Auf externen Seiten per `_getCurrentPage()`-Match im `_navItem()`.
+- **Deep-Linking:** Dashboard liest `?m=`-Parameter und ruft das Modul direkt auf. Module lesen `?building=`-Parameter.
+- **Shared State:** `sessionStorage.hb_active_building` wird bei Gebäude-Wechsel gesetzt und von externen Seiten als Fallback gelesen.
+- **Auth-Guard:** `EXTERNAL_PAGE_ROLES` in config.js → `init()` prüft Rolle und redirected zu dashboard.html.
+
+**Geänderte Dateien:**
+- `config.js`: `EXTERNAL_PAGES` (Routing-Map), `EXTERNAL_PAGE_ROLES` (Auth-Guard), `_getCurrentPage()`, `_isExternalPage()`, `_syncBuildingToSession()`.
+- `nav.js`: Komplett refactored. `_navItem()` (Multi-Page-Link-Generator), `init()` (Page-Detection, Auth-Guard, Deep-Link-Routing, PAGE_INIT), `renderNav()` (über `_navItem` statt hardcoded onclick), `bottomNavGo()` (Cross-Page-Navigation, sessionStorage-Sync), `renderBottomNav()` ("Mehr"-Active auf externen Seiten).
+- `mod-zeiterfassung.js`: Building-Kontext aus URL-Param (`?building=`) > `sessionStorage` > erster in Liste. `_timeChangeBuilding()` synct zu sessionStorage.
+- `dashboard.html`: `mod-zeiterfassung.js` Script-Tag entfernt (Kommentar-Platzhalter), Cache-Buster `v=20260401c`.
+- Neu: `zeiterfassung.html` — eigenständige HTML-Shell, lädt nur `config.js`, `utils.js`, `utils-pdf.js`, `mod-zeiterfassung.js`, `nav.js`. Identisches Layout wie `dashboard.html`. Logo/Header linken zurück zu `dashboard.html`.
 

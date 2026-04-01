@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mieterportal | Dashboard</title>
+    <title>Mieterportal | Zeiterfassung</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -47,16 +47,6 @@
         .badge-mieter       { background-color: #fdf1e8; color: #c4601e; border-color: #f5c9a0; }
         .badge-dienstleister{ background-color: #f3f3f3; color: #555555; border-color: #d4d4d4; }
         .badge-beirat       { background-color: #e8ebe4; color: #4a5337; border-color: #b5bfab; }
-        /* Ticket-Status-Badges */
-        .ts-offen        { background-color: rgba(235,118,45,.12); color: #c4601e; }
-        .ts-bearbeitung  { background-color: rgba(104,116,81,.12); color: #687451; }
-        .ts-warte        { background-color: rgba(235,118,45,.18); color: #a34e18; }
-        .ts-wiedervorlage{ background-color: rgba(104,116,81,.18); color: #4a5337; }
-        .ts-erledigt     { background-color: #f3f4f6; color: #9ca3af; }
-        /* News-Kategorie-Badges */
-        .nc-ankuendigung { background-color: rgba(104,116,81,.12); color: #687451; }
-        .nc-wartung      { background-color: rgba(235,118,45,.12); color: #c4601e; }
-        .nc-allgemein    { background-color: #f3f4f6; color: #6b7280; }
         .nav-link { display: flex; align-items: center; gap: 0.5rem; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -95,12 +85,12 @@
 
     <!-- Sidebar -->
     <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-40 w-72 bg-white border-r border-gray-100 flex-shrink-0 h-screen flex flex-col shadow-soft text-left">
-        <div onclick="loadDashboard(); document.querySelectorAll('#nav-links a').forEach(a=>a.classList.remove('active-link')); document.querySelector('#nav-links a')?.classList.add('active-link');"
+        <a href="dashboard.html"
             class="p-8 pb-4 hidden md:block text-center border-b border-gray-50 mb-4 cursor-pointer hover:bg-gray-50/50 transition-colors">
             <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-10 w-auto mx-auto mb-2">
             <div class="font-extrabold text-xl tracking-tighter text-hb-olive">Mieterportal</div>
             <p class="text-[10px] uppercase tracking-widest font-bold text-gray-400">HB Verwaltung</p>
-        </div>
+        </a>
         <div class="flex-grow p-4 overflow-y-auto chat-scroll">
             <ul class="space-y-1" id="nav-links"></ul>
         </div>
@@ -109,12 +99,11 @@
 
     <!-- Main -->
     <main class="flex-1 min-h-0 overflow-hidden relative flex flex-col text-left">
-        <!-- Ein adaptiver Header: Mobile = Logo+Avatar, Desktop = Role-Label+Avatar -->
         <header class="px-4 py-2 md:py-4 md:px-6 flex justify-between items-center flex-shrink-0 bg-white md:bg-hb-ultralight/80 border-b border-gray-100 md:border-b-0 md:backdrop-blur-md z-30 text-left">
-            <div onclick="bottomNavGo('loadDashboard')" class="md:hidden font-bold text-lg tracking-tight text-hb-olive flex items-center gap-2 cursor-pointer">
+            <a href="dashboard.html" class="md:hidden font-bold text-lg tracking-tight text-hb-olive flex items-center gap-2 cursor-pointer">
                 <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-7 w-auto">
                 Mieterportal
-            </div>
+            </a>
             <div class="hidden md:block text-left">
                 <p id="role-label" class="text-xs uppercase tracking-widest font-bold text-hb-orange"></p>
             </div>
@@ -128,10 +117,10 @@
                         <p class="text-sm font-bold truncate text-left" id="dropdown-name">Name</p>
                         <p class="text-xs text-gray-400 truncate text-left" id="dropdown-email">email</p>
                     </div>
-                    <button onclick="loadProfile();" class="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-3 transition-colors">
+                    <a href="dashboard.html?m=loadProfile" class="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-3 transition-colors">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                         Profil bearbeiten
-                    </button>
+                    </a>
                     <button onclick="logout()" class="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 flex items-center gap-3 border-t border-gray-50 transition-colors">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                         Abmelden
@@ -144,32 +133,13 @@
         <nav id="bottom-nav" class="md:hidden flex-shrink-0 bg-white border-t border-gray-100 flex justify-around items-center" style="min-height:56px"></nav>
     </main>
 
-    <!-- =====================================================
-         JS Module laden (Reihenfolge beachten!)
-         1. Supabase-Client & globale Vars (config.js)
-         2. UI-Hilfsfunktionen (utils.js)
-         3. Feature-Module (js/modules/*.js)
-         4. Navigation & Init — muss zuletzt kommen (nav.js)
-    ===================================================== -->
+    <!-- JS: Nur benötigte Scripts (kein Dashboard/News/Tickets/etc.) -->
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
     <script src="js/config.js?v=20260401c"></script>
     <script src="js/utils.js?v=20260401c"></script>
     <script src="js/utils-pdf.js?v=20260401c"></script>
-    <script src="js/modules/mod-dashboard.js?v=20260401c"></script>
-    <script src="js/modules/mod-objekte.js?v=20260401c"></script>
-    <script src="js/modules/mod-personen.js?v=20260401c"></script>
-    <script src="js/modules/mod-persons-edit.js?v=20260401c"></script>
-    <script src="js/modules/mod-news.js?v=20260401c"></script>
-    <script src="js/modules/mod-tickets.js?v=20260401c"></script>
-    <script src="js/modules/mod-dokumente.js?v=20260401c"></script>
-    <script src="js/modules/mod-finanzen.js?v=20260401c"></script>
-    <script src="js/modules/mod-kontakte.js?v=20260401c"></script>
-    <script src="js/modules/mod-kalender.js?v=20260401c"></script>
-    <!-- mod-zeiterfassung.js → ausgelagert nach zeiterfassung.html (Phase 1B) -->
-    <script src="js/modules/mod-settings.js?v=20260401c"></script>
-    <script src="js/modules/mod-placeholder.js?v=20260401c"></script>
-    <script src="js/modules/mod-etv.js?v=20260401c"></script>
+    <script src="js/modules/mod-zeiterfassung.js?v=20260401c"></script>
     <script src="js/nav.js?v=20260401c"></script>
 
 </body>
