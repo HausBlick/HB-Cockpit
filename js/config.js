@@ -150,3 +150,39 @@ const MAJORITY_TYPES     = { simple: 'Einfache Mehrheit', qualified: 'Qualifizie
 const BUDGET_PLAN_STATUSES = { draft: 'Entwurf', approved: 'Beschlossen', active: 'Aktiv', closed: 'Abgeschlossen' };
 
 const DUNNING_LEVEL_LABELS = { 1: 'Zahlungserinnerung', 2: '1. Mahnung', 3: 'Letzte Mahnung' };
+
+// ============================================================
+// Multi-Page Routing (Phase 1B)
+// Module die als eigene HTML-Seiten ausgelagert sind
+// ============================================================
+
+const EXTERNAL_PAGES = {
+    'loadZeiterfassung': 'zeiterfassung.html',
+    // Zukünftig: 'loadETV': 'etv.html', 'loadDocuments': 'dokumente.html', 'loadFinance': 'finanzen.html'
+};
+
+// Auth-Guard: Welche externen Seiten nur admin/manager sehen dürfen
+const EXTERNAL_PAGE_ROLES = {
+    'zeiterfassung': ['admin', 'manager'],
+    // 'etv': ['admin', 'manager'],
+    // 'finanzen': ['admin', 'manager', 'advisory'],
+};
+
+function _getCurrentPage() {
+    const path = window.location.pathname;
+    if (path.endsWith('zeiterfassung.html')) return 'zeiterfassung';
+    if (path.endsWith('etv.html')) return 'etv';
+    if (path.endsWith('dokumente.html')) return 'dokumente';
+    if (path.endsWith('finanzen.html')) return 'finanzen';
+    return 'dashboard';
+}
+
+function _isExternalPage() {
+    return _getCurrentPage() !== 'dashboard';
+}
+
+function _syncBuildingToSession() {
+    if (selectedBuildingId) {
+        sessionStorage.setItem('hb_active_building', String(selectedBuildingId));
+    }
+}

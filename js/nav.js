@@ -1,9 +1,35 @@
 // ============================================================
 // HB-Mieterportal | nav.js
-// App-Initialisierung, Navigation & Routing
+// App-Initialisierung, Navigation & Routing (Multi-Page)
 // Muss als letztes geladen werden (alle Module müssen bereit sein)
 // ============================================================
 
+// ─── Nav-Item Helper (Multi-Page-Aware) ─────────────────────
+// Erzeugt <li><a ...> für Sidebar-Navigation.
+// Auf Dashboard: SPA-Module → onclick, externe Seiten → href.
+// Auf externen Seiten: alles → href (zurück zum Dashboard oder zur Zielseite).
+function _navItem(fn, icon, label, badgeId) {
+    const page = _getCurrentPage();
+    const ext = EXTERNAL_PAGES[fn];
+    const badge = badgeId ? ` <span id="${badgeId}" class="nav-badge"></span>` : '';
+
+    if (ext) {
+        // Externe Seite — immer als href-Link
+        const pageName = ext.replace('.html', '');
+        const isActive = page === pageName;
+        return `<li><a href="${ext}" class="nav-link${isActive ? ' active-link' : ''}">${icon} ${label}${badge}</a></li>`;
+    }
+
+    if (page === 'dashboard') {
+        // Auf Dashboard: SPA-Routing per onclick
+        return `<li><a onclick="${fn}(); setActiveNav(this)" class="nav-link">${icon} ${label}${badge}</a></li>`;
+    }
+
+    // Auf externer Seite: Link zurück zum Dashboard mit Modul-Parameter
+    return `<li><a href="dashboard.html?m=${fn}" class="nav-link">${icon} ${label}${badge}</a></li>`;
+}
+
+// ─── Init ────────────────────────────────────────────────────
 async function init() {
     try {
         const { data: { user } } = await _supabase.auth.getUser();
@@ -14,7 +40,16 @@ async function init() {
         if (!profile) return;
         userProfile = profile;
 
-        // ROLE_LABELS → definiert in config.js
+        const page = _getCurrentPage();
+
+        // Auth-Guard für rollengeschützte externe Seiten
+        const allowedRoles = EXTERNAL_PAGE_ROLES[page];
+        if (allowedRoles && !allowedRoles.includes(profile.role)) {
+            window.location.href = 'dashboard.html';
+            return;
+        }
+
+        // Header-Elemente befüllen
         document.getElementById('role-label').textContent = ROLE_LABELS[profile.role] || 'Nutzer Portal';
         document.getElementById('user-avatar').textContent    = profile.full_name.charAt(0).toUpperCase();
         document.getElementById('dropdown-name').textContent  = profile.full_name;
@@ -22,80 +57,111 @@ async function init() {
 
         renderNav(profile.role);
         renderBottomNav(profile.role);
-        loadDashboard();
         loadNavBadges();
+
+        if (page === 'dashboard') {
+            // Deep-Link: ?m=loadTickets → Modul direkt öffnen
+            const moduleParam = new URLSearchParams(window.location.search).get('m');
+            if (moduleParam && typeof window[moduleParam] === 'function') {
+                window[moduleParam]();
+                // Active-State für deep-linked Modul setzen
+                const links = document.querySelectorAll('#nav-links a');
+                const dashLink = links[0]; // Dashboard ist immer der erste Link
+                if (dashLink) dashLink.classList.remove('active-link');
+                links.forEach(a => {
+                    if (a.getAttribute('onclick')?.includes(moduleParam + '(')) a.classList.add('active-link');
+                });
+                _syncBottomNav(moduleParam);
+            } else {
+                loadDashboard();
+            }
+        } else {
+            // Externe Seite — Modul direkt initialisieren
+            const PAGE_INIT = {
+                'zeiterfassung': typeof loadZeiterfassung === 'function' ? loadZeiterfassung : null,
+            };
+            if (PAGE_INIT[page]) PAGE_INIT[page]();
+        }
     } catch (err) {
         console.error(err);
     }
 }
 
+// ─── Sidebar Navigation ─────────────────────────────────────
 function renderNav(role) {
     const nav = document.getElementById('nav-links');
-    let html = `<li><a onclick="loadDashboard(); setActiveNav(this)" class="nav-link active-link">${icons.dashboard} Dashboard</a></li>`;
+    const page = _getCurrentPage();
+
+    // Dashboard-Link (Sonderfall: auf Dashboard onclick, sonst href)
+    let html;
+    if (page === 'dashboard') {
+        html = `<li><a onclick="loadDashboard(); setActiveNav(this)" class="nav-link active-link">${icons.dashboard} Dashboard</a></li>`;
+    } else {
+        html = `<li><a href="dashboard.html" class="nav-link">${icons.dashboard} Dashboard</a></li>`;
+    }
 
     if (role === 'admin' || role === 'manager') {
-        html += `
-            <li class="nav-section-title">Kommunikation</li>
-            <li><a onclick="loadNews();           setActiveNav(this)" class="nav-link">${icons.news}      Schwarzes Brett <span id="nav-badge-news"  class="nav-badge"></span></a></li>
-            <li><a onclick="loadTickets();        setActiveNav(this)" class="nav-link">${icons.tickets}   Tickets         <span id="nav-badge-tickets" class="nav-badge"></span></a></li>
-            <li><a onclick="loadContacts();       setActiveNav(this)" class="nav-link">${icons.contact}   Kontaktbuch</a></li>
+        html += `<li class="nav-section-title">Kommunikation</li>`;
+        html += _navItem('loadNews',           icons.news,      'Schwarzes Brett', 'nav-badge-news');
+        html += _navItem('loadTickets',        icons.tickets,   'Tickets',         'nav-badge-tickets');
+        html += _navItem('loadContacts',       icons.contact,   'Kontaktbuch');
 
-            <li class="nav-section-title">Verwaltung</li>
-            <li><a onclick="loadUserManagement(); setActiveNav(this)" class="nav-link">${icons.users}     Personen</a></li>
-            <li><a onclick="loadTenants();        setActiveNav(this)" class="nav-link">${icons.buildings} Gebäude &amp; Einheiten</a></li>
+        html += `<li class="nav-section-title">Verwaltung</li>`;
+        html += _navItem('loadUserManagement', icons.users,     'Personen');
+        html += _navItem('loadTenants',        icons.buildings,  'Gebäude &amp; Einheiten');
 
-            <li class="nav-section-title">Finanzen</li>
-            <li><a onclick="loadFinance();        setActiveNav(this)" class="nav-link">${icons.finance}   Buchhaltung</a></li>
-            <li><a onclick="loadZeiterfassung();  setActiveNav(this)" class="nav-link">${icons.clock}     Zeiterfassung</a></li>
+        html += `<li class="nav-section-title">Finanzen</li>`;
+        html += _navItem('loadFinance',        icons.finance,   'Buchhaltung');
+        html += _navItem('loadZeiterfassung',  icons.clock,     'Zeiterfassung');
 
-            <li class="nav-section-title">Service & Dokumente</li>
-            <li><a onclick="loadDocuments();      setActiveNav(this)" class="nav-link">${icons.docs}      Dokumenten Cloud <span id="nav-badge-docs" class="nav-badge"></span></a></li>
-            <li><a onclick="loadCalendar();       setActiveNav(this)" class="nav-link">${icons.calendar}  Kalender</a></li>
-            <li><a onclick="loadETV();            setActiveNav(this)" class="nav-link">${icons.users}     Eigentümerversammlung</a></li>
-            <li><a onclick="loadSettings();       setActiveNav(this)" class="nav-link">${icons.settings}  Einstellungen</a></li>`;
+        html += `<li class="nav-section-title">Service & Dokumente</li>`;
+        html += _navItem('loadDocuments',      icons.docs,      'Dokumenten Cloud', 'nav-badge-docs');
+        html += _navItem('loadCalendar',       icons.calendar,  'Kalender');
+        html += _navItem('loadETV',            icons.users,     'Eigentümerversammlung');
+        html += _navItem('loadSettings',       icons.settings,  'Einstellungen');
+
     } else if (role === 'owner') {
-        html += `
-            <li class="nav-section-title">Mein Asset</li>
-            <li><a onclick="loadMyUnits();   setActiveNav(this)" class="nav-link">${icons.buildings} Meine Einheiten</a></li>
-            <li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs}      Dokumente <span id="nav-badge-docs" class="nav-badge"></span></a></li>
+        html += `<li class="nav-section-title">Mein Asset</li>`;
+        html += _navItem('loadMyUnits',   icons.buildings, 'Meine Einheiten');
+        html += _navItem('loadDocuments', icons.docs,      'Dokumente', 'nav-badge-docs');
 
-            <li class="nav-section-title">Kommunikation</li>
-            <li><a onclick="loadTickets();   setActiveNav(this)" class="nav-link">${icons.tickets}   Meine Tickets <span id="nav-badge-tickets" class="nav-badge"></span></a></li>
-            <li><a onclick="loadContacts();  setActiveNav(this)" class="nav-link">${icons.contact}  Kontaktbuch</a></li>`;
+        html += `<li class="nav-section-title">Kommunikation</li>`;
+        html += _navItem('loadTickets',  icons.tickets, 'Meine Tickets', 'nav-badge-tickets');
+        html += _navItem('loadContacts', icons.contact, 'Kontaktbuch');
+
     } else if (role === 'landlord') {
-        html += `
-            <li class="nav-section-title">Mein Asset</li>
-            <li><a onclick="loadMyUnits();   setActiveNav(this)" class="nav-link">${icons.buildings} Meine Einheiten</a></li>
-            <li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs}      Dokumente <span id="nav-badge-docs" class="nav-badge"></span></a></li>
+        html += `<li class="nav-section-title">Mein Asset</li>`;
+        html += _navItem('loadMyUnits',   icons.buildings, 'Meine Einheiten');
+        html += _navItem('loadDocuments', icons.docs,      'Dokumente', 'nav-badge-docs');
 
-            <li class="nav-section-title">Kommunikation</li>
-            <li><a onclick="loadTickets();   setActiveNav(this)" class="nav-link">${icons.tickets}   Meine Tickets <span id="nav-badge-tickets" class="nav-badge"></span></a></li>
-            <li><a onclick="loadContacts();  setActiveNav(this)" class="nav-link">${icons.contact}  Kontaktbuch</a></li>
+        html += `<li class="nav-section-title">Kommunikation</li>`;
+        html += _navItem('loadTickets',  icons.tickets, 'Meine Tickets', 'nav-badge-tickets');
+        html += _navItem('loadContacts', icons.contact, 'Kontaktbuch');
 
-            <li class="nav-section-title">Vermieter-Bereich</li>
-            <li><a onclick="loadMyTenants(); setActiveNav(this)" class="nav-link">${icons.users}    Meine Mieter</a></li>`;
+        html += `<li class="nav-section-title">Vermieter-Bereich</li>`;
+        html += _navItem('loadMyTenants', icons.users, 'Meine Mieter');
+
     } else if (role === 'advisory') {
-        html += `
-            <li class="nav-section-title">Mein Asset</li>
-            <li><a onclick="loadMyUnits();   setActiveNav(this)" class="nav-link">${icons.buildings} Meine Einheiten</a></li>
-            <li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs}      Dokumente <span id="nav-badge-docs" class="nav-badge"></span></a></li>
+        html += `<li class="nav-section-title">Mein Asset</li>`;
+        html += _navItem('loadMyUnits',   icons.buildings, 'Meine Einheiten');
+        html += _navItem('loadDocuments', icons.docs,      'Dokumente', 'nav-badge-docs');
 
-            <li class="nav-section-title">Kommunikation</li>
-            <li><a onclick="loadTickets();   setActiveNav(this)" class="nav-link">${icons.tickets}   Meine Tickets <span id="nav-badge-tickets" class="nav-badge"></span></a></li>
-            <li><a onclick="loadContacts();  setActiveNav(this)" class="nav-link">${icons.contact}  Kontaktbuch</a></li>
+        html += `<li class="nav-section-title">Kommunikation</li>`;
+        html += _navItem('loadTickets',  icons.tickets, 'Meine Tickets', 'nav-badge-tickets');
+        html += _navItem('loadContacts', icons.contact, 'Kontaktbuch');
 
-            <li class="nav-section-title">Finanzen</li>
-            <li><a onclick="loadFinance();   setActiveNav(this)" class="nav-link">${icons.finance}  Belegprüfung</a></li>`;
+        html += `<li class="nav-section-title">Finanzen</li>`;
+        html += _navItem('loadFinance', icons.finance, 'Belegprüfung');
+
     } else {
         // tenant
-        html += `
-            <li class="nav-section-title">Kommunikation</li>
-            <li><a onclick="loadNews();      setActiveNav(this)" class="nav-link">${icons.news}    Schwarzes Brett <span id="nav-badge-news"  class="nav-badge"></span></a></li>
-            <li><a onclick="loadTickets();   setActiveNav(this)" class="nav-link">${icons.tickets} Meine Meldungen <span id="nav-badge-tickets" class="nav-badge"></span></a></li>
-            <li><a onclick="loadContacts();  setActiveNav(this)" class="nav-link">${icons.contact} Kontaktbuch</a></li>
+        html += `<li class="nav-section-title">Kommunikation</li>`;
+        html += _navItem('loadNews',     icons.news,    'Schwarzes Brett', 'nav-badge-news');
+        html += _navItem('loadTickets',  icons.tickets, 'Meine Meldungen', 'nav-badge-tickets');
+        html += _navItem('loadContacts', icons.contact, 'Kontaktbuch');
 
-            <li class="nav-section-title">Service & Dokumente</li>
-            <li><a onclick="loadDocuments(); setActiveNav(this)" class="nav-link">${icons.docs}    Meine Dokumente <span id="nav-badge-docs" class="nav-badge"></span></a></li>`;
+        html += `<li class="nav-section-title">Service & Dokumente</li>`;
+        html += _navItem('loadDocuments', icons.docs, 'Meine Dokumente', 'nav-badge-docs');
     }
 
     nav.innerHTML = html;
@@ -106,8 +172,8 @@ function renderBottomNav(role) {
     const nav = document.getElementById('bottom-nav');
     if (!nav) return;
 
-    // Fallback-Icon falls icons.more noch nicht definiert (Cache)
     const moreIcon = icons.more || `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>`;
+    const page = _getCurrentPage();
 
     let items;
     if (role === 'admin' || role === 'manager') {
@@ -137,9 +203,12 @@ function renderBottomNav(role) {
         ];
     }
 
+    // Auf externen Seiten: kein Bottom-Nav-Item ist initial aktiv (→ "Mehr" hervorheben)
+    const initialActive = (page === 'dashboard') ? 0 : -1;
+
     try {
         nav.innerHTML = items.map((item, i) => `
-            <button class="bnav-item flex flex-col items-center justify-center flex-1 pt-2 pb-1.5 relative${i === 0 ? ' bnav-active' : ''}"
+            <button class="bnav-item flex flex-col items-center justify-center flex-1 pt-2 pb-1.5 relative${i === initialActive ? ' bnav-active' : ''}"
                     onclick="${item.fn === '_more' ? 'toggleMenu()' : `bottomNavGo('${item.fn}', this)`}"
                     data-fn="${item.fn}">
                 <span class="relative">
@@ -150,15 +219,45 @@ function renderBottomNav(role) {
                 <span class="bnav-dot"></span>
             </button>
         `).join('');
+
+        // Auf externen Seiten: "Mehr"-Item hervorheben
+        if (page !== 'dashboard') {
+            const mehr = nav.querySelector('[data-fn="_more"]');
+            if (mehr) mehr.classList.add('bnav-active');
+        }
     } catch (e) {
         console.error('renderBottomNav error:', e);
         nav.innerHTML = '<div class="text-xs text-red-500 p-2">Nav-Fehler — bitte Seite neu laden</div>';
     }
 }
 
+// ─── Bottom-Nav Routing (Multi-Page-Aware) ──────────────────
 function bottomNavGo(fnName, el) {
-    // Aufrufen der Lade-Funktion
-    if (typeof window[fnName] === 'function') window[fnName]();
+    const page = _getCurrentPage();
+
+    // Ziel ist eine externe Seite → navigieren
+    if (EXTERNAL_PAGES[fnName]) {
+        const target = EXTERNAL_PAGES[fnName];
+        if (!window.location.pathname.endsWith(target)) {
+            _syncBuildingToSession();
+            window.location.href = target;
+            return;
+        }
+        // Bereits auf der Seite → Modul neu laden
+        if (typeof window[fnName] === 'function') window[fnName]();
+    } else if (page !== 'dashboard') {
+        // SPA-Modul, aber wir sind auf externer Seite → zurück zum Dashboard
+        _syncBuildingToSession();
+        if (fnName === 'loadDashboard') {
+            window.location.href = 'dashboard.html';
+        } else {
+            window.location.href = `dashboard.html?m=${fnName}`;
+        }
+        return;
+    } else {
+        // Normales SPA-Routing auf dem Dashboard
+        if (typeof window[fnName] === 'function') window[fnName]();
+    }
 
     // Bottom-Nav Active-State
     const allBnav = document.querySelectorAll('.bnav-item');
@@ -166,7 +265,6 @@ function bottomNavGo(fnName, el) {
     if (el) {
         el.classList.add('bnav-active');
     } else {
-        // Kein Element → Match per fnName (z.B. Logo-Klick)
         allBnav.forEach(b => { if (b.dataset.fn === fnName) b.classList.add('bnav-active'); });
     }
 
@@ -175,6 +273,7 @@ function bottomNavGo(fnName, el) {
     sidebarLinks.forEach(a => a.classList.remove('active-link'));
     sidebarLinks.forEach(a => {
         if (a.getAttribute('onclick')?.includes(fnName + '(')) a.classList.add('active-link');
+        if (EXTERNAL_PAGES[fnName] && a.getAttribute('href') === EXTERNAL_PAGES[fnName]) a.classList.add('active-link');
     });
 }
 
