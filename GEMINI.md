@@ -192,6 +192,12 @@ Hinterlegung von Firmenanschrift, Steuernummer, Logo und offiziellem PDF-Briefko
 
 Definition von Standard-Werten (z.B. Höhe der Standard-Mahngebühr, Basiszins).
 
+PDF-Vorlagen-System (Template-Engine): Ein datenbankgestütztes Template-System (Block-basiert, JSON-Struktur) für **alle** System-PDFs, um Texte ohne Code-Eingriffe gebäudeübergreifend anzupassen. 
+- **Blöcke:** Text (mit Formatierung), Variablen/Platzhalter (z.B. `{{abrechnungssaldo}}`), Tabellen-Datenbindung (definiert Position der Berechnungen), Hinweis-Boxen und Abstandhalter.
+- **Layout-Kontrolle:** Möglichkeit, gezielte Seitenumbrüche einzufügen (z.B. Trennung von Anschreiben und Abrechnung).
+- **Briefkopf-Logik (Header-Toggle):** Pro Seite kann individuell gesteuert werden, ob der offizielle Briefkopf/Header angezeigt werden soll oder nicht (z.B. Header nur auf Seite 1).
+- **Verwaltung:** Alles läuft über einen Drag&Drop Block-Editor direkt in den Admin-Einstellungen.
+
 E-Mail-Benachrichtigungssystem: Automatischer Push-Service, um Nutzer ins Portal zu holen.
 
 Trigger: E-Mail-Versand bei neuen Tickets, Statusänderungen in Tickets, neu freigegebenen Dokumenten oder neuen Beiträgen am Schwarzen Brett.
