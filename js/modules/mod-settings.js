@@ -274,6 +274,45 @@ async function _settingsUploadLetterhead(input) {
 // DOKUMENTEN-DESIGNER (PDF-Vorlagen-System)
 // ============================================================
 
+// ─── Lazy-Load: pdf-lib + fontkit + utils-pdf.js ─────────────
+// Im Dashboard sind diese Scripts nicht geladen (Phase 1B).
+// Der Designer lädt sie bei Bedarf dynamisch nach.
+let _dsLibsLoaded = false;
+async function _dsEnsurePdfLibs() {
+    if (_dsLibsLoaded) return true;
+    if (typeof PDFLib !== 'undefined' && typeof fontkit !== 'undefined' && typeof generateFromTemplate === 'function') {
+        _dsLibsLoaded = true;
+        return true;
+    }
+
+    try {
+        // Sequenziell laden: pdf-lib → fontkit → utils-pdf.js
+        const scripts = [
+            { src: 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js', check: () => typeof PDFLib !== 'undefined' },
+            { src: 'https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js', check: () => typeof fontkit !== 'undefined' },
+            { src: 'js/utils-pdf.js?v=20260401e', check: () => typeof generateFromTemplate === 'function' },
+        ];
+
+        for (const s of scripts) {
+            if (s.check()) continue;
+            await new Promise((resolve, reject) => {
+                const el = document.createElement('script');
+                el.src = s.src;
+                el.onload = resolve;
+                el.onerror = () => reject(new Error('Script-Laden fehlgeschlagen: ' + s.src));
+                document.head.appendChild(el);
+            });
+        }
+
+        _dsLibsLoaded = true;
+        return true;
+    } catch (e) {
+        console.error('PDF-Libs laden fehlgeschlagen:', e);
+        showToast('PDF-Bibliotheken konnten nicht geladen werden: ' + e.message, 'error');
+        return false;
+    }
+}
+
 // Block-Typ-Definitionen für das "Block hinzufügen"-Dropdown
 const _BLOCK_TYPES = [
     { type: 'heading',    label: 'Überschrift',     icon: 'H' },
@@ -287,6 +326,15 @@ const _BLOCK_TYPES = [
 // ─── Designer-Tab rendern ────────────────────────────────────
 async function _settingsRenderDesigner() {
     const container = document.getElementById('settings-tab-content');
+
+    // PDF-Libs lazy-loaden (nur im Dashboard nötig)
+    container.innerHTML = '<div class="p-10 text-center"><div class="skeleton" style="height:40px;width:200px;margin:0 auto"></div><p class="text-xs text-gray-400 mt-3">PDF-Bibliotheken werden geladen...</p></div>';
+    const libsOk = await _dsEnsurePdfLibs();
+    if (!libsOk) {
+        container.innerHTML = '<div class="card p-10 text-center"><p class="text-gray-500">PDF-Bibliotheken konnten nicht geladen werden. Bitte Seite neu laden.</p></div>';
+        return;
+    }
+
     container.innerHTML = `
         <div class="flex items-center gap-3 mb-4">
             <label class="text-xs font-semibold text-gray-500">Vorlage:</label>
@@ -395,7 +443,7 @@ async function _dsLoadTemplate(type) {
 
 // ─── Variablen-Palette ───────────────────────────────────────
 function _dsRenderVarsPalette(type) {
-    const vars = PDF_TEMPLATE_VARIABLES[type] || [];
+    const vars = (typeof PDF_TEMPLATE_VARIABLES !== 'undefined' && PDF_TEMPLATE_VARIABLES[type]) || [];
     const palette = document.getElementById('ds-vars-palette');
     const chips = document.getElementById('ds-vars-chips');
 
@@ -518,7 +566,7 @@ function _dsBlockHtml(block, idx) {
     case 'table': {
         const source = block.source || '';
         const templateType = _designerState?.template?.type || '';
-        const availTables = PDF_TEMPLATE_TABLES[templateType] || [];
+        const availTables = (typeof PDF_TEMPLATE_TABLES !== 'undefined' && PDF_TEMPLATE_TABLES[templateType]) || [];
         bodyHtml = `
             <div class="mt-2 space-y-2">
                 <div class="flex gap-2 items-center">
@@ -723,7 +771,7 @@ async function _dsRenderPreview() {
         const { PDFDocument, rgb } = PDFLib;
         const blocks = _designerState.blocks;
         const templateType = _designerState.template.type;
-        const dummy = PDF_PREVIEW_DUMMY_DATA[templateType] || { placeholders: {}, tables: {} };
+        const dummy = (typeof PDF_PREVIEW_DUMMY_DATA !== 'undefined' && PDF_PREVIEW_DUMMY_DATA[templateType]) || { placeholders: {}, tables: {} };
         const useLetterhead = document.getElementById('ds-use-letterhead')?.checked ?? true;
         const settings = window._settingsData || {};
 
