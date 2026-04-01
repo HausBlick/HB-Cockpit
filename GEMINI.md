@@ -218,7 +218,7 @@ Nebenkostenabrechnung (Vermieter-Erweiterung): Modul für den landlord. Das Syst
 
 Digitale Versammlungen: Hybride ETVs (Video-Integration) im Portal.
 
-UX-Verbesserung WP/JAB (Kaufmännisch): Weiterentwicklung von Wirtschaftsplan und Jahresabrechnung mit Fokus auf kaufmännische UX (z.B. inline-editierbare Tabellen, weniger Modals, direkteres Hinzufügen/Entfernen von Positionen). Die genauen Anforderungen folgen aus dem laufenden Praxis-Testing.
+UX-Verbesserung Wirtschaftsplan & Abrechnungen (Visueller Workflow): Weiterentwicklung insbesondere des Wirtschaftsplans mit Fokus auf intuitive, moderne UX. Der Haupt-Schmerzpunkt "Blindflug bis zur PDF-Generierung" wird gelöst: Das System soll einen WYSIWYG-Ansatz (What You See Is What You Get) oder eine Live-Preview bieten, sodass man während der Eingabe der Daten direkt visuell kontrollieren kann, wie das finale Dokument/Ergebnis aussehen wird, ohne den kompletten Wizard durchlaufen und ein Test-PDF generieren zu müssen.
 
 KI-Buchhaltung: KI-gestützte Belegerfassung (OCR) für automatische Buchungsvorschläge.
 
