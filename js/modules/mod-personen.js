@@ -144,6 +144,7 @@ function renderPersonsTable() {
                 </td>
             </tr>`;
     }).join('');
+    makeTableResponsive(tbody.closest('.card'));
 }
 
 // ─── Person Info-Modal (read-only) ────────────────────────────

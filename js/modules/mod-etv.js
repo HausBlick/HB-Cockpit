@@ -1008,5 +1008,9 @@ window._etvOpenStaging = async () => {
             </div>
         </div>`;
     document.body.insertAdjacentHTML('beforeend', html);
+
+    // Responsive tables
+    const stagingModal = document.getElementById('etv-staging-modal');
+    if (stagingModal) makeTableResponsive(stagingModal);
 };
 

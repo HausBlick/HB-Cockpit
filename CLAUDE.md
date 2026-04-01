@@ -123,6 +123,8 @@ js/
 - **Bottom-Nav (Mobile):** `.bnav-item` gray-400, `.bnav-active` hb-olive + Dot. 5 Items: Home, Tickets, News/Kontakte, Dokumente, Mehr
 - **Skeleton Loading:** `.skeleton` Klasse (Shimmer-Animation, rounded-[15px]). Typen via `showSkeleton()`: list, cards, table
 - **Mobile Scroll-Containment:** Content-Area ist der einzige Scroll-Container. Nie `overflow-y-auto` auf Body oder Main
+- **Responsive Tables:** `.rtable`-Klasse auf Container → automatische Card-Umwandlung auf Mobile. `makeTableResponsive(el)` nach jedem Table-Render aufrufen
+- **Touch-Targets:** Alle interaktiven Elemente `min-h-[44px] min-w-[44px]`. Buttons/Links mit `p-3` statt `p-1`
 
 ---
 
@@ -198,7 +200,7 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 - 1C 🔄 **Mobile-Audit & Responsive Patterns** (Phase A abgeschlossen)
   > **Phase A (Fundament) ✅:** Scroll-Containment (Body h-screen, Main flex-1 min-h-0, Content overflow-y-auto). Bottom-Navigation (5 Items rollenbasiert, Badge-Sync, Active-State-Sync mit Sidebar). Mobile-Header (Logo + Role-Label, Hamburger durch Bottom-Nav ersetzt). Skeleton-Loading CSS-Pattern. Safe-Area-Inset für Notch-Geräte. Toast-Position über Bottom-Nav.
   > **Phase B (Modals & Loading) ✅:** `showModal()`/`hideModal()` Utility (Desktop zentriert, Mobile Bottom Sheet). 8 Modals migriert (Tickets, Dokumente, Kontakte). Swipe-to-Dismiss. Skeleton-Loader im Dashboard.
-  > **Phase C (Modul-Migration) 📋:** Cards statt Tabellen Modul für Modul. Ticket-Chat-Textfeld Bugfix. Touch-Targets 44px Audit.
+  > **Phase C (Modul-Migration) ✅:** Responsive-Table CSS-Pattern (`.rtable`, auto data-labels). 26 `makeTableResponsive()`-Aufrufe in 8 Modulen. Ticket-Chat-Fix (dvh-Höhe + Overlay-Sidebar). Touch-Target 44px Audit (13 Korrekturen in mod-tickets).
 
 ### ✅ Phase 2 — Personen-CRM (ABGESCHLOSSEN)
 - 2.1 Supabase-Anbindung (Mock-Daten ersetzt) ✅
@@ -422,4 +424,23 @@ Migration `phase81_special_roles_and_allocatable`: 6 Rollen (+landlord, +advisor
 - `mod-kontakte.js`: 4 Modals (`contact-detail-modal`, `contact-form-modal`, `add-persons-prompt`, `contact-person-form-modal`) → `showModal()`.
 
 **Skeleton-Loader:** Dashboard-Spinner (Admin + User) durch Skeleton-Platzhalter ersetzt (4 KPI-Blocks + Widget-Blocks).
+
+### Phase 1C-C — Responsive Tables, Ticket-Chat-Fix, Touch-Targets
+`dashboard.html`: CSS `.rtable` Pattern — auf Mobile (< 768px) werden `<table>` automatisch in gestapelte Cards umgewandelt. `<thead>` versteckt, `<tr>` als Card mit border-radius, `<td>` als Flex-Row mit `data-label`-Pseudo-Element. `.td-action` für volle Breite bei Button-Spalten. `.td-hide-mobile` zum Ausblenden.
+
+`utils.js`: `makeTableResponsive(elOrId)` — liest `<th>`-Texte, setzt `data-label` auf `<td>`, erkennt Action-Spalten automatisch (Buttons/Links), fügt `.rtable`-Klasse hinzu.
+
+**Tabellen-Migration (26 Aufrufe in 8 Modulen):**
+- `mod-personen.js`: Personen-Tabelle
+- `mod-objekte.js`: Einheiten-Liste, Bankkonten, Verteilerschlüssel (3 Tabellen)
+- `mod-tickets.js`: Ticket-Liste, Suchergebnisse
+- `mod-dokumente.js`: Dokument-Liste
+- `mod-dashboard.js`: Widget-Tabellen (Admin + User Dashboard)
+- `mod-finanzen.js`: 14 Tabellen (Konten, Journal, Zähler, Sollstellungen, WP, JAB, Mahnwesen, CSV, SEPA, Rücklage, Beirat)
+- `mod-zeiterfassung.js`: Zeit-Historie
+- `mod-etv.js`: ETV-Staging
+
+**Ticket-Chat-Fix:** Card `h-[calc(100dvh-160px)]` mit `overflow-hidden`. Chat-Bereich `min-h-0` für korrektes Flex-Shrinking. Info-Sidebar als Overlay auf Mobile (`max-lg:absolute max-lg:inset-0`), "Zurück zum Chat"-Button.
+
+**Touch-Target 44px Audit (mod-tickets.js):** 13 Korrekturen: Create-Button, Filter-Buttons, Gebäude-Filter, Suchfeld, Zurück-Button, Info-Toggle, Send-Button, Modal-Close, Status-Select, Assignee-Select, Deep-Links, Eskalation-Button.
 
