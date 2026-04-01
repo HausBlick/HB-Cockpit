@@ -271,6 +271,12 @@ async function fetchApartmentsForBuilding(bId) {
         list.innerHTML = '<p class="text-sm text-gray-400 p-4">Noch keine Einheiten angelegt.</p>';
         return;
     }
+
+    // Hausgeld dynamisch aus aktivem WP laden (parallel für alle Einheiten)
+    const hgResults = await Promise.all(currentApartments.map(apt => getMonthlyHausgeld(apt.id, bId)));
+    const hgMap = {};
+    currentApartments.forEach((apt, i) => { hgMap[apt.id] = hgResults[i]; });
+
     list.innerHTML = `
         <table class="w-full text-left text-sm">
             <thead class="text-xs font-bold text-gray-500 bg-gray-50 border-b border-gray-100">
@@ -285,6 +291,7 @@ async function fetchApartmentsForBuilding(bId) {
             </thead>
             <tbody class="divide-y divide-hb-olive/10">
                 ${currentApartments.map(apt => {
+                    const hg = hgMap[apt.id] ?? apt.hausgeld;
                     const statusCls = apt.tenant_status === 'Vermietet'
                         ? 'bg-emerald-100 text-emerald-700'
                         : 'bg-gray-100 text-gray-500';
@@ -294,7 +301,7 @@ async function fetchApartmentsForBuilding(bId) {
                         <td class="px-4 py-2.5 text-gray-600">${apt.type || 'Wohnen'}</td>
                         <td class="px-4 py-2.5 text-gray-500 text-xs">${apt.location_in_building || apt.floor || '—'}</td>
                         <td class="px-4 py-2.5 text-gray-600">${apt.sq_meters ? apt.sq_meters + ' m²' : '—'}</td>
-                        <td class="px-4 py-2.5 text-gray-600">${apt.hausgeld ? apt.hausgeld + ' €' : '—'}</td>
+                        <td class="px-4 py-2.5 text-gray-600">${hg ? hg + ' €' : '—'}</td>
                         <td class="px-4 py-2.5">
                             <span class="${statusCls} text-[10px] font-bold px-2 py-0.5 rounded-full">${apt.tenant_status || 'Leerstand'}</span>
                         </td>
@@ -312,6 +319,7 @@ async function showApartmentInfo(id) {
     const building    = _buildingsAll.find(x => x.id === selectedBuildingId);
     const assignments = await fetchApartmentAssignments(id);
     const costKeys    = apt.custom_distribution_keys || {};
+    const aptDynHG    = await getMonthlyHausgeld(apt.id, apt.building_id);
 
     area.innerHTML = `
         <div class="card h-full flex flex-col overflow-hidden text-left">
@@ -364,7 +372,7 @@ async function showApartmentInfo(id) {
 
                 <!-- TAB 3: FINANZEN -->
                 <div id="apt-tab-finance" class="apt-tab-content hidden grid grid-cols-2 md:grid-cols-3 gap-5">
-                    ${infoField('Hausgeld', apt.hausgeld ? apt.hausgeld + ' €' : null)}
+                    ${infoField('Hausgeld', aptDynHG ? aptDynHG + ' €' : (apt.hausgeld ? apt.hausgeld + ' €' : null))}
                     ${infoField('Kaltmiete', apt.rent_amount ? apt.rent_amount + ' €' : null)}
                     ${infoField('Nebenkosten', apt.utilities_amount ? apt.utilities_amount + ' €' : null)}
                     ${infoField('Kaution', apt.deposit_amount ? apt.deposit_amount + ' €' : null)}

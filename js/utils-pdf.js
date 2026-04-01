@@ -188,8 +188,7 @@ async function generateMahnungPDF(noticeIdOrIds) {
 
     // Höchste Mahnstufe bestimmt den Titel
     const maxLevel = Math.max(...notices.map(function(n) { return n.dunning_level || 1; }));
-    const levelText = maxLevel === 1 ? 'Zahlungserinnerung'
-        : maxLevel === 2 ? '1. Mahnung' : 'Letzte Mahnung';
+    const levelText = DUNNING_LEVEL_LABELS[maxLevel] || 'Mahnung';
 
     const notice0 = notices[0];
     const person  = notice0.person;
@@ -434,8 +433,7 @@ async function generateWirtschaftsplanPDF(planId) {
         x: 56.7, y: height - 124, size: 10, font: reg, color: rgb(0.4, 0.4, 0.4),
     });
 
-    const statusMap = { draft: 'Entwurf', approved: 'Beschlossen', active: 'Aktiv', closed: 'Abgeschlossen' };
-    page.drawText(`Status: ${statusMap[plan.status] || plan.status}`, {
+    page.drawText(`Status: ${BUDGET_PLAN_STATUSES[plan.status] || plan.status}`, {
         x: 56.7, y: height - 140, size: 9, font: reg, color: rgb(0.5, 0.5, 0.5),
     });
 
@@ -2030,7 +2028,8 @@ async function generateETVProtokollPDF(sessionId) {
     y -= 14;
     page.drawText(`Vertretene Miteigentumsanteile (MEA): ${presentMEA.toLocaleString('de-DE')} von ${totalMEA.toLocaleString('de-DE')} (${percent}%).`, { x: mLeft, y, size: 9, font: fReg, color: offblack });
     y -= 14;
-    page.drawText(`Die Versammlung ist gemäß § 25 WEG ${percent >= 50 ? 'BESCHLUSSFÄHIG' : 'NICHT BESCHLUSSFÄHIG'}.`, { x: mLeft, y, size: 9, font: fBold, color: percent >= 50 ? olive : orange });
+    const quorumThreshold = session.quorum_percent ?? 50;
+    page.drawText(`Die Versammlung ist gemäß § 25 WEG ${percent >= quorumThreshold ? 'BESCHLUSSFÄHIG' : 'NICHT BESCHLUSSFÄHIG'}.`, { x: mLeft, y, size: 9, font: fBold, color: percent >= quorumThreshold ? olive : orange });
     y -= 35;
 
     // ── TAGESORDNUNG & BESCHLÜSSE ──────────────────────────

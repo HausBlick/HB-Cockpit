@@ -3,11 +3,8 @@
 // Monatskalender — Gebäude-Fristen & Ticket-Wiedervorlagen
 // ============================================================
 
-const DEADLINE_TYPES_KAL = [
-    { key: 'energy_certificate_expiry',   label: 'Energieausweis' },
-    { key: 'next_fire_safety_check',      label: 'Brandschutz' },
-    { key: 'drinking_water_analysis_due', label: 'Trinkwasser' },
-];
+// Frist-Typen → definiert in config.js (DEADLINE_TYPES)
+const DEADLINE_TYPES_KAL = DEADLINE_TYPES;
 
 const MONTHS_DE = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 
@@ -43,7 +40,7 @@ async function loadCalendar() {
                 <span class="inline-block w-3 h-3 rounded bg-red-200"></span> Überfällig / &lt; 14 Tage
             </div>
             <div class="flex items-center gap-1.5 text-xs text-gray-500">
-                <span class="inline-block w-3 h-3 rounded bg-hb-orange/30"></span> 14–30 Tage
+                <span class="inline-block w-3 h-3 rounded bg-hb-orange/30"></span> ${DEADLINE_THRESHOLDS.critical}–${DEADLINE_THRESHOLDS.warning} Tage
             </div>
             <div class="flex items-center gap-1.5 text-xs text-gray-500">
                 <span class="inline-block w-3 h-3 rounded bg-green-200"></span> &gt; 30 Tage
@@ -93,7 +90,7 @@ async function _kalLoadData() {
                 buildingId: b.id,
                 date:       b[dt.key].split('T')[0],
                 days,
-                color: days < 14 ? 'red' : days <= 30 ? 'orange' : 'green',
+                color: days < DEADLINE_THRESHOLDS.critical ? 'red' : days <= DEADLINE_THRESHOLDS.warning ? 'orange' : 'green',
             });
         }
         // Legionella berechnen
@@ -109,7 +106,7 @@ async function _kalLoadData() {
                 buildingId: b.id,
                 date:       dateStr,
                 days,
-                color: days < 14 ? 'red' : days <= 30 ? 'orange' : 'green',
+                color: days < DEADLINE_THRESHOLDS.critical ? 'red' : days <= DEADLINE_THRESHOLDS.warning ? 'orange' : 'green',
             });
         }
     }
@@ -258,7 +255,7 @@ window._kalShowPopup = (event, eventKey) => {
         ? `<span class="text-red-600 font-bold">${Math.abs(days)} Tage überfällig</span>`
         : days === 0
             ? `<span class="text-red-600 font-bold">Heute fällig</span>`
-            : `<span class="${days < 14 ? 'text-red-600' : days <= 30 ? 'text-hb-orange' : 'text-green-600'} font-bold">in ${days} Tagen</span>`;
+            : `<span class="${days < DEADLINE_THRESHOLDS.critical ? 'text-red-600' : days <= DEADLINE_THRESHOLDS.warning ? 'text-hb-orange' : 'text-green-600'} font-bold">in ${days} Tagen</span>`;
 
     const dateFormatted = new Date(e.date + 'T12:00:00').toLocaleDateString('de-DE', {
         day: '2-digit', month: 'long', year: 'numeric'

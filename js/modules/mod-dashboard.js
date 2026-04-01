@@ -21,9 +21,9 @@ function _dashDaysUntil(dateStr) {
 
 function _dashDeadlineBadge(days) {
     if (days === null) return '—';
-    if (days < 0)   return '<span class="text-[10px] font-black uppercase bg-red-100 text-red-600 px-1.5 py-0.5 rounded">Überfällig</span>';
-    if (days < 14)  return '<span class="text-[10px] font-black uppercase bg-red-100 text-red-600 px-1.5 py-0.5 rounded">Kritisch</span>';
-    if (days <= 30) return '<span class="text-[10px] font-black uppercase bg-hb-orange/10 text-hb-orange px-1.5 py-0.5 rounded">Bald</span>';
+    if (days < 0)                            return '<span class="text-[10px] font-black uppercase bg-red-100 text-red-600 px-1.5 py-0.5 rounded">Überfällig</span>';
+    if (days < DEADLINE_THRESHOLDS.critical) return '<span class="text-[10px] font-black uppercase bg-red-100 text-red-600 px-1.5 py-0.5 rounded">Kritisch</span>';
+    if (days <= DEADLINE_THRESHOLDS.warning) return '<span class="text-[10px] font-black uppercase bg-hb-orange/10 text-hb-orange px-1.5 py-0.5 rounded">Bald</span>';
     return '<span class="text-[10px] font-black uppercase bg-green-100 text-green-600 px-1.5 py-0.5 rounded">OK</span>';
 }
 
@@ -141,11 +141,7 @@ async function _renderAdminDashboard() {
     ]);
 
     // ── Fristen (≤ 30 Tage) ──
-    const DEADLINE_TYPES = [
-        { key: 'energy_certificate_expiry',   label: 'Energieausweis' },
-        { key: 'next_fire_safety_check',      label: 'Brandschutzprüfung' },
-        { key: 'drinking_water_analysis_due', label: 'Trinkwasseranalyse' },
-    ];
+    // DEADLINE_TYPES → definiert in config.js
     const deadlines = [];
     for (const b of (buildingsRes.data || [])) {
         for (const dt of DEADLINE_TYPES) {
@@ -424,9 +420,13 @@ async function _renderUserDashboard() {
     // ── Hausgeld / Miete ──
     let finLabel = 'Hausgeld / Miete', finValue = '—';
     if (aptData) {
-        if ((role === 'owner' || role === 'landlord' || role === 'advisory') && aptData.hausgeld) {
-            finValue = `${Number(aptData.hausgeld).toFixed(2).replace('.', ',')} €`;
-            finLabel = 'Hausgeld / Monat';
+        if ((role === 'owner' || role === 'landlord' || role === 'advisory')) {
+            const dynHG = await getMonthlyHausgeld(aptData.id, aptData.building_id);
+            const hg = dynHG ?? aptData.hausgeld;
+            if (hg) {
+                finValue = `${Number(hg).toFixed(2).replace('.', ',')} €`;
+                finLabel = 'Hausgeld / Monat';
+            }
         } else if (role === 'tenant') {
             const total = (Number(aptData.rent_amount) || 0) + (Number(aptData.utilities_amount) || 0);
             if (total > 0) { finValue = `${total.toFixed(2).replace('.', ',')} €`; finLabel = 'Warmmiete / Monat'; }
@@ -464,8 +464,7 @@ async function _renderUserDashboard() {
         || null
     );
 
-    const roleLabelMap = { owner: 'Eigentümer-Cockpit', landlord: 'Vermieter-Cockpit', advisory: 'Beirat-Cockpit', tenant: 'Mieter-Portal' };
-    const roleLabel = roleLabelMap[role] || 'Nutzer-Portal';
+    const roleLabel = ROLE_LABELS[role] || 'Nutzer-Portal';
 
     // ── Render ──
     ca.innerHTML = `

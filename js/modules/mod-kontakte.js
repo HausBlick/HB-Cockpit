@@ -10,7 +10,8 @@ let _contactSearch   = '';
 let _contactBuilding = null;
 let _myBuildingIds   = [];
 
-const CAT_ORDER = ['Vermieter','Verwalter','Hausmeister','Heizung','Sanitär','Elektro','Reinigung','Versicherung','Sonstiges'];
+// Kontakt-Kategorien → definiert in config.js
+const CAT_ORDER = CONTACT_CATEGORIES;
 
 // ─── Haupteinstieg ────────────────────────────────────────────
 async function loadContacts() {
