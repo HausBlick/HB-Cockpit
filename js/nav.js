@@ -15,12 +15,16 @@ async function init() {
         userProfile = profile;
 
         // ROLE_LABELS → definiert in config.js
-        document.getElementById('role-label').textContent    = ROLE_LABELS[profile.role] || 'Nutzer Portal';
-        document.getElementById('user-avatar').textContent   = profile.full_name.charAt(0).toUpperCase();
+        const roleLabel = ROLE_LABELS[profile.role] || 'Nutzer Portal';
+        document.getElementById('role-label').textContent     = roleLabel;
+        const roleMobile = document.getElementById('role-label-mobile');
+        if (roleMobile) roleMobile.textContent = roleLabel;
+        document.getElementById('user-avatar').textContent    = profile.full_name.charAt(0).toUpperCase();
         document.getElementById('dropdown-name').textContent  = profile.full_name;
         document.getElementById('dropdown-email').textContent = profile.email;
 
         renderNav(profile.role);
+        renderBottomNav(profile.role);
         loadDashboard();
         loadNavBadges();
     } catch (err) {
@@ -100,9 +104,96 @@ function renderNav(role) {
     nav.innerHTML = html;
 }
 
+// ─── Bottom Navigation (Mobile) ─────────────────────────────
+function renderBottomNav(role) {
+    const nav = document.getElementById('bottom-nav');
+    if (!nav) return;
+
+    let items;
+    if (role === 'admin' || role === 'manager') {
+        items = [
+            { icon: icons.dashboard, label: 'Home',      fn: 'loadDashboard' },
+            { icon: icons.tickets,   label: 'Tickets',   fn: 'loadTickets',   badge: 'bnav-badge-tickets' },
+            { icon: icons.news,      label: 'News',      fn: 'loadNews',      badge: 'bnav-badge-news' },
+            { icon: icons.docs,      label: 'Dokumente', fn: 'loadDocuments', badge: 'bnav-badge-docs' },
+            { icon: icons.more,      label: 'Mehr',      fn: '_more' },
+        ];
+    } else if (role === 'tenant') {
+        items = [
+            { icon: icons.dashboard, label: 'Home',      fn: 'loadDashboard' },
+            { icon: icons.tickets,   label: 'Meldungen', fn: 'loadTickets',   badge: 'bnav-badge-tickets' },
+            { icon: icons.news,      label: 'News',      fn: 'loadNews',      badge: 'bnav-badge-news' },
+            { icon: icons.docs,      label: 'Dokumente', fn: 'loadDocuments', badge: 'bnav-badge-docs' },
+            { icon: icons.more,      label: 'Mehr',      fn: '_more' },
+        ];
+    } else {
+        // owner, landlord, advisory
+        items = [
+            { icon: icons.dashboard, label: 'Home',      fn: 'loadDashboard' },
+            { icon: icons.tickets,   label: 'Tickets',   fn: 'loadTickets',   badge: 'bnav-badge-tickets' },
+            { icon: icons.docs,      label: 'Dokumente', fn: 'loadDocuments', badge: 'bnav-badge-docs' },
+            { icon: icons.contact,   label: 'Kontakte',  fn: 'loadContacts' },
+            { icon: icons.more,      label: 'Mehr',      fn: '_more' },
+        ];
+    }
+
+    nav.innerHTML = items.map((item, i) => `
+        <button class="bnav-item flex flex-col items-center justify-center flex-1 pt-2 pb-1.5 relative${i === 0 ? ' bnav-active' : ''}"
+                onclick="${item.fn === '_more' ? 'toggleMenu()' : `bottomNavGo('${item.fn}', this)`}"
+                data-fn="${item.fn}">
+            <span class="relative">
+                ${item.icon.replace(/w-5 h-5/g, 'w-6 h-6')}
+                ${item.badge ? `<span id="${item.badge}" class="absolute -top-1.5 -right-2.5 text-[8px] font-black bg-hb-orange text-white rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5 leading-none" style="display:none"></span>` : ''}
+            </span>
+            <span class="text-[10px] font-semibold mt-0.5 leading-tight">${item.label}</span>
+            <span class="bnav-dot"></span>
+        </button>
+    `).join('');
+}
+
+function bottomNavGo(fnName, el) {
+    // Aufrufen der Lade-Funktion
+    if (typeof window[fnName] === 'function') window[fnName]();
+
+    // Bottom-Nav Active-State
+    const allBnav = document.querySelectorAll('.bnav-item');
+    allBnav.forEach(b => b.classList.remove('bnav-active'));
+    if (el) {
+        el.classList.add('bnav-active');
+    } else {
+        // Kein Element → Match per fnName (z.B. Logo-Klick)
+        allBnav.forEach(b => { if (b.dataset.fn === fnName) b.classList.add('bnav-active'); });
+    }
+
+    // Sidebar Active-State synchronisieren
+    const sidebarLinks = document.querySelectorAll('#nav-links a');
+    sidebarLinks.forEach(a => a.classList.remove('active-link'));
+    sidebarLinks.forEach(a => {
+        if (a.getAttribute('onclick')?.includes(fnName + '(')) a.classList.add('active-link');
+    });
+}
+
+function _syncBottomNav(fnName) {
+    const items = document.querySelectorAll('.bnav-item');
+    const matched = [...items].find(b => b.dataset.fn === fnName);
+    items.forEach(b => b.classList.remove('bnav-active'));
+    if (matched) {
+        matched.classList.add('bnav-active');
+    } else {
+        // Kein Match → "Mehr" hervorheben
+        const mehr = [...items].find(b => b.dataset.fn === '_more');
+        if (mehr) mehr.classList.add('bnav-active');
+    }
+}
+
 function setActiveNav(el) {
     document.querySelectorAll('#nav-links a').forEach(a => a.classList.remove('active-link'));
     el.classList.add('active-link');
+
+    // Bottom-Nav synchronisieren
+    const match = el.getAttribute('onclick')?.match(/^(\w+)\(/);
+    if (match) _syncBottomNav(match[1]);
+
     if (window.innerWidth < 768) toggleMenu();
 }
 
@@ -140,6 +231,11 @@ async function loadNavBadges() {
     _setNavBadge('nav-badge-news',    newsCount);
     _setNavBadge('nav-badge-tickets', ticketCount);
     _setNavBadge('nav-badge-docs',    docsCount);
+
+    // Bottom-Nav Badges
+    _setBnavBadge('bnav-badge-news',    newsCount);
+    _setBnavBadge('bnav-badge-tickets', ticketCount);
+    _setBnavBadge('bnav-badge-docs',    docsCount);
 }
 
 function _setNavBadge(id, count) {
@@ -152,6 +248,18 @@ function _setNavBadge(id, count) {
     } else {
         el.textContent = '';
         el.className = 'nav-badge';
+    }
+}
+
+function _setBnavBadge(id, count) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (count > 0) {
+        el.textContent = count > 99 ? '99+' : count;
+        el.style.display = 'flex';
+    } else {
+        el.textContent = '';
+        el.style.display = 'none';
     }
 }
 

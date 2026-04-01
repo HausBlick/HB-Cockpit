@@ -36,3 +36,27 @@ function toggleMenu() {
     document.getElementById('sidebar').classList.toggle('-translate-x-full');
     document.getElementById('overlay').classList.toggle('hidden');
 }
+
+// ─── Skeleton Loading ────────────────────────────────────────
+// Erzeugt HTML-Platzhalter für Ladezustände (Phase 1C Pattern)
+// Nutzung: container.innerHTML = showSkeleton({ rows: 4, type: 'cards' });
+function showSkeleton({ rows = 3, type = 'list' } = {}) {
+    if (type === 'cards') {
+        return Array.from({ length: rows }, () =>
+            `<div class="skeleton h-24 mb-3"></div>`
+        ).join('');
+    }
+    if (type === 'table') {
+        return `<div class="skeleton h-10 mb-2"></div>` +
+            Array.from({ length: rows }, () =>
+                `<div class="skeleton h-14 mb-2"></div>`
+            ).join('');
+    }
+    // default: list
+    return Array.from({ length: rows }, () =>
+        `<div class="flex items-center gap-3 mb-3">
+            <div class="skeleton w-10 h-10 rounded-full flex-shrink-0"></div>
+            <div class="flex-1"><div class="skeleton h-4 mb-2 w-3/4"></div><div class="skeleton h-3 w-1/2"></div></div>
+        </div>`
+    ).join('');
+}

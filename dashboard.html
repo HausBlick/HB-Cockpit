@@ -60,22 +60,31 @@
         .nav-link { display: flex; align-items: center; gap: 0.5rem; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        /* Bottom Navigation */
+        .bnav-item { color: #9ca3af; transition: color 0.15s; -webkit-tap-highlight-color: transparent; }
+        .bnav-item.bnav-active { color: #687451; }
+        .bnav-item .bnav-dot { display: none; width: 4px; height: 4px; border-radius: 50%; background: #687451; margin-top: 2px; }
+        .bnav-item.bnav-active .bnav-dot { display: block; }
+        @supports (padding-bottom: env(safe-area-inset-bottom)) {
+            #bottom-nav { padding-bottom: env(safe-area-inset-bottom); }
+        }
+        /* Skeleton Loading */
+        .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%); background-size: 200% 100%; animation: sk-shimmer 1.5s ease-in-out infinite; border-radius: 15px; }
+        @keyframes sk-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
     </style>
 </head>
-<body class="font-sans min-h-screen flex flex-col md:flex-row text-left relative overflow-hidden" onclick="closeDropdowns(event)">
+<body class="font-sans h-screen flex flex-col md:flex-row text-left relative overflow-hidden" onclick="closeDropdowns(event)">
 
-    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none text-left"></div>
+    <div id="toast-container" class="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 flex flex-col gap-3 pointer-events-none text-left"></div>
 
     <!-- Mobile Header -->
-    <div class="md:hidden bg-white border-b border-gray-100 p-4 flex justify-between items-center sticky top-0 z-50">
-        <div onclick="loadDashboard(); document.querySelectorAll('#nav-links a').forEach(a=>a.classList.remove('active-link')); document.querySelector('#nav-links a')?.classList.add('active-link');"
-            class="font-bold text-xl tracking-tight text-hb-olive flex items-center gap-2 cursor-pointer">
-            <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-8 w-auto">
+    <div class="md:hidden bg-white border-b border-gray-100 px-4 py-3 flex justify-between items-center flex-shrink-0 z-50">
+        <div onclick="bottomNavGo('loadDashboard')"
+            class="font-bold text-lg tracking-tight text-hb-olive flex items-center gap-2 cursor-pointer">
+            <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-7 w-auto">
             Mieterportal
         </div>
-        <button onclick="toggleMenu()" class="text-hb-olive p-2 bg-gray-50 rounded-lg">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" /></svg>
-        </button>
+        <p id="role-label-mobile" class="text-[10px] uppercase tracking-widest font-bold text-hb-orange"></p>
     </div>
 
     <!-- Sidebar -->
@@ -93,9 +102,9 @@
     <div id="overlay" onclick="toggleMenu()" class="fixed inset-0 bg-hb-offblack/20 backdrop-blur-sm z-30 hidden text-left"></div>
 
     <!-- Main -->
-    <main class="flex-grow h-screen overflow-y-auto relative flex flex-col text-left">
-        <header class="p-4 md:p-6 flex justify-between items-center sticky top-0 bg-hb-ultralight/80 backdrop-blur-md z-30 text-left">
-            <div class="text-left">
+    <main class="flex-1 min-h-0 overflow-hidden relative flex flex-col text-left">
+        <header class="px-4 py-2 md:p-6 flex justify-end md:justify-between items-center flex-shrink-0 bg-hb-ultralight/80 backdrop-blur-md z-30 text-left">
+            <div class="hidden md:block text-left">
                 <p id="role-label" class="text-xs uppercase tracking-widest font-bold text-hb-orange mb-1"></p>
             </div>
             <div class="relative dropdown-container text-left">
@@ -119,7 +128,9 @@
                 </div>
             </div>
         </header>
-        <div id="content-area" class="flex-grow px-6 md:px-10 pb-20 overflow-y-auto text-left"></div>
+        <div id="content-area" class="flex-1 min-h-0 px-4 md:px-10 pb-6 md:pb-10 overflow-y-auto text-left"></div>
+        <!-- Bottom Navigation (Mobile) -->
+        <nav id="bottom-nav" class="md:hidden flex-shrink-0 bg-white border-t border-gray-100 flex justify-around items-center"></nav>
     </main>
 
     <!-- =====================================================
@@ -131,8 +142,8 @@
     ===================================================== -->
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
-    <script src="js/config.js?v=20260327"></script>
-    <script src="js/utils.js?v=20260327"></script>
+    <script src="js/config.js?v=20260401"></script>
+    <script src="js/utils.js?v=20260401"></script>
     <script src="js/utils-pdf.js?v=20260328a"></script>
     <script src="js/modules/mod-dashboard.js?v=20260327"></script>
     <script src="js/modules/mod-objekte.js?v=20260327"></script>
@@ -148,7 +159,7 @@
     <script src="js/modules/mod-settings.js?v=20260327"></script>
     <script src="js/modules/mod-placeholder.js?v=20260327"></script>
     <script src="js/modules/mod-etv.js?v=20260328a"></script>
-    <script src="js/nav.js?v=20260328"></script>
+    <script src="js/nav.js?v=20260401"></script>
 
 </body>
 </html>
