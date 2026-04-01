@@ -29,7 +29,15 @@ async function loadETV() {
         return;
     }
     if (!_etvState.buildingId || !_etvState.buildings.find(b => b.id === _etvState.buildingId)) {
-        _etvState.buildingId = _etvState.buildings[0].id;
+        // Building-Kontext: URL-Param > sessionStorage > erster in Liste
+        const urlBuilding = new URLSearchParams(window.location.search).get('building');
+        const sessionBuilding = sessionStorage.getItem('hb_active_building');
+        const targetId = urlBuilding || sessionBuilding;
+        if (targetId && _etvState.buildings.find(b => b.id == targetId)) {
+            _etvState.buildingId = Number(targetId);
+        } else {
+            _etvState.buildingId = _etvState.buildings[0].id;
+        }
     }
     await _etvInitOverview();
 }
@@ -104,6 +112,7 @@ async function _etvInitOverview() {
 
 window._etvOnBuildingChange = async (val) => {
     _etvState.buildingId = Number(val);
+    sessionStorage.setItem('hb_active_building', String(val));
     await _etvInitOverview();
 };
 

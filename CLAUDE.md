@@ -95,13 +95,14 @@ Gebäude-Kontext wird via `sessionStorage` (`hb_active_building`) zwischen Seite
 |---|---|---|
 | `dashboard.html` | Dashboard, Tickets, News, Kontakte, Kalender, CRM, Objekte, Einstellungen | Alle Rollen |
 | `zeiterfassung.html` | Zeiterfassung & Projekte | admin, manager |
-| `etv.html` *(geplant)* | Eigentümerversammlung | admin, manager |
-| `dokumente.html` *(geplant)* | Dokumenten-Cloud | Alle Rollen |
-| `finanzen.html` *(geplant)* | Buchhaltung & Finanzen | admin, manager, advisory |
+| `etv.html` | Eigentümerversammlung | admin, manager |
+| `finanzen.html` | Buchhaltung & Finanzen (13 Tabs, Deep-Link `?tab=buchungen`) | admin, manager, advisory |
 
 ```
-dashboard.html              # HTML-Shell — SPA für Alltags-Module
-zeiterfassung.html          # Standalone — Zeiterfassung & Projekte (Phase 1B PoC)
+dashboard.html              # HTML-Shell — SPA für Alltags-Module (+ Dokumente für alle Rollen)
+zeiterfassung.html          # Standalone — Zeiterfassung & Projekte
+etv.html                    # Standalone — Eigentümerversammlung (Planung, Check-in, Abstimmung, Protokoll)
+finanzen.html               # Standalone — Buchhaltung (13 Tabs, Tab-Deep-Linking)
 js/
   config.js                 # Supabase-Client, globale Vars, Icons, EXTERNAL_PAGES Routing
   utils.js                  # Toast, Dropdown, Logout, Mobile-Menu, Modal/Bottom-Sheet
@@ -209,11 +210,11 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 - 1.3 Supabase Security-Warnings behoben ✅
 - 1.4 Migration-Files eingeführt ✅
 - 1.5 Frontend modularisiert (dashboard.html → Module) ✅
-- 1B 🔄 **Frontend-Architektur: Dashboard vs. externe Tools**
-  > Dashboard (`dashboard.html`) für Übersicht + leichte Module. Separate HTML-Seiten für komplexe Tools: Finanzen (`finanzen.html`), ETV (`etv.html`), Zeiterfassung (`zeiterfassung.html`), Dokumentencloud (`dokumente.html`).
-  > Im Dashboard bleiben: Startseite/Workspace, Tickets, Schwarzes Brett, Kontaktbuch, Kalender, CRM, Gebäude & Einheiten, Einstellungen.
-  > Geteilte Basis: `config.js`, `utils.js`, `nav.js`. Deep-Linking mit Query-Parametern (z.B. `finanzen.html?building=17&tab=verteilerschluessel`). Mieter/Eigentümer-Dashboard bleibt SPA.
-  > **PoC Zeiterfassung ✅:** `zeiterfassung.html` als erste extrahierte Seite. Multi-Page-Routing in `nav.js` (`_navItem`, `_getCurrentPage`, `bottomNavGo`). Auth-Guard, sessionStorage-Sync, Deep-Link-Routing (`?m=loadTickets`). Nächste Schritte: ETV, Dokumente, Finanzen.
+- 1B ✅ **Frontend-Architektur: Dashboard vs. externe Tools** (ABGESCHLOSSEN)
+  > Dashboard (`dashboard.html`) für Übersicht + leichte Module + Dokumente. Separate HTML-Seiten für komplexe Tools: Finanzen (`finanzen.html`), ETV (`etv.html`), Zeiterfassung (`zeiterfassung.html`).
+  > Dokumente bleiben bewusst im Dashboard (nahtloser Zugriff für Mieter/Eigentümer).
+  > Geteilte Basis: `config.js`, `utils.js`, `nav.js`. Deep-Linking mit Query-Parametern (z.B. `finanzen.html?building=17&tab=buchungen`). Mieter/Eigentümer-Dashboard bleibt SPA.
+  > `pdf-lib` + `fontkit` + `utils-pdf.js` aus Dashboard entfernt (nur noch in externen Seiten geladen).
 - 1C 🔄 **Mobile-Audit & Responsive Patterns** (Phase A abgeschlossen)
   > **Phase A (Fundament) ✅:** Scroll-Containment (Body h-screen, Main flex-1 min-h-0, Content overflow-y-auto). Bottom-Navigation (5 Items rollenbasiert, Badge-Sync, Active-State-Sync mit Sidebar). Mobile-Header (Logo + Role-Label, Hamburger durch Bottom-Nav ersetzt). Skeleton-Loading CSS-Pattern. Safe-Area-Inset für Notch-Geräte. Toast-Position über Bottom-Nav.
   > **Phase B (Modals & Loading) ✅:** `showModal()`/`hideModal()` Utility (Desktop zentriert, Mobile Bottom Sheet). 8 Modals migriert (Tickets, Dokumente, Kontakte). Swipe-to-Dismiss. Skeleton-Loader im Dashboard.
@@ -477,4 +478,19 @@ Migration `phase81_special_roles_and_allocatable`: 6 Rollen (+landlord, +advisor
 - `mod-zeiterfassung.js`: Building-Kontext aus URL-Param (`?building=`) > `sessionStorage` > erster in Liste. `_timeChangeBuilding()` synct zu sessionStorage.
 - `dashboard.html`: `mod-zeiterfassung.js` Script-Tag entfernt (Kommentar-Platzhalter), Cache-Buster `v=20260401c`.
 - Neu: `zeiterfassung.html` — eigenständige HTML-Shell, lädt nur `config.js`, `utils.js`, `utils-pdf.js`, `mod-zeiterfassung.js`, `nav.js`. Identisches Layout wie `dashboard.html`. Logo/Header linken zurück zu `dashboard.html`.
+
+### Phase 1B — Komplett-Migration (ETV + Finanzen)
+**Strategie-Änderung:** Dokumente bleiben im Dashboard (nahtloser Mieter/Eigentümer-Zugriff). Nur 3 Module werden extrahiert.
+
+**Geänderte Dateien:**
+- `config.js`: `EXTERNAL_PAGES` um `loadETV`→`etv.html` und `loadFinance`→`finanzen.html` erweitert. `EXTERNAL_PAGE_ROLES` mit `advisory` für Finanzen (Belegprüfung).
+- `nav.js`: `PAGE_INIT` um `etv` und `finanzen` erweitert.
+- `mod-etv.js`: Building-Kontext aus URL-Param > sessionStorage > Default. `_etvOnBuildingChange()` synct zu sessionStorage.
+- `mod-finanzen.js`: Building-Kontext + **Tab-Deep-Linking** (`?building=17&tab=buchungen`). 13 gültige Tab-Keys validiert. `_finOnBuildingChange()` synct zu sessionStorage.
+- `dashboard.html`: `mod-finanzen.js`, `mod-etv.js` Script-Tags entfernt. **Bonus:** `pdf-lib`, `fontkit`, `utils-pdf.js` ebenfalls entfernt (keine PDF-Nutzer mehr im Dashboard) → schnellere Ladezeit.
+- Neu: `etv.html` — eigenständige HTML-Shell, lädt `config.js`, `utils.js`, `utils-pdf.js`, `mod-etv.js`, `nav.js` + PDF-Libs (Einladungs-/Protokoll-PDF).
+- Neu: `finanzen.html` — eigenständige HTML-Shell, lädt `config.js`, `utils.js`, `utils-pdf.js`, `mod-finanzen.js`, `nav.js` + PDF-Libs (WP/JAB/Mahnung-PDFs).
+
+**Architektur-Ergebnis Phase 1B:**
+Dashboard-Payload von ~15 Scripts auf ~10 reduziert (+3 CDN-Libs entfernt). Jede externe Seite lädt nur 5 eigene + 3 CDN-Scripts. Navigation, Active-State und Building-Kontext funktionieren nahtlos über Seitengrenzen hinweg.
 

@@ -158,14 +158,15 @@ const DUNNING_LEVEL_LABELS = { 1: 'Zahlungserinnerung', 2: '1. Mahnung', 3: 'Let
 
 const EXTERNAL_PAGES = {
     'loadZeiterfassung': 'zeiterfassung.html',
-    // Zukünftig: 'loadETV': 'etv.html', 'loadDocuments': 'dokumente.html', 'loadFinance': 'finanzen.html'
+    'loadETV':           'etv.html',
+    'loadFinance':       'finanzen.html',
 };
 
-// Auth-Guard: Welche externen Seiten nur admin/manager sehen dürfen
+// Auth-Guard: Welche externen Seiten nur bestimmte Rollen sehen dürfen
 const EXTERNAL_PAGE_ROLES = {
     'zeiterfassung': ['admin', 'manager'],
-    // 'etv': ['admin', 'manager'],
-    // 'finanzen': ['admin', 'manager', 'advisory'],
+    'etv':           ['admin', 'manager'],
+    'finanzen':      ['admin', 'manager', 'advisory'],
 };
 
 function _getCurrentPage() {
