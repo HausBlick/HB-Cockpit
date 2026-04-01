@@ -312,7 +312,7 @@ window.openContactDetail = async (contactId) => {
             <p class="text-[10px] uppercase font-bold text-gray-300 mb-2">Gebäude</p>
             <div class="flex flex-wrap gap-2">
                 ${bList.map(b => `
-                <button onclick="navigateToBuilding(${b.id}); document.getElementById('contact-detail-modal')?.remove()"
+                <button onclick="navigateToBuilding(${b.id}); hideModal('contact-detail-modal')"
                     class="text-xs font-bold text-hb-olive px-3 py-1 rounded-lg hover:bg-hb-olive/10 transition-colors" style="background:rgba(104,116,81,.1)">
                     ${formatBuildingName(b)}
                 </button>`).join('')}
@@ -321,12 +321,7 @@ window.openContactDetail = async (contactId) => {
 
     const canEdit = isAdmin || (role === 'owner' && c.created_by === currentUser.id);
 
-    document.getElementById('contact-detail-modal')?.remove();
-    const modal = document.createElement('div');
-    modal.id = 'contact-detail-modal';
-    modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
-    modal.innerHTML = `
-        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col" onclick="event.stopPropagation()">
+    const modal = showModal('contact-detail-modal', `
             <div class="p-6 border-b border-gray-100 flex justify-between items-start flex-shrink-0">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 rounded-xl flex items-center justify-center ${c.is_company ? 'bg-gray-100' : ''}" ${!c.is_company ? 'style="background:rgba(104,116,81,.1)"' : ''}>
@@ -343,14 +338,14 @@ window.openContactDetail = async (contactId) => {
                     </div>
                 </div>
                 <div class="flex items-center gap-2 flex-shrink-0 ml-4">
-                    ${canEdit ? `<button onclick="document.getElementById('contact-detail-modal').remove(); showContactForm(${c.id})" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Bearbeiten</button>` : ''}
-                    <button onclick="document.getElementById('contact-detail-modal').remove()" class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
+                    ${canEdit ? `<button onclick="hideModal('contact-detail-modal'); showContactForm(${c.id})" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Bearbeiten</button>` : ''}
+                    <button onclick="hideModal('contact-detail-modal')" class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
                 </div>
             </div>
             <div class="p-6 overflow-y-auto flex-grow space-y-5">
                 <div>
                     <p class="text-[10px] uppercase font-bold text-gray-300 mb-3">Kontakt</p>
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         ${c.is_company && c.contact_person ? field('Ansprechpartner', c.contact_person) : ''}
                         ${field('Telefon', c.phone)}
                         ${field('Mobil', c.mobile)}
@@ -368,9 +363,7 @@ window.openContactDetail = async (contactId) => {
                     </button>
                 </div>` : ''}
             </div>
-        </div>`;
-    modal.addEventListener('click', () => modal.remove());
-    document.body.appendChild(modal);
+    `, { maxWidth: 'max-w-lg' });
 };
 
 // ─── Erstellen / Bearbeiten ───────────────────────────────────
@@ -391,15 +384,10 @@ window.showContactForm = async (contactId = null) => {
     const buildings = buildingsRes.data || [];
     const isEdit   = !!contactId;
 
-    document.getElementById('contact-form-modal')?.remove();
-    const modal = document.createElement('div');
-    modal.id = 'contact-form-modal';
-    modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
-    modal.innerHTML = `
-        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
+    const modal = showModal('contact-form-modal', `
             <div class="p-6 border-b border-gray-100 flex justify-between items-center flex-shrink-0">
                 <h3 class="text-xl font-extrabold text-hb-offblack">${isEdit ? 'Kontakt bearbeiten' : 'Neuer Kontakt'}</h3>
-                <button onclick="document.getElementById('contact-form-modal').remove()" class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
+                <button onclick="hideModal('contact-form-modal')" class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
             </div>
             <div class="p-6 overflow-y-auto flex-grow space-y-4">
 
@@ -419,7 +407,7 @@ window.showContactForm = async (contactId = null) => {
                     <input type="text" id="ctct_contact_person" value="${c.contact_person || ''}" placeholder="Max Mustermann">
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="space-y-1">
                         <label class="text-[10px] uppercase font-bold text-gray-500">Kategorie</label>
                         <select id="ctct_category">
@@ -436,7 +424,7 @@ window.showContactForm = async (contactId = null) => {
                     </div>` : ''}
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="space-y-1">
                         <label class="text-[10px] uppercase font-bold text-gray-500">Telefon</label>
                         <input type="tel" id="ctct_phone" value="${c.phone || ''}" placeholder="+49 30 …">
@@ -481,13 +469,11 @@ window.showContactForm = async (contactId = null) => {
             <div class="p-6 border-t border-gray-50 flex justify-between items-center flex-shrink-0">
                 ${isEdit ? `<button onclick="deleteContact(${c.id})" class="text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5 transition-colors">Löschen</button>` : '<div></div>'}
                 <div class="flex gap-3">
-                    <button onclick="document.getElementById('contact-form-modal').remove()" class="btn-secondary text-sm">Abbrechen</button>
+                    <button onclick="hideModal('contact-form-modal')" class="btn-secondary text-sm">Abbrechen</button>
                     <button onclick="saveContact(${contactId || 'null'})" class="btn-primary text-sm">Speichern</button>
                 </div>
             </div>
-        </div>`;
-    modal.addEventListener('click', () => modal.remove());
-    document.body.appendChild(modal);
+    `, { maxWidth: 'max-w-lg' });
 };
 
 window._toggleCompanyFields = () => {
@@ -530,7 +516,7 @@ window.saveContact = async (contactId) => {
 
     if (error) { showToast(error.message, 'error'); return; }
 
-    document.getElementById('contact-form-modal')?.remove();
+    hideModal('contact-form-modal');
     showToast(contactId ? 'Kontakt aktualisiert.' : 'Kontakt angelegt.', 'success');
     await loadContacts();
 
@@ -541,33 +527,21 @@ window.saveContact = async (contactId) => {
 };
 
 function _showAddPersonsPrompt(contactId, companyName) {
-    document.getElementById('add-persons-prompt')?.remove();
-    const prompt = document.createElement('div');
-    prompt.id = 'add-persons-prompt';
-    prompt.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
-    prompt.innerHTML = `
-        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-md p-6 space-y-4" onclick="event.stopPropagation()">
+    const modal = showModal('add-persons-prompt', `
             <h3 class="text-lg font-extrabold text-hb-offblack">Ansprechpartner hinzufügen?</h3>
             <p class="text-sm text-gray-500">Möchten Sie für <strong>${companyName || 'diese Firma'}</strong> direkt Ansprechpartner anlegen?</p>
             <div class="flex gap-3 justify-end">
-                <button onclick="document.getElementById('add-persons-prompt').remove()" class="btn-secondary text-sm">Nicht jetzt</button>
-                <button onclick="document.getElementById('add-persons-prompt').remove(); showContactPersonForm(${contactId})" class="btn-primary text-sm">Ansprechpartner anlegen</button>
+                <button onclick="hideModal('add-persons-prompt')" class="btn-secondary text-sm">Nicht jetzt</button>
+                <button onclick="hideModal('add-persons-prompt'); showContactPersonForm(${contactId})" class="btn-primary text-sm">Ansprechpartner anlegen</button>
             </div>
-        </div>`;
-    prompt.addEventListener('click', () => prompt.remove());
-    document.body.appendChild(prompt);
+    `, { maxWidth: 'max-w-md' });
 }
 
 window.showContactPersonForm = (contactId) => {
-    document.getElementById('contact-person-form-modal')?.remove();
-    const modal = document.createElement('div');
-    modal.id = 'contact-person-form-modal';
-    modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
-    modal.innerHTML = `
-        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-md p-6 space-y-4" onclick="event.stopPropagation()">
+    const modal = showModal('contact-person-form-modal', `
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-extrabold text-hb-offblack">Ansprechpartner</h3>
-                <button onclick="document.getElementById('contact-person-form-modal').remove()" class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
+                <button onclick="hideModal('contact-person-form-modal')" class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
             </div>
             <div class="space-y-3">
                 <div class="space-y-1">
@@ -578,7 +552,7 @@ window.showContactPersonForm = (contactId) => {
                     <label class="text-[10px] uppercase font-bold text-gray-500">Rolle / Position</label>
                     <input type="text" id="cp_role" placeholder="Notdienst, Projektleiter, …">
                 </div>
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div class="space-y-1">
                         <label class="text-[10px] uppercase font-bold text-gray-500">Telefon</label>
                         <input type="tel" id="cp_phone" placeholder="+49 …">
@@ -597,12 +571,10 @@ window.showContactPersonForm = (contactId) => {
                 </label>
             </div>
             <div class="flex gap-3 justify-end pt-2">
-                <button onclick="document.getElementById('contact-person-form-modal').remove()" class="btn-secondary text-sm">Abbrechen</button>
+                <button onclick="hideModal('contact-person-form-modal')" class="btn-secondary text-sm">Abbrechen</button>
                 <button onclick="saveContactPerson(${contactId})" class="btn-primary text-sm">Speichern</button>
             </div>
-        </div>`;
-    modal.addEventListener('click', () => modal.remove());
-    document.body.appendChild(modal);
+    `, { maxWidth: 'max-w-md' });
 };
 
 window.saveContactPerson = async (contactId) => {
@@ -618,7 +590,7 @@ window.saveContactPerson = async (contactId) => {
         is_visible_to_tenants: document.getElementById('cp_visible')?.checked ?? true,
     }]);
     if (error) { showToast(error.message, 'error'); return; }
-    document.getElementById('contact-person-form-modal')?.remove();
+    hideModal('contact-person-form-modal');
     showToast('Ansprechpartner gespeichert.', 'success');
     _showAddPersonsPrompt(contactId, '');
 };
@@ -627,7 +599,7 @@ window.deleteContact = async (contactId) => {
     if (!confirm('Kontakt wirklich löschen? Alle Ansprechpartner werden ebenfalls gelöscht.')) return;
     const { error } = await _supabase.from('contacts').delete().eq('id', contactId);
     if (error) { showToast(error.message, 'error'); return; }
-    document.getElementById('contact-form-modal')?.remove();
+    hideModal('contact-form-modal');
     showToast('Kontakt gelöscht.', 'success');
     await loadContacts();
 };

@@ -108,7 +108,10 @@ async function loadDashboard() {
 
 async function _renderAdminDashboard() {
     const ca = document.getElementById('content-area');
-    ca.innerHTML = `<div class="flex justify-center py-20"><div class="w-8 h-8 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div></div>`;
+    ca.innerHTML = `<div class="space-y-6 py-4">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">${Array.from({length:4}, () => '<div class="skeleton h-24"></div>').join('')}</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">${Array.from({length:4}, () => '<div class="skeleton h-48"></div>').join('')}</div>
+    </div>`;
 
     const [
         openTickRes, wipTickRes, draftCountRes,
@@ -359,7 +362,10 @@ window._dashPublishDoc = async (docId) => {
 
 async function _renderUserDashboard() {
     const ca   = document.getElementById('content-area');
-    ca.innerHTML = `<div class="flex justify-center py-20"><div class="w-8 h-8 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div></div>`;
+    ca.innerHTML = `<div class="space-y-6 py-4">
+        <div class="grid grid-cols-2 gap-4">${Array.from({length:4}, () => '<div class="skeleton h-24"></div>').join('')}</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">${Array.from({length:2}, () => '<div class="skeleton h-48"></div>').join('')}</div>
+    </div>`;
 
     const uid  = currentUser.id;
     const role = userProfile.role;

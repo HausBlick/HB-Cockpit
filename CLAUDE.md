@@ -197,7 +197,7 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
   > Geteilte Basis: `config.js`, `utils.js`, `nav.js`. Deep-Linking mit Query-Parametern (z.B. `finanzen.html?building=17&tab=verteilerschluessel`). Mieter/Eigentümer-Dashboard bleibt SPA.
 - 1C 🔄 **Mobile-Audit & Responsive Patterns** (Phase A abgeschlossen)
   > **Phase A (Fundament) ✅:** Scroll-Containment (Body h-screen, Main flex-1 min-h-0, Content overflow-y-auto). Bottom-Navigation (5 Items rollenbasiert, Badge-Sync, Active-State-Sync mit Sidebar). Mobile-Header (Logo + Role-Label, Hamburger durch Bottom-Nav ersetzt). Skeleton-Loading CSS-Pattern. Safe-Area-Inset für Notch-Geräte. Toast-Position über Bottom-Nav.
-  > **Phase B (Modals & Loading) 📋:** Bottom Sheets / Slide-Ins statt zentrierte Desktop-Modals. Skeleton-Loader in Module integrieren.
+  > **Phase B (Modals & Loading) ✅:** `showModal()`/`hideModal()` Utility (Desktop zentriert, Mobile Bottom Sheet). 8 Modals migriert (Tickets, Dokumente, Kontakte). Swipe-to-Dismiss. Skeleton-Loader im Dashboard.
   > **Phase C (Modul-Migration) 📋:** Cards statt Tabellen Modul für Modul. Ticket-Chat-Textfeld Bugfix. Touch-Targets 44px Audit.
 
 ### ✅ Phase 2 — Personen-CRM (ABGESCHLOSSEN)
@@ -410,4 +410,16 @@ Migration `phase81_special_roles_and_allocatable`: 6 Rollen (+landlord, +advisor
 `utils.js`: `showSkeleton({ rows, type })` — Typen: `list` (Avatar + Text), `cards` (Block-Platzhalter), `table` (Header + Zeilen).
 
 `config.js`: `icons.more` (Hamburger-SVG für Bottom-Nav "Mehr"-Item).
+
+### Phase 1C-B — Bottom Sheets, Modal-Migration, Skeleton-Integration
+`utils.js`: `showModal(id, contentHtml, options)` — Desktop: zentriertes Modal (scale-in). Mobile: Bottom Sheet (slide-up, `rounded-t-[15px]`, max-h-85vh). `hideModal(id)` mit Animate-Out. `_addSwipeToDismiss(modal)` (Swipe-Down-to-Dismiss, Threshold 80px, passive touch-Listeners). Escape-Key-Handler.
+
+`dashboard.html`: CSS `.modal-sheet` (transition transform 0.3s) + `.modal-inner` (transition transform/opacity 0.2s).
+
+**Modal-Migration (8 Modals in 3 Modulen):**
+- `mod-tickets.js`: `showCreateTicketModal` → `showModal()`. Grid `grid-cols-1 md:grid-cols-2`.
+- `mod-dokumente.js`: 3 Modals (`doc-detail-modal`, `doc-edit-modal`, `doc-upload-modal`) → `showModal()`.
+- `mod-kontakte.js`: 4 Modals (`contact-detail-modal`, `contact-form-modal`, `add-persons-prompt`, `contact-person-form-modal`) → `showModal()`.
+
+**Skeleton-Loader:** Dashboard-Spinner (Admin + User) durch Skeleton-Platzhalter ersetzt (4 KPI-Blocks + Widget-Blocks).
 

@@ -37,6 +37,96 @@ function toggleMenu() {
     document.getElementById('overlay').classList.toggle('hidden');
 }
 
+// ─── Modal / Bottom Sheet ────────────────────────────────────
+// Desktop: zentriertes Modal. Mobile: Bottom Sheet (slide-up).
+// Nutzung: const modal = showModal('my-id', '<h2>Titel</h2>...', { maxWidth: 'max-w-2xl' });
+// Schließen: hideModal('my-id') oder Overlay-Klick / Escape / Swipe-Down.
+function showModal(id, contentHtml, { maxWidth = 'max-w-lg', onClose } = {}) {
+    document.getElementById(id)?.remove();
+
+    const modal = document.createElement('div');
+    modal.id = id;
+    const isMobile = window.innerWidth < 768;
+
+    if (isMobile) {
+        modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex flex-col justify-end';
+        modal.innerHTML = `<div class="modal-sheet bg-white rounded-t-[15px] shadow-2xl w-full max-h-[85vh] overflow-y-auto p-5 space-y-4 translate-y-full" onclick="event.stopPropagation()">${contentHtml}</div>`;
+    } else {
+        modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
+        modal.innerHTML = `<div class="modal-inner bg-white rounded-[15px] shadow-2xl w-full ${maxWidth} max-h-[90vh] overflow-y-auto p-8 space-y-5 scale-95 opacity-0" onclick="event.stopPropagation()">${contentHtml}</div>`;
+    }
+
+    document.body.appendChild(modal);
+
+    // Animate in
+    requestAnimationFrame(() => {
+        const inner = modal.firstElementChild;
+        if (isMobile) inner.classList.remove('translate-y-full');
+        else { inner.classList.remove('scale-95', 'opacity-0'); }
+    });
+
+    // Close: Overlay-Klick
+    modal.addEventListener('click', (e) => { if (e.target === modal) hideModal(id); });
+
+    // Close: Escape
+    const escH = (e) => { if (e.key === 'Escape') { hideModal(id); document.removeEventListener('keydown', escH); } };
+    document.addEventListener('keydown', escH);
+    modal._escHandler = escH;
+
+    // Close: Swipe-Down (Mobile)
+    if (isMobile) _addSwipeToDismiss(modal);
+
+    // onClose-Callback speichern
+    if (onClose) modal._onClose = onClose;
+
+    return modal;
+}
+
+function hideModal(id) {
+    const modal = document.getElementById(id);
+    if (!modal) return;
+    const inner = modal.firstElementChild;
+    const isMobile = window.innerWidth < 768;
+
+    if (isMobile) inner.classList.add('translate-y-full');
+    else { inner.classList.add('scale-95', 'opacity-0'); }
+
+    if (modal._escHandler) document.removeEventListener('keydown', modal._escHandler);
+    if (modal._onClose) modal._onClose();
+
+    setTimeout(() => modal.remove(), 300);
+}
+
+// Swipe-Down-to-Dismiss für Bottom Sheets
+function _addSwipeToDismiss(modal) {
+    const sheet = modal.querySelector('.modal-sheet');
+    if (!sheet) return;
+    let startY = 0, currentY = 0, dragging = false;
+
+    sheet.addEventListener('touchstart', (e) => {
+        if (sheet.scrollTop > 0) return;
+        startY = e.touches[0].clientY;
+        currentY = startY;
+        dragging = true;
+        sheet.style.transition = 'none';
+    }, { passive: true });
+
+    sheet.addEventListener('touchmove', (e) => {
+        if (!dragging) return;
+        currentY = e.touches[0].clientY;
+        const dy = currentY - startY;
+        if (dy > 0) sheet.style.transform = `translateY(${dy}px)`;
+    }, { passive: true });
+
+    sheet.addEventListener('touchend', () => {
+        if (!dragging) return;
+        dragging = false;
+        sheet.style.transition = '';
+        if (currentY - startY > 80) hideModal(modal.id);
+        else sheet.style.transform = '';
+    });
+}
+
 // ─── Skeleton Loading ────────────────────────────────────────
 // Erzeugt HTML-Platzhalter für Ladezustände (Phase 1C Pattern)
 // Nutzung: container.innerHTML = showSkeleton({ rows: 4, type: 'cards' });

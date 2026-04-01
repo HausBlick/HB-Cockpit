@@ -624,21 +624,16 @@ window.showCreateTicketModal = async () => {
     const { data: buildings } = await _supabase.from('buildings').select('id, name, file_number, street, house_number').order('name');
     const bList = buildings || [];
 
-    document.getElementById('create-ticket-modal')?.remove();
-    const modal = document.createElement('div');
-    modal.id = 'create-ticket-modal';
-    modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
-    modal.innerHTML = `
-        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-lg p-8 space-y-5" onclick="event.stopPropagation()">
+    const modal = showModal('create-ticket-modal', `
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-extrabold text-hb-offblack">Neues Ticket</h3>
-                <button onclick="document.getElementById('create-ticket-modal').remove()" class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
+                <button onclick="hideModal('create-ticket-modal')" class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
             </div>
             <div class="space-y-2">
                 <label class="text-[10px] uppercase font-bold text-gray-500">Betreff *</label>
                 <input type="text" id="tkt_title" placeholder="Kurze Beschreibung des Problems">
             </div>
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="space-y-2">
                     <label class="text-[10px] uppercase font-bold text-gray-500">Kategorie</label>
                     <select id="tkt_cat">
@@ -664,7 +659,6 @@ window.showCreateTicketModal = async () => {
                 <label class="text-[10px] uppercase font-bold text-gray-500">Beschreibung *</label>
                 <textarea id="tkt_desc" rows="4" placeholder="Beschreibe das Problem so genau wie möglich…"></textarea>
             </div>
-            <!-- Anhang Platzhalter -->
             <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center text-sm text-gray-400">
                 <svg class="w-6 h-6 mx-auto mb-1 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
@@ -672,9 +666,7 @@ window.showCreateTicketModal = async () => {
                 Dateianhang (folgt in nächster Version)
             </div>
             <button onclick="saveTicket()" class="btn-primary w-full">Ticket erstellen</button>
-        </div>`;
-    modal.addEventListener('click', () => modal.remove());
-    document.body.appendChild(modal);
+    `);
 
     // Vorausfüllen wenn Profil apartment_id hat
     if (userProfile?.apartment_id) {
@@ -714,7 +706,7 @@ window.saveTicket = async () => {
         tenant_id:    currentUser.id,
     }]);
     if (error) { showToast(error.message, 'error'); return; }
-    document.getElementById('create-ticket-modal')?.remove();
+    hideModal('create-ticket-modal');
     showToast('Ticket erstellt.', 'success');
     refreshNavBadges?.();
     await _loadTicketView(_ticketFilter);
