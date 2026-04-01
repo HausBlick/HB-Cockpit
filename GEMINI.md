@@ -53,7 +53,8 @@ Authentifizierung: Supabase Auth (Magic Links, Passwort-Resets, rollenbasierter 
 
 Storage: Supabase Storage (Privater Bucket documents mit signierten URLs für sicheren Dokumentenzugriff).
 
-Frontend-Architektur (Verwalter): Aufteilung des monolithischen Dashboards. Das `dashboard.html` (Startseite/Workspace, Tickets, Schwarzes Brett, Kontaktbuch, Kalender, CRM, Gebäude & Einheiten, Globale Einstellungen) bildet das Zentrum. Komplexe Tools (Finanzen, ETV, Zeiterfassung, Dokumentencloud) öffnen sich als separate HTML-Seiten. Deep-Linking (z.B. `?building=17`) verknüpft die Ansichten.
+Frontend-Architektur (Verwalter): Aufteilung des monolithischen Dashboards. Das `dashboard.html` (Startseite/Workspace, Tickets, Schwarzes Brett, Kontaktbuch, Kalender, CRM, Gebäude & Einheiten, Globale Einstellungen, Dokumentencloud) bildet das Zentrum. Komplexe Experten-Tools (Finanzen, ETV, Zeiterfassung) öffnen sich als separate HTML-Seiten. Deep-Linking (z.B. `?building=17`) verknüpft die Ansichten.
+*Hinweis:* Eine dedizierte, hochkomplexe Verwalter-Ansicht für Dokumente (`dokumente.html`) ist erst für eine spätere Phase geplant, um die SPA-Erfahrung für Mieter im Dashboard aktuell nahtlos zu halten.
 Frontend (Basis): Vanilla JavaScript (ES6 Modules), HTML5, Tailwind CSS (via CDN) – keine schweren Frameworks. Das Mieter/Eigentümer-Dashboard bleibt als schlanke SPA unverändert.
 
 Hosting: GitHub Pages (Continuous Deployment aus dem main-Branch).
