@@ -195,11 +195,12 @@ Hinterlegung von Firmenanschrift, Steuernummer, Logo und offiziellem PDF-Briefko
 
 Definition von Standard-Werten (z.B. Höhe der Standard-Mahngebühr, Basiszins).
 
-PDF-Vorlagen-System (Template-Engine): Ein datenbankgestütztes Template-System (Block-basiert, JSON-Struktur) für **alle** System-PDFs, um Texte ohne Code-Eingriffe gebäudeübergreifend anzupassen. 
+PDF-Vorlagen-System (Template-Engine): Ein datenbankgestütztes Template-System (Block-basiert, JSON-Struktur) für **alle** System-PDFs, um Texte ohne Code-Eingriffe gebäudeübergreifend anzupassen. Integriert als **"Dokumenten-Designer"** direkt in die **Globalen Einstellungen** (admin).
 - **Blöcke:** Text (mit Formatierung), Variablen/Platzhalter (z.B. `{{abrechnungssaldo}}`), Tabellen-Datenbindung (definiert Position der Berechnungen), Hinweis-Boxen und Abstandhalter.
-- **Layout-Kontrolle:** Möglichkeit, gezielte Seitenumbrüche einzufügen (z.B. Trennung von Anschreiben und Abrechnung).
-- **Briefkopf-Logik (Header-Toggle):** Pro Seite kann individuell gesteuert werden, ob der offizielle Briefkopf/Header angezeigt werden soll oder nicht (z.B. Header nur auf Seite 1).
-- **Verwaltung:** Alles läuft über einen Drag&Drop Block-Editor direkt in den Admin-Einstellungen.
+- **Live-Preview (WYSIWYG):** Hochwertiger Splitscreen-Editor mit Echtzeit-Vorschau des generierten PDFs (via `pdf-lib` im Browser), um Layout und Umbrüche sofort zu kontrollieren.
+- **Layout-Kontrolle:** Möglichkeit, gezielte Seitenumbrüche einzufügen und pro Seite/Block individuell zu steuern, ob der offizielle Briefkopf/Header (Hintergrund-Layer) angezeigt wird.
+- **Variablen-Palette:** Dynamische Liste verfügbarer Platzhalter direkt im Editor zum einfachen Einfügen per Klick.
+- **Verwaltung:** Alles läuft über einen modernen Drag&Drop Block-Editor in den Admin-Einstellungen.
 
 E-Mail-Benachrichtigungssystem: Automatischer Push-Service, um Nutzer ins Portal zu holen.
 
