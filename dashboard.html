@@ -60,6 +60,9 @@
         .nav-link { display: flex; align-items: center; gap: 0.5rem; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        /* Modal / Bottom Sheet Transitions */
+        .modal-sheet { transition: transform 0.3s ease-out; }
+        .modal-inner { transition: transform 0.2s ease-out, opacity 0.2s ease-out; }
         /* Bottom Navigation */
         .bnav-item { color: #9ca3af; transition: color 0.15s; -webkit-tap-highlight-color: transparent; }
         .bnav-item.bnav-active { color: #687451; }

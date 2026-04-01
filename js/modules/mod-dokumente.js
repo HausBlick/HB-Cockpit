@@ -508,12 +508,7 @@ window._openDocModal = async (docId) => {
     const canEdit    = userProfile?.role === 'admin' || userProfile?.role === 'manager';
     const displayName = doc.generated_filename || doc.document_title || doc.title;
 
-    document.getElementById('doc-detail-modal')?.remove();
-    const modal = document.createElement('div');
-    modal.id = 'doc-detail-modal';
-    modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
-    modal.innerHTML = `
-        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col text-left" onclick="event.stopPropagation()">
+    const modal = showModal('doc-detail-modal', `
             <div class="p-5 border-b border-gray-100 flex justify-between items-start flex-shrink-0">
                 <div>
                     <h2 class="text-lg font-extrabold text-hb-offblack leading-tight">${displayName}</h2>
@@ -524,11 +519,11 @@ window._openDocModal = async (docId) => {
                 <div class="flex gap-2 items-center ml-4 flex-shrink-0">
                     ${signedUrl ? `<a href="${signedUrl}" download="${displayName}" onclick="_markDocRead(${doc.id})" class="btn-primary text-xs px-3 py-1.5">Download</a>` : ''}
                     ${canEdit ? `
-                        <button onclick="document.getElementById('doc-detail-modal').remove(); _openDocEditModal(${doc.id})"
+                        <button onclick="hideModal('doc-detail-modal'); _openDocEditModal(${doc.id})"
                             class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100">Bearbeiten</button>
                         <button onclick="_archiveDoc(${doc.id})"
                             class="text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5">${doc.is_deleted ? 'Wiederherstellen' : 'Archivieren'}</button>` : ''}
-                    <button onclick="document.getElementById('doc-detail-modal').remove()"
+                    <button onclick="hideModal('doc-detail-modal')"
                         class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none ml-1">✕</button>
                 </div>
             </div>
@@ -541,9 +536,7 @@ window._openDocModal = async (docId) => {
                            ${signedUrl ? `<a href="${signedUrl}" download="${displayName}" class="text-hb-olive text-sm hover:underline">Datei herunterladen</a>` : ''}
                        </div>`}
             </div>
-        </div>`;
-    modal.addEventListener('click', () => modal.remove());
-    document.body.appendChild(modal);
+    `, { maxWidth: 'max-w-3xl' });
 };
 
 // ─── Read-Tracking ─────────────────────────────────────────────
@@ -583,7 +576,7 @@ window._archiveDoc = async (docId) => {
         deleted_at: toArchive ? new Date().toISOString() : null,
     }).eq('id', Number(docId));
     if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
-    document.getElementById('doc-detail-modal')?.remove();
+    hideModal('doc-detail-modal');
     showToast(toArchive ? 'Archiviert.' : 'Wiederhergestellt.', 'success');
     _docsState.data = await _fetchDocs();
     _renderDocsView();
@@ -635,15 +628,10 @@ window._openDocEditModal = async (docId) => {
             <button onclick="_addDocLink(${docId})" class="mt-2 text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 w-full">Person verknüpfen</button>
         </div>` : '';
 
-    document.getElementById('doc-edit-modal')?.remove();
-    const modal = document.createElement('div');
-    modal.id = 'doc-edit-modal';
-    modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
-    modal.innerHTML = `
-        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-md flex flex-col text-left max-h-[90vh]" onclick="event.stopPropagation()">
+    const modal = showModal('doc-edit-modal', `
             <div class="p-5 border-b border-gray-100 flex justify-between items-center flex-shrink-0">
                 <h2 class="text-base font-extrabold text-hb-offblack">Dokument bearbeiten</h2>
-                <button onclick="document.getElementById('doc-edit-modal').remove()"
+                <button onclick="hideModal('doc-edit-modal')"
                     class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
             </div>
             <div class="p-5 space-y-4 overflow-y-auto">
@@ -656,7 +644,7 @@ window._openDocEditModal = async (docId) => {
                     <label class="block text-xs font-bold text-gray-500 mb-1">Kategorie</label>
                     <select id="doc-edit-category">${catOptions}</select>
                 </div>
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                         <label class="block text-xs font-bold text-gray-500 mb-1">Gebäude</label>
                         <select id="doc-edit-building"><option value="">—</option>${bldOptions}</select>
@@ -666,7 +654,7 @@ window._openDocEditModal = async (docId) => {
                         <select id="doc-edit-apartment"><option value="">—</option>${aptOptions}</select>
                     </div>
                 </div>
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                         <label class="block text-xs font-bold text-gray-500 mb-1">Jahr</label>
                         <select id="doc-edit-year">${yearOptions}</select>
@@ -684,14 +672,12 @@ window._openDocEditModal = async (docId) => {
                 ${linksHtml}
             </div>
             <div class="p-5 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
-                <button onclick="document.getElementById('doc-edit-modal').remove()"
+                <button onclick="hideModal('doc-edit-modal')"
                     class="btn-secondary text-sm px-4 py-2">Abbrechen</button>
                 <button onclick="_saveDocEdit(${doc.id})"
                     class="btn-primary text-sm px-4 py-2">Speichern</button>
             </div>
-        </div>`;
-    modal.addEventListener('click', () => modal.remove());
-    document.body.appendChild(modal);
+    `, { maxWidth: 'max-w-md' });
 };
 
 window._saveDocEdit = async (docId) => {
@@ -708,7 +694,7 @@ window._saveDocEdit = async (docId) => {
         year, visibility_scope: scope, updated_at: new Date().toISOString(),
     }).eq('id', Number(docId));
     if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
-    document.getElementById('doc-edit-modal')?.remove();
+    hideModal('doc-edit-modal');
     showToast('Gespeichert.', 'success');
     _docsState.data = await _fetchDocs();
     _renderDocsView();
@@ -720,18 +706,17 @@ window._addDocLink = async (docId) => {
     if (!profileId) return;
     const { error } = await _supabase.from('document_links').insert({ document_id: Number(docId), profile_id: profileId });
     if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
-    document.getElementById('doc-edit-modal')?.remove();
+    hideModal('doc-edit-modal');
     _openDocEditModal(docId);
 };
 window._removeDocLink = async (linkId, docId) => {
     await _supabase.from('document_links').delete().eq('id', linkId);
-    document.getElementById('doc-edit-modal')?.remove();
+    hideModal('doc-edit-modal');
     _openDocEditModal(docId);
 };
 
 // ─── Upload-Modal ──────────────────────────────────────────────
 window._openUploadModal = () => {
-    document.getElementById('doc-upload-modal')?.remove();
     _docsState.stagingFiles = [];
 
     const catOptions = ALLE_KATEGORIEN.map(c => `<option value="${c}">${c}</option>`).join('');
@@ -744,14 +729,10 @@ window._openUploadModal = () => {
     const profOptions = _docsState.profiles
         .map(p => `<option value="${p.id}">${p.full_name}${p.email ? ' · ' + p.email : ''}</option>`).join('');
 
-    const modal = document.createElement('div');
-    modal.id = 'doc-upload-modal';
-    modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
-    modal.innerHTML = `
-        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-lg flex flex-col text-left max-h-[90vh]" onclick="event.stopPropagation()">
+    const modal = showModal('doc-upload-modal', `
             <div class="p-5 border-b border-gray-100 flex justify-between items-center flex-shrink-0">
                 <h2 class="text-base font-extrabold text-hb-offblack">Dokumente hochladen</h2>
-                <button onclick="document.getElementById('doc-upload-modal').remove()"
+                <button onclick="hideModal('doc-upload-modal')"
                     class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
             </div>
             <div class="p-5 space-y-4 overflow-y-auto">
@@ -782,7 +763,7 @@ window._openUploadModal = () => {
                     </select>
                 </div>
                 <!-- Jahr + Sichtbarkeit -->
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                         <label class="block text-xs font-bold text-gray-500 mb-1">Jahr</label>
                         <select id="doc-upload-year">${yearOpts}</select>
@@ -825,14 +806,12 @@ window._openUploadModal = () => {
                 </label>
             </div>
             <div class="p-5 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
-                <button onclick="document.getElementById('doc-upload-modal').remove()"
+                <button onclick="hideModal('doc-upload-modal')"
                     class="btn-secondary text-sm px-4 py-2">Abbrechen</button>
                 <button id="doc-upload-btn" onclick="_doUploadDocs()"
                     class="btn-primary text-sm px-4 py-2">Hochladen</button>
             </div>
-        </div>`;
-    modal.addEventListener('click', () => modal.remove());
-    document.body.appendChild(modal);
+    `, { maxWidth: 'max-w-lg' });
 };
 
 // Kaskadierendes Scope-UI
@@ -953,7 +932,7 @@ window._doUploadDocs = async () => {
         }
     }
 
-    document.getElementById('doc-upload-modal')?.remove();
+    hideModal('doc-upload-modal');
     if (ok)   showToast(`${ok} Dokument${ok > 1 ? 'e' : ''} ${asDraft ? 'als Entwurf gespeichert' : 'hochgeladen'}.`, 'success');
     if (fail) showToast(`${fail} Datei${fail > 1 ? 'en' : ''} fehlgeschlagen.`, 'error');
 
