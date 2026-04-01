@@ -44,7 +44,7 @@ Dieses Projekt nutzt zwei KI-gesteuerte Dokumente mit strikter Aufgabenteilung:
 
 ## 2. Tech-Stack
 
-- **Backend / DB / Auth:** Supabase (PostgreSQL 17, RLS)
+- **Backend / DB / Auth:** Supabase (PostgreSQL 17, RLS). Auth: Supabase Auth aktiv — E-Mail/Passwort, Magic Link, Passwort-Reset. Registrierung aktuell nur durch Admin, Self-Service geplant (→ 7.8 Einladungscode)
 - **Frontend:** HTML5, Vanilla JavaScript, Tailwind CSS (via CDN)
 - **Hosting:** GitHub Pages (Push auf `main` → live)
 
@@ -193,7 +193,7 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 - 2.1 Supabase-Anbindung (Mock-Daten ersetzt) ✅
 - 2.2 Neue Person anlegen ✅
 - 2.3 Person bearbeiten — 4-Tab-Formular (Stammdaten / Rollen / Portal / SEPA) ✅
-- 2.4 Einladungscode generieren 💡 (→ verschoben nach 8.4)
+- 2.4 Einladungscode generieren 💡 (→ hochgestuft nach 7.8)
 
 ### 🔄 Phase 3 — Objekte & Zuweisungen (TEILWEISE ABGESCHLOSSEN)
 - 3.1 Eigentümer-Zuweisung (`ownerships`) ✅
@@ -215,6 +215,8 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 - 4.9 Mobile Navigation (3-Zustands-Flow) ✅
 - 4.10 **Massen-E-Mail** (Serienbrief-Funktion an alle Bewohner eines Objekts) 📋
 - 4.11 **Auftragsmanagement** (Auftrags-PDF für Handwerker direkt aus Ticket generieren) 📋
+- 4.12 **News-Durchreichen für landlord** (Landlord kann WEG-News an eigene Mieter weiterleiten/freigeben) 📋
+- 4.13 **Ticket-Eskalation tenant→landlord→manager** (3-stufige Eskalationslogik statt nur owner→manager) 📋
 
 ### 🔄 Phase 5 — Dokumente & Kontakte (TEILWEISE ABGESCHLOSSEN)
 - 5.1 Dokumenten-Cloud — Migration `phase5_documents` ✅
@@ -223,6 +225,19 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 - 5.4 Dashboard KPIs (rollenbasiert, Kennzahlen, Fristen-Widget) ✅
 - 5.5 **Bulk-Release** (Massen-Freigabe von Dokumenten, z.B. 150 Jahresabrechnungen gleichzeitig) 📋
 - 5.6 **ETV-Dokumente & Beschlusssammlung** (Einladungen/Protokolle generieren, gesetzliche Beschlusssammlung §24 Abs. 7 WEG) 📋
+- 5.7 **Landlord-Funktionen** 📋
+  - 5.7-A **Widget "Meine Mieter"** (Dashboard-Widget: Mieter-Liste, Mietverträge, deren offene Tickets) 📋
+  - 5.7-B **Dokument-Durchreichen** (Landlord kann WEG-Dokumente für eigene Mieter freigeben → Mieter-Silo: Mieter sieht nur aktiv durchgereichte Dokumente) 📋
+
+### 🔄 Phase 5.8 — ETV-Begleiter (Eigentümerversammlung)
+*Komplettmodul: Planung, Check-in, Abstimmung, Protokoll, Beschlusssammlung.*
+- 5.8-A Planung: Sessions, TOPs, Check-in, Abstimmung (MEA/Kopf/Objekt), Protokoll-PDF ✅
+- 5.8-B Einladungs-PDF mit ETV-Staging-Workflow ✅
+- 5.8-C **Dynamische Platzhalter in TOPs** (Text-Platzhalter z.B. `[BEAUFTRAGTE_FIRMA]` mit Auswahlmöglichkeiten) 📋
+- 5.8-D **Vollmachten-System** (Formular + TOP-bezogene Weisungen Ja/Nein/Enthaltung + Verwalter-Vollmacht) 📋
+- 5.8-E **Kontextsensitive Abstimmungs-Engine** (variable Abfrage-Reihenfolge, Effizienz-Logik "Einstimmiges JA", Platzhalter-Finale) 📋
+- 5.8-F **Unterschriften-Workflow + Beschlusssammlung §24 Abs. 7 WEG** (Verwalter-Eintrag wer/wann unterschrieben, automatischer Transfer in gebäudespezifische Beschlusssammlung) 📋
+- 5.8-G **Kommunikation & Termine** (Auto-News "ETV-Planung gestartet", Antragsfrist, Kalendereintrag, digitale Einladung im Portal) 📋
 
 ### 🔄 Phase 6 — Finanzen & Abrechnung
 *Kernmodul: Wirtschaftsplan, Hausgeldabrechnung, Erhaltungsrücklage.*
@@ -238,6 +253,8 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 - 6.9 **Official Letter Engine** (Mahnung + Wirtschaftsplan als PDF via pdf-lib, Briefkopf-Integration) ✅
 - 6.10 **Verteilerschlüssel & Einzelwirtschaftspläne** (distribution_keys, Schlüsselzuweisung je Konto, Einzelplan-PDF Bulk) ✅
 - 6.10-B **Einzelwirtschaftsplan PDF-Redesign** (Inter-Font, 5-Block-Aufbau: Meta-Header, Hausgeld-Summary, Umlageschlüssel, Verteilungsergebnis mit Sektionen, Hinweis-Box) ✅
+- 6.11 **Zeiterfassung & Projekte** (Projektbezogene Zeiterfassung mit Arbeitspaketen, Live-Timer, manueller Zeiteintrag, Bearbeitung, Arbeitsrapport-PDF, Nav-Integration) ✅
+- 6.14 **Automatischer Zahlungsabgleich** (Fuzzy-Match beim CSV-Import: Betrag + IBAN → offene Sollstellung vorschlagen) 📋
 
 ### 🔄 Phase 7 — System, Einstellungen & Benachrichtigungen
 *Querschnitts-Modul: Konfiguration, E-Mail-Push, User-Profile, Audit, PWA.*
@@ -247,13 +264,15 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 - 7.4 **System-Logs / Audit Trail** (revisionssichere Aktions-Historie für Admin: Wer hat wann was geändert?) 📋
 - 7.5 **In-App Hilfe & Onboarding** (Fragezeichen-Symbol je Modul → kontextbezogene Doku / Guided Tour) 📋
 - 7.6 **PWA-Implementierung** (`manifest.json`, Service Worker, Icons, Offline-Fallback — installierbar auf iOS/Android-Homescreen) 📋
+- 7.7 **SSOT-Audit** (Eliminierung hardcodierter Werte — Hausgeld dynamisch aus aktivem Wirtschaftsplan statt `apartments.hausgeld`, Basiszins aus `global_settings`, Namen aus `persons`-Tabelle, Firmendaten zentral aus `global_settings`) 📋
+- 7.8 **Einladungscode & Nutzer-Onboarding** (Admin generiert Registrierungscode → `persons.invite_code` → Registrierungsseite. MVP reicht) 📋
+- 7.9 **Beirat-Auftragsfreigabe** (Advisory-Rolle kann Aufträge/Ausgaben ab Schwellwert freigeben, Freigabe-Status wird bei Buchung geprüft) 📋
 
 ### 💡 Phase 8 — Automatisierung & Erweiterungen
 *Nach Projektabschluss — optionale Nachrüstung.*
 - 8.1 **Umlaufbeschluss-Modul** (digitale Abstimmung ohne Video, Protokoll-PDF) 💡
 - 8.2 **KI-Belegerfassung** (PDF-Upload → OCR via Google Document AI → Buchungsvorschlag) 💡
 - 8.3 **Messdienstleister CSV-Import** (Techem/Ista Ablesewerte als CSV importieren) 💡
-- 8.4 **Einladungscode UI** (aus Phase 2.4 verschoben) 💡
 - 8.5 **Kalender-Ausbau**: manuelle Einträge, Wartungstermine, iCal-Export (.ics) für Sync mit Google/Apple/Outlook 💡
 - 8.6 **Nebenkostenabrechnung** (Vermieter-Modul: umlegbare Kosten aus WEG-Abrechnung, landlord-spezifische Kosten, PDF-Export) 💡
 - 8.7 **Digitale Versammlungen** (hybride ETVs mit Video-Integration) 💡
