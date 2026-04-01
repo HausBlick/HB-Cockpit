@@ -205,6 +205,9 @@ Nebenkostenabrechnung (Vermieter-Erweiterung): Modul für den landlord. Das Syst
 
 Digitale Versammlungen: Hybride ETVs (Video-Integration) im Portal.
 
+UX-Verbesserung WP/JAB (Kaufmännisch): Weiterentwicklung von Wirtschaftsplan und Jahresabrechnung mit Fokus auf kaufmännische UX (z.B. inline-editierbare Tabellen, weniger Modals, direkteres Hinzufügen/Entfernen von Positionen). Die genauen Anforderungen folgen aus dem laufenden Praxis-Testing.
+
 KI-Buchhaltung: KI-gestützte Belegerfassung (OCR) für automatische Buchungsvorschläge.
 
 API-Schnittstellen: Automatischer Datenabruf bei Techem, Ista & Co.
+I-Schnittstellen: Automatischer Datenabruf bei Techem, Ista & Co.
