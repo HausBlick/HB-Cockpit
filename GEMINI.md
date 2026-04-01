@@ -17,6 +17,7 @@ Dieses Projekt nutzt eine extrem token-effiziente **Drei-Datei-Architektur** zur
 
 0. Update-Log
 
+- **feat(pdf): Phase 7.10 (PDF-Vorlagen-System) abgeschlossen:** Implementierung des Dokumenten-Designers in den Admin-Einstellungen inkl. Live-Preview, Variablen-Palette und Block-basiertem Editor. Mahnungen sind als erstes Template migriert.
 - **feat(arch): Phase 1B (Frontend-Architektur-Split) abgeschlossen:** Erfolgreiche Auslagerung der Experten-Module (Finanzen, ETV, Zeiterfassung) in separate HTML-Seiten. Dashboard-Performance durch Library-Stripping (pdf-lib etc.) massiv gesteigert. Dokumenten-Modul verbleibt strategisch im Dashboard.
 - **feat(ui): Phase 1C (Mobile-Audit & Responsive Patterns) abgeschlossen:** Systemweites App-Feeling etabliert inkl. Bottom-Nav, Bottom-Sheets, Swipe-to-Dismiss, Skeleton-Loading und responsiver Umwandlung von 31 Tabellen in Mobile Cards.
 - **feat(etv): ETV-Begleiter Modul (Phase 7):** Vollständige Implementierung der digitalen Eigentümerversammlung inkl. TOP-Planer, Live-Quorum-Prüfung (MEA-basiert) und PDF-Protokoll-Generierung. Tief vernetzt mit Stammdaten (apartments/ownerships).
@@ -27,7 +28,7 @@ Dieses Projekt nutzt eine extrem token-effiziente **Drei-Datei-Architektur** zur
 - **Workflow-Update (Prompt-Kette):** Einführung des "Cowork-Claude -> Gemini CLI -> Claude Code"-Workflows. Gemini validiert das Konzept, schreibt lokal in die BRIEFING.md und generiert einen fertigen Copy-Paste-Prompt für Claude Code am Ende jeder Antwort.
 - **Workflow-Update (Drei-Datei-Architektur):** Einführung der lokalen `BRIEFING.md` als token-effizienter Kommunikationskanal zwischen den KIs und dem Admin hinzugefügt. Das KI-Protokoll wurde entsprechend angepasst.
 - **Übergabe-Paket hinzugefügt (6.10):** Neues Paket für Verteilerschlüssel-Management, HeizKV-Splits und Einzelwirtschaftspläne am Ende des Dokuments zur Umsetzung hinterlegt. Empfehlungen aus dem Briefing (Client-Side PDF-Generierung, Initialbefüllung der System-Schlüssel) wurden als Anweisung für Claude integriert.
-- **Konzept-Erweiterung (Finanzen):** Einzelwirtschaftsplan inkl. PDF-Design und Bulk-Generierung (Master-PDF in einem Rutsch) als Teil der Verteilerschlüssel-Logik in Modul 4 hinzugefügt.
+- **Konzept-Erweiterung (Finanzen):** Einzelwirtschaftsplan inkl. PDF-Design und Bulk-Generierung (Master-PDF in einem Ort) als Teil der Verteilerschlüssel-Logik in Modul 4 hinzugefügt.
 - **Übergabe-Paket hinzugefügt:** Detaillierte Anforderungen für Admin-Einstellungen (7.1) und Official Letter Engine (6.9) am Ende des Dokuments zur Umsetzung für Claude hinterlegt.
 - **Frontend-Rahmenbedingungen hinzugefügt:** Strikte Vorgaben für Design-Konsistenz (Vermeidung von Wildwuchs), Mobile-First "App-Feeling" und PWA-Readiness etabliert.
 
