@@ -3,21 +3,11 @@
 // Dokumenten-Cloud — Upload, Vorschau, Listen- & Baumansicht
 // ============================================================
 
-const KATEGORIEN_WEG = [
-    'Protokolle & Beschlüsse',
-    'Jahresabrechnung & Wirtschaftsplan',
-    'Verträge & Versicherungen',
-    'Technische Unterlagen',
-    'Grundbuch & Teilungserklärung',
-    'Ausschreibungen & Angebote',
-    'Wartung & Prüfberichte',
-    'Eigentümerversammlung',
-    'Finanzen & Rechnungen',
-    'Sonstiges WEG',
-];
-const KATEGORIEN_MIET      = ['Mietverträge', 'Wohnungsübergabe'];
-const KATEGORIEN_ALLGEMEIN = ['Allgemein'];
-const ALLE_KATEGORIEN      = [...KATEGORIEN_WEG, ...KATEGORIEN_MIET, ...KATEGORIEN_ALLGEMEIN];
+// Dokument-Kategorien → definiert in config.js (DOC_CATEGORIES_*)
+const KATEGORIEN_WEG       = DOC_CATEGORIES_WEG;
+const KATEGORIEN_MIET      = DOC_CATEGORIES_MIET;
+const KATEGORIEN_ALLGEMEIN = DOC_CATEGORIES_ALLGEMEIN;
+const ALLE_KATEGORIEN      = DOC_CATEGORIES_ALL;
 
 // SVG-Icons (wiederverwendet)
 const _DICO_EYE     = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>`;

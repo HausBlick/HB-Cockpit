@@ -1276,7 +1276,8 @@ window._finGenerateDemands = async () => {
     const journalsToInsert = [];
 
     for (const o of relevant) {
-        const hausgeld = Number(o.apartment?.hausgeld || 0);
+        const dynHG = await getMonthlyHausgeld(o.apartment_id, bid);
+        const hausgeld = dynHG ?? Number(o.apartment?.hausgeld || 0);
         if (!hausgeld) continue;
 
         for (let m = 1; m <= 12; m++) {
@@ -2598,14 +2599,14 @@ function _finJABStep3Html() {
                     <div>
                         <label class="text-xs font-semibold text-gray-500 mb-1 block">Verbrauchsanteil %</label>
                         <input type="number" id="jab-heat-split-v" min="0" max="100"
-                            value="${_finState.jabData.heatSplitV ?? 70}"
+                            value="${_finState.jabData.heatSplitV}"
                             oninput="_finValidateHeatSplit()"
                             class="text-sm text-right w-full rounded-lg border border-gray-200 bg-white px-2 py-1 focus:border-hb-olive focus:outline-none" style="height:36px">
                     </div>
                     <div>
                         <label class="text-xs font-semibold text-gray-500 mb-1 block">Flächenanteil %</label>
                         <input type="number" id="jab-heat-split-f" min="0" max="100"
-                            value="${_finState.jabData.heatSplitF ?? 30}"
+                            value="${_finState.jabData.heatSplitF}"
                             oninput="_finValidateHeatSplit()"
                             class="text-sm text-right w-full rounded-lg border border-gray-200 bg-white px-2 py-1 focus:border-hb-olive focus:outline-none" style="height:36px">
                     </div>
@@ -2816,12 +2817,17 @@ window._finJABNext = async (fromStep) => {
                 if (e.credit_account_id) allAccIds.add(e.credit_account_id);
             }
 
+            // HeizKV-Split aus Verteilerschlüssel laden (Fallback 70/30)
+            const heizDK = (_finState.distKeys || []).find(k => k.type === 'heizkosten');
+            const defaultSplitV = heizDK?.heiz_split_percent ?? 70;
+            const defaultSplitF = 100 - defaultSplitV;
+
             _finState.jabData = {
                 fy, from, to,
                 rawEntries: entries || [],
                 entries: entries || [],
                 selectedAccIds: [...allAccIds],
-                distKeys: {}, heatingMode: 'A', heatingManual: {}, heatSplitV: 70, heatSplitF: 30,
+                distKeys: {}, heatingMode: 'A', heatingManual: {}, heatSplitV: defaultSplitV, heatSplitF: defaultSplitF,
                 step1Loaded: true
             };
             _finRenderJAB();
@@ -2859,8 +2865,8 @@ window._finJABNext = async (fromStep) => {
 
         // Für Option B: Split-Werte einlesen und validieren
         if (_finState.jabData.heatingMode === 'B') {
-            const sv = Number(document.getElementById('jab-heat-split-v')?.value) || 70;
-            const sf = Number(document.getElementById('jab-heat-split-f')?.value) || 30;
+            const sv = Number(document.getElementById('jab-heat-split-v')?.value) || _finState.jabData.heatSplitV;
+            const sf = Number(document.getElementById('jab-heat-split-f')?.value) || _finState.jabData.heatSplitF;
             if (Math.round(sv + sf) !== 100) {
                 showToast('Verbrauchs- und Flächenanteil müssen zusammen 100% ergeben.', 'error'); return;
             }
@@ -3141,6 +3147,11 @@ async function _finLoadMahnwesen() {
     const accounts = _finState.accounts.length ? _finState.accounts : await _finGetAccounts(bid);
     _finState.accounts = accounts;
 
+    // Finanz-Defaults aus global_settings laden
+    const { data: gs } = await _supabase.from('global_settings').select('base_interest_rate, default_dunning_fee').eq('id', 1).single();
+    const gsRate = gs?.base_interest_rate ?? 3.37;
+    const gsFee  = gs?.default_dunning_fee ?? 5;
+
     const today = new Date().toISOString().split('T')[0];
     const [{ data: overdue }, { data: notices }] = await Promise.all([
         _supabase.from('payment_demands')
@@ -3226,13 +3237,13 @@ async function _finLoadMahnwesen() {
                         <option value="3">Stufe 3 — Letzte Mahnung</option>
                     </select></div>
                 <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Basiszinssatz (%/Jahr)</label>
-                    <input id="mahn-rate" type="number" step="0.01" value="3.37" class="text-sm"></div>
+                    <input id="mahn-rate" type="number" step="0.01" value="${gsRate}" class="text-sm"></div>
                 <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Mahngebühr (€)</label>
                     <input id="mahn-fee" type="number" step="0.01" value="0" class="text-sm"></div>
                 <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Fälligkeit Mahnung</label>
                     <input id="mahn-due" type="date" value="${new Date(Date.now()+14*86400000).toISOString().split('T')[0]}" class="text-sm"></div>
             </div>
-            <div id="mahn-level-fee-hint" class="text-xs text-gray-400 mt-2">Stufe 1: 0€ | Stufe 2: 5€ | Stufe 3: 10€ (empfohlen, editierbar)</div>
+            <div id="mahn-level-fee-hint" class="text-xs text-gray-400 mt-2">Stufe 1: 0 € | Stufe 2: ${gsFee} € | Stufe 3: ${gsFee * 2} € (aus Einstellungen, editierbar)</div>
             <div class="flex gap-3 mt-4">
                 <button onclick="_finCreateDunning()" class="btn-primary text-sm px-5 py-2.5">Mahnungen erstellen</button>
             </div>
@@ -3260,9 +3271,9 @@ async function _finLoadMahnwesen() {
             </div>
         </div>`;
 
-    // Mahnstufe → Gebühr vorausfüllen
+    // Mahnstufe → Gebühr vorausfüllen (aus global_settings)
     document.getElementById('mahn-level')?.addEventListener('change', function() {
-        const fees = {'1':'0','2':'5','3':'10'};
+        const fees = {'1': '0', '2': String(gsFee), '3': String(gsFee * 2)};
         const feeEl = document.getElementById('mahn-fee');
         if (feeEl) feeEl.value = fees[this.value] || '0';
     });
@@ -3275,7 +3286,7 @@ window._finSelectAllChecks = () => {
 window._finCreateDunning = async () => {
     const bid   = _finState.buildingId;
     const level = Number(document.getElementById('mahn-level')?.value) || 1;
-    const rate  = parseFloat(document.getElementById('mahn-rate')?.value) || 3.37;
+    const rate  = parseFloat(document.getElementById('mahn-rate')?.value) || 0;
     const fee   = parseFloat(document.getElementById('mahn-fee')?.value) || 0;
     const due   = document.getElementById('mahn-due')?.value;
 

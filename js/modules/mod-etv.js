@@ -294,7 +294,8 @@ function _etvRenderExec() {
         return sum + (apt?.mea_numerator || 0);
     }, 0);
     const percent = totalMEA > 0 ? (presentMEA / totalMEA * 100).toFixed(2) : 0;
-    const isQuorum = percent >= 50.00;
+    const quorumThreshold = _etvState.session?.quorum_percent ?? 50;
+    const isQuorum = percent >= quorumThreshold;
 
     return `
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-8 max-w-7xl mx-auto h-full overflow-hidden">
@@ -579,17 +580,13 @@ window._etvAddTOPModal = () => {
                         <div>
                             <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Stimmprinzip</label>
                             <select id="top-vote-type" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm font-bold">
-                                <option value="mea">Wertprinzip (MEA)</option>
-                                <option value="heads">Kopfprinzip</option>
-                                <option value="object">Objektprinzip</option>
+                                ${Object.entries(VOTING_TYPES).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
                             </select>
                         </div>
                         <div>
                             <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Mehrheit</label>
                             <select id="top-maj-type" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm font-bold">
-                                <option value="simple">Einfache Mehrheit</option>
-                                <option value="qualified">Qualifizierte Mehrheit</option>
-                                <option value="double_qualified">Doppelt Qualifiziert</option>
+                                ${Object.entries(MAJORITY_TYPES).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
                             </select>
                         </div>
                     </div>
@@ -636,11 +633,11 @@ window._etvSaveTOP = async () => {
 window._etvEditTOP = (id) => {
     const top = _etvState.agenda.find(t => t.id === id);
     if (!top) return;
-    const voteOpts = ['mea','heads','object'].map(v =>
-        `<option value="${v}" ${top.voting_type === v ? 'selected' : ''}>${v === 'mea' ? 'Wertprinzip (MEA)' : v === 'heads' ? 'Kopfprinzip' : 'Objektprinzip'}</option>`
+    const voteOpts = Object.entries(VOTING_TYPES).map(([k,v]) =>
+        `<option value="${k}" ${top.voting_type === k ? 'selected' : ''}>${v}</option>`
     ).join('');
-    const majOpts = ['simple','qualified','double_qualified'].map(v =>
-        `<option value="${v}" ${top.majority_type === v ? 'selected' : ''}>${v === 'simple' ? 'Einfache Mehrheit' : v === 'qualified' ? 'Qualifizierte Mehrheit' : 'Doppelt Qualifiziert'}</option>`
+    const majOpts = Object.entries(MAJORITY_TYPES).map(([k,v]) =>
+        `<option value="${k}" ${top.majority_type === k ? 'selected' : ''}>${v}</option>`
     ).join('');
     const html = `
         <div id="etv-top-edit-modal" class="fixed inset-0 bg-hb-offblack/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
@@ -836,8 +833,8 @@ window._etvEditSessionSettings = () => {
     const dt = new Date(s.meeting_date);
     const dateVal = dt.toISOString().split('T')[0];
     const timeVal = dt.toTimeString().slice(0, 5);
-    const statusOptions = ['planned','active','closed'].map(v =>
-        `<option value="${v}" ${s.status === v ? 'selected' : ''}>${v.toUpperCase()}</option>`
+    const statusOptions = ETV_STATUSES.map(v =>
+        `<option value="${v}" ${s.status === v ? 'selected' : ''}>${ETV_STATUS_LABELS[v] || v.toUpperCase()}</option>`
     ).join('');
     const html = `
         <div id="etv-settings-modal" class="fixed inset-0 bg-hb-offblack/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
@@ -867,9 +864,15 @@ window._etvEditSessionSettings = () => {
                             <select id="etv-edit-status" class="w-full">${statusOptions}</select>
                         </div>
                     </div>
-                    <div>
-                        <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Ort / Modus</label>
-                        <input type="text" id="etv-edit-loc" value="${s.location || ''}" class="w-full">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Ort / Modus</label>
+                            <input type="text" id="etv-edit-loc" value="${s.location || ''}" class="w-full">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Quorum (%)</label>
+                            <input type="number" id="etv-edit-quorum" value="${s.quorum_percent ?? 50}" min="0" max="100" step="0.01" class="w-full">
+                        </div>
                     </div>
                 </div>
                 <div class="p-6 bg-hb-ultralight flex gap-3">
@@ -887,12 +890,14 @@ window._etvSaveSessionSettings = async () => {
     const time = document.getElementById('etv-edit-time').value;
     const loc  = document.getElementById('etv-edit-loc').value;
     const status = document.getElementById('etv-edit-status').value;
+    const quorum = parseFloat(document.getElementById('etv-edit-quorum')?.value) || 50;
     if (!date || !fy) { showToast('Bitte Datum und Jahr angeben.', 'error'); return; }
     const { error } = await _supabase.from('etv_sessions').update({
         fiscal_year: parseInt(fy),
         meeting_date: `${date}T${time}:00`,
         location: loc,
-        status
+        status,
+        quorum_percent: quorum
     }).eq('id', _etvState.sessionId);
     if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
     document.getElementById('etv-settings-modal').remove();

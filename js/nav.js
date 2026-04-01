@@ -14,15 +14,8 @@ async function init() {
         if (!profile) return;
         userProfile = profile;
 
-        const roleLabels = {
-            'admin':    'Verwalter Cockpit',
-            'manager':  'Objektbetreuer',
-            'owner':    'Eigentümer Cockpit',
-            'tenant':   'Mieter Portal',
-            'landlord': 'Vermieter Cockpit',
-            'advisory': 'Beirat Cockpit'
-        };
-        document.getElementById('role-label').textContent    = roleLabels[profile.role] || 'Nutzer Portal';
+        // ROLE_LABELS → definiert in config.js
+        document.getElementById('role-label').textContent    = ROLE_LABELS[profile.role] || 'Nutzer Portal';
         document.getElementById('user-avatar').textContent   = profile.full_name.charAt(0).toUpperCase();
         document.getElementById('dropdown-name').textContent  = profile.full_name;
         document.getElementById('dropdown-email').textContent = profile.email;

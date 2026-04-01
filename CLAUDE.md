@@ -264,7 +264,7 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 - 7.4 **System-Logs / Audit Trail** (revisionssichere Aktions-Historie für Admin: Wer hat wann was geändert?) 📋
 - 7.5 **In-App Hilfe & Onboarding** (Fragezeichen-Symbol je Modul → kontextbezogene Doku / Guided Tour) 📋
 - 7.6 **PWA-Implementierung** (`manifest.json`, Service Worker, Icons, Offline-Fallback — installierbar auf iOS/Android-Homescreen) 📋
-- 7.7 **SSOT-Audit** (Eliminierung hardcodierter Werte — Hausgeld dynamisch aus aktivem Wirtschaftsplan statt `apartments.hausgeld`, Basiszins aus `global_settings`, Namen aus `persons`-Tabelle, Firmendaten zentral aus `global_settings`) 📋
+- 7.7 **SSOT-Audit** (Hausgeld dynamisch aus WP, Basiszins + Mahngebühren aus `global_settings`, Heizkosten-Split aus `distribution_keys`, ETV-Quorum konfigurierbar, Enums zentralisiert in `config.js`) ✅
 - 7.8 **Einladungscode & Nutzer-Onboarding** (Admin generiert Registrierungscode → `persons.invite_code` → Registrierungsseite. MVP reicht) 📋
 - 7.9 **Beirat-Auftragsfreigabe** (Advisory-Rolle kann Aufträge/Ausgaben ab Schwellwert freigeben, Freigabe-Status wird bei Buchung geprüft) 📋
 
@@ -860,6 +860,24 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | 2 | **`dashboard.html`**: Einbindung via `<script type="module">` + Inline-Shim `window.loadETV = loadETV` (nötig da mod-etv.js `export function` nutzt, nicht `window.*`) |
 | 3 | **`nav.js`**: Menüpunkt „Eigentümerversammlung" in Sektion „Service & Dokumente", nur admin/manager, Icon `icons.users` |
 | 4 | **DB-Migration `scripts/migration_etv.sql`**: 4 Tabellen — `etv_sessions`, `etv_agenda_items`, `etv_attendance`, `etv_votes`. Bereits in Supabase ausgeführt. |
+
+---
+
+### Phase 7.7 — SSOT-Audit: Hardcodierte Werte eliminiert
+
+| # | Was wurde gemacht |
+|---|---|
+| 1 | **`config.js`: `getMonthlyHausgeld(apartmentId, buildingId)`** — berechnet monatlichen Hausgeld-Anteil dynamisch aus aktivem `budget_plans` + `budget_plan_items` + `distribution_keys`. Fallback auf `apartments.hausgeld` wenn kein aktiver WP existiert |
+| 2 | **`mod-dashboard.js`**: Hausgeld-KPI nutzt `getMonthlyHausgeld()` statt statischem `apartments.hausgeld` |
+| 3 | **`mod-objekte.js`**: Einheiten-Tabelle + Info-Ansicht zeigen dynamisches Hausgeld aus WP (Fallback auf DB-Feld) |
+| 4 | **`mod-finanzen.js` Sollstellungen**: `_finGenerateDemands` nutzt `getMonthlyHausgeld()` statt `apartments.hausgeld` |
+| 5 | **`mod-finanzen.js` Mahnwesen**: Basiszins + Mahngebühren-Staffel aus `global_settings` geladen statt hardcoded 3,37% / {0,5,10}€. Mahnstufe→Gebühr-Prefill nutzt `default_dunning_fee` × Stufenfaktor |
+| 6 | **`mod-finanzen.js` JAB Heizkosten-Split**: Default 70/30 ersetzt durch `distribution_keys.heiz_split_percent` des HeizKV-Schlüssels. Fallback bleibt 70/30 wenn kein HeizKV-Schlüssel existiert |
+| 7 | **`mod-etv.js` + `utils-pdf.js`**: ETV-Quorum von hardcoded 50% auf konfigurierbares `etv_sessions.quorum_percent` umgestellt (Default 50, editierbar im Versammlungsdetail-Modal). Migration `migration_etv_quorum_percent.sql` |
+| 8 | **`config.js` Zentrale Enums**: `TICKET_STATUSES`, `TICKET_STATUS_STYLES`, `NEWS_CATEGORIES`, `DOC_CATEGORIES_*`, `CONTACT_CATEGORIES`, `DEADLINE_TYPES`, `DEADLINE_THRESHOLDS`, `ROLE_LABELS`, `SALUTATIONS`, `ETV_STATUSES`, `ETV_STATUS_LABELS`, `VOTING_TYPES`, `MAJORITY_TYPES`, `BUDGET_PLAN_STATUSES`, `DUNNING_LEVEL_LABELS` |
+| 9 | **9 Module umgestellt** auf zentrale Enums: `mod-tickets.js`, `mod-news.js`, `mod-dokumente.js`, `mod-kontakte.js`, `mod-kalender.js`, `mod-dashboard.js`, `nav.js`, `mod-persons-edit.js`, `mod-etv.js`, `utils-pdf.js` |
+
+**Supabase-Aktion erforderlich:** `scripts/migration_etv_quorum_percent.sql` in Supabase SQL-Editor ausführen.
 
 ---
 

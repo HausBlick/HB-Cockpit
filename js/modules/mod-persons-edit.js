@@ -260,9 +260,7 @@ async function showPersonForm(id = null) {
                             <label class="text-[10px] uppercase font-bold text-gray-500">Anrede</label>
                             <select id="p_salutation">
                                 <option value="" ${!p.salutation ? 'selected' : ''}>— Keine —</option>
-                                <option value="Herr"   ${p.salutation === 'Herr'   ? 'selected' : ''}>Herr</option>
-                                <option value="Frau"   ${p.salutation === 'Frau'   ? 'selected' : ''}>Frau</option>
-                                <option value="Divers" ${p.salutation === 'Divers' ? 'selected' : ''}>Divers</option>
+                                ${SALUTATIONS.map(s => `<option value="${s}" ${p.salutation === s ? 'selected' : ''}>${s}</option>`).join('')}
                             </select>
                         </div>
                         <div class="space-y-2">

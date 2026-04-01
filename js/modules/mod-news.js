@@ -36,7 +36,7 @@ async function loadNews() {
 
         <!-- Filter-Chips -->
         <div class="flex flex-wrap gap-2 mb-6" id="news-filter-chips">
-            ${['Alle','Ankündigung','Wartung','Allgemein'].map((c, i) =>
+            ${NEWS_CATEGORIES.map((c, i) =>
                 `<button onclick="setNewsFilter('${c}')"
                     class="news-chip px-4 py-2 text-xs font-bold rounded-full border transition-colors
                         ${i === 0 ? 'bg-hb-olive text-white border-hb-olive' : 'bg-white text-gray-500 border-hb-olive/40 hover:bg-hb-olive/5'}">${c}</button>`
@@ -297,7 +297,7 @@ window.showEditNewsModal = async (newsId) => {
                 <div class="space-y-2">
                     <label class="text-[10px] uppercase font-bold text-gray-500">Kategorie</label>
                     <select id="edit_news_cat">
-                        ${['Allgemein','Ankündigung','Wartung'].map(c => `<option value="${c}" ${item.category===c?'selected':''}>${c}</option>`).join('')}
+                        ${NEWS_CATEGORIES.filter(c => c !== 'Alle').map(c => `<option value="${c}" ${item.category===c?'selected':''}>${c}</option>`).join('')}
                     </select>
                 </div>
                 <div class="space-y-2">
@@ -405,9 +405,7 @@ window.showCreateNewsModal = async () => {
                 <div class="space-y-2">
                     <label class="text-[10px] uppercase font-bold text-gray-500">Kategorie</label>
                     <select id="news_cat">
-                        <option value="Allgemein">Allgemein</option>
-                        <option value="Ankündigung">Ankündigung</option>
-                        <option value="Wartung">Wartung</option>
+                        ${NEWS_CATEGORIES.filter(c => c !== 'Alle').map(c => `<option value="${c}">${c}</option>`).join('')}
                     </select>
                 </div>
                 <div class="space-y-2">

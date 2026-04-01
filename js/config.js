@@ -21,6 +21,58 @@ function formatBuildingName(b) {
     return b.name || '—';
 }
 
+// --- Dynamisches Hausgeld aus aktivem Wirtschaftsplan ---
+// Berechnet den monatlichen Hausgeld-Anteil einer Einheit aus dem aktiven WP + Verteilerschlüssel.
+// Fallback auf apartments.hausgeld wenn kein aktiver WP existiert.
+async function getMonthlyHausgeld(apartmentId, buildingId) {
+    // 1) Aktiven Wirtschaftsplan laden
+    const { data: plan } = await _supabase.from('budget_plans')
+        .select('id')
+        .eq('building_id', buildingId)
+        .eq('status', 'active')
+        .limit(1).single();
+    if (!plan) return null; // kein aktiver WP → Caller nutzt Fallback
+
+    // 2) WP-Positionen mit Schlüssel laden
+    const { data: items } = await _supabase.from('budget_plan_items')
+        .select('planned_amount, account_id')
+        .eq('plan_id', plan.id);
+    if (!items?.length) return null;
+
+    // 3) Konten mit Verteilerschlüssel laden
+    const accIds = items.map(i => i.account_id).filter(Boolean);
+    const { data: accounts } = await _supabase.from('accounts')
+        .select('id, primary_key_id')
+        .in('id', accIds);
+    const accMap = {};
+    (accounts || []).forEach(a => accMap[a.id] = a);
+
+    // 4) Verteilerschlüssel + Einheitenwerte laden
+    const keyIds = [...new Set((accounts || []).map(a => a.primary_key_id).filter(Boolean))];
+    if (!keyIds.length) return null;
+    const [{ data: keys }, { data: keyUnits }] = await Promise.all([
+        _supabase.from('distribution_keys').select('id, total_value').in('id', keyIds),
+        _supabase.from('distribution_key_units').select('distribution_key_id, apartment_id, value').eq('apartment_id', apartmentId).in('distribution_key_id', keyIds),
+    ]);
+    const keyMap = {};
+    (keys || []).forEach(k => keyMap[k.id] = k);
+    const unitValMap = {};
+    (keyUnits || []).forEach(u => unitValMap[u.distribution_key_id] = u.value);
+
+    // 5) Anteil berechnen: Summe aller (planned_amount × unitValue / totalValue)
+    let totalYear = 0;
+    for (const item of items) {
+        const acc = accMap[item.account_id];
+        const keyId = acc?.primary_key_id;
+        if (!keyId) continue;
+        const dk = keyMap[keyId];
+        const unitVal = unitValMap[keyId];
+        if (!dk?.total_value || unitVal == null) continue;
+        totalYear += item.planned_amount * unitVal / dk.total_value;
+    }
+    return totalYear > 0 ? Math.round(totalYear / 12 * 100) / 100 : null;
+}
+
 // --- Icon-Library ---
 const icons = {
     dashboard: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>`,
@@ -35,3 +87,65 @@ const icons = {
     calendar:  `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`,
     clock:     `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`
 };
+
+// ============================================================
+// Zentrale Enum-Konstanten (SSOT — Single Source of Truth)
+// ============================================================
+
+const TICKET_STATUSES = ['Offen', 'In Bearbeitung', 'Warte auf Rückmeldung', 'Wiedervorlage', 'Erledigt'];
+
+const TICKET_STATUS_STYLES = {
+    'Offen':                  'ts-offen',
+    'In Bearbeitung':         'ts-bearbeitung',
+    'Warte auf Rückmeldung':  'ts-warte',
+    'Wiedervorlage':          'ts-wiedervorlage',
+    'Erledigt':               'ts-erledigt',
+};
+
+const NEWS_CATEGORIES = ['Alle', 'Ankündigung', 'Wartung', 'Allgemein'];
+
+const DOC_CATEGORIES_WEG = [
+    'Protokolle & Beschlüsse',
+    'Jahresabrechnung & Wirtschaftsplan',
+    'Verträge & Versicherungen',
+    'Technische Unterlagen',
+    'Grundbuch & Teilungserklärung',
+    'Ausschreibungen & Angebote',
+    'Wartung & Prüfberichte',
+    'Eigentümerversammlung',
+    'Finanzen & Rechnungen',
+    'Sonstiges WEG',
+];
+const DOC_CATEGORIES_MIET      = ['Mietverträge', 'Wohnungsübergabe'];
+const DOC_CATEGORIES_ALLGEMEIN = ['Allgemein'];
+const DOC_CATEGORIES_ALL       = [...DOC_CATEGORIES_WEG, ...DOC_CATEGORIES_MIET, ...DOC_CATEGORIES_ALLGEMEIN];
+
+const CONTACT_CATEGORIES = ['Vermieter', 'Verwalter', 'Hausmeister', 'Heizung', 'Sanitär', 'Elektro', 'Reinigung', 'Versicherung', 'Sonstiges'];
+
+const DEADLINE_TYPES = [
+    { key: 'energy_certificate_expiry',   label: 'Energieausweis' },
+    { key: 'next_fire_safety_check',      label: 'Brandschutzprüfung' },
+    { key: 'drinking_water_analysis_due', label: 'Trinkwasseranalyse' },
+];
+
+const DEADLINE_THRESHOLDS = { critical: 14, warning: 30 };
+
+const ROLE_LABELS = {
+    admin:    'Verwalter Cockpit',
+    manager:  'Objektbetreuer',
+    owner:    'Eigentümer Cockpit',
+    tenant:   'Mieter Portal',
+    landlord: 'Vermieter Cockpit',
+    advisory: 'Beirat Cockpit',
+};
+
+const SALUTATIONS = ['Herr', 'Frau', 'Divers'];
+
+const ETV_STATUSES       = ['planned', 'active', 'closed'];
+const ETV_STATUS_LABELS  = { planned: 'GEPLANT', active: 'AKTIV', closed: 'GESCHLOSSEN' };
+const VOTING_TYPES       = { mea: 'Wertprinzip (MEA)', heads: 'Kopfprinzip', object: 'Objektprinzip' };
+const MAJORITY_TYPES     = { simple: 'Einfache Mehrheit', qualified: 'Qualifizierte Mehrheit', double_qualified: 'Doppelt Qualifiziert' };
+
+const BUDGET_PLAN_STATUSES = { draft: 'Entwurf', approved: 'Beschlossen', active: 'Aktiv', closed: 'Abgeschlossen' };
+
+const DUNNING_LEVEL_LABELS = { 1: 'Zahlungserinnerung', 2: '1. Mahnung', 3: 'Letzte Mahnung' };

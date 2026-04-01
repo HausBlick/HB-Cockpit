@@ -8,15 +8,8 @@ let _ticketsData          = [];
 let _currentTicketId      = null;
 let _ticketRealtimeChannel = null;
 
-const TICKET_STATUSES = ['Offen', 'In Bearbeitung', 'Warte auf Rückmeldung', 'Wiedervorlage', 'Erledigt'];
-
-const STATUS_STYLE = {
-    'Offen':                  'ts-offen',
-    'In Bearbeitung':         'ts-bearbeitung',
-    'Warte auf Rückmeldung':  'ts-warte',
-    'Wiedervorlage':          'ts-wiedervorlage',
-    'Erledigt':               'ts-erledigt',
-};
+// TICKET_STATUSES + TICKET_STATUS_STYLES → definiert in config.js
+const STATUS_STYLE = TICKET_STATUS_STYLES;
 
 // ─── Haupteinstieg ────────────────────────────────────────────
 async function loadTickets() {
