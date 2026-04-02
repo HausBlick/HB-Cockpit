@@ -167,6 +167,12 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 `time_work_packages` (project_id FK→time_projects, title, status ENUM(open/closed))
 `time_entries` (work_package_id FK→time_work_packages, user_id FK→auth.users, start_time, end_time, description)
 
+**Phase 6.15 Vermögensbericht & Beirat-Prüfprotokoll:**
+`financial_statements` (building_id FK BIGINT, fiscal_year INT, stichtag DATE, account_id FK BIGINT→accounts, system_balance DECIMAL, statement_balance DECIMAL, difference DECIMAL GENERATED, is_validated BOOLEAN, validated_at TIMESTAMP, notes TEXT. UNIQUE(building_id, fiscal_year, account_id). Index auf building_id+fiscal_year.)
+`audit_protocols` (building_id FK BIGINT, fiscal_year INT, auditor_id FK UUID→profiles, status CHECK(pending/completed/disputed), check_date TIMESTAMP, scope_description TEXT, findings TEXT, is_formally_correct BOOLEAN, signature_data JSONB. UNIQUE(building_id, fiscal_year, auditor_id).)
+`global_settings.audit_hint_text` (TEXT — editierbarer Hinweistext für Beirat-Cockpit)
+`hausgeld_history` (building_id FK BIGINT, apartment_id FK BIGINT, old_hausgeld DECIMAL, new_hausgeld DECIMAL, change_reason TEXT, fiscal_year INT, changed_by FK UUID→profiles, changed_at TIMESTAMP. Index auf apartment_id+changed_at.)
+
 **Phase 7 System-Tabellen:**
 `global_settings` (single-row id=1: Firmenstammdaten, Finanz-Defaults, logo_url, letterhead_pdf_url. RLS: lesen=alle, schreiben=admin)
 
@@ -203,6 +209,13 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | Phase 6.10 | phase610_distribution_keys | `distribution_keys` + `distribution_key_units` (Verteilerschlüssel je Gebäude + Einheitenwerte), Enum `distribution_key_type`, `accounts`-Erweiterung (primary_key_id, secondary_key_id, secondary_key_percentage), 4 Indexes, RLS-Policies. |
 | Phase 8.1 | phase81_special_roles_and_allocatable | `profiles.role` CHECK auf 6 Rollen erweitert (+landlord, +advisory). `accounts.is_allocatable` BOOLEAN. 6 neue RLS-Policies (3×landlord via ownerships, 3×advisory via board_members+valid_to). |
 | Phase 7.10 | migration_pdf_templates | `pdf_templates`-Tabelle (type UNIQUE, name, content JSONB, use_letterhead). RLS: lesen=authenticated, schreiben=admin. Index auf type. Default-Template: Mahnung. |
+| Phase 7.10.1 | migration_pdf_templates_wp | Default-Template `einzelwirtschaftsplan` in `pdf_templates` (19 Blöcke: Titel, Meta, Eigentümer, Hausgeld-Summary, Umlageschlüssel, Verteilung, Hinweis-Box). |
+| Phase 7.10.2 | migration_pdf_templates_jab | Default-Template `jahresabrechnung` in `pdf_templates` (zweigeteilt: Anschreiben mit Saldo + Einzelabrechnung mit Abrechnungsergebnis, Umlageschlüssel, Verteilung, Hinweis-Box). |
+| Phase 6.15-B | migration_financial_statements | `financial_statements`-Tabelle (Vermögensbericht § 28 WEG). UNIQUE(building_id, fiscal_year, account_id). Difference als GENERATED COLUMN. |
+| Phase 6.15-C | migration_audit_protocols | `audit_protocols`-Tabelle (Beirat-Prüfprotokoll). UNIQUE(building_id, fiscal_year, auditor_id). + `global_settings.audit_hint_text` Spalte. |
+| Phase 6.15-D | migration_documents_staging | `documents.metadata` JSONB-Spalte. Status-Erweiterung um `released` (kein CHECK-Constraint). |
+| Phase 6.15-E | migration_jab_template_v2 | UPDATE `pdf_templates` SET content: JAB-Template erweitert um `jab_monats_matrix`, `vermoegen_konten`, `vermoegen_forderungen`. 3 page_breaks. |
+| Phase 6.15-G | migration_hausgeld_history | `hausgeld_history`-Tabelle (Historisierung Hausgeld-Änderungen). RLS: admin/manager. Index auf apartment_id+changed_at. |
 
 ---
 
@@ -290,7 +303,14 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 - 6.10-B **Einzelwirtschaftsplan PDF-Redesign** (Inter-Font, 5-Block-Aufbau: Meta-Header, Hausgeld-Summary, Umlageschlüssel, Verteilungsergebnis mit Sektionen, Hinweis-Box) ✅
 - 6.11 **Zeiterfassung & Projekte** (Projektbezogene Zeiterfassung mit Arbeitspaketen, Live-Timer, manueller Zeiteintrag, Bearbeitung, Arbeitsrapport-PDF, Nav-Integration) ✅
 - 6.14 **Automatischer Zahlungsabgleich** (Fuzzy-Match beim CSV-Import: Betrag + IBAN → offene Sollstellung vorschlagen) 📋
-- 6.15 🟡 **WP/JAB Testing & UX-Verbesserung** (zurückgestellt bis Praxis-Feedback vorliegt — mögliche Richtung: Inline-editierbare Tabellen statt Modals, direktes Hinzufügen/Entfernen von Positionen) 📋
+- 6.15 🔴 **WP/JAB Workflow-Umbau** (NÄCHSTE PRIORITÄT — Ziel-Workflow definiert in `outputs/Finanzen-Workflow.md`, Tech-Konzept in `outputs/Finanzen-Technisch.md`, Gap-Analyse in `outputs/Finanzen-Gap-Analyse.md`)
+  - 6.15-A ✅ **Journal-Sperre** — Buchungen für abgeschlossene Jahre blockieren. `_finIsYearClosed()` + `_finBlockIfYearClosed()` prüft `budget_plans.status='closed'`. 5 Insert-Stellen abgesichert, Stornos bleiben GoBD-konform erlaubt. Visuelles Lock-Banner im Journal-Tab.
+  - 6.15-B ✅ **Vermögensbericht (JAB-Step 1)** — Neue Tabelle `financial_statements`. JAB-Wizard von 5 auf 6 Steps erweitert. Step 1: Saldenabgleich Bank/Rücklage (System vs. Auszug), Forderungen/Verbindlichkeiten mit Inline-Stornierung, Upsert in `financial_statements`. (§ 28 WEG).
+  - 6.15-C ✅ **Beirat-Prüfprotokoll** — Neue Tabelle `audit_protocols`. Digitales Formular in Beirat-View (Ergebnis, Umfang, Feststellungen), Hinweisbox (Text aus `global_settings.audit_hint_text`), Prüfprotokoll-Übersicht in Admin-Belegprüfung.
+  - 6.15-D ✅ **Dokumenten-Status-Lifecycle** — `documents.metadata` JSONB + Status `released`. `_pdfSplitAndUpload()` erstellt DB-Einträge mit `status:'draft'` + `metadata:{doc_type, fiscal_year, unit_id}`. Nicht-Admins sehen nur `active`/`released`.
+  - 6.15-E ✅ **JAB-PDF erweitern** — Hausgeld-Monatsübersicht `jab_monats_matrix` (12 Monate Soll/Ist/Differenz + Gesamt-Zeile). Vermögensbericht als eigenes Blatt (Kontensalden aus `financial_statements` + offene Forderungen). Template v2 mit 3 page_breaks.
+  - 6.15-F ✅ **ETV-Kopplung & Kombi-PDF** — `generateETVEinladungPDF()` um Status-Trigger erweitert: verknüpfte JAB/WP-Dokumente werden bei Einladungsgenerierung von `draft` → `released` geschaltet. Confirm-Dialog + Button-Fortschrittsanzeige in `mod-etv.js`.
+  - 6.15-G ✅ **Beschluss-Aktivierung (Post-ETV)** — Button "Beschlüsse aktivieren" in JAB Step 6. Automatisches Hausgeld-Update aus WP, Sollstellungen für Abrechnungsspitzen (14 Tage Frist), Historisierung in `hausgeld_history`.
 
 ### 🔄 Phase 7 — System, Einstellungen & Benachrichtigungen
 *Querschnitts-Modul: Konfiguration, E-Mail-Push, User-Profile, Audit, PWA.*
@@ -308,6 +328,12 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
   > Platzhalter-Parser `{{variable_name}}` mit automatischer Ersetzung. Template-Renderer `generateFromTemplate()` in utils-pdf.js.
   > Dokumenten-Designer in Einstellungen (Splitscreen: Block-Editor + Live-Preview). Drag & Drop, Variablen-Palette, Debounced PDF-Vorschau.
   > PoC: Mahnung auf Template-System migriert (mit Legacy-Fallback). Weitere PDF-Typen schrittweise migrierbar.
+- 7.11 📋 **Stammdaten-Dynamisierung** (Quick-Wins, bei passender Gelegenheit mitzunehmen)
+  - 7.11-A **Gebäude-Bankdaten in Mahnung-PDF** — `building_bank_accounts` in `generateMahnungPDF()` laden, Platzhalter `{{gebaeude_iban/bic/bank}}` registrieren. Kein DB-Change.
+  - 7.11-B **Verwalter-Bankdaten global** — 3 Spalten in `global_settings` (`company_iban`, `company_bic`, `company_bank_name`), UI in mod-settings.js, Platzhalter `{{verwalter_iban/bic/bank}}`.
+  - 7.11-C **Verzugszins Auto-Berechnung** — Mahnlauf-Default auf `base_rate + 5` (§ 288 BGB) vorbelegen, Hint-Text ergänzen.
+  - 7.11-D **typeLabels zentralisieren** — `DISTRIBUTION_KEY_LABELS` in `config.js`, 5 Stellen in utils-pdf.js + mod-finanzen.js umstellen.
+  - 7.11-E **Mahngebühr-Verrechnungs-Hinweis** — Toast nach "Bezahlt"-Buchung: "Mahngebühr auf WEG-Konto gutgeschrieben — bitte Überweisung auf Verwalterkonto veranlassen."
 
 ### 💡 Phase 8 — Automatisierung & Erweiterungen
 *Nach Projektabschluss — optionale Nachrüstung.*
@@ -515,4 +541,114 @@ Migration `migration_pdf_templates.sql`: `pdf_templates`-Tabelle (type UNIQUE, n
 - `dashboard.html`: CSS für `.ds-block` (Drag-Transition, Ring-Highlight). Cache-Buster für `mod-settings.js`.
 - `etv.html`, `finanzen.html`, `zeiterfassung.html`: Cache-Buster für `utils-pdf.js`.
 - Neu: `scripts/migration_pdf_templates.sql` — Tabelle + RLS + Default-Mahnung-Template.
+
+### Phase 7.10.1 — Einzelwirtschaftsplan auf Template-System migriert
+Migration `migration_pdf_templates_wp.sql`: Default-Template `einzelwirtschaftsplan` (19 Blöcke: Titel, Meta-Info, Eigentümer, Hausgeld-Summary, Umlageschlüssel, Verteilung, Hinweis-Box).
+
+**Geänderte Dateien:**
+- `utils-pdf.js`: `PDF_PREVIEW_DUMMY_DATA.einzelwirtschaftsplan` (Dummy-Daten für Live-Preview). `PDF_TEMPLATE_VARIABLES.einzelwirtschaftsplan` (17 Platzhalter). `PDF_TEMPLATE_TABLES.einzelwirtschaftsplan` (3 Tabellen: hausgeld_summary, umlageschluessel, verteilung). `generateEinzelwirtschaftsplanPDF()` umgestellt auf Template-First mit Legacy-Fallback (analog Mahnung-Pattern). Template-Pfad: pro Einheit Platzhalter + Tabellendaten berechnen → `generateFromTemplate()` mit Bulk-PDF-Support (aptPageRanges, ETV-Staging).
+- Neu: `scripts/migration_pdf_templates_wp.sql` — Default-Template für Einzelwirtschaftsplan.
+
+### Phase 7.10.2 — Jahresabrechnung auf Template-System migriert
+Migration `migration_pdf_templates_jab.sql`: Default-Template `jahresabrechnung` (zweigeteilt via `page_break`: Anschreiben + Einzelabrechnung).
+
+**Architektur:** Anschreiben (Seite 1) mit DIN 5008 (Absender, Empfänger, Datum) — DIN-Elemente werden VOR `generateFromTemplate()` auf die erste Seite gezeichnet, Template startet bei `startY = height - 200`. Nach `page_break` folgt die Einzelabrechnung (Abrechnungsergebnis, Umlageschlüssel, Verteilung).
+
+**Geänderte Dateien:**
+- `utils-pdf.js`: `PDF_PREVIEW_DUMMY_DATA.jahresabrechnung` (Dummy-Daten mit Guthaben-Szenario). `PDF_TEMPLATE_VARIABLES.jahresabrechnung` (24 Platzhalter inkl. saldo_label, saldo_info, bgh_hinweis). `PDF_TEMPLATE_TABLES.jahresabrechnung` (3 Tabellen: abrechnungsergebnis, umlageschluessel, verteilung). `generateJahresabrechnungPDF()` umgestellt auf Template-First mit Legacy-Fallback. Template-Pfad: pro Einheit Saldo berechnen + DIN 5008 zeichnen → `generateFromTemplate()` mit Bulk-PDF-Support (aptPageRanges, ETV-Staging).
+- Neu: `scripts/migration_pdf_templates_jab.sql` — Default-Template für Jahresabrechnung.
+
+### Phase 6.15-A — Journal-Sperre für abgeschlossene Wirtschaftsjahre
+`mod-finanzen.js`: Zwei neue Hilfsfunktionen `_finIsYearClosed(buildingId, fiscalYear)` und `_finBlockIfYearClosed(buildingId, fiscalYear)`. Prüft `budget_plans.status = 'closed'` für das Gebäude + Jahr.
+
+**Abgesicherte Insert-Stellen (5):**
+- `_finSubmitBooking()` — Manuelle Buchungen
+- `_finGenerateDemands()` — Sollstellungs-Generierung
+- `_finBuchenRuecklage()` — Rücklage Zu-/Entnahmen
+- `_finCreateDunning()` — Mahngebühr-Buchung
+- `_finNoticePaidConfirm()` — Mahnzahlungs-Buchung
+
+**Bewusst NICHT gesperrt (GoBD-konform):** `_finStorno()` und `_finNoticeReverse()` — Stornierungen müssen in abgeschlossenen Jahren weiterhin als Gegenbuchung möglich sein.
+
+**UI:** Visuelles Lock-Banner (orange, Schloss-Icon) im Journal-Tab bei gesperrtem Jahr. Buchungsmaske wird ausgegraut (`opacity-50 pointer-events-none`).
+
+### Phase 6.15-B — Vermögensbericht (§ 28 WEG) als JAB-Step 1
+Migration `migration_financial_statements.sql`: Neue Tabelle `financial_statements` (building_id, fiscal_year, account_id, system_balance, statement_balance, difference GENERATED, is_validated, validated_at). UNIQUE-Constraint auf (building_id, fiscal_year, account_id).
+
+**JAB-Wizard Umbau:** Von 5 auf 6 Steps erweitert. Neuer Step 1 = Vermögensbericht, alle bisherigen Steps um 1 nach hinten verschoben. Step-Labels im Stepper-Dot: Vermögen → Zeitraum → Ist-Daten → Schlüssel → Soll/Ist → Abschluss.
+
+**Step 1 — Vermögensbericht:**
+- **Phase A (Laden):** Bank-/Rücklagenkonten (asset, 1xxx) identifizieren. System-Saldo per Journal-Aggregation bis Stichtag 31.12. Bestehende `financial_statements` laden (falls bereits gespeichert). Offene Forderungen (`payment_demands` mit Status open/overdue) zum Stichtag.
+- **Phase B (Speichern):** Eingetragene Bankstände per `UPSERT` in `financial_statements`. Auto-Validierung bei Differenz < 0,01 €.
+- **UI:** Saldenabgleich-Tabelle (System-Saldo | Eingabefeld Auszug | Differenz | ✓-Status). Forderungen-Tabelle mit Inline-Stornierung. Grüner Haken bei Übereinstimmung.
+- **Helpers:** `_finVSUpdateRow()` (Live-Update), `_finVSStornoDemand()` (Sollstellung stornieren).
+
+**Geänderte Dateien:**
+- `mod-finanzen.js`: 6-Step-Wizard, neue Step1Html (Vermögensbericht), Step-Nummern in allen Zurück/Weiter-Buttons und `_finJABNext()` aktualisiert. `_finJABStep2Html`–`_finJABStep6Html` (umbenannt). ~200 Zeilen neu.
+- Neu: `scripts/migration_financial_statements.sql` — Tabelle + Index.
+
+### Phase 6.15-C — Beirat-Prüfprotokoll
+Migration `migration_audit_protocols.sql`: Neue Tabelle `audit_protocols` (building_id BIGINT, fiscal_year, auditor_id UUID, status, check_date, findings, is_formally_correct, signature_data JSONB). UNIQUE(building_id, fiscal_year, auditor_id). + `global_settings.audit_hint_text` Spalte.
+
+**Beirat-View (`_finRenderBeiratView`) erweitert:**
+- **Hinweisbox** (orange) oberhalb des Journals mit Text aus `global_settings.audit_hint_text` (Default-Text als Fallback).
+- **Prüfprotokoll-Formular:** Ergebnis (Ordnungsgemäß/Beanstandung), Prüfungsumfang, Feststellungen (Pflicht bei Beanstandung). Per UPSERT gespeichert. Digitale Signatur-Metadaten (Timestamp, User-Agent) in `signature_data` JSONB.
+- **Nach Abgabe:** Formular wird durch Read-Only-Ansicht des eingereichten Protokolls ersetzt.
+
+**Admin-Belegprüfung (`_finLoadBelegpruefung`) erweitert:**
+- Lädt `audit_protocols` parallel mit. Zeigt Prüfprotokoll-Tabelle (Prüfer, Datum, Ergebnis, Umfang, Feststellungen) zwischen Freigabe-Verwaltung und Buchungsvorschau.
+
+**Geänderte Dateien:**
+- `mod-finanzen.js`: Beirat-View komplett überarbeitet (~120 Zeilen), `_finBeiratSubmitProtocol()` neu, Admin-Belegprüfung um Protokoll-Anzeige erweitert.
+- Neu: `scripts/migration_audit_protocols.sql` — Tabelle + RLS + Index + global_settings-Spalte.
+
+### Phase 6.15-D — Dokumenten-Status-Lifecycle (draft→released)
+Migration `migration_documents_staging.sql`: `documents.metadata` JSONB-Spalte (Default `{}`). Status `released` als neuer Wert neben `draft`/`active`.
+
+**`_pdfSplitAndUpload()` komplett überarbeitet:**
+- Neben Storage-Upload wird jetzt ein `documents`-DB-Eintrag erstellt: `status:'draft'`, `visibility_scope:'unit'`, `category:'Wirtschaftsplan'/'Jahresabrechnung'`, `metadata:{doc_type, fiscal_year, unit_id}`.
+- Bei erneutem Upload (gleicher `file_path`): vorhandenes Dokument wird aktualisiert statt dupliziert.
+- Toast-Text: "als Entwurf gespeichert" statt "für ETV gespeichert".
+
+**Dokument-Sichtbarkeit:** Bereits korrekt implementiert — `mod-dokumente.js` filtert `.neq('status', 'draft')` für Nicht-Admins. Status `released` ist dadurch automatisch sichtbar. Admins sehen alle Status inkl. Draft-Filter-Chip.
+
+**Status-Flow:** `draft` (bei PDF-Generierung) → `released` (bei ETV-Einladungsversand, implementiert in 6.15-G).
+
+### Phase 6.15-E — JAB-PDF: Monatsübersicht + Vermögensbericht
+Migration `migration_jab_template_v2.sql`: UPDATE des `jahresabrechnung`-Templates. 3 Seiten: Anschreiben → Einzelabrechnung (mit Monats-Matrix) → Vermögensbericht.
+
+**Neue Tabellen-Quellen (3):**
+- `jab_monats_matrix`: 12 Monatszeilen (Soll-Hausgeld, Ist-Zahlung, Differenz) + Gesamt-Zeile. Daten aus `payment_demands` (Soll pro Monat) + `journal_entries` auf Konto 1400 (Ist-Zahlungen pro Monat).
+- `vermoegen_konten`: Bank-/Rücklagenkonten aus `financial_statements`. Saldo + Prüfstatus.
+- `vermoegen_forderungen`: Offene `payment_demands` zum Stichtag 31.12. + Gesamt-Zeile.
+
+**Geänderte Dateien:**
+- `utils-pdf.js`: `_buildMonatsMatrix()` (Monatsdaten-Aggregation), Vermögensbericht-Datenload (einmalig vor Einheiten-Schleife). `PDF_TEMPLATE_TABLES.jahresabrechnung` um 3 Einträge erweitert. `PDF_PREVIEW_DUMMY_DATA.jahresabrechnung` um 3 Dummy-Tabellen. ~80 Zeilen neu.
+- Neu: `scripts/migration_jab_template_v2.sql` — Template-UPDATE (kein INSERT, da Template bereits existiert).
+
+### Phase 6.15-F — ETV-Kopplung & Kombi-PDF + Dokument-Freigabe
+**Kombi-PDF** (bereits vorhanden): `generateETVEinladungPDF()` generiert pro Eigentümer ein zusammengeführtes PDF: Einladung + Tagesordnung + Vollmacht + WP/JAB-Anlagen (aus `etv-staging/`). Die Anlagen werden per `apartment_id` dem richtigen Eigentümer zugeordnet.
+
+**Neu: Status-Trigger** (Zeile 3523–3539 in `utils-pdf.js`):
+- Nach PDF-Download: alle `documents` mit `status='draft'` und `category IN ('Wirtschaftsplan', 'Jahresabrechnung')` des Gebäudes werden auf `status='released'` geschaltet.
+- Toast zeigt Anzahl freigeschalteter Dokumente an.
+- Error-Handling: Bei Fehler wird trotzdem das PDF ausgeliefert + Warnung gezeigt.
+
+**Neu: Confirm + Fortschritt** (`mod-etv.js`):
+- Confirm-Dialog warnt: "Dokumente werden für Eigentümer freigeschaltet"
+- Button wechselt zu "Kombi-PDFs werden generiert…" + disabled während der Verarbeitung.
+
+### Phase 6.15-G — Beschluss-Aktivierung (Post-ETV)
+Migration `migration_hausgeld_history.sql`: Neue Tabelle `hausgeld_history` (building_id, apartment_id, old_hausgeld, new_hausgeld, change_reason, fiscal_year, changed_by, changed_at). RLS: admin/manager.
+
+**`_finActivateBeschluss()` (mod-finanzen.js, ~100 Zeilen):**
+Button "Beschlüsse aktivieren" in JAB Step 6 (neben "Abrechnung abschließen"). Confirm-Dialog mit 3-Punkte-Zusammenfassung. Führt 3 Aktionen aus:
+
+1. **Sollstellungen für Abrechnungsspitzen:** Pro Einheit `payment_demands` mit `demand_type='nachzahlung'/'guthaben'`, Fälligkeit 14 Tage nach Klick. Nur wenn `|saldo| > 0.01`.
+2. **Hausgeld-Update aus WP:** Sucht aktiven/approved WP für Folgejahr. Berechnet neues monatliches Hausgeld pro Einheit (Summe aller Planpositionen × Schlüsselanteil / 12). Aktualisiert `apartments.hausgeld` nur bei tatsächlicher Änderung.
+3. **Historisierung:** Pro Hausgeld-Änderung ein Eintrag in `hausgeld_history` (alt/neu/Grund/FY/User).
+
+**Geänderte Dateien:**
+- `mod-finanzen.js`: `_finActivateBeschluss()` neu, Button in Step 6 HTML.
+- Neu: `scripts/migration_hausgeld_history.sql` — Tabelle + RLS + Index.
 

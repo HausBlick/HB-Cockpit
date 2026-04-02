@@ -25,7 +25,7 @@ let _finState = {
     beiratBuildingId: null,
     beiratFiscalYear: null,
     // Jahresabrechnung
-    jabStep:  1,
+    jabStep:  1,   // 1=Vermögensbericht, 2=Zeitraum/Konten, 3=Ist-Review, 4=Heizkosten, 5=Soll-Ist, 6=Abschluss
     jabData:  {},   // { fy, from, to, entries, accounts, distKeys, heatingMode, heatingManual, sollIst }
     // Onboarding
     onboardStep:      1,
@@ -34,6 +34,29 @@ let _finState = {
 };
 
 // ─── Hilfsfunktionen ──────────────────────────────────────────
+
+// Prüft ob ein Wirtschaftsjahr für ein Gebäude abgeschlossen (gesperrt) ist.
+// Gibt true zurück wenn das Jahr gesperrt ist und keine neuen Buchungen erlaubt sind.
+// Storno-Buchungen (entry_type='storno') sind von der Sperre ausgenommen (GoBD).
+async function _finIsYearClosed(buildingId, fiscalYear) {
+    if (!buildingId || !fiscalYear) return false;
+    const { data } = await _supabase.from('budget_plans')
+        .select('status')
+        .eq('building_id', buildingId)
+        .eq('fiscal_year', fiscalYear)
+        .eq('status', 'closed')
+        .maybeSingle();
+    return !!data;
+}
+
+// Prüft und zeigt Toast wenn gesperrt. Gibt true zurück wenn gesperrt (= Abbruch).
+async function _finBlockIfYearClosed(buildingId, fiscalYear) {
+    const closed = await _finIsYearClosed(buildingId, fiscalYear);
+    if (closed) {
+        showToast(`Das Wirtschaftsjahr ${fiscalYear} ist abgeschlossen. Neue Buchungen sind nicht mehr möglich. (Stornierungen bleiben erlaubt.)`, 'error');
+    }
+    return closed;
+}
 
 function _finFormatDate(dateStr) {
     if (!dateStr) return '—';
@@ -688,11 +711,19 @@ async function _finRenderBookings() {
         }).join('') || `<tr><td colspan="7" class="px-4 py-8 text-center text-sm text-gray-400">Keine Treffer.</td></tr>`;
     };
     const entryRows = buildJournalRows();
+    const yearClosed = await _finIsYearClosed(bid, fy);
+    const closedBanner = yearClosed
+        ? `<div class="mb-4 px-4 py-3 rounded-[15px] border border-hb-orange/30 bg-hb-orange/5 flex items-center gap-3">
+               <svg class="w-5 h-5 text-hb-orange shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m0 0v2m0-2h2m-2 0H10m5-7V7a5 5 0 00-10 0v4a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2v-6a2 2 0 00-2-2z"/></svg>
+               <span class="text-sm text-hb-orange font-semibold">Wirtschaftsjahr ${fy} ist abgeschlossen — neue Buchungen sind gesperrt. Stornierungen bleiben möglich.</span>
+           </div>`
+        : '';
 
     document.getElementById('fin-content').innerHTML = `
+        ${closedBanner}
         <!-- Buchungsmaske -->
-        <div class="card p-5 mb-5">
-            <h3 class="text-sm font-bold text-hb-offblack mb-4">Neue Buchung erfassen</h3>
+        <div class="card p-5 mb-5${yearClosed ? ' opacity-50 pointer-events-none' : ''}">
+            <h3 class="text-sm font-bold text-hb-offblack mb-4">Neue Buchung erfassen${yearClosed ? ' 🔒' : ''}</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Einheit (optional)</label>
                     <select id="fin-b-apt">${aptOpts}</select></div>
@@ -1006,6 +1037,10 @@ window._finSubmitBooking = async () => {
     }
 
     const fy = new Date(date).getFullYear();
+
+    // Journal-Sperre: abgeschlossene Jahre blockieren
+    if (await _finBlockIfYearClosed(bid, fy)) return;
+
     const { error } = await _supabase.from('journal_entries').insert({
         building_id:       bid,
         apartment_id:      aptVal ? Number(aptVal) : null,
@@ -1280,6 +1315,9 @@ window._finGenerateDemands = async () => {
     const bid = _finState.buildingId;
     const fy  = Number(document.getElementById('fin-s-fy')?.value) || _finState.fiscalYear;
     const day = Number(document.getElementById('fin-s-day')?.value) || 1;
+
+    // Journal-Sperre: abgeschlossene Jahre blockieren
+    if (await _finBlockIfYearClosed(bid, fy)) return;
 
     // Aktive Eigentümer mit Einheit + Hausgeld
     const { data: ownerships } = await _supabase.from('ownerships')
@@ -2184,6 +2222,11 @@ window._finBuchenRuecklage = async (type) => {
     if (!rlAcc || !acc3000) { showToast('Rücklagekonto oder Gegenkonto (3000) nicht gefunden.', 'error'); return; }
 
     const isZu = type === 'zufuehrung';
+    const rlFy = new Date(date).getFullYear();
+
+    // Journal-Sperre: abgeschlossene Jahre blockieren
+    if (await _finBlockIfYearClosed(_finState.buildingId, rlFy)) return;
+
     const { error } = await _supabase.from('journal_entries').insert({
         building_id:       _finState.buildingId,
         entry_date:        date,
@@ -2192,7 +2235,7 @@ window._finBuchenRuecklage = async (type) => {
         debit_account_id:  isZu ? rlAcc.id  : acc3000.id,
         credit_account_id: isZu ? acc3000.id : rlAcc.id,
         entry_type:        'ruecklage',
-        fiscal_year:       new Date(date).getFullYear(),
+        fiscal_year:       rlFy,
         created_by:        currentUser.id,
     });
     if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
@@ -2209,13 +2252,16 @@ async function _finLoadBelegpruefung() {
     const fy  = _finState.fiscalYear;
     if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-sm">Kein Gebäude gewählt.</p>'; return; }
 
-    const [{ data: periods }, { data: entries }] = await Promise.all([
+    const [{ data: periods }, { data: entries }, { data: protocols }] = await Promise.all([
         _supabase.from('beirat_access_periods').select('*').eq('building_id', bid).order('access_from', { ascending: false }),
         _supabase.from('journal_entries')
             .select('*, debit_account:accounts!debit_account_id(account_number,account_name), credit_account:accounts!credit_account_id(account_number,account_name)')
             .eq('building_id', bid)
             .eq('fiscal_year', fy)
             .order('entry_date', { ascending: false }),
+        _supabase.from('audit_protocols')
+            .select('*, auditor:profiles(full_name)')
+            .eq('building_id', bid).eq('fiscal_year', fy),
     ]);
 
     const today = new Date().toISOString().split('T')[0];
@@ -2270,6 +2316,33 @@ async function _finLoadBelegpruefung() {
                 Personen mit Beirat-Eintrag im Gebäude sehen während eines aktiven Freigabezeitraums alle Buchungen und Belege des freigegebenen Wirtschaftsjahres (nur lesend).
             </div>
         </div>
+
+        <!-- Prüfprotokolle (eingereichte Ergebnisse der Beiräte) -->
+        ${(protocols && protocols.length) ? `
+        <div class="card overflow-hidden mb-5">
+            <div class="bg-hb-olive px-5 py-3">
+                <span class="text-sm font-bold text-white">Prüfprotokolle</span>
+            </div>
+            <table class="w-full">
+                <thead class="bg-gray-50"><tr>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Prüfer</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Datum</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Ergebnis</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Umfang</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Feststellungen</th>
+                </tr></thead>
+                <tbody class="divide-y divide-hb-olive/10">${protocols.map(p => `
+                    <tr class="hover:bg-gray-50/60">
+                        <td class="px-4 py-3 text-sm font-semibold">${p.auditor?.full_name || '—'}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">${p.check_date ? new Date(p.check_date).toLocaleDateString('de-DE') : '—'}</td>
+                        <td class="px-4 py-3">${p.is_formally_correct
+                            ? '<span class="text-xs font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-md">Ordnungsgemäß</span>'
+                            : '<span class="text-xs font-bold bg-hb-orange/15 text-hb-orange px-2 py-0.5 rounded-md">Beanstandung</span>'}</td>
+                        <td class="px-4 py-3 text-xs text-gray-500 max-w-[200px] truncate">${p.scope_description || '—'}</td>
+                        <td class="px-4 py-3 text-xs text-gray-500 max-w-[200px] truncate">${p.findings || '—'}</td>
+                    </tr>`).join('')}</tbody>
+            </table>
+        </div>` : ''}
 
         <!-- Buchungsvorschau (für Admins als Voransicht was der Beirat sieht) -->
         <div class="card overflow-hidden">
@@ -2360,13 +2433,15 @@ async function _finRenderBeiratView() {
     const fy  = _finState.beiratFiscalYear;
     const ca  = document.getElementById('content-area');
 
-    const [{ data: bldg }, { data: entries }] = await Promise.all([
+    const [{ data: bldg }, { data: entries }, { data: existingProtocol }, { data: gsData }] = await Promise.all([
         _supabase.from('buildings').select('name, file_number, street, house_number').eq('id', bid).single(),
         _supabase.from('journal_entries')
             .select('*, debit_account:accounts!debit_account_id(account_number,account_name), credit_account:accounts!credit_account_id(account_number,account_name)')
             .eq('building_id', bid)
             .eq('fiscal_year', fy)
             .order('entry_date', { ascending: false }),
+        _supabase.from('audit_protocols').select('*').eq('building_id', bid).eq('fiscal_year', fy).eq('auditor_id', currentUser.id).maybeSingle(),
+        _supabase.from('global_settings').select('audit_hint_text').eq('id', 1).maybeSingle(),
     ]);
 
     const entryRows = (entries || []).map(e => `
@@ -2381,6 +2456,46 @@ async function _finRenderBeiratView() {
             </td>
         </tr>`).join('');
 
+    // Hinweisbox-Text (aus global_settings oder Default)
+    const hintText = gsData?.audit_hint_text || 'Das Prüfergebnis wird auf der kommenden Eigentümerversammlung als eigener Tagesordnungspunkt (TOP) behandelt. Bitte geben Sie hierzu eine kurze Stellungnahme ab.';
+
+    // Prüfprotokoll: Status
+    const proto = existingProtocol;
+    const alreadySubmitted = proto && proto.status !== 'pending';
+    const protoStatusBadge = !proto ? ''
+        : proto.status === 'completed' ? '<span class="text-xs font-bold bg-green-100 text-green-700 px-2 py-1 rounded-md">Ordnungsgemäß geprüft</span>'
+        : proto.status === 'disputed' ? '<span class="text-xs font-bold bg-hb-orange/15 text-hb-orange px-2 py-1 rounded-md">Beanstandung</span>'
+        : '<span class="text-xs font-bold bg-gray-100 text-gray-500 px-2 py-1 rounded-md">Ausstehend</span>';
+
+    const protocolForm = alreadySubmitted
+        ? `<div class="card p-5">
+               <div class="flex items-center gap-3 mb-3">
+                   <h3 class="text-sm font-bold text-hb-offblack">Prüfprotokoll</h3>
+                   ${protoStatusBadge}
+               </div>
+               <div class="grid grid-cols-2 gap-3 text-sm">
+                   <div><span class="text-xs text-gray-400">Prüfungsdatum</span><br><strong>${proto.check_date ? new Date(proto.check_date).toLocaleDateString('de-DE') : '—'}</strong></div>
+                   <div><span class="text-xs text-gray-400">Ergebnis</span><br><strong>${proto.is_formally_correct ? 'Ordnungsgemäß' : 'Beanstandung'}</strong></div>
+                   ${proto.scope_description ? `<div class="col-span-2"><span class="text-xs text-gray-400">Prüfungsumfang</span><br>${proto.scope_description}</div>` : ''}
+                   ${proto.findings ? `<div class="col-span-2"><span class="text-xs text-gray-400">Feststellungen</span><br>${proto.findings}</div>` : ''}
+               </div>
+           </div>`
+        : `<div class="card p-5">
+               <h3 class="text-sm font-bold text-hb-offblack mb-4">Prüfprotokoll ausfüllen</h3>
+               <div class="space-y-3 max-w-lg">
+                   <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Prüfungsergebnis</label>
+                       <select id="bp-result" class="text-sm">
+                           <option value="correct">Ordnungsgemäß geprüft</option>
+                           <option value="disputed">Beanstandung</option>
+                       </select></div>
+                   <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Prüfungsumfang (kurze Beschreibung)</label>
+                       <textarea id="bp-scope" rows="2" class="text-sm w-full" placeholder="z.B. Stichprobenartige Prüfung aller Konten, Belege vollständig vorhanden..."></textarea></div>
+                   <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Feststellungen / Anmerkungen <span id="bp-findings-required" class="text-hb-orange hidden">(Pflichtfeld bei Beanstandung)</span></label>
+                       <textarea id="bp-findings" rows="3" class="text-sm w-full" placeholder="Ggf. Beanstandungen oder Anmerkungen..."></textarea></div>
+               </div>
+               <button onclick="_finBeiratSubmitProtocol()" class="btn-primary text-sm px-5 py-2.5 mt-4">Prüfprotokoll abgeben</button>
+           </div>`;
+
     ca.innerHTML = `
         <div class="flex justify-between items-end mb-6">
             <div>
@@ -2388,10 +2503,20 @@ async function _finRenderBeiratView() {
                 <h2 class="text-2xl font-extrabold text-hb-olive tracking-tight">${formatBuildingName(bldg)}</h2>
                 <p class="text-sm text-gray-500 mt-1">Wirtschaftsjahr ${fy} — schreibgeschützt</p>
             </div>
+            ${protoStatusBadge ? `<div>${protoStatusBadge}</div>` : ''}
         </div>
-        <div class="card overflow-hidden">
+
+        <!-- Hinweisbox -->
+        <div class="mb-5 px-4 py-3 rounded-[15px] border border-hb-orange/30 bg-hb-orange/5 flex items-start gap-3">
+            <svg class="w-5 h-5 text-hb-orange shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z"/></svg>
+            <p class="text-sm text-hb-offblack">${hintText}</p>
+        </div>
+
+        <!-- Buchungsjournal -->
+        <div class="card overflow-hidden mb-5">
             <div class="bg-hb-olive px-5 py-3">
                 <span class="text-sm font-bold text-white">Buchungsjournal ${fy}</span>
+                <span class="text-xs text-white/60 ml-2">${(entries || []).length} Buchungen</span>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full">
@@ -2406,11 +2531,58 @@ async function _finRenderBeiratView() {
                     <tbody class="divide-y divide-hb-olive/10">${entryRows || '<tr><td colspan="6" class="px-4 py-8 text-center text-sm text-gray-400">Keine Buchungen im freigegebenen Zeitraum.</td></tr>'}</tbody>
                 </table>
             </div>
-        </div>`;
+        </div>
+
+        <!-- Prüfprotokoll -->
+        ${protocolForm}`;
+
+    // Beanstandung → Findings-Pflichtfeld markieren
+    document.getElementById('bp-result')?.addEventListener('change', function() {
+        const req = document.getElementById('bp-findings-required');
+        if (req) req.classList.toggle('hidden', this.value !== 'disputed');
+    });
 
     // Responsive tables
     document.querySelectorAll('#content-area .card').forEach(c => makeTableResponsive(c));
 }
+
+// ── Beirat: Prüfprotokoll absenden ──────────────────────────
+window._finBeiratSubmitProtocol = async () => {
+    const bid = _finState.beiratBuildingId;
+    const fy  = _finState.beiratFiscalYear;
+    const result  = document.getElementById('bp-result')?.value;
+    const scope   = document.getElementById('bp-scope')?.value?.trim() || null;
+    const findings = document.getElementById('bp-findings')?.value?.trim() || null;
+
+    const isCorrect = result === 'correct';
+    const status    = isCorrect ? 'completed' : 'disputed';
+
+    if (!isCorrect && !findings) {
+        showToast('Bei einer Beanstandung ist das Feld "Feststellungen" ein Pflichtfeld.', 'error'); return;
+    }
+
+    const signatureData = {
+        timestamp: new Date().toISOString(),
+        user_agent: navigator.userAgent,
+    };
+
+    const { error } = await _supabase.from('audit_protocols').upsert({
+        building_id: bid,
+        fiscal_year: fy,
+        auditor_id: currentUser.id,
+        status: status,
+        check_date: new Date().toISOString(),
+        scope_description: scope,
+        findings: findings,
+        is_formally_correct: isCorrect,
+        signature_data: signatureData,
+        updated_at: new Date().toISOString(),
+    }, { onConflict: 'building_id,fiscal_year,auditor_id' });
+
+    if (error) { showToast('Fehler beim Speichern: ' + error.message, 'error'); return; }
+    showToast('Prüfprotokoll erfolgreich abgegeben.', 'success');
+    await _finRenderBeiratView();
+};
 
 // ============================================================
 // ─── Tab 9: Jahresabrechnung ──────────────────────────────────
@@ -2426,19 +2598,21 @@ function _finRenderJAB() {
     const step = _finState.jabStep;
     const fy   = _finState.jabData.fy || _finState.fiscalYear;
 
-    const stepDots = [1,2,3,4,5].map(i =>
-        `<div class="flex items-center gap-1">
+    const stepLabels = ['Vermögen', 'Zeitraum', 'Ist-Daten', 'Schlüssel', 'Soll/Ist', 'Abschluss'];
+    const stepDots = [1,2,3,4,5,6].map(i =>
+        `<div class="flex items-center gap-1" title="${stepLabels[i-1]}">
             <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 ${i === step ? 'bg-hb-olive text-white border-hb-olive' : i < step ? 'bg-hb-olive/20 text-hb-olive border-hb-olive/30' : 'bg-gray-50 border-gray-200 text-gray-300'}">${i}</div>
-            ${i < 5 ? '<div class="w-4 h-px bg-gray-200"></div>' : ''}
+            ${i < 6 ? '<div class="w-4 h-px bg-gray-200"></div>' : ''}
         </div>`
     ).join('');
 
     let content = '';
     if (step === 1)      content = _finJABStep1Html(fy);
-    else if (step === 2) content = _finJABStep2Html();
+    else if (step === 2) content = _finJABStep2Html(fy);
     else if (step === 3) content = _finJABStep3Html();
     else if (step === 4) content = _finJABStep4Html();
     else if (step === 5) content = _finJABStep5Html();
+    else if (step === 6) content = _finJABStep6Html();
 
     document.getElementById('fin-content').innerHTML = `
         <div class="card p-6">
@@ -2458,11 +2632,119 @@ function _finRenderJAB() {
     });
 }
 
+// ── Step 1: Vermögensbericht (§ 28 WEG) ──────────────────────
 function _finJABStep1Html(fy) {
+    const d = _finState.jabData;
+    const vsLoaded = !!d?.vsLoaded;
+    const vsRows = d?.vsRows || [];
+    const forderungen = d?.forderungen || [];
+
+    let bankSection = '';
+    let forderungenSection = '';
+
+    if (vsLoaded) {
+        // Bank- und Rücklagenkonten: Saldenabgleich
+        const bankRows = vsRows.map((r, i) => {
+            const diff = r.statement_balance != null ? (Number(r.statement_balance) - r.system_balance) : null;
+            const diffStr = diff != null ? diff.toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' €' : '—';
+            const diffClass = diff == null ? 'text-gray-300' : Math.abs(diff) < 0.01 ? 'text-green-600' : 'text-hb-orange font-bold';
+            const validated = r.is_validated;
+            const icon = validated ? '✓' : diff != null && Math.abs(diff) < 0.01 ? '✓' : '';
+            const iconClass = validated ? 'text-green-600' : '';
+            return `<tr class="hover:bg-gray-50/60">
+                <td class="px-4 py-3 text-xs font-mono text-gray-500">${r.account_number}</td>
+                <td class="px-4 py-3 text-sm">${r.account_name}</td>
+                <td class="px-4 py-3 text-sm text-right font-semibold">${r.system_balance.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</td>
+                <td class="px-4 py-3 text-right">
+                    <input type="number" step="0.01" data-vs-idx="${i}" value="${r.statement_balance ?? ''}"
+                        placeholder="Saldo lt. Auszug" class="text-sm text-right w-32 px-2 py-1.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-hb-olive/20"
+                        onchange="_finVSUpdateRow(${i}, this.value)">
+                </td>
+                <td class="px-4 py-3 text-sm text-right ${diffClass}">${diffStr}</td>
+                <td class="px-4 py-3 text-center text-lg ${iconClass}">${icon}</td>
+            </tr>`;
+        }).join('') || '<tr><td colspan="6" class="px-4 py-8 text-center text-sm text-gray-400">Keine Bank-/Rücklagenkonten gefunden.</td></tr>';
+
+        bankSection = `
+            <h4 class="text-sm font-bold text-hb-offblack mb-2 mt-4">Kontensalden prüfen (Bank & Rücklage)</h4>
+            <p class="text-xs text-gray-400 mb-3">Tragen Sie den tatsächlichen Kontostand lt. Bankauszug zum Stichtag 31.12.${fy} ein. Bei Differenz = 0 erscheint ein ✓.</p>
+            <div class="overflow-x-auto rounded-lg border border-hb-olive/10 max-h-[300px] overflow-y-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50 sticky top-0"><tr>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Kto.</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Konto</th>
+                        <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">System-Saldo</th>
+                        <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Saldo lt. Auszug</th>
+                        <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Differenz</th>
+                        <th class="px-4 py-3 text-center text-xs font-bold text-gray-500">Status</th>
+                    </tr></thead>
+                    <tbody class="divide-y divide-hb-olive/10">${bankRows}</tbody>
+                </table>
+            </div>`;
+
+        // Forderungen und Verbindlichkeiten
+        const fordRows = forderungen.map(f => {
+            const amt = Number(f.amount || 0);
+            return `<tr class="hover:bg-gray-50/60">
+                <td class="px-4 py-3 text-sm">${f.person_name || '—'}</td>
+                <td class="px-4 py-3 text-sm">${f.apt_number || '—'}</td>
+                <td class="px-4 py-3 text-xs text-gray-500">${f.demand_type || '—'}</td>
+                <td class="px-4 py-3 text-sm font-semibold text-right ${amt > 0 ? 'text-hb-orange' : 'text-gray-400'}">${amt.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</td>
+                <td class="px-4 py-3 text-xs text-gray-400">${_finFormatDate(f.due_date)}</td>
+                <td class="px-4 py-3 text-center">
+                    <button onclick="_finVSStornoDemand('${f.id}')" class="text-xs text-hb-orange px-2 py-1 rounded-lg hover:bg-hb-orange/5" title="Stornieren">✕</button>
+                </td>
+            </tr>`;
+        }).join('') || '<tr><td colspan="6" class="px-4 py-8 text-center text-sm text-gray-400">Keine offenen Forderungen zum Stichtag.</td></tr>';
+
+        const totalFord = forderungen.reduce((s, f) => s + Number(f.amount || 0), 0);
+        forderungenSection = `
+            <h4 class="text-sm font-bold text-hb-offblack mb-2 mt-6">Forderungen & Verbindlichkeiten zum Stichtag</h4>
+            <p class="text-xs text-gray-400 mb-3">Offene Sollstellungen (Hausgeldrückstände) zum 31.12.${fy}. Fehlerhafte Posten können direkt storniert werden.</p>
+            <div class="overflow-x-auto rounded-lg border border-hb-olive/10 max-h-[250px] overflow-y-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50 sticky top-0"><tr>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Person</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Einheit</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Typ</th>
+                        <th class="px-4 py-3 text-right text-xs font-bold text-gray-500">Betrag</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Fällig</th>
+                        <th class="px-4 py-3 text-center text-xs font-bold text-gray-500"></th>
+                    </tr></thead>
+                    <tbody class="divide-y divide-hb-olive/10">${fordRows}</tbody>
+                </table>
+            </div>
+            <div class="mt-2 text-sm font-semibold text-right text-hb-offblack">Offene Forderungen gesamt: ${totalFord.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</div>`;
+    }
+
+    return `
+        <div class="space-y-2">
+            <div class="flex items-center gap-3 mb-3">
+                <div class="w-8 h-8 rounded-full bg-hb-olive/10 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-hb-olive" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <div>
+                    <h4 class="text-sm font-bold text-hb-offblack">Vermögensbericht (§ 28 WEG)</h4>
+                    <p class="text-xs text-gray-400">Stichtag: 31.12.${fy} — Abgleich der System-Salden mit den tatsächlichen Bankkontoständen.</p>
+                </div>
+            </div>
+            ${bankSection}
+            ${forderungenSection}
+        </div>
+        <div class="flex gap-3 mt-5">
+            ${vsLoaded
+                ? `<button onclick="_finJABNext(1)" class="btn-primary text-sm px-6 py-2.5">Salden speichern & weiter →</button>`
+                : `<button onclick="_finJABNext(1)" class="btn-primary text-sm px-6 py-2.5">Vermögensbericht laden →</button>`
+            }
+        </div>`;
+}
+
+// ── Step 2: Zeitraum & Kontenwahl (ehemals Step 1) ────────────
+function _finJABStep2Html(fy) {
     const fyOpts = [fy+1, fy, fy-1, fy-2].map(y => `<option value="${y}" ${y==fy?'selected':''}>${y}</option>`).join('');
     const hasPlan = _finState.plans.some(p => p.fiscal_year == fy && ['active','approved'].includes(p.status));
     const d = _finState.jabData;
-    const loaded = !!d?.step1Loaded;
+    const loaded = !!d?.step2Loaded;
 
     // Konto-Checkliste (nur nach Laden)
     let accountList = '';
@@ -2541,15 +2823,16 @@ function _finJABStep1Html(fy) {
             ${accountList}
         </div>
         <div class="flex gap-3 mt-5">
+            <button onclick="_finState.jabStep=1;_finRenderJAB()" class="btn-secondary text-sm px-5 py-2.5">← Zurück</button>
             ${loaded
                 ? `<button onclick="_finJABStep1Reset()" class="btn-secondary text-sm px-5 py-2.5">↺ Neu laden</button>
-                   <button onclick="_finJABNext(1)" class="btn-primary text-sm px-6 py-2.5">Weiter →</button>`
-                : `<button onclick="_finJABNext(1)" class="btn-primary text-sm px-6 py-2.5">Konten laden →</button>`
+                   <button onclick="_finJABNext(2)" class="btn-primary text-sm px-6 py-2.5">Weiter →</button>`
+                : `<button onclick="_finJABNext(2)" class="btn-primary text-sm px-6 py-2.5">Konten laden →</button>`
             }
         </div>`;
 }
 
-function _finJABStep2Html() {
+function _finJABStep3Html() {
     const d  = _finState.jabData;
     const accs = _finState.accounts;
     const accMap = {};
@@ -2589,12 +2872,12 @@ function _finJABStep2Html() {
             </table>
         </div>
         <div class="flex gap-3 mt-5">
-            <button onclick="_finState.jabStep=1;_finRenderJAB()" class="btn-secondary text-sm px-5 py-2.5">← Zurück</button>
-            <button onclick="_finJABNext(2)" class="btn-primary text-sm px-6 py-2.5">Weiter →</button>
+            <button onclick="_finState.jabStep=2;_finRenderJAB()" class="btn-secondary text-sm px-5 py-2.5">← Zurück</button>
+            <button onclick="_finJABNext(3)" class="btn-primary text-sm px-6 py-2.5">Weiter →</button>
         </div>`;
 }
 
-function _finJABStep3Html() {
+function _finJABStep4Html() {
     const expenseAccs = _finState.accounts.filter(a => a.account_type === 'expense');
     const dkList = _finState.distKeys || [];
     const dkLookup = {};
@@ -2670,8 +2953,8 @@ function _finJABStep3Html() {
             </div>`}
         </div>
         <div class="flex gap-3 mt-5">
-            <button onclick="_finState.jabStep=2;_finRenderJAB()" class="btn-secondary text-sm px-5 py-2.5">← Zurück</button>
-            <button onclick="_finJABNext(3)" class="btn-primary text-sm px-6 py-2.5">Weiter →</button>
+            <button onclick="_finState.jabStep=3;_finRenderJAB()" class="btn-secondary text-sm px-5 py-2.5">← Zurück</button>
+            <button onclick="_finJABNext(4)" class="btn-primary text-sm px-6 py-2.5">Weiter →</button>
         </div>`;
 }
 
@@ -2688,7 +2971,7 @@ window._finValidateHeatSplit = () => {
     }
 };
 
-function _finJABStep4Html() {
+function _finJABStep5Html() {
     const d    = _finState.jabData;
     const rows = (d.sollIst || []).map(row => {
         const diff = row.soll - row.bezahlt;
@@ -2741,12 +3024,12 @@ function _finJABStep4Html() {
             </table>
         </div>` : ''}
         <div class="flex gap-3 mt-5">
-            <button onclick="_finState.jabStep=3;_finRenderJAB()" class="btn-secondary text-sm px-5 py-2.5">← Zurück</button>
-            <button onclick="_finJABNext(4)" class="btn-primary text-sm px-6 py-2.5">Weiter →</button>
+            <button onclick="_finState.jabStep=4;_finRenderJAB()" class="btn-secondary text-sm px-5 py-2.5">← Zurück</button>
+            <button onclick="_finJABNext(5)" class="btn-primary text-sm px-6 py-2.5">Weiter →</button>
         </div>`;
 }
 
-function _finJABStep5Html() {
+function _finJABStep6Html() {
     const d = _finState.jabData;
     const saldoData = d.abrechnungsSaldo || [];
     const nachz    = saldoData.filter(r => r.saldo > 0);
@@ -2798,6 +3081,7 @@ function _finJABStep5Html() {
                 <button onclick="_finJABExportPDF()" class="text-xs text-hb-olive bg-hb-ultralight border border-hb-olive/20 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors">Abrechnung als PDF exportieren</button>
                 <button onclick="_finJABSaveForETV()" class="text-xs text-hb-orange bg-hb-ultralight border border-hb-orange/20 px-4 py-2 rounded-lg font-semibold hover:bg-hb-orange/5 transition-colors">Für ETV speichern</button>
                 <button onclick="_finJABAbschluss()" class="btn-primary text-xs px-4 py-2">Abrechnung abschließen & sperren</button>
+                <button onclick="_finActivateBeschluss()" class="text-xs text-white bg-hb-olive px-4 py-2 rounded-lg font-semibold hover:bg-hb-olive/90 transition-colors border-2 border-hb-olive">Beschlüsse aktivieren</button>
             </div>
         </div>
         <div class="overflow-x-auto rounded-lg border border-hb-olive/10 mb-5">
@@ -2828,12 +3112,31 @@ function _finJABStep5Html() {
         </div>` : ''}
 
         <div class="flex gap-3 mt-5">
-            <button onclick="_finState.jabStep=4;_finRenderJAB()" class="btn-secondary text-sm px-5 py-2.5">← Zurück</button>
+            <button onclick="_finState.jabStep=5;_finRenderJAB()" class="btn-secondary text-sm px-5 py-2.5">← Zurück</button>
         </div>`;
 }
 
 window._finJABStep1Reset = () => {
-    if (_finState.jabData) _finState.jabData.step1Loaded = false;
+    if (_finState.jabData) _finState.jabData.step2Loaded = false;
+    _finRenderJAB();
+};
+
+// ── Vermögensbericht Helpers ─────────────────────────────────
+window._finVSUpdateRow = (idx, val) => {
+    const rows = _finState.jabData?.vsRows;
+    if (!rows || !rows[idx]) return;
+    rows[idx].statement_balance = val !== '' ? parseFloat(val) : null;
+    // Live-Update der Zeile (Differenz + Status)
+    _finRenderJAB();
+};
+
+window._finVSStornoDemand = async (demandId) => {
+    if (!confirm('Sollstellung stornieren?')) return;
+    const { error } = await _supabase.from('payment_demands').update({ status: 'cancelled', updated_at: new Date().toISOString() }).eq('id', demandId);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    // Aus lokaler Liste entfernen und neu rendern
+    _finState.jabData.forderungen = (_finState.jabData.forderungen || []).filter(f => f.id !== demandId);
+    showToast('Sollstellung storniert.', 'success');
     _finRenderJAB();
 };
 
@@ -2849,7 +3152,93 @@ window._finJABDistChange = (accId, val) => {
 window._finJABNext = async (fromStep) => {
     const bid = _finState.buildingId;
 
+    // ── Step 1: Vermögensbericht laden/speichern ────────────
     if (fromStep === 1) {
+        const fy = _finState.jabData.fy || _finState.fiscalYear;
+
+        if (!_finState.jabData?.vsLoaded) {
+            // Phase A: Daten laden (Bank/Rücklagenkonten + Forderungen)
+            const accs = _finState.accounts.length ? _finState.accounts : await _finGetAccounts(bid);
+            _finState.accounts = accs;
+
+            // Bank- und Rücklagenkonten (asset-Konten mit Kontonummer 1xxx = Bank/Kasse)
+            const bankAccs = accs.filter(a => a.account_type === 'asset' && /^1[0-9]{3}$/.test(a.account_number));
+
+            // System-Saldo per Konto berechnen (Soll - Haben bis Stichtag)
+            const stichtag = fy + '-12-31';
+            const { data: journalAll } = await _supabase.from('journal_entries').select('debit_account_id, credit_account_id, amount')
+                .eq('building_id', bid).lte('entry_date', stichtag);
+
+            const saldoMap = {};
+            for (const e of (journalAll || [])) {
+                saldoMap[e.debit_account_id]  = (saldoMap[e.debit_account_id]  || 0) + Number(e.amount);
+                saldoMap[e.credit_account_id] = (saldoMap[e.credit_account_id] || 0) - Number(e.amount);
+            }
+
+            // Bestehende financial_statements laden (falls bereits gespeichert)
+            const { data: existing } = await _supabase.from('financial_statements')
+                .select('*').eq('building_id', bid).eq('fiscal_year', fy);
+            const existMap = {};
+            for (const fs of (existing || [])) existMap[fs.account_id] = fs;
+
+            const vsRows = bankAccs.map(a => ({
+                account_id: a.id,
+                account_number: a.account_number,
+                account_name: a.account_name,
+                system_balance: Math.round((saldoMap[a.id] || 0) * 100) / 100,
+                statement_balance: existMap[a.id]?.statement_balance ?? null,
+                is_validated: existMap[a.id]?.is_validated || false,
+                fs_id: existMap[a.id]?.id || null,
+            }));
+
+            // Offene Forderungen zum Stichtag
+            const { data: demands } = await _supabase.from('payment_demands')
+                .select('id, amount, due_date, demand_type, apartment:apartments(apartment_number), person:persons(first_name, last_name)')
+                .eq('building_id', bid).lte('due_date', stichtag).in('status', ['open', 'overdue']);
+
+            const forderungen = (demands || []).map(d => ({
+                id: d.id,
+                amount: d.amount,
+                due_date: d.due_date,
+                demand_type: d.demand_type,
+                apt_number: d.apartment?.apartment_number || '—',
+                person_name: d.person ? [d.person.first_name, d.person.last_name].filter(Boolean).join(' ') : '—',
+            }));
+
+            _finState.jabData.vsRows = vsRows;
+            _finState.jabData.forderungen = forderungen;
+            _finState.jabData.vsLoaded = true;
+            _finState.jabData.fy = fy;
+            _finRenderJAB();
+            return;
+        }
+
+        // Phase B: Salden in financial_statements speichern
+        const vsRows = _finState.jabData.vsRows || [];
+        const upserts = vsRows.filter(r => r.statement_balance != null).map(r => ({
+            building_id: bid,
+            fiscal_year: fy,
+            stichtag: fy + '-12-31',
+            account_id: r.account_id,
+            system_balance: r.system_balance,
+            statement_balance: r.statement_balance,
+            is_validated: Math.abs((r.statement_balance || 0) - r.system_balance) < 0.01,
+            validated_at: Math.abs((r.statement_balance || 0) - r.system_balance) < 0.01 ? new Date().toISOString() : null,
+            updated_at: new Date().toISOString(),
+        }));
+
+        if (upserts.length) {
+            const { error } = await _supabase.from('financial_statements').upsert(upserts, { onConflict: 'building_id,fiscal_year,account_id' });
+            if (error) { showToast('Fehler beim Speichern der Salden: ' + error.message, 'error'); return; }
+        }
+
+        _finState.jabStep = 2;
+        _finRenderJAB();
+        return;
+    }
+
+    // ── Step 2: Zeitraum & Konten (ehemals Step 1) ──────────
+    if (fromStep === 2) {
         const fy   = Number(document.getElementById('jab-fy')?.value);
         const from = document.getElementById('jab-from')?.value;
         const to   = document.getElementById('jab-to')?.value;
@@ -2859,7 +3248,7 @@ window._finJABNext = async (fromStep) => {
         _finState.accounts = accs;
 
         // Phase A: Konten laden und Checkliste anzeigen
-        if (!_finState.jabData?.step1Loaded) {
+        if (!_finState.jabData?.step2Loaded) {
             const { data: entries } = await _supabase.from('journal_entries').select('*')
                 .eq('building_id', bid)
                 .gte('entry_date', from)
@@ -2883,7 +3272,7 @@ window._finJABNext = async (fromStep) => {
                 entries: entries || [],
                 selectedAccIds: [...allAccIds],
                 distKeys: {}, heatingMode: 'A', heatingManual: {}, heatSplitV: defaultSplitV, heatSplitF: defaultSplitF,
-                step1Loaded: true
+                step2Loaded: true
             };
             _finRenderJAB();
             return;
@@ -2897,11 +3286,11 @@ window._finJABNext = async (fromStep) => {
         _finState.jabData.entries = _finState.jabData.rawEntries.filter(function(e) {
             return selectedAccIds.includes(e.debit_account_id) || selectedAccIds.includes(e.credit_account_id);
         });
-        _finState.jabStep = 2;
+        _finState.jabStep = 3;
         _finRenderJAB();
 
-    } else if (fromStep === 2) {
-        _finState.jabStep = 3;
+    } else if (fromStep === 3) {
+        _finState.jabStep = 4;
 
         // Apartments laden falls nötig
         if (!_finState.apartments.length) {
@@ -2910,7 +3299,7 @@ window._finJABNext = async (fromStep) => {
         }
         _finRenderJAB();
 
-    } else if (fromStep === 3) {
+    } else if (fromStep === 4) {
         // Heizkosten-Manualwerte einlesen
         document.querySelectorAll('[data-heat="A"]').forEach(inp => {
             const aptId = Number(inp.dataset.aptId);
@@ -2932,10 +3321,10 @@ window._finJABNext = async (fromStep) => {
 
         // Soll-Ist-Abgleich laden
         await _finJABLoadSollIst();
-        _finState.jabStep = 4;
+        _finState.jabStep = 5;
         _finRenderJAB();
 
-    } else if (fromStep === 4) {
+    } else if (fromStep === 5) {
         const d = _finState.jabData;
         const aptMap = {};
         for (const apt of (_finState.apartments||[])) aptMap[apt.id] = apt;
@@ -3037,7 +3426,7 @@ window._finJABNext = async (fromStep) => {
             return { apt_id: row.apt_id, apt_number: row.apt_number, owner_name: row.owner_name, istKosten, soll: row.soll, bezahlt: row.bezahlt, spitze, zahlDiff, saldo };
         });
 
-        _finState.jabStep = 5;
+        _finState.jabStep = 6;
         _finRenderJAB();
     }
 };
@@ -3163,6 +3552,131 @@ window._finJABAbschluss = async () => {
     if (plan) await _supabase.from('budget_plans').update({ status: 'closed' }).eq('id', plan.id);
 
     showToast('Abrechnung abgeschlossen. Buchungen gesperrt, Abrechnungsspitzen angelegt.', 'success');
+};
+
+// ── Beschluss-Aktivierung (Post-ETV) ─────────────────────────
+// Setzt neue Hausgeld-Werte aus WP, erstellt Sollstellungen für Abrechnungsspitzen,
+// historisiert alte Hausgeld-Werte.
+window._finActivateBeschluss = async () => {
+    const bid = _finState.buildingId;
+    const d   = _finState.jabData;
+    if (!d?.fy) { showToast('Keine Abrechnungsdaten vorhanden. Bitte zuerst den Wizard durchlaufen.', 'error'); return; }
+
+    const fy = d.fy;
+    const nextFy = fy + 1;
+
+    // Prüfen ob ein aktiver/approved WP für das Folgejahr existiert
+    const nextPlan = _finState.plans.find(p => p.fiscal_year == nextFy && ['active', 'approved'].includes(p.status));
+    const hasPlan = !!nextPlan;
+
+    let confirmMsg = `Beschlüsse für WJ ${fy} aktivieren?\n\n`;
+    confirmMsg += '1. Abrechnungsspitzen (Guthaben/Nachzahlungen) werden als Sollstellungen angelegt (Fälligkeit: 14 Tage).\n';
+    if (hasPlan) {
+        confirmMsg += `2. Neue Hausgeld-Beträge aus Wirtschaftsplan ${nextFy} werden in die Einheiten übernommen.\n`;
+        confirmMsg += '3. Alte Hausgeld-Werte werden historisiert.\n';
+    } else {
+        confirmMsg += `2. Kein aktiver Wirtschaftsplan für ${nextFy} gefunden — Hausgeld wird NICHT aktualisiert.\n`;
+    }
+    if (!confirm(confirmMsg)) return;
+
+    const apts = _finState.apartments || [];
+    const saldoData = d.abrechnungsSaldo || [];
+    const dueDate = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
+    let errors = [];
+
+    // ── 1. Sollstellungen für Abrechnungsspitzen ──────────────
+    const spitzenInserts = [];
+    for (const row of saldoData) {
+        const saldo = Number(row.saldo || 0);
+        if (Math.abs(saldo) < 0.01) continue;
+        spitzenInserts.push({
+            building_id:  bid,
+            apartment_id: row.apt_id,
+            demand_type:  saldo > 0 ? 'nachzahlung' : 'guthaben',
+            amount:       Math.round(Math.abs(saldo) * 100) / 100,
+            due_date:     dueDate,
+            fiscal_year:  fy,
+            status:       'open',
+            created_at:   new Date().toISOString(),
+        });
+    }
+    if (spitzenInserts.length) {
+        const { error } = await _supabase.from('payment_demands').insert(spitzenInserts);
+        if (error) errors.push('Sollstellungen: ' + error.message);
+    }
+
+    // ── 2. Hausgeld-Update aus neuem WP ──────────────────────
+    let hausgeldUpdated = 0;
+    if (hasPlan) {
+        // WP-Positionen + Verteilerschlüssel laden
+        const { data: planItems } = await _supabase.from('budget_plan_items')
+            .select('planned_amount, account_id')
+            .eq('budget_plan_id', nextPlan.id);
+        const accs = _finState.accounts || [];
+        const dkList = _finState.distKeys || [];
+        const dkMap = {};
+        dkList.forEach(function(k) { dkMap[k.id] = k; });
+        const { data: dkUnits } = await _supabase.from('distribution_key_units')
+            .select('distribution_key_id, apartment_id, value');
+        const dkUnitMap = {};
+        (dkUnits || []).forEach(function(u) {
+            if (!dkUnitMap[u.distribution_key_id]) dkUnitMap[u.distribution_key_id] = {};
+            dkUnitMap[u.distribution_key_id][u.apartment_id] = Number(u.value) || 0;
+        });
+
+        const historyInserts = [];
+
+        for (const apt of apts) {
+            // Anteil berechnen: Summe aller (planned_amount × unitValue / totalValue) / 12
+            let totalYear = 0;
+            for (const item of (planItems || [])) {
+                const acc = accs.find(function(a) { return a.id == item.account_id; });
+                const pkId = acc?.primary_key_id;
+                if (!pkId || !dkMap[pkId]) continue;
+                const pk = dkMap[pkId];
+                const pkTotal = Number(pk.total_value) || 0;
+                const pkVal = (dkUnitMap[pkId] && dkUnitMap[pkId][apt.id]) || 0;
+                if (pkTotal === 0) continue;
+                totalYear += Number(item.planned_amount) * pkVal / pkTotal;
+            }
+            const newHausgeld = totalYear > 0 ? Math.round(totalYear / 12 * 100) / 100 : null;
+            if (newHausgeld == null) continue;
+
+            const oldHausgeld = Number(apt.hausgeld) || 0;
+            if (Math.abs(oldHausgeld - newHausgeld) < 0.01) continue; // Keine Änderung
+
+            // Historisierung
+            historyInserts.push({
+                building_id:   bid,
+                apartment_id:  apt.id,
+                old_hausgeld:  oldHausgeld,
+                new_hausgeld:  newHausgeld,
+                change_reason: 'Wirtschaftsplan-Beschluss ' + nextFy,
+                fiscal_year:   nextFy,
+                changed_by:    currentUser.id,
+            });
+
+            // Hausgeld aktualisieren
+            const { error } = await _supabase.from('apartments').update({ hausgeld: newHausgeld }).eq('id', apt.id);
+            if (error) { errors.push('WE ' + apt.apartment_number + ': ' + error.message); }
+            else { hausgeldUpdated++; }
+        }
+
+        // Historien-Einträge speichern
+        if (historyInserts.length) {
+            const { error } = await _supabase.from('hausgeld_history').insert(historyInserts);
+            if (error) errors.push('Historisierung: ' + error.message);
+        }
+    }
+
+    // ── 3. Ergebnis ──────────────────────────────────────────
+    if (errors.length) {
+        showToast('Teilweise Fehler: ' + errors[0], 'warning');
+    } else {
+        let msg = `Beschlüsse aktiviert: ${spitzenInserts.length} Sollstellungen (Fälligkeit ${dueDate}).`;
+        if (hausgeldUpdated > 0) msg += ` ${hausgeldUpdated} Hausgeld-Werte aus WP ${nextFy} aktualisiert.`;
+        showToast(msg, 'success');
+    }
 };
 
 window._finJABExportCSV = () => {
@@ -3388,7 +3902,10 @@ window._finCreateDunning = async () => {
 
     // Mahngebühr als Aufwand buchen: Debit 4201 (Mahngebühren, mit apartment_id) / Credit 1420 (Forderungen Mahnwesen)
     // Nur wenn Mahngebühr > 0 — so erscheint sie als Direktkosten in der Jahresabrechnung der verursachenden Einheit.
-    if (fee > 0) {
+    // Journal-Sperre: Mahngebühr-Buchung prüfen (aktuelles FY)
+    if (fee > 0 && await _finIsYearClosed(bid, new Date().getFullYear())) {
+        showToast('Mahngebühr konnte nicht gebucht werden — Wirtschaftsjahr ist abgeschlossen.', 'error');
+    } else if (fee > 0) {
         const accs = _finState.accounts.length ? _finState.accounts : await _finGetAccounts(bid);
         _finState.accounts = accs;
         const getAId = function(num) { return (accs.find(function(a) { return a.account_number === num; }) || {}).id; };
@@ -3475,6 +3992,10 @@ window._finNoticePaidConfirm = async () => {
     const date = document.getElementById('fin-paid-date')?.value || new Date().toISOString().split('T')[0];
     const fiscalYear = new Date(date).getFullYear();
     const bid  = _finState.buildingId;
+
+    // Journal-Sperre: abgeschlossene Jahre blockieren
+    if (await _finBlockIfYearClosed(bid, fiscalYear)) return;
+
     const accs = _finState.accounts.length ? _finState.accounts : await _finGetAccounts(bid);
     _finState.accounts = accs;
     const getAccId = function(num) { return (accs.find(function(a) { return a.account_number === num; }) || {}).id; };

@@ -173,6 +173,7 @@ Die Abrechnungen: Wizards inkl. HeizkostenV und §35a EStG. Das System trennt be
 Official Letter Engine: Erstellung von Abrechnungen, Plänen und Mahnungen als rechtssicheres PDF mit Briefkopf.
 
 Mahnwesen & DATEV-Export: 3-stufiger Mahnlauf und CSV-Export für Steuerberater.
+- **Automatisierung Mahngebühren:** Dynamische Steuerung der Gebührenhöhen und Verzugszinsen über `global_settings`. Automatisierte Generierung der Verwalter-Rechnung (Eigenbeleg) bei Mahnungs-Zahlungseingang auf dem WEG-Konto inkl. Verrechnung gegen das Verwalter-Erlöskonto (Stammdaten-Mapping).
 
 Modul 5: Rollenspezifische Dashboards & UX
 

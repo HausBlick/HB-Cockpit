@@ -39,96 +39,92 @@
 
 ---
 
-## Aufgabe: Gemini CLI
+## Aufgabe Gemini CLI:
 
-**Status:** 🔄 Neue Aufgabe
-**Paket:** Übergabe-Paket für Phase 1B — Frontend-Architektur: Dashboard vs. externe Tools
+(Warte auf Feedback zu 6.15-A)
 
 ---
-
-### Kontext
-
-Phase 1B ist die zweithöchste Priorität (🔴). Die strategische Entscheidung steht bereits in GEMINI.md §2:
-
-> Das `dashboard.html` (Startseite/Workspace, Tickets, Schwarzes Brett, Kontaktbuch, Kalender, CRM, Gebäude & Einheiten, Globale Einstellungen) bildet das Zentrum. Komplexe Tools (Finanzen, ETV, Zeiterfassung, Dokumentencloud) öffnen sich als separate HTML-Seiten. Deep-Linking (z.B. `?building=17`) verknüpft die Ansichten.
-
-### Ist-Zustand (technisch)
-
-- **Aktuell:** Alles läuft in einer einzigen `dashboard.html` als SPA. Module werden per `data-module`-Attribut in Nav-Links referenziert und per JS in den Content-Bereich geladen.
-- **Navigation:** `nav.js` rendert Sidebar + Bottom-Nav rollenbasiert. Aktiver Zustand wird per `setActiveNav()` gesetzt.
-- **Geteilte Infrastruktur:** `config.js` (Supabase-Client, Icons, Enums), `utils.js` (Toast, Modal, Dropdown, Responsive), `nav.js` (Navigation, Badges)
-- **Betroffene Module für Extraktion:** `mod-finanzen.js` (~4000+ Zeilen), `mod-etv.js` (~2000+ Zeilen), `mod-zeiterfassung.js` (~1500+ Zeilen), `mod-dokumente.js` (~1500+ Zeilen)
-- **Phase 1C (Mobile) ist abgeschlossen:** Bottom-Nav, Bottom Sheets, Responsive Tables, Skeleton Loading — all das muss in den neuen Seiten ebenfalls funktionieren
-
-### Deine Aufgabe
-
-Verfasse ein **offizielles Übergabe-Paket** für Claude Code. Schreibe es in den Abschnitt "Aufgabe: Claude Code" weiter unten.
-
-**Offene Architektur-Fragen, die du klären solltest:**
-
-1. **Shared Layout:** Bekommen die externen Seiten (finanzen.html, etv.html, etc.) dasselbe Layout wie dashboard.html (Sidebar, Top-Bar, Bottom-Nav)? Oder ein eigenes, schlankeres Layout? Wie wird Code-Duplikation bei Header/Nav vermieden?
-
-2. **Navigation zwischen Seiten:** Wie funktioniert die Nav? Sidebar-Links, die auf andere HTML-Seiten verweisen statt Module zu laden? Wie bleibt der Active-State korrekt über Seitenwechsel?
-
-3. **Deep-Linking-Schema:** Welche Query-Parameter? Beispiel: `finanzen.html?building=17&tab=buchungen` — wie übergibt das Dashboard den Kontext?
-
-4. **Shared State:** Wenn ein User in dashboard.html ein Gebäude ausgewählt hat und dann zu finanzen.html wechselt — wie wird der Gebäude-Kontext transportiert? URL-Params? SessionStorage?
-
-5. **Rollenbasierte Sichtbarkeit:** Mieter/Eigentümer sehen die externen Tools nicht — wie wird das sichergestellt? Nur über Nav-Ausblendung oder auch serverseitig (RLS reicht für Daten, aber die HTML-Seiten sind statisch auf GitHub Pages)?
-
-6. **Reihenfolge der Extraktion:** Welches Modul zuerst? Empfehlung: kleinstes zuerst (Zeiterfassung?) als Proof of Concept, dann die großen.
-
-**Format:**
-```
-[UMSETZUNGS-ÜBERGABE FÜR CLAUDE]
-1. Ziel
-2. Architektur-Entscheidungen (zu den 6 Fragen oben)
-3. Anforderungen (priorisiert)
-4. Betroffene Dateien
-5. UI-Vorgaben
-6. Offene Entwickler-Entscheidungen
-```
 
 ### Antwort Gemini CLI
 
-**Erledigt.** Das Übergabe-Paket für Phase 1B (Frontend-Architektur-Split) wurde erstellt und im Claude-Block platziert. Alle 6 Architektur-Fragen wurden präzise beantwortet (Shared Layout via `nav.js` Injection, URL-Params + `sessionStorage` für State, JS-basierter Auth-Guard für statische Seiten, PoC-Start mit Zeiterfassung). Die Einhaltung der Mobile-Patterns aus Phase 1C wurde als strikte UI-Vorgabe verankert.
+Briefing für Claude Code (Präzisierung Paket 6.15) wurde erstellt.
 
 ---
 
-## Aufgabe: Claude Code
+## Aufgabe Claude Code:
 
-**Status:** 🔄 Übergabe-Paket bereitgestellt (Phase 1B)
+### Paket 6.15: Der große Jahresabschluss (Korrekturen & Präzisierungen)
 
-[UMSETZUNGS-ÜBERGABE FÜR CLAUDE]
-1. Ziel
-Entflechtung des monolithischen `dashboard.html` in eine aufgeräumte Multi-Page/SPA-Hybridarchitektur (Phase 1B, Prio 🔴). Das Kern-Dashboard behält alltägliche Funktionen. Komplexe Experten-Tools (Finanzen, ETV, Zeiterfassung, Dokumentencloud) werden in separate HTML-Dateien ausgelagert, um Ladezeiten, Wartbarkeit und Übersichtlichkeit zu optimieren. Das in Phase 1C etablierte "Mobile First"-App-Feeling muss auf allen neuen Seiten zu 100 % erhalten bleiben.
+Claude, du arbeitest bereits an **6.15-A (Journal-Sperre)**. Bitte prüfe bei der Umsetzung folgende Details:
 
-2. Architektur-Entscheidungen (zu den 6 offenen Fragen)
-- **Shared Layout:** Die neuen HTML-Seiten (`zeiterfassung.html`, etc.) erhalten eine minimalistische HTML-Shell (inkl. Viewport-Meta für Mobile). Sidebar, Header und Bottom-Nav werden weiterhin dynamisch über `nav.js` gerendert und in leere Container-Elemente injiziert. Gemeinsame Basis-Skripte (`config.js`, `utils.js`, `nav.js`, Tailwind) werden im `<head>` geladen. Code-Duplikation beim HTML-Gerüst wird minimiert.
-- **Navigation & Active-State:** `nav.js` wird so angepasst, dass Menüpunkte wahlweise SPA-Module (`data-module`) ODER echte Links (`href="zeiterfassung.html"`) unterstützen. Der Active-State wird anhand von `window.location.pathname` (für externe Seiten) oder dem aktiven `data-module` (im Dashboard) gesetzt.
-- **Deep-Linking-Schema:** Der Kontextwechsel erfolgt über URL-Parameter (z.B. `?building=17&tab=projekte`). Externe Tools werten beim Start die `URLSearchParams` aus und initialisieren ihren Zustand entsprechend.
-- **Shared State:** Zusätzlich zu URL-Parametern speichert das Dashboard global gewählte Kontexte (z.B. das zuletzt aktive Gebäude) in der `sessionStorage` (z.B. `hb_active_building`). Öffnet der User ein externes Tool über die Sidebar (ohne URL-Parameter), greift das Tool als Fallback auf die `sessionStorage` zurück.
-- **Rollenbasierte Sichtbarkeit:** Da die HTML-Seiten statisch auf GitHub Pages gehostet sind, muss jede externe Seite beim Laden (in der Init-Logik) zwingend die Rolle via Supabase Auth prüfen. Ist der User kein `admin` oder `manager`, erfolgt ein sofortiger Redirect zu `dashboard.html` (RLS schützt die Daten zusätzlich).
-- **Reihenfolge der Extraktion:** **Schritt 1 (PoC):** Auslagerung des Moduls Zeiterfassung in `zeiterfassung.html`. Erst wenn Layout-Injection, Routing, Auth-Guard und Mobile-Patterns hier fehlerfrei funktionieren, folgen **Schritt 2:** ETV, **Schritt 3:** Dokumentencloud und **Schritt 4:** Finanzen.
+1. **Journal-Sperre (6.15-A):** Diese muss zwingend auf **Gebäude-Ebene** (`building_id`) und für ein spezifisches Geschäftsjahr (`fiscal_year`) gelten, nicht global.
+2. **Kombi-PDF (Ab 6.15-D/E):** Bei der ETV-Einladung muss ein kombiniertes PDF (Einladung + Tagesordnung + individuelle Anhänge des jeweiligen Empfängers) generiert werden. Die Anhänge (JAB/WP) werden zeitgleich im Portal als **Einzel-Dokumente** freigeschaltet.
+3. **Abrechnungsspitzen (Ab 6.15-F):** Der Beschluss-Trigger ("Werte jetzt aktivieren") muss für jede Einheit eine einmalige Sollstellung (`payment_demands`) für die jeweilige Abrechnungsspitze (Guthaben/Nachzahlung) erzeugen.
+4. **JAB-Layout (PDF):** Für den Soll/Ist-Vergleich in der Einzelabrechnung ist eine kompakte **12-Monats-Matrix** (max. 1 Seite) Pflicht.
 
-3. Anforderungen (priorisiert)
-- Prio 1: Refactoring von `nav.js`, um externe Links und path-basiertes Active-State-Highlighting zu unterstützen, ohne das bestehende SPA-Routing im Dashboard zu brechen.
-- Prio 2: Aufbau der `zeiterfassung.html` als Proof of Concept inkl. JS-Auth-Guard und Einbindung der nativen Mobile-Patterns aus Phase 1C.
-- Prio 3: Implementierung des `sessionStorage`-Syncs für den globalen Gebäude-Kontext.
-- Prio 4: Sukzessive Migration der verbleibenden drei Module (ETV, Dokumente, Finanzen).
+**Nächster Schritt:** Schließe 6.15-A ab und fahre dann mit **6.15-B (Vermögensbericht-Tabelle)** fort, wie in `CLAUDE.md` geplant, unter Berücksichtigung dieser Punkte.
 
-4. Betroffene Dateien
-- `dashboard.html` (Bereinigung der zu entfernenden Module)
-- `js/nav.js` (Anpassung Nav-Generierung, externe Links, Active-State-Logik)
-- Neu: `zeiterfassung.html`, `etv.html`, `dokumente.html`, `finanzen.html`
-- JS-Module: `js/modules/mod-zeiterfassung.js`, `mod-etv.js`, `mod-dokumente.js`, `mod-finanzen.js` (Anpassung der Init-Logik für Standalone-Betrieb inkl. Parameter-Parsing und Auth-Check)
+---
 
-5. UI-Vorgaben
-- Alle in Phase 1C etablierten Mobile-Patterns (Scroll-Containment via `h-screen overflow-hidden`, Sticky-Header, Bottom-Nav, Touch-Targets min. 44px, Skeleton-Loading, Bottom Sheets) MÜSSEN in den neuen HTML-Shells exakt identisch aufgebaut werden.
-- Der visuelle Bruch (Flicker) beim Wechsel zwischen `dashboard.html` und den neuen Seiten soll so gering wie möglich gehalten werden.
+### Antwort Claude Code:
 
-6. Offene Entwickler-Entscheidungen (Bitte im ersten Commit-Feedback beantworten)
-- **HTML-Shell-Injektion:** Wie genau stellst du sicher, dass die Sidebar/Bottom-Nav in den neuen Seiten gerendert wird, ohne den HTML-Struktur-Code in jede Datei redundant zu kopieren? (z.B. eine zentrale `renderGlobalLayout()`-Funktion in `nav.js`?)
-- **Asset-Loading:** Werden die spezifischen Modul-JS-Dateien in den neuen HTML-Seiten als `<script type="module">` direkt geladen, oder nutzt du einen dynamischen Loader?
+**6.15-A Journal-Sperre — BEREITS ABGESCHLOSSEN ✅**
+
+Zu den Präzisierungen:
+1. **Gebäude-Ebene:** Bereits korrekt implementiert — `_finIsYearClosed(buildingId, fiscalYear)` prüft `budget_plans` mit `.eq('building_id', buildingId).eq('fiscal_year', fiscalYear).eq('status', 'closed')`.
+2. **Kombi-PDF:** Notiert für 6.15-D/E.
+3. **Abrechnungsspitzen:** Notiert für 6.15-G.
+4. **12-Monats-Matrix:** Notiert für 6.15-E.
+
+**6.15-B Vermögensbericht — ABGESCHLOSSEN ✅**
+
+JAB-Wizard von 5 auf 6 Steps erweitert. Neuer Step 1: Saldenabgleich Bank/Rücklage (System vs. Bankauszug) + Forderungen/Verbindlichkeiten mit Inline-Stornierung. Daten werden per UPSERT in `financial_statements` gespeichert.
+
+**Aktionen für Niko:**
+- Migration `scripts/migration_financial_statements.sql` in Supabase ausführen (Fix: `building_id` ist jetzt `BIGINT`, nicht UUID). - **Niko: Erledigt**
+- RLS-Policies für `financial_statements` manuell in Supabase anlegen (lesen=admin/manager, schreiben=admin/manager). → Claude erstellt keine RLS (Regel #1 in BRIEFING). **Niko: Erledigt**
+
+**6.15-C Beirat-Prüfprotokoll — ABGESCHLOSSEN ✅**
+
+Beirat-View erweitert: Hinweisbox (Text aus `global_settings.audit_hint_text`, editierbar), Prüfprotokoll-Formular (Ergebnis/Umfang/Feststellungen mit Pflichtfeld-Logik), digitale Signatur-Metadaten. Admin sieht eingereichte Protokolle in der Belegprüfung.
+
+**Aktionen für Niko:**
+- Migration `scripts/migration_audit_protocols.sql` in Supabase ausführen (Tabelle `audit_protocols` + `global_settings.audit_hint_text` Spalte). RLS-Policies sind im SQL enthalten. **Niko: Erledigt**
+
+**6.15-D Dokumenten-Status-Lifecycle — ABGESCHLOSSEN ✅**
+
+`documents.metadata` JSONB-Spalte ergänzt. `_pdfSplitAndUpload()` erstellt jetzt DB-Einträge mit `status:'draft'` + `metadata:{doc_type, fiscal_year, unit_id}`. Nicht-Admins sehen nur `active`/`released` (bestehende Filterlogik reicht aus). Status-Flow: draft → released (bei ETV-Einladungsversand, kommt in 6.15-G).
+
+**Aktionen für Niko:**
+- Migration `scripts/migration_documents_staging.sql` in Supabase ausführen (nur 1 Zeile: `ALTER TABLE documents ADD COLUMN IF NOT EXISTS metadata JSONB`). **Niko: Erledigt**
+
+**6.15-E JAB-PDF Monatsübersicht + Vermögensbericht — ABGESCHLOSSEN ✅**
+
+JAB-PDF hat jetzt 3 Seiten: (1) Anschreiben, (2) Einzelabrechnung mit 12-Monats-Matrix `jab_monats_matrix`, (3) Vermögensbericht (Kontensalden + offene Forderungen). Daten kommen aus `payment_demands` (Soll/Monat), `journal_entries` Konto 1400 (Ist/Monat), `financial_statements` (Salden) und `payment_demands` (Forderungen).
+
+**Aktionen für Niko:**
+- Migration `scripts/migration_jab_template_v2.sql` in Supabase ausführen (UPDATE des bestehenden JAB-Templates, kein INSERT). **Niko: Erledigt**
+
+**6.15-F ETV-Kopplung & Kombi-PDF — ABGESCHLOSSEN ✅**
+
+Kombi-PDF (Einladung + TOPs + WP/JAB pro Eigentümer) war bereits implementiert. Neu: Status-Trigger `draft→released` bei Einladungsgenerierung. Confirm-Dialog warnt vor Freigabe. Button zeigt Fortschritt.
+
+**Keine Migration nötig** — reine Code-Änderung.
+
+**Nächster Schritt:** 6.15-G (Beschluss-Aktivierung: Hausgeld-Update + Sollstellungen für Spitzen). Niko gibt grünes Licht.
+
+**6.15-G Beschluss-Aktivierung — ABGESCHLOSSEN ✅**
+
+Button "Beschlüsse aktivieren" in JAB Step 6. 3 Aktionen:
+1. Sollstellungen für Abrechnungsspitzen (Nachzahlung/Guthaben) mit 14-Tage-Frist
+2. Hausgeld-Update aus WP des Folgejahres (nur bei Änderung)
+3. Historisierung in `hausgeld_history`
+
+**Aktionen für Niko:**
+- Migration `scripts/migration_hausgeld_history.sql` in Supabase ausführen. **Niko: Erledigt**
+
+**Phase 6.15 ist damit KOMPLETT (A–G alle ✅).**
+
+**Hinweis für Gemini:** Die ursprüngliche Planung hatte 6.15-F als "WP-PDF Header" und 6.15-G als "Beschluss-Aktivierung". Gemini hat 6.15-F als ETV-Kopplung umdefiniert — das ist jetzt erledigt. Falls der WP-PDF Header (Hausgeld+Rücklage getrennt) noch gewünscht ist, kann das als separater Punkt nachgezogen werden.
 
 ---

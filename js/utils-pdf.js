@@ -21,6 +21,9 @@ function _pdfDownload(bytes, filename) {
 
 async function _pdfSplitAndUpload(combinedBytes, pageRanges, buildingId, fiscalYear, docType) {
     const { PDFDocument } = PDFLib;
+    const label = docType === 'wp' ? 'Wirtschaftsplan' : 'Jahresabrechnung';
+    const labelPlural = docType === 'wp' ? 'Wirtschaftspläne' : 'Jahresabrechnungen';
+    const category = docType === 'wp' ? 'Wirtschaftsplan' : 'Jahresabrechnung';
     let uploaded = 0;
     for (const range of pageRanges) {
         try {
@@ -33,11 +36,39 @@ async function _pdfSplitAndUpload(combinedBytes, pageRanges, buildingId, fiscalY
             const bytes = await indivDoc.save();
             const path  = `etv-staging/${buildingId}/${fiscalYear}/${docType}/${range.aptId}.pdf`;
             const { error } = await _supabase.storage.from('documents').upload(path, bytes, { contentType: 'application/pdf', upsert: true });
-            if (!error) uploaded++;
+            if (error) { console.error('Storage-Upload Fehler WE', range.aptId, error); continue; }
+            uploaded++;
+
+            // DB-Eintrag: Dokument mit status=draft + metadata für spätere Freigabe
+            const filename = `${label}_${fiscalYear}_WE${range.aptId}.pdf`;
+            const docRow = {
+                building_id:        buildingId,
+                apartment_id:       range.aptId,
+                title:              `${label} ${fiscalYear}`,
+                document_title:     `${label} ${fiscalYear}`,
+                original_filename:  filename,
+                generated_filename: filename,
+                file_path:          path,
+                file_type:          'application/pdf',
+                file_size:          bytes.byteLength,
+                category:           category,
+                year:               fiscalYear,
+                visibility_scope:   'unit',
+                status:             'draft',
+                metadata:           { doc_type: docType, fiscal_year: fiscalYear, unit_id: range.aptId },
+                uploaded_by:        (typeof currentUser !== 'undefined' && currentUser?.id) || null,
+                updated_at:         new Date().toISOString(),
+            };
+            // Vorhandenes Dokument mit gleichem Pfad aktualisieren oder neu anlegen
+            const { data: existing } = await _supabase.from('documents').select('id').eq('file_path', path).maybeSingle();
+            if (existing) {
+                await _supabase.from('documents').update(docRow).eq('id', existing.id);
+            } else {
+                await _supabase.from('documents').insert(docRow);
+            }
         } catch(e) { console.error('ETV-Upload Fehler WE', range.aptId, e); }
     }
-    const label = docType === 'wp' ? 'Wirtschaftspläne' : 'Jahresabrechnungen';
-    showToast(`${uploaded} von ${pageRanges.length} ${label} für ETV gespeichert.`, uploaded === pageRanges.length ? 'success' : 'warning');
+    showToast(`${uploaded} von ${pageRanges.length} ${labelPlural} als Entwurf gespeichert.`, uploaded === pageRanges.length ? 'success' : 'warning');
 }
 
 // Erstellt ein neues PDFDocument mit dem hochgeladenen Briefbogen als Hintergrund.
@@ -459,6 +490,121 @@ const PDF_PREVIEW_DUMMY_DATA = {
             ],
         },
     },
+    einzelwirtschaftsplan: {
+        placeholders: {
+            plan_jahr: '2026',
+            einheit_nummer: 'WE-01',
+            eigentuemer_name: 'Hans Mustermann',
+            eigentuemer_adresse: 'Beispielweg 5, 12345 Berlin',
+            hausgeld_monat: '285,00 €',
+            hausgeld_jahr: '3.420,00 €',
+            weg_name: 'WEG Musterstraße 12',
+            objekt_adresse: 'Musterstraße 12, 88045 Friedrichshafen',
+            planzeitraum: '01.01.2026 – 31.12.2026',
+            verwalter_firma: 'HausBlick Verwaltungs GmbH',
+            verwalter_adresse: 'Verwaltungsweg 1, 88045 Friedrichshafen',
+            verwalter_steuernr: 'St.-Nr. 12/345/67890',
+            mea: '85,50',
+            flaeche: '72,5 m²',
+            datum: '02.04.2026',
+            gesamt_hausgeld_jahr: '36.000,00 €',
+            gesamt_hausgeld_monat: '3.000,00 €',
+        },
+        tables: {
+            hausgeld_summary: [
+                { label: 'Jahres-Hausgeld', gesamt: 36000.00, anteil: 3420.00 },
+                { label: 'Monatliches Hausgeld', gesamt: 3000.00, anteil: 285.00 },
+            ],
+            umlageschluessel: [
+                { nr: '1', name: 'MEA (Miteigentumsanteile)', typ: 'MEA', zeitraum: '01.01.–31.12.2026', tage: '365', gesamt: '1.000,0000', anteil: '85,5000' },
+                { nr: '2', name: 'Wohnfläche (m²)', typ: 'Fläche (m²)', zeitraum: '01.01.–31.12.2026', tage: '365', gesamt: '850,00', anteil: '72,50' },
+                { nr: '3', name: 'Einheiten', typ: 'Einheiten', zeitraum: '01.01.–31.12.2026', tage: '365', gesamt: '12,00', anteil: '1,00' },
+            ],
+            verteilung: [
+                { konto: '4100', bezeichnung: 'Allgemeinstrom', schluessel: 'MEA', gesamt: 2400.00, anteil: 205.20 },
+                { konto: '4110', bezeichnung: 'Wasser / Abwasser', schluessel: 'Wohnfläche (m²)', gesamt: 3600.00, anteil: 306.88 },
+                { konto: '4120', bezeichnung: 'Müllabfuhr', schluessel: 'Einheiten', gesamt: 1800.00, anteil: 150.00 },
+                { konto: '4130', bezeichnung: 'Gebäudeversicherung', schluessel: 'MEA', gesamt: 4200.00, anteil: 359.10 },
+                { konto: '4200', bezeichnung: 'Erhaltungsrücklage', schluessel: 'MEA', gesamt: 24000.00, anteil: 2052.00 },
+                { konto: '', bezeichnung: 'Gesamt Jahres-Hausgeld', schluessel: '', gesamt: 36000.00, anteil: 3420.00 },
+            ],
+        },
+    },
+    jahresabrechnung: {
+        placeholders: {
+            abrechnungs_jahr: '2025',
+            abrechnungs_zeitraum: '01.01.2025 – 31.12.2025',
+            einheit_nummer: 'WE-01',
+            eigentuemer_name: 'Hans Mustermann',
+            eigentuemer_adresse: 'Beispielweg 5, 12345 Berlin',
+            anrede: 'Sehr geehrter Herr Mustermann,',
+            weg_name: 'WEG Musterstraße 12',
+            objekt_adresse: 'Musterstraße 12, 88045 Friedrichshafen',
+            verwalter_firma: 'HausBlick Verwaltungs GmbH',
+            verwalter_adresse: 'Verwaltungsweg 1, 88045 Friedrichshafen',
+            mea: '85,50',
+            flaeche: '72,5 m²',
+            datum: '02.04.2026',
+            firma: 'HausBlick Verwaltungs GmbH',
+            geschaeftsfuehrer: 'Max Mustermann',
+            empfaenger_name: 'Hans Mustermann',
+            empfaenger_strasse: 'Beispielweg 5',
+            empfaenger_plz_ort: '12345 Berlin',
+            ist_kosten_anteil: '3.180,50 €',
+            voraus_zahlungen: '3.420,00 €',
+            abrechnungs_saldo: '239,50 €',
+            saldo_label: 'Guthaben',
+            saldo_info: 'Aus der Abrechnung ergibt sich ein Guthaben zu Ihren Gunsten.',
+            bgh_hinweis: 'Zur Beschlussfassung steht ausschließlich die Abrechnungsspitze. Etwaige Zahlungsrückstände basieren auf dem Wirtschaftsplan des Vorjahres. Der Abrechnungssaldo dient lediglich der Information. (BGH-Urteil v. 09.03.2012 V ZR 147/11)',
+        },
+        tables: {
+            abrechnungsergebnis: [
+                { label: 'Gesamtkosten', gesamt: 33500.00, anteil: 3180.50 },
+                { label: '– HG-Vorschuss Soll', gesamt: 36000.00, anteil: 3420.00 },
+                { label: '= Abrechnungsspitze (Überdeckung)', gesamt: -2500.00, anteil: -239.50 },
+                { label: 'HG-Vorschuss Soll', gesamt: 36000.00, anteil: 3420.00 },
+                { label: '– HG-Vorschuss Ist', gesamt: 36000.00, anteil: 3420.00 },
+                { label: '= Zahlungsdifferenz (Planerfüllung)', gesamt: 0.00, anteil: 0.00 },
+                { label: 'Abrechnungssaldo: Guthaben', gesamt: '', anteil: 239.50 },
+            ],
+            jab_monats_matrix: [
+                { monat: 'Jan 2025', soll: 285.00, ist: 285.00, differenz: 0.00 },
+                { monat: 'Feb 2025', soll: 285.00, ist: 285.00, differenz: 0.00 },
+                { monat: 'Mär 2025', soll: 285.00, ist: 285.00, differenz: 0.00 },
+                { monat: 'Apr 2025', soll: 285.00, ist: 285.00, differenz: 0.00 },
+                { monat: 'Mai 2025', soll: 285.00, ist: 285.00, differenz: 0.00 },
+                { monat: 'Jun 2025', soll: 285.00, ist: 285.00, differenz: 0.00 },
+                { monat: 'Jul 2025', soll: 285.00, ist: 285.00, differenz: 0.00 },
+                { monat: 'Aug 2025', soll: 285.00, ist: 0.00, differenz: -285.00 },
+                { monat: 'Sep 2025', soll: 285.00, ist: 285.00, differenz: 0.00 },
+                { monat: 'Okt 2025', soll: 285.00, ist: 285.00, differenz: 0.00 },
+                { monat: 'Nov 2025', soll: 285.00, ist: 570.00, differenz: 285.00 },
+                { monat: 'Dez 2025', soll: 285.00, ist: 285.00, differenz: 0.00 },
+                { monat: 'Gesamt', soll: 3420.00, ist: 3420.00, differenz: 0.00 },
+            ],
+            umlageschluessel: [
+                { nr: '1', name: 'MEA (Miteigentumsanteile)', typ: 'MEA', zeitraum: '01.01.–31.12.2025', tage: '365', gesamt: '1.000,0000', anteil: '85,5000' },
+                { nr: '2', name: 'Wohnfläche (m²)', typ: 'Fläche (m²)', zeitraum: '01.01.–31.12.2025', tage: '365', gesamt: '850,00', anteil: '72,50' },
+            ],
+            verteilung: [
+                { konto: '4100', bezeichnung: 'Allgemeinstrom', schluessel: 'MEA', gesamt: 2280.00, anteil: 194.94 },
+                { konto: '4110', bezeichnung: 'Wasser / Abwasser', schluessel: 'Wohnfläche (m²)', gesamt: 3450.00, anteil: 294.18 },
+                { konto: '4120', bezeichnung: 'Müllabfuhr', schluessel: 'Einheiten', gesamt: 1740.00, anteil: 145.00 },
+                { konto: '4130', bezeichnung: 'Gebäudeversicherung', schluessel: 'MEA', gesamt: 4080.00, anteil: 348.84 },
+                { konto: '4200', bezeichnung: 'Erhaltungsrücklage', schluessel: 'MEA', gesamt: 21950.00, anteil: 1876.73 },
+                { konto: '', bezeichnung: 'Gesamt Ist-Kosten', schluessel: '', gesamt: 33500.00, anteil: 3180.50 },
+            ],
+            vermoegen_konten: [
+                { konto: '1200', bezeichnung: 'Hausgeldkonto (Sparkasse)', saldo: 12450.80, status: 'Geprüft ✓' },
+                { konto: '1210', bezeichnung: 'Rücklagenkonto (Tagesgeld)', saldo: 45000.00, status: 'Geprüft ✓' },
+            ],
+            vermoegen_forderungen: [
+                { einheit: 'WE-03', eigentuemer: 'Fritz Beispiel', betrag: 570.00, typ: 'Hausgeldrückstand' },
+                { einheit: 'WE-07', eigentuemer: 'Anna Test', betrag: 285.00, typ: 'Hausgeldrückstand' },
+                { einheit: '', eigentuemer: 'Gesamt offene Forderungen', betrag: 855.00, typ: '' },
+            ],
+        },
+    },
 };
 
 // ─── Verfügbare Platzhalter pro Template-Typ ─────────────────
@@ -475,6 +621,51 @@ const PDF_TEMPLATE_VARIABLES = {
         { key: 'empfaenger_strasse', label: 'Empfänger Straße' },
         { key: 'empfaenger_plz_ort', label: 'Empfänger PLZ Ort' },
     ],
+    einzelwirtschaftsplan: [
+        { key: 'plan_jahr', label: 'Planjahr (z.B. 2026)' },
+        { key: 'einheit_nummer', label: 'Einheitennummer (z.B. WE-01)' },
+        { key: 'eigentuemer_name', label: 'Eigentümer Name' },
+        { key: 'eigentuemer_adresse', label: 'Eigentümer Adresse' },
+        { key: 'hausgeld_monat', label: 'Monatliches Hausgeld (Anteil)' },
+        { key: 'hausgeld_jahr', label: 'Jahres-Hausgeld (Anteil)' },
+        { key: 'weg_name', label: 'WEG-Name' },
+        { key: 'objekt_adresse', label: 'Objekt-Adresse' },
+        { key: 'planzeitraum', label: 'Planzeitraum' },
+        { key: 'verwalter_firma', label: 'Verwalter Firma' },
+        { key: 'verwalter_adresse', label: 'Verwalter Adresse' },
+        { key: 'verwalter_steuernr', label: 'Verwalter Steuernummer' },
+        { key: 'mea', label: 'MEA der Einheit' },
+        { key: 'flaeche', label: 'Fläche der Einheit' },
+        { key: 'datum', label: 'Erstellungsdatum' },
+        { key: 'gesamt_hausgeld_jahr', label: 'Gesamtes Jahres-Hausgeld (Objekt)' },
+        { key: 'gesamt_hausgeld_monat', label: 'Gesamtes Monats-Hausgeld (Objekt)' },
+    ],
+    jahresabrechnung: [
+        { key: 'abrechnungs_jahr', label: 'Abrechnungsjahr (z.B. 2025)' },
+        { key: 'abrechnungs_zeitraum', label: 'Abrechnungszeitraum' },
+        { key: 'einheit_nummer', label: 'Einheitennummer (z.B. WE-01)' },
+        { key: 'eigentuemer_name', label: 'Eigentümer Name' },
+        { key: 'eigentuemer_adresse', label: 'Eigentümer Adresse' },
+        { key: 'anrede', label: 'Anrede (Sehr geehrte/r...)' },
+        { key: 'weg_name', label: 'WEG-Name' },
+        { key: 'objekt_adresse', label: 'Objekt-Adresse' },
+        { key: 'verwalter_firma', label: 'Verwalter Firma' },
+        { key: 'verwalter_adresse', label: 'Verwalter Adresse' },
+        { key: 'mea', label: 'MEA der Einheit' },
+        { key: 'flaeche', label: 'Fläche der Einheit' },
+        { key: 'datum', label: 'Erstellungsdatum' },
+        { key: 'firma', label: 'Firmenname' },
+        { key: 'geschaeftsfuehrer', label: 'Geschäftsführer' },
+        { key: 'empfaenger_name', label: 'Empfänger Name' },
+        { key: 'empfaenger_strasse', label: 'Empfänger Straße' },
+        { key: 'empfaenger_plz_ort', label: 'Empfänger PLZ Ort' },
+        { key: 'ist_kosten_anteil', label: 'Ist-Kosten Anteil (formatiert)' },
+        { key: 'voraus_zahlungen', label: 'Voraus-Zahlungen (formatiert)' },
+        { key: 'abrechnungs_saldo', label: 'Abrechnungssaldo (formatiert, absolut)' },
+        { key: 'saldo_label', label: 'Saldo-Label (Guthaben/Nachzahlung/Ausgeglichen)' },
+        { key: 'saldo_info', label: 'Saldo-Info-Satz (ergibt sich ein...)' },
+        { key: 'bgh_hinweis', label: 'BGH-Hinweis (rechtlicher Hinweis)' },
+    ],
 };
 
 // ─── Verfügbare Tabellen-Quellen pro Template-Typ ────────────
@@ -482,6 +673,19 @@ const PDF_TEMPLATE_TABLES = {
     mahnung: [
         { key: 'offene_posten', label: 'Offene Posten', columns: ['bezeichnung', 'faelligkeit', 'betrag'] },
         { key: 'zusammenfassung', label: 'Zusammenfassung (Gebühren + Gesamtbetrag)', columns: ['label', 'betrag'] },
+    ],
+    einzelwirtschaftsplan: [
+        { key: 'hausgeld_summary', label: 'Hausgeld-Übersicht (Jahres-/Monatshausgeld)', columns: ['label', 'gesamt', 'anteil'] },
+        { key: 'umlageschluessel', label: 'Umlageschlüssel (Verteilerschlüssel je Einheit)', columns: ['nr', 'name', 'typ', 'zeitraum', 'tage', 'gesamt', 'anteil'] },
+        { key: 'verteilung', label: 'Verteilungsergebnis (Kostenpositionen + Gesamt)', columns: ['konto', 'bezeichnung', 'schluessel', 'gesamt', 'anteil'] },
+    ],
+    jahresabrechnung: [
+        { key: 'abrechnungsergebnis', label: 'Abrechnungsergebnis (Soll/Ist/Saldo)', columns: ['label', 'gesamt', 'anteil'] },
+        { key: 'jab_monats_matrix', label: 'Hausgeld-Monatsübersicht (12 Monate Soll/Ist/Differenz)', columns: ['monat', 'soll', 'ist', 'differenz'] },
+        { key: 'umlageschluessel', label: 'Umlageschlüssel (Verteilerschlüssel je Einheit)', columns: ['nr', 'name', 'typ', 'zeitraum', 'tage', 'gesamt', 'anteil'] },
+        { key: 'verteilung', label: 'Verteilungsergebnis (Ist-Kosten + Gesamt)', columns: ['konto', 'bezeichnung', 'schluessel', 'gesamt', 'anteil'] },
+        { key: 'vermoegen_konten', label: 'Vermögensbericht: Kontensalden (Bank & Rücklage)', columns: ['konto', 'bezeichnung', 'saldo', 'status'] },
+        { key: 'vermoegen_forderungen', label: 'Vermögensbericht: Offene Forderungen', columns: ['einheit', 'eigentuemer', 'betrag', 'typ'] },
     ],
 };
 
@@ -937,13 +1141,14 @@ async function generateEinzelwirtschaftsplanPDF(planId, saveForETV = false) {
     if (!plan) { showToast('Wirtschaftsplan nicht gefunden.', 'error'); return; }
 
     const bid = plan.building_id;
-    const [itemsRes, aptsRes, accsRes, dkRes, dkuRes, ownRes] = await Promise.all([
+    const [itemsRes, aptsRes, accsRes, dkRes, dkuRes, ownRes, wpTemplate] = await Promise.all([
         _supabase.from('budget_plan_items').select('*, account:accounts(id, account_number, account_name, account_type, is_allocatable, primary_key_id, secondary_key_id, secondary_key_percentage)').eq('budget_plan_id', planId).order('account_id'),
         _supabase.from('apartments').select('id, apartment_number, floor, sq_meters, mea, hausgeld').eq('building_id', bid).order('apartment_number'),
         _supabase.from('accounts').select('id, account_number, account_name, account_type, is_allocatable, primary_key_id, secondary_key_id, secondary_key_percentage').eq('building_id', bid).eq('is_active', true),
         _supabase.from('distribution_keys').select('id, name, type, total_value, heiz_split_percent').eq('building_id', bid),
         _supabase.from('distribution_key_units').select('distribution_key_id, apartment_id, value'),
         _supabase.from('ownerships').select('apartment_id, owner:persons!ownerships_owner_id_fkey(first_name, last_name, street, house_number, zip_code, city)').eq('is_active', true),
+        _pdfLoadTemplate('einzelwirtschaftsplan'),
     ]);
 
     const planItems = itemsRes.data || [];
@@ -978,6 +1183,219 @@ async function generateEinzelwirtschaftsplanPDF(planId, saveForETV = false) {
         }
     });
 
+    // ─── Template-Pfad (bevorzugt) ───────────────────────────
+    if (wpTemplate && Array.isArray(wpTemplate.content) && wpTemplate.content.length) {
+        const { PDFDocument, rgb } = PDFLib;
+        const pdfDoc = await PDFDocument.create();
+        pdfDoc.registerFontkit(fontkit);
+
+        let fonts;
+        try {
+            fonts = await _pdfLoadInterFonts(pdfDoc);
+        } catch (e) {
+            console.error('Inter font load error:', e);
+            showToast('Inter-Schriftart konnte nicht geladen werden: ' + e.message, 'error'); return;
+        }
+
+        // Letterhead als templateDoc für Seitenerstellung
+        let templateDoc = null;
+        const useLetterhead = wpTemplate.use_letterhead !== false;
+        if (useLetterhead && settings.letterhead_pdf_url) {
+            try {
+                const { data: sd } = await _supabase.storage.from('documents').createSignedUrl(settings.letterhead_pdf_url, 120);
+                if (sd?.signedUrl) {
+                    const resp = await fetch(sd.signedUrl);
+                    if (resp.ok) templateDoc = await PDFDocument.load(await resp.arrayBuffer());
+                }
+            } catch (_) { /* fallback: ohne Briefbogen */ }
+            if (!templateDoc) {
+                showToast('Briefbogen konnte nicht geladen werden.', 'error'); return;
+            }
+        }
+
+        // Shared helpers + strings
+        const bldName = plan.building ? formatBuildingName(plan.building) : '—';
+        const bldAddr = plan.building ? `${plan.building.street || ''} ${plan.building.house_number || ''}`.trim() : '';
+        const bldZipCity = plan.building ? `${plan.building.zip_code || ''} ${plan.building.city || ''}`.trim() : '';
+        const bldFullAddr = [bldAddr, bldZipCity].filter(Boolean).join(', ');
+        const planZeitraum = `01.01.${plan.fiscal_year} – 31.12.${plan.fiscal_year}`;
+        const dkZeitraum = `01.01.–31.12.${plan.fiscal_year}`;
+        const dateStr = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const _typeLabels = { mea: 'MEA', sqm: 'Fläche (m²)', units: 'Einheiten', consumption: 'Verbrauch', persons: 'Personen', heizkosten: 'HeizKV', custom: 'Individuell' };
+
+        function _fmtEur(v) {
+            const r = Math.round((Number(v || 0) + Number.EPSILON) * 100) / 100;
+            return r.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+        }
+        function _fmtVal(v) {
+            return Number(v || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+        }
+
+        // calcShare: Anteil einer WP-Position für eine Einheit
+        function _calcShare(item, aptId) {
+            const acc = item.account || accounts.find(a => a.id === item.account_id);
+            if (!acc) return { share: 0, keyName: '—' };
+            const pkId = acc.primary_key_id;
+            const skId = acc.secondary_key_id;
+            const skPct = acc.secondary_key_percentage;
+            const planned = Number(item.planned_amount || 0);
+            if (!pkId || !dkMap[pkId]) return { share: 0, keyName: '—' };
+            const pk = dkMap[pkId];
+            const pkTotal = Number(pk.total_value) || 0;
+            const pkVal = (dkUnitMap[pkId] && dkUnitMap[pkId][aptId]) || 0;
+            let keyName = pk.name;
+            if (pkTotal === 0) return { share: 0, keyName };
+            if (skId && skPct && dkMap[skId]) {
+                const sk = dkMap[skId];
+                const skTotal = Number(sk.total_value) || 0;
+                const skVal = (dkUnitMap[skId] && dkUnitMap[skId][aptId]) || 0;
+                const primaryShare = planned * (1 - skPct / 100) * (pkVal / pkTotal);
+                const secondaryShare = skTotal > 0 ? planned * (skPct / 100) * (skVal / skTotal) : 0;
+                keyName = `${pk.name}/${sk.name}`;
+                return { share: primaryShare + secondaryShare, keyName };
+            }
+            return { share: planned * (pkVal / pkTotal), keyName };
+        }
+
+        // Verwendete Verteilerschlüssel sammeln
+        function _collectUsedKeys(aptId) {
+            const seen = new Set();
+            const result = [];
+            for (const item of planItems) {
+                const acc = item.account || accounts.find(a => a.id === item.account_id);
+                if (!acc || !acc.primary_key_id || !dkMap[acc.primary_key_id]) continue;
+                const pk = dkMap[acc.primary_key_id];
+                if (seen.has(pk.id)) continue;
+                seen.add(pk.id);
+                const pkTotal = Number(pk.total_value) || 0;
+                const pkVal = (dkUnitMap[pk.id] && dkUnitMap[pk.id][aptId]) || 0;
+                result.push({ nr: result.length + 1, key: pk, unitVal: pkVal, total: pkTotal });
+                if (acc.secondary_key_id && dkMap[acc.secondary_key_id]) {
+                    const sk = dkMap[acc.secondary_key_id];
+                    if (!seen.has(sk.id)) {
+                        seen.add(sk.id);
+                        const skTotal = Number(sk.total_value) || 0;
+                        const skVal = (dkUnitMap[sk.id] && dkUnitMap[sk.id][aptId]) || 0;
+                        result.push({ nr: result.length + 1, key: sk, unitVal: skVal, total: skTotal });
+                    }
+                }
+            }
+            return result;
+        }
+
+        // ── Seiten je Einheit generieren ─────────────────────
+        const aptPageRanges = [];
+        for (const apt of apts) {
+            const aptPageStart = pdfDoc.getPageCount();
+            const owner = ownerMap[apt.id] || {};
+            const ownerName = owner.name || 'Eigentümergemeinschaft (Leerstand)';
+
+            // Erste Seite erstellen
+            let firstPage;
+            if (templateDoc) {
+                const [copied] = await pdfDoc.copyPages(templateDoc, [0]);
+                firstPage = pdfDoc.addPage(copied);
+            } else {
+                firstPage = pdfDoc.addPage([595.28, 841.89]);
+            }
+            const pgH = firstPage.getSize().height;
+
+            // Hausgeld-Summen berechnen
+            let totalPlanned = 0, totalShare = 0;
+            for (const item of planItems) {
+                totalPlanned += Number(item.planned_amount || 0);
+                totalShare += _calcShare(item, apt.id).share;
+            }
+
+            // Platzhalter-Daten
+            const data = {
+                plan_jahr: String(plan.fiscal_year),
+                einheit_nummer: apt.apartment_number || '–',
+                eigentuemer_name: ownerName,
+                eigentuemer_adresse: [owner.street, [owner.zip_code, owner.city].filter(Boolean).join(' ')].filter(Boolean).join(', '),
+                hausgeld_monat: _fmtEur(totalShare / 12),
+                hausgeld_jahr: _fmtEur(totalShare),
+                weg_name: bldName,
+                objekt_adresse: bldFullAddr || bldName,
+                planzeitraum: planZeitraum,
+                verwalter_firma: settings.company_name || '',
+                verwalter_adresse: [settings.street, settings.zip_city].filter(Boolean).join(', '),
+                verwalter_steuernr: settings.tax_number ? 'St.-Nr. ' + settings.tax_number : '',
+                mea: apt.mea || '—',
+                flaeche: apt.sq_meters ? apt.sq_meters + ' m²' : '—',
+                datum: dateStr,
+                gesamt_hausgeld_jahr: _fmtEur(totalPlanned),
+                gesamt_hausgeld_monat: _fmtEur(totalPlanned / 12),
+            };
+
+            // Tabellen-Daten: Hausgeld-Summary
+            const hausgeldSummary = [
+                { label: 'Jahres-Hausgeld', gesamt: totalPlanned, anteil: totalShare },
+                { label: 'Monatliches Hausgeld', gesamt: totalPlanned / 12, anteil: totalShare / 12 },
+            ];
+
+            // Tabellen-Daten: Umlageschlüssel
+            const usedKeys = _collectUsedKeys(apt.id);
+            const umlageschluessel = usedKeys.map(uk => ({
+                nr: String(uk.nr),
+                name: uk.key.name,
+                typ: _typeLabels[uk.key.type] || uk.key.type,
+                zeitraum: dkZeitraum,
+                tage: '365',
+                gesamt: _fmtVal(uk.total),
+                anteil: _fmtVal(uk.unitVal),
+            }));
+
+            // Tabellen-Daten: Verteilung (flach mit Grand-Total als letzte Zeile)
+            const verteilung = [];
+            let grandTotalP = 0, grandTotalS = 0;
+            for (const item of planItems) {
+                const { share, keyName } = _calcShare(item, apt.id);
+                const planned = Number(item.planned_amount || 0);
+                grandTotalP += planned;
+                grandTotalS += share;
+                verteilung.push({
+                    konto: item.account?.account_number || '–',
+                    bezeichnung: item.account?.account_name || '–',
+                    schluessel: keyName,
+                    gesamt: planned,
+                    anteil: share,
+                });
+            }
+            verteilung.push({
+                konto: '',
+                bezeichnung: 'Gesamt Jahres-Hausgeld',
+                schluessel: '',
+                gesamt: grandTotalP,
+                anteil: grandTotalS,
+            });
+
+            const tables = {
+                hausgeld_summary: hausgeldSummary,
+                umlageschluessel: umlageschluessel,
+                verteilung: verteilung,
+            };
+
+            await generateFromTemplate(wpTemplate.content, data, tables, {
+                pdfDoc, page: firstPage, fonts, settings, templateDoc,
+                startY: pgH - 100,
+            });
+
+            aptPageRanges.push({ aptId: apt.id, start: aptPageStart, end: pdfDoc.getPageCount() - 1 });
+        }
+
+        const pdfBytes = await pdfDoc.save();
+        if (saveForETV) {
+            await _pdfSplitAndUpload(pdfBytes, aptPageRanges, plan.building_id, plan.fiscal_year, 'wp');
+        } else {
+            const filename = `Einzelwirtschaftsplaene_${plan.fiscal_year}_${bldName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+            _pdfDownload(pdfBytes, filename);
+            showToast(`${apts.length} Einzelwirtschaftspläne als PDF heruntergeladen.`);
+        }
+        return;
+    }
+
+    // ─── Legacy-Fallback (hardcoded Layout) ──────────────────
     // Load letterhead template
     const { PDFDocument, rgb } = PDFLib;
     if (!settings.letterhead_pdf_url) {
@@ -1566,13 +1984,14 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData, save
     const fy  = fiscalYear;
 
     // Load building, apartments, accounts, distribution keys, ownerships
-    const [bldRes, aptsRes, accsRes, dkRes, dkuRes, ownRes] = await Promise.all([
+    const [bldRes, aptsRes, accsRes, dkRes, dkuRes, ownRes, jabTemplate] = await Promise.all([
         _supabase.from('buildings').select('id, name, file_number, street, house_number, zip_code, city').eq('id', bid).single(),
         _supabase.from('apartments').select('id, apartment_number, floor, sq_meters, mea, hausgeld').eq('building_id', bid).order('apartment_number'),
         _supabase.from('accounts').select('id, account_number, account_name, account_type, is_allocatable, primary_key_id, secondary_key_id, secondary_key_percentage').eq('building_id', bid).eq('is_active', true),
         _supabase.from('distribution_keys').select('id, name, type, total_value, heiz_split_percent').eq('building_id', bid),
         _supabase.from('distribution_key_units').select('distribution_key_id, apartment_id, value'),
         _supabase.from('ownerships').select('apartment_id, owner:persons!ownerships_owner_id_fkey(first_name, last_name, salutation, street, house_number, zip_code, city)').eq('is_active', true),
+        _pdfLoadTemplate('jahresabrechnung'),
     ]);
 
     var bld       = bldRes.data;
@@ -1650,6 +2069,378 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData, save
     // sollIst from jabData for Soll-Ist-Abgleich per apartment
     var sollIst = jabData.sollIst || [];
 
+    // ─── Template-Pfad (bevorzugt) ───────────────────────────
+    if (jabTemplate && Array.isArray(jabTemplate.content) && jabTemplate.content.length) {
+        var PDFDocument = PDFLib.PDFDocument;
+        var rgb = PDFLib.rgb;
+        var pdfDoc = await PDFDocument.create();
+        pdfDoc.registerFontkit(fontkit);
+
+        var fonts;
+        try {
+            fonts = await _pdfLoadInterFonts(pdfDoc);
+        } catch (e) {
+            console.error('Inter font load error:', e);
+            showToast('Inter-Schriftart konnte nicht geladen werden: ' + e.message, 'error'); return;
+        }
+
+        // Letterhead als templateDoc für Seitenerstellung
+        var templateDoc = null;
+        var useLetterhead = jabTemplate.use_letterhead !== false;
+        if (useLetterhead && settings.letterhead_pdf_url) {
+            try {
+                var sdRes = await _supabase.storage.from('documents').createSignedUrl(settings.letterhead_pdf_url, 120);
+                if (sdRes.data?.signedUrl) {
+                    var resp = await fetch(sdRes.data.signedUrl);
+                    if (resp.ok) templateDoc = await PDFDocument.load(await resp.arrayBuffer());
+                }
+            } catch (_) { /* fallback: ohne Briefbogen */ }
+            if (!templateDoc) {
+                showToast('Briefbogen konnte nicht geladen werden.', 'error'); return;
+            }
+        }
+
+        // Shared strings
+        var bldName = formatBuildingName(bld);
+        var bldAddr = (bld.street || '') + ' ' + (bld.house_number || '');
+        var bldZipCity = (bld.zip_code || '') + ' ' + (bld.city || '');
+        var bldFullAddr = [bldAddr.trim(), bldZipCity.trim()].filter(Boolean).join(', ');
+        var dateStr = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        var zeitraum = '01.01.' + fy + ' – 31.12.' + fy;
+        var dkZeitraum = '01.01.–31.12.' + fy;
+        var _typeLabels = { mea: 'MEA', sqm: 'Fläche (m²)', units: 'Einheiten', consumption: 'Verbrauch', persons: 'Personen', heizkosten: 'HeizKV', custom: 'Individuell' };
+        var bghText = 'Zur Beschlussfassung steht ausschließlich die Abrechnungsspitze. Etwaige Zahlungsrückstände basieren auf dem Wirtschaftsplan des Vorjahres. Der Abrechnungssaldo dient lediglich der Information. (BGH-Urteil v. 09.03.2012 V ZR 147/11)';
+        var monatNamen = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+
+        // Monats-Daten laden: Soll (payment_demands) + Ist (Journal Konto 1200←1400)
+        var { data: monthlyDemands } = await _supabase.from('payment_demands')
+            .select('apartment_id, amount, due_date, status')
+            .eq('building_id', bid).eq('fiscal_year', fy).eq('demand_type', 'hausgeld');
+        var { data: monthlyPayments } = await _supabase.from('journal_entries')
+            .select('apartment_id, amount, entry_date, credit_account_id')
+            .eq('building_id', bid).eq('fiscal_year', fy)
+            .in('entry_type', ['manual', 'sollstellung']);
+
+        // Lookup: Konto 1400 (Forderungen HG) → Zahlungen sind Credits auf 1400
+        var acc1400Id = (accounts.find(function(a) { return a.account_number === '1400'; }) || {}).id;
+
+        // Monats-Matrix pro Einheit aufbauen
+        function _buildMonatsMatrix(aptId) {
+            var rows = [];
+            var sollTotal = 0, istTotal = 0;
+            for (var m = 0; m < 12; m++) {
+                var monthStr = String(m + 1).padStart(2, '0');
+                var monthStart = fy + '-' + monthStr + '-01';
+                var monthEnd = fy + '-' + monthStr + '-31';
+                // Soll: payment_demands für diesen Monat
+                var sollMonth = (monthlyDemands || []).filter(function(d) {
+                    return d.apartment_id == aptId && d.due_date >= monthStart && d.due_date <= monthEnd;
+                }).reduce(function(s, d) { return s + Number(d.amount); }, 0);
+                // Ist: Zahlungen (Credits auf Konto 1400 mit apartment_id)
+                var istMonth = acc1400Id ? (monthlyPayments || []).filter(function(e) {
+                    return e.apartment_id == aptId && e.credit_account_id == acc1400Id
+                        && e.entry_date >= monthStart && e.entry_date <= monthEnd;
+                }).reduce(function(s, e) { return s + Number(e.amount); }, 0) : 0;
+                sollTotal += sollMonth;
+                istTotal += istMonth;
+                rows.push({
+                    monat: monatNamen[m] + ' ' + fy,
+                    soll: sollMonth,
+                    ist: istMonth,
+                    differenz: istMonth - sollMonth,
+                });
+            }
+            rows.push({ monat: 'Gesamt', soll: sollTotal, ist: istTotal, differenz: istTotal - sollTotal });
+            return rows;
+        }
+
+        function _fmtEur(v) {
+            var r = Math.round((Number(v || 0) + Number.EPSILON) * 100) / 100;
+            return r.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+        }
+        function _fmtVal(v) {
+            return Number(v || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+        }
+
+        // calcShare für JAB: nutzt verteil_amount (nur verteilbare Buchungen)
+        function _calcShare(costItem, aptId) {
+            var acc = costItem.account;
+            if (!acc) return { share: 0, keyName: '—' };
+            var pkId = acc.primary_key_id;
+            var skId = acc.secondary_key_id;
+            var skPct = acc.secondary_key_percentage;
+            var total = Number(costItem.verteil_amount !== undefined ? costItem.verteil_amount : (costItem.ist_amount || 0));
+            if (!pkId || !dkMap[pkId]) return { share: 0, keyName: '—' };
+            var pk = dkMap[pkId];
+            var pkTotal = Number(pk.total_value) || 0;
+            var pkVal = (dkUnitMap[pkId] && dkUnitMap[pkId][aptId]) || 0;
+            var keyName = pk.name;
+            if (pkTotal === 0) return { share: 0, keyName: keyName };
+            if (skId && skPct && dkMap[skId]) {
+                var sk = dkMap[skId];
+                var skTotal = Number(sk.total_value) || 0;
+                var skVal = (dkUnitMap[skId] && dkUnitMap[skId][aptId]) || 0;
+                var primaryShare = total * (1 - skPct / 100) * (pkVal / pkTotal);
+                var secondaryShare = skTotal > 0 ? total * (skPct / 100) * (skVal / skTotal) : 0;
+                keyName = pk.name + '/' + sk.name;
+                return { share: primaryShare + secondaryShare, keyName: keyName };
+            }
+            return { share: total * (pkVal / pkTotal), keyName: keyName };
+        }
+
+        // Direktkosten für eine Einheit
+        function _getDirektShare(accId, aptId) {
+            return (direktDebitPerAcc[accId] && direktDebitPerAcc[accId][aptId]) || 0;
+        }
+
+        // Verwendete Verteilerschlüssel sammeln
+        function _collectUsedKeys(aptId) {
+            var seen = new Set();
+            var result = [];
+            for (var ci = 0; ci < costItems.length; ci++) {
+                var acc = costItems[ci].account;
+                if (!acc || !acc.primary_key_id || !dkMap[acc.primary_key_id]) continue;
+                var pk = dkMap[acc.primary_key_id];
+                if (seen.has(pk.id)) continue;
+                seen.add(pk.id);
+                var pkTotal = Number(pk.total_value) || 0;
+                var pkVal = (dkUnitMap[pk.id] && dkUnitMap[pk.id][aptId]) || 0;
+                result.push({ nr: result.length + 1, key: pk, unitVal: pkVal, total: pkTotal });
+                if (acc.secondary_key_id && dkMap[acc.secondary_key_id]) {
+                    var sk = dkMap[acc.secondary_key_id];
+                    if (!seen.has(sk.id)) {
+                        seen.add(sk.id);
+                        var skTotal = Number(sk.total_value) || 0;
+                        var skVal = (dkUnitMap[sk.id] && dkUnitMap[sk.id][aptId]) || 0;
+                        result.push({ nr: result.length + 1, key: sk, unitVal: skVal, total: skTotal });
+                    }
+                }
+            }
+            return result;
+        }
+
+        // Object-level aggregates (same for all apartments)
+        var totalCostsAll = costItems.reduce(function(s, ci) { return s + Number(ci.ist_amount); }, 0);
+        var sollAll = sollIst.reduce(function(s, r) { return s + Number(r.soll); }, 0);
+        var istAll = sollIst.reduce(function(s, r) { return s + Number(r.bezahlt); }, 0);
+        var spitzeAll = totalCostsAll - sollAll;
+        var zahlDiffAll = sollAll - istAll;
+
+        // ── Vermögensbericht-Daten laden (einmalig für alle Einheiten) ──
+        var _jabVermoegenKonten = [];
+        var _jabVermoegenFord = [];
+        try {
+            // Kontensalden aus financial_statements
+            var { data: fsData } = await _supabase.from('financial_statements')
+                .select('account_id, system_balance, statement_balance, is_validated')
+                .eq('building_id', bid).eq('fiscal_year', fy);
+            var accLookup = {};
+            accounts.forEach(function(a) { accLookup[a.id] = a; });
+            var fsTotalSaldo = 0;
+            _jabVermoegenKonten = (fsData || []).map(function(fs) {
+                var acc = accLookup[fs.account_id];
+                var saldo = Number(fs.statement_balance != null ? fs.statement_balance : fs.system_balance);
+                fsTotalSaldo += saldo;
+                return {
+                    konto: acc?.account_number || '–',
+                    bezeichnung: acc?.account_name || '–',
+                    saldo: saldo,
+                    status: fs.is_validated ? 'Geprüft' : 'Ausstehend',
+                };
+            });
+            if (_jabVermoegenKonten.length > 1) {
+                _jabVermoegenKonten.push({ konto: '', bezeichnung: 'Gesamt Vermögen (Konten)', saldo: fsTotalSaldo, status: '' });
+            }
+
+            // Offene Forderungen zum Stichtag
+            var { data: openDemands } = await _supabase.from('payment_demands')
+                .select('amount, demand_type, apartment:apartments(apartment_number), person:persons(first_name, last_name)')
+                .eq('building_id', bid).lte('due_date', fy + '-12-31').in('status', ['open', 'overdue']);
+            var fordTotal = 0;
+            _jabVermoegenFord = (openDemands || []).map(function(d) {
+                var amt = Number(d.amount);
+                fordTotal += amt;
+                return {
+                    einheit: d.apartment?.apartment_number || '–',
+                    eigentuemer: d.person ? [d.person.first_name, d.person.last_name].filter(Boolean).join(' ') : '–',
+                    betrag: amt,
+                    typ: d.demand_type === 'hausgeld' ? 'Hausgeldrückstand' : d.demand_type || '–',
+                };
+            });
+            if (_jabVermoegenFord.length) {
+                _jabVermoegenFord.push({ einheit: '', eigentuemer: 'Gesamt offene Forderungen', betrag: fordTotal, typ: '' });
+            }
+        } catch (e) { console.error('Vermögensbericht-Daten laden:', e); }
+
+        // ── Seiten je Einheit generieren ─────────────────────
+        var aptPageRangesJAB = [];
+        for (var ai = 0; ai < apts.length; ai++) {
+            var apt = apts[ai];
+            var aptPageStartJAB = pdfDoc.getPageCount();
+            var owner = ownerMap[apt.id] || {};
+            var ownerName = owner.name || 'Eigentümergemeinschaft (Leerstand)';
+
+            // Soll-Ist for this apartment
+            var aptSollIst = sollIst.find(function(r) { return r.apt_id === apt.id; }) || { soll: 0, bezahlt: 0 };
+
+            // Total costs for this unit
+            var totalCostsUnit = 0;
+            for (var ci2 = 0; ci2 < costItems.length; ci2++) {
+                totalCostsUnit += _calcShare(costItems[ci2], apt.id).share;
+                totalCostsUnit += _getDirektShare(costItems[ci2].account.id, apt.id);
+            }
+            var sollVorschuesse = Number(aptSollIst.soll) || 0;
+            var istBezahlt = Number(aptSollIst.bezahlt) || 0;
+            var spitze = totalCostsUnit - sollVorschuesse;
+            var zahlDiffUnit = sollVorschuesse - istBezahlt;
+            var saldoUnit = spitze + zahlDiffUnit;
+
+            // Labels
+            var saldoLabel = saldoUnit > 0 ? 'Nachzahlung' : saldoUnit < 0 ? 'Guthaben' : 'Ausgeglichen';
+            var spitzeLabel = spitze > 0 ? 'Unterdeck.' : spitze < 0 ? 'Überdeck.' : 'Ausgeglichen';
+            var zdLabel = zahlDiffUnit > 0 ? 'Rückstand' : zahlDiffUnit < 0 ? 'Überzahlung' : 'Planerfüllung';
+
+            var saldoInfo = '';
+            if (saldoUnit > 0) saldoInfo = 'Aus der Abrechnung ergibt sich eine Nachzahlung zu Ihren Lasten.';
+            else if (saldoUnit < 0) saldoInfo = 'Aus der Abrechnung ergibt sich ein Guthaben zu Ihren Gunsten.';
+            else saldoInfo = 'Ihre geleisteten Vorschüsse entsprechen den tatsächlichen Kosten.';
+
+            // Anrede
+            var anrede = 'Sehr geehrte Damen und Herren,';
+            if (owner.salutation && owner.lastName) {
+                var prefix = owner.salutation === 'Herr' ? 'Sehr geehrter Herr' : 'Sehr geehrte Frau';
+                anrede = prefix + ' ' + owner.lastName + ',';
+            }
+
+            // Erste Seite erstellen (Anschreiben)
+            var firstPage;
+            if (templateDoc) {
+                var copied = (await pdfDoc.copyPages(templateDoc, [0]))[0];
+                firstPage = pdfDoc.addPage(copied);
+            } else {
+                firstPage = pdfDoc.addPage([595.28, 841.89]);
+            }
+            var pgH = firstPage.getSize().height;
+
+            // DIN 5008: Absender, Empfänger, Datum
+            _pdfDrawSenderLine(firstPage, fonts.reg, settings);
+            _pdfDrawAddressField(firstPage, fonts.reg, ownerName, owner.street || '', [owner.zip_code, owner.city].filter(Boolean).join(' '));
+            _pdfDrawDate(firstPage, fonts.reg, settings);
+
+            // Platzhalter-Daten
+            var data = {
+                abrechnungs_jahr: String(fy),
+                abrechnungs_zeitraum: zeitraum,
+                einheit_nummer: apt.apartment_number || '–',
+                eigentuemer_name: ownerName,
+                eigentuemer_adresse: [owner.street, [owner.zip_code, owner.city].filter(Boolean).join(' ')].filter(Boolean).join(', '),
+                anrede: anrede,
+                weg_name: 'WEG ' + bldAddr.trim(),
+                objekt_adresse: bldFullAddr || bldName,
+                verwalter_firma: settings.company_name || '',
+                verwalter_adresse: [settings.street, settings.zip_city].filter(Boolean).join(', '),
+                mea: apt.mea || '—',
+                flaeche: apt.sq_meters ? apt.sq_meters + ' m²' : '—',
+                datum: dateStr,
+                firma: settings.company_name || '',
+                geschaeftsfuehrer: settings.ceo_name || '',
+                empfaenger_name: ownerName,
+                empfaenger_strasse: owner.street || '',
+                empfaenger_plz_ort: [owner.zip_code, owner.city].filter(Boolean).join(' '),
+                ist_kosten_anteil: _fmtEur(totalCostsUnit),
+                voraus_zahlungen: _fmtEur(sollVorschuesse),
+                abrechnungs_saldo: _fmtEur(Math.abs(saldoUnit)),
+                saldo_label: saldoLabel,
+                saldo_info: saldoInfo,
+                bgh_hinweis: bghText,
+            };
+
+            // Tabellen-Daten: Abrechnungsergebnis
+            var abrechnungsergebnis = [
+                { label: 'Gesamtkosten', gesamt: totalCostsAll, anteil: totalCostsUnit },
+                { label: '– HG-Vorschuss Soll', gesamt: sollAll, anteil: sollVorschuesse },
+                { label: '= Abrechnungsspitze (' + spitzeLabel + ')', gesamt: spitzeAll, anteil: spitze },
+                { label: 'HG-Vorschuss Soll', gesamt: sollAll, anteil: sollVorschuesse },
+                { label: '– HG-Vorschuss Ist', gesamt: istAll, anteil: istBezahlt },
+                { label: '= Zahlungsdifferenz (' + zdLabel + ')', gesamt: zahlDiffAll, anteil: zahlDiffUnit },
+                { label: 'Abrechnungssaldo: ' + saldoLabel, gesamt: '', anteil: Math.abs(saldoUnit) },
+            ];
+
+            // Tabellen-Daten: Umlageschlüssel
+            var usedKeys = _collectUsedKeys(apt.id);
+            var umlageschluessel = usedKeys.map(function(uk) {
+                return {
+                    nr: String(uk.nr),
+                    name: uk.key.name,
+                    typ: _typeLabels[uk.key.type] || uk.key.type,
+                    zeitraum: dkZeitraum,
+                    tage: '365',
+                    gesamt: _fmtVal(uk.total),
+                    anteil: _fmtVal(uk.unitVal),
+                };
+            });
+
+            // Tabellen-Daten: Verteilung (flach mit Grand-Total als letzte Zeile)
+            var verteilung = [];
+            var grandTotalIst = 0, grandTotalShare = 0;
+            for (var ci3 = 0; ci3 < costItems.length; ci3++) {
+                var item = costItems[ci3];
+                var shareRes = _calcShare(item, apt.id);
+                var totalShare = shareRes.share + _getDirektShare(item.account.id, apt.id);
+                var istAmt = Number(item.ist_amount || 0);
+                grandTotalIst += istAmt;
+                grandTotalShare += totalShare;
+                verteilung.push({
+                    konto: item.account?.account_number || '–',
+                    bezeichnung: item.account?.account_name || '–',
+                    schluessel: shareRes.keyName,
+                    gesamt: istAmt,
+                    anteil: totalShare,
+                });
+            }
+            verteilung.push({
+                konto: '',
+                bezeichnung: 'Gesamt Ist-Kosten',
+                schluessel: '',
+                gesamt: grandTotalIst,
+                anteil: grandTotalShare,
+            });
+
+            var jabMonatsMatrix = _buildMonatsMatrix(apt.id);
+
+            // Vermögensbericht-Tabellen (gleich für alle Einheiten im Gebäude)
+            var vermoegenKonten = _jabVermoegenKonten || [];
+            var vermoegenForderungen = _jabVermoegenFord || [];
+
+            var tables = {
+                abrechnungsergebnis: abrechnungsergebnis,
+                jab_monats_matrix: jabMonatsMatrix,
+                umlageschluessel: umlageschluessel,
+                verteilung: verteilung,
+                vermoegen_konten: vermoegenKonten,
+                vermoegen_forderungen: vermoegenForderungen,
+            };
+
+            await generateFromTemplate(jabTemplate.content, data, tables, {
+                pdfDoc: pdfDoc, page: firstPage, fonts: fonts, settings: settings, templateDoc: templateDoc,
+                startY: pgH - 200,
+            });
+
+            aptPageRangesJAB.push({ aptId: apt.id, start: aptPageStartJAB, end: pdfDoc.getPageCount() - 1 });
+        }
+
+        var pdfBytes = await pdfDoc.save();
+        if (saveForETV) {
+            await _pdfSplitAndUpload(pdfBytes, aptPageRangesJAB, bid, fy, 'jab');
+        } else {
+            var filename = 'Jahresabrechnung_' + fy + '_' + bldName.replace(/[^a-zA-Z0-9]/g, '_') + '.pdf';
+            _pdfDownload(pdfBytes, filename);
+            showToast(apts.length + ' Einzelabrechnungen als PDF heruntergeladen.');
+        }
+        return;
+    }
+
+    // ─── Legacy-Fallback (hardcoded Layout) ──────────────────
     // Letterhead template
     var PDFDocument = PDFLib.PDFDocument;
     var rgb = PDFLib.rgb;
@@ -2728,5 +3519,25 @@ async function generateETVEinladungPDF(sessionId) {
 
     const pdfBytes = await pdfDoc.save();
     _pdfDownload(pdfBytes, `Einladungen_ETV_${fy}_${bldName.replace(/[^a-z0-9]/gi, '_')}.pdf`);
-    showToast(`${owners.length} Einladungen erfolgreich generiert.`);
+
+    // Status-Trigger: Verknüpfte Dokumente (JAB/WP) von draft → released schalten
+    try {
+        const { data: draftDocs } = await _supabase.from('documents')
+            .select('id')
+            .eq('building_id', session.building_id)
+            .eq('status', 'draft')
+            .in('category', ['Wirtschaftsplan', 'Jahresabrechnung']);
+        if (draftDocs && draftDocs.length) {
+            const docIds = draftDocs.map(function(d) { return d.id; });
+            await _supabase.from('documents')
+                .update({ status: 'released', updated_at: new Date().toISOString() })
+                .in('id', docIds);
+            showToast(`${owners.length} Einladungen generiert. ${draftDocs.length} Dokumente für Eigentümer freigeschaltet.`, 'success');
+        } else {
+            showToast(`${owners.length} Einladungen erfolgreich generiert.`, 'success');
+        }
+    } catch(e) {
+        console.error('Status-Trigger Fehler:', e);
+        showToast(`${owners.length} Einladungen generiert. Dokument-Freigabe fehlgeschlagen.`, 'warning');
+    }
 }
