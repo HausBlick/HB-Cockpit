@@ -17,6 +17,7 @@ Dieses Projekt nutzt eine extrem token-effiziente **Drei-Datei-Architektur** zur
 
 0. Update-Log
 
+- **feat(fin): Phase 6.15 (Der große Jahresabschluss / JAB-Wizard v2) abgeschlossen:** Vollständige Implementierung des rechtssicheren Jahresabschluss-Workflows inkl. GoBD-konformem Vermögensbericht, digitaler Belegprüfung (Beirat-Protokoll), Dokumenten-Staging (draft/released), Kombi-PDF-Generierung für ETV-Einladungen und automatisiertem Beschluss-Trigger für Hausgelder und Abrechnungsspitzen.
 - **feat(pdf): Phase 7.10 (PDF-Vorlagen-System) abgeschlossen:** Implementierung des Dokumenten-Designers in den Admin-Einstellungen inkl. Live-Preview, Variablen-Palette und Block-basiertem Editor. Mahnungen sind als erstes Template migriert.
 - **feat(arch): Phase 1B (Frontend-Architektur-Split) abgeschlossen:** Erfolgreiche Auslagerung der Experten-Module (Finanzen, ETV, Zeiterfassung) in separate HTML-Seiten. Dashboard-Performance durch Library-Stripping (pdf-lib etc.) massiv gesteigert. Dokumenten-Modul verbleibt strategisch im Dashboard.
 - **feat(ui): Phase 1C (Mobile-Audit & Responsive Patterns) abgeschlossen:** Systemweites App-Feeling etabliert inkl. Bottom-Nav, Bottom-Sheets, Swipe-to-Dismiss, Skeleton-Loading und responsiver Umwandlung von 31 Tabellen in Mobile Cards.
@@ -229,4 +230,16 @@ UX-Verbesserung Wirtschaftsplan & Abrechnungen (Visueller Workflow): Weiterentwi
 KI-Buchhaltung: KI-gestützte Belegerfassung (OCR) für automatische Buchungsvorschläge.
 
 API-Schnittstellen: Automatischer Datenabruf bei Techem, Ista & Co.
-I-Schnittstellen: Automatischer Datenabruf bei Techem, Ista & Co.
+
+---
+
+## 🛠️ Aktuelle Validierungs-Tasks (Phase 6.15 Review)
+
+Nach Abschluss der Implementierung stehen folgende Tests für den Administrator an:
+
+1. **Buchhaltung abschließen:** Schließe testweise ein Jahr im System ab (Journal-Sperre auf Gebäude-Ebene prüfen).
+2. **JAB-Wizard:** Den neuen 6-stufigen Wizard komplett durchlaufen. Test-Salden im Vermögensbericht (Step 1) eintragen und Validierung prüfen.
+3. **Beirat-Cockpit:** Als Nutzer mit Sonderrolle `advisory` einloggen, Belege prüfen und das digitale Prüfprotokoll (Formular) absenden.
+4. **ETV-Einladung & Kombi-PDF:** Eine Versammlung planen und die Einladung versenden. Prüfen, ob das Kombi-PDF (Einladung + Tagesordnung + individuelle JAB/WP) generiert wird und Dokumente danach im Portal auf `released` stehen.
+5. **Beschluss aktivieren:** Nach der (testweisen) ETV den Button "Werte jetzt aktivieren" im Finanz-Modul drücken. Prüfen, ob `apartments.hausgeld` aktualisiert wurde und die Sollstellungen für Abrechnungsspitzen in `payment_demands` erzeugt wurden.
+
