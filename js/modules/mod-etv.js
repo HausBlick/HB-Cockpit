@@ -827,7 +827,18 @@ window._etvPreviewEinladung = async () => {
     if (typeof generateETVEinladungPDF !== 'function') {
         showToast('PDF-Modul nicht bereit.', 'error'); return;
     }
-    await generateETVEinladungPDF(_etvState.sessionId);
+    if (!confirm('Kombi-PDFs (Einladung + Anlagen) generieren und Dokumente für Eigentümer freischalten?\n\nDie verknüpften Jahresabrechnungen und Wirtschaftspläne werden im Portal sichtbar.')) return;
+
+    // Fortschrittsanzeige
+    const btn = document.querySelector('[onclick*="_etvPreviewEinladung"]');
+    const origText = btn?.textContent;
+    if (btn) { btn.disabled = true; btn.textContent = 'Kombi-PDFs werden generiert…'; }
+
+    try {
+        await generateETVEinladungPDF(_etvState.sessionId);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = origText; }
+    }
 };
 
 window._etvGenProtokoll = async () => {
