@@ -278,9 +278,9 @@ async function generateFromTemplate(blocks, data, tables, options) {
         page.drawText(text, { x: xRight - w, y: yPos, size, font, color });
     }
 
-    // Helper: Euro formatting
+    // Helper: Euro formatting (Number.EPSILON prevents floating-point display errors)
     function fmtEur(v) {
-        const n = Number(v || 0);
+        const n = Math.round((Number(v || 0) + Number.EPSILON) * 100) / 100;
         return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
     }
 
@@ -293,9 +293,10 @@ async function generateFromTemplate(blocks, data, tables, options) {
             const size = block.size || 13;
             const font = block.bold !== false ? fBold : fReg;
             const color = resolveColor(block.color);
-            await ensureSpace(size + 10);
+            // Ensure heading + at least ~60pt for following content (prevents orphaned headings)
+            await ensureSpace(size + 60);
             page.drawText(text, { x: mLeft, y, size, font, color });
-            y -= size + 8;
+            y -= size + (block.gap != null ? block.gap : 4);
             break;
         }
 
@@ -329,9 +330,16 @@ async function generateFromTemplate(blocks, data, tables, options) {
             const text = _pdfReplacePlaceholders(block.text || '', data);
             const pad = 10;
             const fontSize = block.size || 8;
-            const lines = _pdfSplitText(text, fReg, fontSize, contentW - pad * 2);
+            const titleSize = block.title_size || fontSize;
+            const maxW = contentW - pad * 2;
+
+            // Strip ** markers for line-break calculation, render with bold segments later
+            const plainText = text.replace(/\*\*/g, '');
+            const lines = _pdfSplitText(plainText, fReg, fontSize, maxW);
             const lineH = fontSize + 3;
-            const boxH = pad * 2 + lines.length * lineH;
+            const titleLineH = titleSize + 3;
+            const titleH = block.title ? titleLineH : 0;
+            const boxH = pad * 2 + titleH + lines.length * lineH;
             await ensureSpace(boxH + 10);
 
             page.drawRectangle({
@@ -341,23 +349,61 @@ async function generateFromTemplate(blocks, data, tables, options) {
                 color: rgb(1, 0.975, 0.965),
             });
 
+            // Helper: draw a line with **bold** inline segments
+            function _drawBoldLine(lineText, lx, ly, sz, defaultFont, boldFont, clr) {
+                const parts = lineText.split(/(\*\*.*?\*\*)/);
+                let cx = lx;
+                for (const part of parts) {
+                    if (part.startsWith('**') && part.endsWith('**')) {
+                        const t = part.slice(2, -2);
+                        page.drawText(t, { x: cx, y: ly, size: sz, font: boldFont, color: clr });
+                        cx += boldFont.widthOfTextAtSize(t, sz);
+                    } else if (part) {
+                        page.drawText(part, { x: cx, y: ly, size: sz, font: defaultFont, color: clr });
+                        cx += defaultFont.widthOfTextAtSize(part, sz);
+                    }
+                }
+            }
+
+            // Map plain-text lines back to original text with ** markers
+            // Rebuild lines from original text preserving ** markers
+            let remaining = text;
+            const richLines = lines.map(plain => {
+                // Find this plain line's content in the remaining original text
+                let consumed = '';
+                let pi = 0; // pointer into plain text
+                let ri = 0; // pointer into remaining
+                while (pi < plain.length && ri < remaining.length) {
+                    if (remaining[ri] === '*' && remaining[ri + 1] === '*') {
+                        consumed += '**';
+                        ri += 2;
+                    } else {
+                        consumed += remaining[ri];
+                        pi++;
+                        ri++;
+                    }
+                }
+                // Capture trailing ** at end of segment
+                while (ri < remaining.length && remaining[ri] === '*' && remaining[ri + 1] === '*') {
+                    consumed += '**';
+                    ri += 2;
+                }
+                // Skip whitespace between lines
+                if (remaining[ri] === ' ') ri++;
+                remaining = remaining.slice(ri);
+                return consumed;
+            });
+
+            const xPad = mLeft + pad;
             if (block.title) {
-                page.drawText(block.title, {
-                    x: mLeft + pad, y: y - pad - 2,
-                    size: fontSize, font: fBold, color: orange,
-                });
-                lines.forEach((line, i) => {
-                    page.drawText(line, {
-                        x: mLeft + pad, y: y - pad - lineH - (i * lineH),
-                        size: fontSize, font: fReg, color: offblack,
-                    });
+                const titleText = _pdfReplacePlaceholders(block.title, data);
+                _drawBoldLine(titleText, xPad, y - pad - 2, titleSize, fBold, fBold, orange);
+                richLines.forEach((line, i) => {
+                    _drawBoldLine(line, xPad, y - pad - titleLineH - (i * lineH), fontSize, fReg, fBold, offblack);
                 });
             } else {
-                lines.forEach((line, i) => {
-                    page.drawText(line, {
-                        x: mLeft + pad, y: y - pad - (i * lineH),
-                        size: fontSize, font: fReg, color: offblack,
-                    });
+                richLines.forEach((line, i) => {
+                    _drawBoldLine(line, xPad, y - pad - (i * lineH), fontSize, fReg, fBold, offblack);
                 });
             }
             y -= boxH + 5;
@@ -375,10 +421,8 @@ async function generateFromTemplate(blocks, data, tables, options) {
             const rowH = 20;
             const headerH = showHeader ? 22 : 0;
 
-            await ensureSpace(headerH + rows.length * rowH + 10);
-
-            // Header
-            if (showHeader) {
+            // Helper: draw table header (olive bar with white labels)
+            function _drawTableHeader() {
                 page.drawRectangle({ x: mLeft, y: y - headerH, width: contentW, height: headerH, color: olive });
                 const hY = y - headerH + 6;
                 let colX = mLeft;
@@ -394,11 +438,24 @@ async function generateFromTemplate(blocks, data, tables, options) {
                 y -= headerH;
             }
 
-            // Rows
+            // Ensure space for header + at least 1 row (start table on current page)
+            await ensureSpace(headerH + rowH + 10);
+
+            // Draw initial header
+            if (showHeader) _drawTableHeader();
+
+            // Rows — with per-row pagination
             for (let ri = 0; ri < rows.length; ri++) {
                 const row = rows[ri];
                 const isLast = ri === rows.length - 1;
                 const isHighlighted = highlightLast && isLast;
+                const neededH = rowH + (isHighlighted ? 4 : 0);
+
+                // Page break before row if needed — re-draw header on new page
+                if (y - neededH < bottomMargin) {
+                    await addPage();
+                    if (showHeader) _drawTableHeader();
+                }
 
                 // Separator
                 page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
@@ -426,7 +483,7 @@ async function generateFromTemplate(blocks, data, tables, options) {
                     }
                     colX += colW;
                 }
-                y -= rowH + (isHighlighted ? 4 : 0);
+                y -= neededH;
             }
 
             // Bottom divider
