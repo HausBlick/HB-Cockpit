@@ -223,6 +223,19 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | Phase 6.15-D | migration_documents_staging | `documents.metadata` JSONB-Spalte. Status-Erweiterung um `released` (kein CHECK-Constraint). |
 | Phase 6.15-E | migration_jab_template_v2 | UPDATE `pdf_templates` SET content: JAB-Template erweitert um `jab_monats_matrix`, `vermoegen_konten`, `vermoegen_forderungen`. 3 page_breaks. |
 | Phase 6.15-G | migration_hausgeld_history | `hausgeld_history`-Tabelle (Historisierung Hausgeld-Änderungen). RLS: admin/manager. Index auf apartment_id+changed_at. |
+| Rollen-Refactoring | migration_role_refactor | `profiles.is_landlord` BOOLEAN. CHECK von 6→4 Rollen. Datenmigration landlord→owner+flag, advisory→owner. |
+| RLS-Fix | migration_rls_read_policies_all_roles | SELECT-Policies für profiles, buildings, apartments (alle authenticated), tickets (eigene+zugewiesene+admin). |
+| RLS-Fix | migration_rls_beirat_read | Beirat-Lesezugriff auf journal_entries, accounts, journal_attachments, audit_protocols (via board_members+access_periods). |
+| RLS-Fix | migration_rls_beirat_cascade_fix | SELECT-Policies für board_members (eigene) + beirat_access_periods (eigene Gebäude) — behebt RLS-Kaskaden-Problem. |
+| RLS-Fix | migration_fix_rls_recursion | DROP redundanter landlord-Policies (apartments/persons/documents) die Endlosschleifen verursachten. |
+| RLS-Fix | migration_tickets_tenant_insert_policy | INSERT-Policy für Tickets: alle authenticated Users mit eigener creator_id. |
+| RPC | migration_get_landlord_for_apartment | `get_landlord_for_apartment(apt_id)` — Landlord einer Einheit finden (SECURITY DEFINER). |
+| RPC | migration_get_tenant_for_apartment | `get_tenant_for_apartment(apt_id)` — Tenant einer Einheit finden (SECURITY DEFINER). |
+| RPC | migration_tenant_ticket_helpers | `get_my_units_for_tickets()` — Einheiten des Users für Ticket-Modal (SECURITY DEFINER). |
+| RPC | migration_get_ticket_recipients | `get_ticket_recipients(bld_id)` — Mögliche Empfänger für Abwärts-Tickets (SECURITY DEFINER). |
+| RPC | migration_check_is_advisory | `check_is_advisory()` — Prüft ob User aktives Beiratsmitglied ist (SECURITY DEFINER). |
+| RPC | migration_get_beirat_access | `get_beirat_access()` — Alle aktiven Beirat-Freigabezeiträume des Users (SECURITY DEFINER). |
+| PDF-Fix | migration_fix_umlageschluessel_format | JAB/WP-Templates: korrekte Blockfolge + EUR-Format auf Verteilung. |
 
 ---
 
@@ -681,6 +694,27 @@ Migration `migration_role_refactor.sql`: `profiles.is_landlord` BOOLEAN. `profil
 - Deep-Links (Gebäude/Einheit) nur für Admin/Manager klickbar.
 - Schwarzes Brett für alle Rollen in Sidebar sichtbar.
 - RLS: SELECT-Policies für profiles, buildings, apartments (alle authenticated), tickets (eigene+zugewiesene+admin).
-- RPCs: `get_landlord_for_apartment`, `get_tenant_for_apartment`, `get_my_units_for_tickets`, `get_ticket_recipients` (alle SECURITY DEFINER).
+- RPCs: `get_landlord_for_apartment`, `get_tenant_for_apartment`, `get_my_units_for_tickets`, `get_ticket_recipients`, `check_is_advisory`, `get_beirat_access` (alle SECURITY DEFINER).
 - `mod-objekte.js`: Rollencheck am Einstieg (nur admin/manager).
+
+### PDF-Template-Fixes (Tabellen-Rendering)
+- Template-Engine `generateFromTemplate()`: Tabellen rendern jetzt **Zeile für Zeile** mit Seitenumbruch + Header-Wiederholung (statt all-or-nothing). Heading-Orphan-Schutz (60pt Reserve). `fmtEur()` mit `Number.EPSILON`-Trick gegen Floating-Point-Fehler. Heading-Abstand reduziert (steuerbar via `gap`-Property).
+- Hint-Box: `title_size` Property für separate Titel-Schriftgröße. `**text**`-Syntax für Inline-Fettschrift.
+- Migrations: `migration_fix_umlageschluessel_format.sql` (JAB/WP-Templates mit korrekter Blockfolge).
+
+### Verwaltungsbeirat-UI im Gebäude-Detail
+- Tab "Grundbuch": Neue Sektion "Verwaltungsbeirat" mit Liste aktiver Beiratsmitglieder, "Beirat hinzufügen" (Dropdown mit Eigentümern des Gebäudes), "Entfernen" (Soft-Remove via `valid_to`).
+- Mehrere Beiräte pro Gebäude möglich (Vorsitz + Stellvertreter).
+
+### Beirat-Belegprüfung Fixes
+- `_finRenderBeiratView()`: Jahres-Switcher für mehrere Freigabezeiträume. Belege aus `journal_attachments` laden (statt nur `journal_entries.attachment_path`). Konto-Anzeige mit Fallback.
+- RLS-Kaskaden-Fixes: SELECT-Policies für `board_members` (eigene), `beirat_access_periods` (eigene Gebäude), `journal_entries` (Beirat-Freigabe), `accounts` (Beirat-Gebäude), `journal_attachments` (Beirat-Belege), `audit_protocols` (eigene).
+
+### Wirtschaftsjahr wieder öffnen
+- WP-Tab: "Wieder öffnen"-Button bei Status `closed` → setzt auf `active`.
+- JAB Step 6: "Sperre aufheben"-Button (ersetzt "Abschließen" wenn bereits gesperrt) → hebt `budget_plan`-Status + `journal is_locked` auf. Buttons kontextsensitiv.
+
+### Test-User & Debugging
+- `scripts/create_test_users.sql`: 4 Test-User (tenant, owner, landlord, advisory) mit Verknüpfungen für WEG Zeppelinstraße 8. Idempotent (Cleanup + Neuanlage).
+- `scripts/debug_beirat_access.sql`: Diagnose-SQL für Beirat-Zugriffsprüfung.
 
