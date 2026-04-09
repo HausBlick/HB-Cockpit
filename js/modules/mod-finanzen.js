@@ -1742,6 +1742,8 @@ function _finRenderWirtschaftsplan(plan, planItems) {
             </div>`;
         else if (plan.status === 'active')
             statusAction = `<button onclick="_finPlanStatus(${plan.id},'closed')" class="btn-secondary text-sm px-4 py-2">Abschließen</button>`;
+        else if (plan.status === 'closed')
+            statusAction = `<button onclick="_finReopenYear(${plan.id})" class="text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5">Wieder öffnen</button>`;
     }
 
     // Sonderumlagen-Tabelle
@@ -2633,6 +2635,16 @@ function _finRenderJAB() {
     document.querySelectorAll('#fin-content table').forEach(t => {
         makeTableResponsive(t.closest('.card') || t.parentElement);
     });
+
+    // Step 6: Abschluss/Reopen-Button Toggle
+    if (step === 6) {
+        _finIsYearClosed(_finState.buildingId, _finState.jabData?.fy).then(closed => {
+            const btnClose = document.getElementById('btn-jab-abschluss');
+            const btnReopen = document.getElementById('btn-jab-reopen');
+            if (btnClose) btnClose.classList.toggle('hidden', closed);
+            if (btnReopen) btnReopen.classList.toggle('hidden', !closed);
+        });
+    }
 }
 
 // ── Step 1: Vermögensbericht (§ 28 WEG) ──────────────────────
@@ -3083,7 +3095,8 @@ function _finJABStep6Html() {
                 <button onclick="_finJABExportCSV()" class="text-xs text-hb-olive bg-hb-ultralight border border-hb-olive/20 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors">Als CSV exportieren</button>
                 <button onclick="_finJABExportPDF()" class="text-xs text-hb-olive bg-hb-ultralight border border-hb-olive/20 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors">Abrechnung als PDF exportieren</button>
                 <button onclick="_finJABSaveForETV()" class="text-xs text-hb-orange bg-hb-ultralight border border-hb-orange/20 px-4 py-2 rounded-lg font-semibold hover:bg-hb-orange/5 transition-colors">Für ETV speichern</button>
-                <button onclick="_finJABAbschluss()" class="btn-primary text-xs px-4 py-2">Abrechnung abschließen & sperren</button>
+                <button onclick="_finJABAbschluss()" id="btn-jab-abschluss" class="btn-primary text-xs px-4 py-2">Abrechnung abschließen & sperren</button>
+                <button onclick="_finJABReopen()" id="btn-jab-reopen" class="text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5 hidden">Sperre aufheben</button>
                 <button onclick="_finActivateBeschluss()" class="text-xs text-white bg-hb-olive px-4 py-2 rounded-lg font-semibold hover:bg-hb-olive/90 transition-colors border-2 border-hb-olive">Beschlüsse aktivieren</button>
             </div>
         </div>
@@ -3555,6 +3568,33 @@ window._finJABAbschluss = async () => {
     if (plan) await _supabase.from('budget_plans').update({ status: 'closed' }).eq('id', plan.id);
 
     showToast('Abrechnung abgeschlossen. Buchungen gesperrt, Abrechnungsspitzen angelegt.', 'success');
+    _finJABRender(_finState.jabStep); // Buttons aktualisieren
+};
+
+// ─── Jahr wieder öffnen (WP + JAB) ──────────────────────────
+window._finReopenYear = async (planId) => {
+    if (!confirm('Wirtschaftsjahr wieder öffnen? Die Journal-Sperre wird aufgehoben.')) return;
+    const { error } = await _supabase.from('budget_plans').update({ status: 'active' }).eq('id', planId);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    showToast('Wirtschaftsjahr wieder geöffnet.', 'success');
+    await _finLoadWP();
+};
+
+window._finJABReopen = async () => {
+    if (!confirm('Sperre aufheben? Buchungen können wieder bearbeitet werden.')) return;
+    const d = _finState.jabData;
+    const plan = _finState.plans.find(p => p.fiscal_year == d.fy && p.building_id == _finState.buildingId);
+    if (plan) {
+        await _supabase.from('budget_plans').update({ status: 'active' }).eq('id', plan.id);
+    }
+    // Journal-Sperre aufheben
+    await _supabase.from('journal_entries')
+        .update({ is_locked: false })
+        .eq('building_id', _finState.buildingId)
+        .gte('entry_date', d.from)
+        .lte('entry_date', d.to);
+    showToast('Sperre aufgehoben. Buchungen wieder bearbeitbar.', 'success');
+    _finJABRender(_finState.jabStep); // Buttons aktualisieren
 };
 
 // ── Beschluss-Aktivierung (Post-ETV) ─────────────────────────
