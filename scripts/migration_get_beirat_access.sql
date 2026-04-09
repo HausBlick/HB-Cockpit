@@ -16,5 +16,5 @@ AS $$
       AND bm.valid_to IS NULL
       AND bap.access_from <= CURRENT_DATE
       AND bap.access_to >= CURRENT_DATE
-    LIMIT 1;
+    ORDER BY bap.fiscal_year DESC;
 $$;
