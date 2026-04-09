@@ -2432,28 +2432,43 @@ async function _finRenderBeiratView() {
     const fy  = _finState.beiratFiscalYear;
     const ca  = document.getElementById('content-area');
 
-    const [{ data: bldg }, { data: entries }, { data: existingProtocol }, { data: gsData }] = await Promise.all([
+    const [{ data: bldg }, { data: entries }, { data: attachments }, { data: existingProtocol }, { data: gsData }] = await Promise.all([
         _supabase.from('buildings').select('name, file_number, street, house_number').eq('id', bid).single(),
         _supabase.from('journal_entries')
             .select('*, debit_account:accounts!debit_account_id(account_number,account_name), credit_account:accounts!credit_account_id(account_number,account_name)')
             .eq('building_id', bid)
             .eq('fiscal_year', fy)
             .order('entry_date', { ascending: false }),
+        // Belege werden nach dem Laden der Entries gefiltert
+        Promise.resolve({ data: null }),
         _supabase.from('audit_protocols').select('*').eq('building_id', bid).eq('fiscal_year', fy).eq('auditor_id', currentUser.id).maybeSingle(),
         _supabase.from('global_settings').select('audit_hint_text').eq('id', 1).maybeSingle(),
     ]);
 
-    const entryRows = (entries || []).map(e => `
+    // Belege separat laden (entry-IDs erst nach Entries-Load bekannt)
+    const attMap = {};
+    const entryIds = (entries || []).map(e => e.id).filter(Boolean);
+    if (entryIds.length) {
+        const { data: atts } = await _supabase.from('journal_attachments')
+            .select('journal_entry_id, attachment_path')
+            .in('journal_entry_id', entryIds);
+        (atts || []).forEach(a => { attMap[a.journal_entry_id] = a.attachment_path; });
+    }
+
+    const entryRows = (entries || []).map(e => {
+        const attPath = attMap[e.id] || e.attachment_path;
+        return `
         <tr class="hover:bg-gray-50/60">
             <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(e.entry_date)}</td>
             <td class="px-4 py-3 text-sm max-w-[200px] truncate" title="${e.description}">${e.description}</td>
-            <td class="px-4 py-3 text-xs text-gray-600">${e.debit_account?.account_number} ${e.debit_account?.account_name}</td>
-            <td class="px-4 py-3 text-xs text-gray-600">${e.credit_account?.account_number} ${e.credit_account?.account_name}</td>
+            <td class="px-4 py-3 text-xs text-gray-600">${e.debit_account?.account_number || '–'} ${e.debit_account?.account_name || ''}</td>
+            <td class="px-4 py-3 text-xs text-gray-600">${e.credit_account?.account_number || '–'} ${e.credit_account?.account_name || ''}</td>
             <td class="px-4 py-3 text-sm font-bold text-right">${Number(e.amount).toLocaleString('de-DE', {minimumFractionDigits:2})} €</td>
             <td class="px-4 py-3 text-center">
-                ${e.attachment_path ? `<button onclick="_finPreviewAttachment('${e.attachment_path}')" title="Beleg anzeigen" class="text-hb-olive hover:opacity-70"><svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button>` : '–'}
+                ${attPath ? `<button onclick="_finPreviewAttachment('${attPath}')" title="Beleg anzeigen" class="text-hb-olive hover:opacity-70"><svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button>` : '–'}
             </td>
-        </tr>`).join('');
+        </tr>`;
+    }).join('');
 
     // Hinweisbox-Text (aus global_settings oder Default)
     const hintText = gsData?.audit_hint_text || 'Das Prüfergebnis wird auf der kommenden Eigentümerversammlung als eigener Tagesordnungspunkt (TOP) behandelt. Bitte geben Sie hierzu eine kurze Stellungnahme ab.';
