@@ -71,18 +71,22 @@ async function _renderFilterMenu() {
     const menu = document.getElementById('ticket-filter-menu');
     if (!menu) return;
 
-    // Counts laden (ein Query, client-side aggregieren)
+    // Counts laden (RLS filtert bereits — admin/manager sehen alle, andere nur eigene/zugewiesene)
     const { data: allTickets } = await _supabase
         .from('tickets').select('id, status, building_id, creator_id, assigned_to');
     const all = allTickets || [];
 
+    const isAdmin = ['admin', 'manager'].includes(userProfile?.role);
+    // Nicht-Admins: Counts nur für eigene/zugewiesene Tickets
+    const relevant = isAdmin ? all : all.filter(t => t.creator_id === currentUser.id || t.assigned_to === currentUser.id);
+
     const counts = {
         mine:                    all.filter(t => (t.creator_id === currentUser.id || t.assigned_to === currentUser.id) && t.status !== 'Erledigt').length,
-        'Offen':                 all.filter(t => t.status === 'Offen').length,
-        'In Bearbeitung':        all.filter(t => t.status === 'In Bearbeitung').length,
-        'Warte auf Rückmeldung': all.filter(t => t.status === 'Warte auf Rückmeldung').length,
-        'Wiedervorlage':         all.filter(t => t.status === 'Wiedervorlage').length,
-        'Erledigt':              all.filter(t => t.status === 'Erledigt').length,
+        'Offen':                 relevant.filter(t => t.status === 'Offen').length,
+        'In Bearbeitung':        relevant.filter(t => t.status === 'In Bearbeitung').length,
+        'Warte auf Rückmeldung': relevant.filter(t => t.status === 'Warte auf Rückmeldung').length,
+        'Wiedervorlage':         relevant.filter(t => t.status === 'Wiedervorlage').length,
+        'Erledigt':              relevant.filter(t => t.status === 'Erledigt').length,
     };
 
     const badge = (n) => n > 0
@@ -120,8 +124,18 @@ async function _renderFilterMenu() {
         <p class="text-[10px] uppercase font-bold text-gray-400 px-3 pb-1">Nach Gebäude</p>
         <div id="ticket-building-filters" class="space-y-0.5"></div>`;
 
-    // Gebäude-Filter mit Counts
-    const { data: buildings } = await _supabase.from('buildings').select('id, name, file_number, street, house_number').order('name');
+    // Gebäude-Filter mit Counts (Nicht-Admins: nur eigene Gebäude)
+    const role = userProfile?.role;
+    let buildings;
+    if (role === 'admin' || role === 'manager') {
+        const res = await _supabase.from('buildings').select('id, name, file_number, street, house_number').order('name');
+        buildings = res.data;
+    } else {
+        const { data: units } = await _supabase.rpc('get_my_units_for_tickets');
+        const seen = new Set();
+        buildings = (units || []).filter(u => { if (seen.has(u.building_id)) return false; seen.add(u.building_id); return true; })
+            .map(u => ({ id: u.building_id, name: u.building_name, file_number: u.file_number, street: u.street, house_number: u.house_number }));
+    }
     const bDiv = document.getElementById('ticket-building-filters');
     if (bDiv && buildings) {
         bDiv.innerHTML = buildings.map(b => {
