@@ -630,25 +630,12 @@ window.showCreateTicketModal = async () => {
 
     // Für Nicht-Admin-Rollen: Einheiten aus tenancies/ownerships laden
     let myUnits = [];
-    console.log('[Ticket] role:', role, 'isTenantOrOwner:', isTenantOrOwner);
     if (isTenantOrOwner) {
-        const { data: person, error: pErr } = await _supabase.from('persons').select('id').eq('auth_user_id', currentUser.id).maybeSingle();
-        console.log('[Ticket] person:', person, 'error:', pErr);
-        if (person) {
-            if (role === 'tenant') {
-                const { data, error: tErr } = await _supabase.from('tenancies')
-                    .select('apartment_id, apartments(id, apartment_number, building_id, buildings(id, name, file_number, street, house_number))')
-                    .eq('tenant_id', person.id).eq('status', 'Aktiv');
-                console.log('[Ticket] tenancies raw:', JSON.stringify(data));
-                myUnits = (data || []).map(t => ({ apt: t.apartments, bld: t.apartments?.buildings })).filter(u => u.apt && u.bld);
-                console.log('[Ticket] myUnits:', myUnits.length, myUnits);
-            } else {
-                const { data } = await _supabase.from('ownerships')
-                    .select('apartment_id, apartments(id, apartment_number, building_id, buildings(id, name, file_number, street, house_number))')
-                    .eq('owner_id', person.id).eq('is_active', true);
-                myUnits = (data || []).map(o => ({ apt: o.apartments, bld: o.apartments?.buildings })).filter(u => u.apt && u.bld);
-            }
-        }
+        const { data: units } = await _supabase.rpc('get_my_units_for_tickets');
+        myUnits = (units || []).map(u => ({
+            apt: { id: u.apt_id, apartment_number: u.apartment_number, building_id: u.building_id },
+            bld: { id: u.building_id, name: u.building_name, file_number: u.file_number, street: u.street, house_number: u.house_number },
+        }));
     }
 
     const hideLocationFields = isTenantOrOwner && myUnits.length <= 1;
