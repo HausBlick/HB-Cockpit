@@ -556,10 +556,22 @@ function _dsBlockHtml(block, idx) {
     case 'hint_box':
         bodyHtml = `
             <div class="mt-2 space-y-2">
-                <input type="text" value="${_escAttr(block.title || '')}" oninput="_dsUpdateBlock(${idx}, 'title', this.value)"
-                    placeholder="Titel (optional, z.B. 'Hinweis:')" class="text-sm w-full">
-                <textarea rows="2" oninput="_dsUpdateBlock(${idx}, 'text', this.value)"
-                    placeholder="Hinweis-Text..." class="text-sm w-full" style="min-height:50px">${_escHtml(block.text || '')}</textarea>
+                <div class="flex gap-2 items-center">
+                    <input type="text" value="${_escAttr(block.title || '')}" oninput="_dsUpdateBlock(${idx}, 'title', this.value)"
+                        placeholder="Titel (optional, z.B. 'Hinweis:')" class="text-sm flex-1">
+                    <label class="text-xs text-gray-500 whitespace-nowrap">Titel-Größe</label>
+                    <input type="number" min="5" max="16" value="${block.title_size || block.size || 8}" onchange="_dsUpdateBlock(${idx}, 'title_size', +this.value)"
+                        class="w-14 text-xs text-center">
+                </div>
+                <div class="flex gap-2 items-start">
+                    <textarea rows="2" oninput="_dsUpdateBlock(${idx}, 'text', this.value)"
+                        placeholder="Hinweis-Text (** für fett **)..." class="text-sm flex-1" style="min-height:50px">${_escHtml(block.text || '')}</textarea>
+                    <div class="flex flex-col items-center gap-1">
+                        <label class="text-xs text-gray-500 whitespace-nowrap">Text-Größe</label>
+                        <input type="number" min="5" max="16" value="${block.size || 8}" onchange="_dsUpdateBlock(${idx}, 'size', +this.value)"
+                            class="w-14 text-xs text-center">
+                    </div>
+                </div>
             </div>`;
         break;
 
@@ -644,7 +656,7 @@ function _dsAddBlock(type) {
         text:       { type: 'text', text: '', size: 10, bold: false },
         spacer:     { type: 'spacer', height: 15 },
         page_break: { type: 'page_break' },
-        hint_box:   { type: 'hint_box', text: '', title: 'Hinweis:', size: 8 },
+        hint_box:   { type: 'hint_box', text: '', title: 'Hinweis:', size: 8, title_size: 8 },
         table:      { type: 'table', source: '', columns: [], show_header: true, highlight_last: false },
     };
     _designerState.blocks.push(defaults[type] || { type });
