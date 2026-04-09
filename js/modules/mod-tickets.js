@@ -639,8 +639,9 @@ window.showCreateTicketModal = async () => {
                 const { data, error: tErr } = await _supabase.from('tenancies')
                     .select('apartment_id, apartments(id, apartment_number, building_id, buildings(id, name, file_number, street, house_number))')
                     .eq('tenant_id', person.id).eq('status', 'Aktiv');
-                console.log('[Ticket] tenancies:', data, 'error:', tErr);
+                console.log('[Ticket] tenancies raw:', JSON.stringify(data));
                 myUnits = (data || []).map(t => ({ apt: t.apartments, bld: t.apartments?.buildings })).filter(u => u.apt && u.bld);
+                console.log('[Ticket] myUnits:', myUnits.length, myUnits);
             } else {
                 const { data } = await _supabase.from('ownerships')
                     .select('apartment_id, apartments(id, apartment_number, building_id, buildings(id, name, file_number, street, house_number))')
