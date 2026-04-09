@@ -80,25 +80,12 @@ async function loadFinance() {
     _finState.beiratFiscalYear = null;
 
     if (!isAdminManager) {
-        const { data: person } = await _supabase.from('persons').select('id').eq('auth_user_id', currentUser.id).maybeSingle();
-        if (person) {
-            const today = new Date().toISOString().split('T')[0];
-            const { data: bm } = await _supabase.from('board_members').select('building_id, valid_to').eq('person_id', person.id);
-            const activeBM = (bm || []).filter(b => !b.valid_to || b.valid_to >= today);
-            if (activeBM.length > 0) {
-                const bidList = activeBM.map(b => b.building_id);
-                const { data: periods } = await _supabase.from('beirat_access_periods')
-                    .select('building_id, fiscal_year')
-                    .in('building_id', bidList)
-                    .lte('access_from', today)
-                    .gte('access_to', today)
-                    .limit(1);
-                if (periods?.length > 0) {
-                    _finState.isBeirat       = true;
-                    _finState.beiratBuildingId = periods[0].building_id;
-                    _finState.beiratFiscalYear = periods[0].fiscal_year;
-                }
-            }
+        // RPC umgeht RLS — Owner hat keinen Lesezugriff auf board_members/beirat_access_periods
+        const { data: access } = await _supabase.rpc('get_beirat_access');
+        if (access?.building_id) {
+            _finState.isBeirat        = true;
+            _finState.beiratBuildingId = access.building_id;
+            _finState.beiratFiscalYear = access.fiscal_year;
         }
         if (!_finState.isBeirat) {
             ca.innerHTML = `<div class="p-10 card text-center max-w-sm mx-auto mt-10">
