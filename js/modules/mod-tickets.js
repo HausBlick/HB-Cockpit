@@ -380,7 +380,7 @@ window.openTicketDetail = async (ticketId) => {
     const role    = userProfile?.role;
     const isAdmin = role === 'admin' || role === 'manager';
     const isOwner = role === 'owner';
-    const isLandlord = role === 'landlord';
+    const isLandlord = userProfile?._isLandlord;
     const stCls   = STATUS_STYLE[t.status] || 'bg-gray-100 text-gray-500';
 
     // Mobile: Sidebar ausblenden, Hauptbereich vollflächig einblenden
@@ -663,7 +663,7 @@ window.escalateTicket = async (ticketId) => {
 // ─── Ticket erstellen ─────────────────────────────────────────
 window.showCreateTicketModal = async () => {
     const role = userProfile?.role;
-    const isTenantOrOwner = (role === 'tenant' || role === 'owner' || role === 'landlord' || role === 'advisory');
+    const isTenantOrOwner = (role === 'tenant' || role === 'owner');
 
     // Für Nicht-Admin-Rollen: Einheiten aus tenancies/ownerships laden
     let myUnits = [];
@@ -719,7 +719,7 @@ window.showCreateTicketModal = async () => {
                 <label class="text-[10px] uppercase font-bold text-gray-500">Einheit (optional)</label>
                 <select id="tkt_apt"><option value="">— Erst Gebäude wählen —</option></select>
             </div>
-            ${role === 'landlord' ? `<div class="space-y-2">
+            ${(role === 'owner' && userProfile?._isLandlord) ? `<div class="space-y-2">
                 <label class="text-[10px] uppercase font-bold text-gray-500">Ticket senden an</label>
                 <div class="flex rounded-lg overflow-hidden border border-gray-200">
                     <button type="button" onclick="document.getElementById('tkt_to_tenant').value='manager'; this.classList.add('bg-hb-olive','text-white'); this.classList.remove('bg-white','text-gray-600'); this.nextElementSibling.classList.remove('bg-hb-olive','text-white'); this.nextElementSibling.classList.add('bg-white','text-gray-600')"
@@ -815,7 +815,7 @@ window.saveTicket = async () => {
     if (role === 'tenant' && window._tktLandlordId) {
         // Tenant → automatisch an Landlord
         assignedTo = window._tktLandlordId;
-    } else if (role === 'landlord' && document.getElementById('tkt_to_tenant')?.value === 'tenant' && aptId) {
+    } else if (role === 'owner' && userProfile?._isLandlord && document.getElementById('tkt_to_tenant')?.value === 'tenant' && aptId) {
         // Landlord → Checkbox "an Mieter" → Tenant der Einheit suchen
         const { data: tenantId } = await _supabase.rpc('get_tenant_for_apartment', { apt_id: aptId });
         assignedTo = tenantId || null;

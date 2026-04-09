@@ -99,7 +99,7 @@ async function loadDashboard() {
     if (role === 'admin' || role === 'manager') {
         await _renderAdminDashboard();
     } else {
-        // owner, tenant, landlord, advisory
+        // owner, tenant (+ Landlord/Advisory Features additiv)
         await _renderUserDashboard();
     }
 }
@@ -431,7 +431,7 @@ async function _renderUserDashboard() {
     // ── Hausgeld / Miete ──
     let finLabel = 'Hausgeld / Miete', finValue = '—';
     if (aptData) {
-        if ((role === 'owner' || role === 'landlord' || role === 'advisory')) {
+        if (role === 'owner') {
             const dynHG = await getMonthlyHausgeld(aptData.id, aptData.building_id);
             const hg = dynHG ?? aptData.hausgeld;
             if (hg) {

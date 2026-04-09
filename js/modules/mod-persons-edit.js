@@ -62,12 +62,14 @@ async function loadPersonForEdit(personId) {
             .eq('person_id', personId),
     ]);
 
-    // Profil-Rolle laden falls auth_user_id vorhanden
+    // Profil-Rolle + Flags laden falls auth_user_id vorhanden
     let profileRole = null;
+    let profileIsLandlord = false;
     const authUid = personRes.data?.auth_user_id;
     if (authUid) {
-        const { data: prof } = await _supabase.from('profiles').select('role').eq('id', authUid).single();
+        const { data: prof } = await _supabase.from('profiles').select('role, is_landlord').eq('id', authUid).single();
         profileRole = prof?.role || null;
+        profileIsLandlord = prof?.is_landlord === true;
     }
 
     return {
@@ -122,12 +124,16 @@ async function savePersonData(personId, isNew) {
         if (error) { showToast('Fehler: ' + error.message, 'error'); return null; }
     }
 
-    // Portal-Rolle speichern (falls registrierter User)
+    // Portal-Rolle + Flags speichern (falls registrierter User)
     const roleSelect = document.getElementById('p_profile_role');
     if (roleSelect && !isNew) {
         const { data: person } = await _supabase.from('persons').select('auth_user_id').eq('id', savedId).single();
         if (person?.auth_user_id) {
-            await _supabase.from('profiles').update({ role: roleSelect.value }).eq('id', person.auth_user_id);
+            const isLandlord = document.getElementById('p_is_landlord')?.checked || false;
+            await _supabase.from('profiles').update({
+                role: roleSelect.value,
+                is_landlord: isLandlord,
+            }).eq('id', person.auth_user_id);
         }
     }
 
@@ -369,11 +375,17 @@ async function showPersonForm(id = null) {
                         <select id="p_profile_role">
                             <option value="owner" ${profileRole === 'owner' ? 'selected' : ''}>Eigentümer</option>
                             <option value="tenant" ${profileRole === 'tenant' ? 'selected' : ''}>Mieter</option>
-                            <option value="landlord" ${profileRole === 'landlord' ? 'selected' : ''}>Vermieter</option>
-                            <option value="advisory" ${profileRole === 'advisory' ? 'selected' : ''}>Beirat</option>
                             <option value="manager" ${profileRole === 'manager' ? 'selected' : ''}>Objektbetreuer</option>
                             <option value="admin" ${profileRole === 'admin' ? 'selected' : ''}>Administrator</option>
                         </select>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-[10px] uppercase font-bold text-gray-500">Zusatzrollen</label>
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" id="p_is_landlord" ${profileIsLandlord ? 'checked' : ''} class="w-4 h-4 accent-hb-olive">
+                            Vermieter <span class="text-xs text-gray-400">(darf Mieter anlegen & Tickets weiterleiten)</span>
+                        </label>
+                        <p class="text-xs text-gray-400">Beirat-Zugang wird über die Beirats-Zuweisung im Gebäude gesteuert.</p>
                     </div>` : ''}
 
                     <div class="space-y-2">
