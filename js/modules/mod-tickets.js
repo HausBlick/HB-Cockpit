@@ -429,18 +429,20 @@ window.openTicketDetail = async (ticketId) => {
                     <p class="text-sm font-semibold">${t.category || '—'}</p>
                 </div>
 
-                <!-- Gebäude Deep-Link -->
+                <!-- Gebäude -->
                 ${t.buildings ? `<div class="space-y-1">
                     <p class="text-[10px] uppercase font-bold text-gray-400">Gebäude</p>
-                    <button onclick="navigateToBuilding(${t.buildings.id})"
-                        class="text-sm font-bold text-hb-olive hover:underline min-h-[44px] flex items-center">${formatBuildingName(t.buildings)}</button>
+                    ${isAdmin ? `<button onclick="navigateToBuilding(${t.buildings.id})"
+                        class="text-sm font-bold text-hb-olive hover:underline min-h-[44px] flex items-center">${formatBuildingName(t.buildings)}</button>`
+                    : `<p class="text-sm font-semibold">${formatBuildingName(t.buildings)}</p>`}
                 </div>` : ''}
 
-                <!-- Einheit Deep-Link -->
+                <!-- Einheit -->
                 ${t.apartments ? `<div class="space-y-1">
                     <p class="text-[10px] uppercase font-bold text-gray-400">Einheit</p>
-                    <button onclick="navigateToApartment(${t.buildings?.id}, ${t.apartments.id})"
-                        class="text-sm font-bold text-hb-olive hover:underline min-h-[44px] flex items-center">Wohnung ${t.apartments.apartment_number}</button>
+                    ${isAdmin ? `<button onclick="navigateToApartment(${t.buildings?.id}, ${t.apartments.id})"
+                        class="text-sm font-bold text-hb-olive hover:underline min-h-[44px] flex items-center">Wohnung ${t.apartments.apartment_number}</button>`
+                    : `<p class="text-sm font-semibold">Wohnung ${t.apartments.apartment_number}</p>`}
                 </div>` : ''}
 
                 <!-- Ersteller -->

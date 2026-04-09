@@ -51,6 +51,11 @@ function tabNav(tabs, btnPrefix, activeFirst) {
 
 // ─── Hauptlayout ─────────────────────────────────────────────
 async function loadTenants() {
+    // Nur admin/manager dürfen Gebäude & Einheiten verwalten
+    if (!['admin', 'manager'].includes(userProfile?.role)) {
+        showToast('Kein Zugriff auf Gebäude & Einheiten.', 'error');
+        return;
+    }
     const container = document.getElementById('content-area');
     container.innerHTML = `
         <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)] text-left">
