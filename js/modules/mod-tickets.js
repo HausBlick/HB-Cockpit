@@ -380,6 +380,7 @@ window.openTicketDetail = async (ticketId) => {
     const role    = userProfile?.role;
     const isAdmin = role === 'admin' || role === 'manager';
     const isOwner = role === 'owner';
+    const isLandlord = role === 'landlord';
     const stCls   = STATUS_STYLE[t.status] || 'bg-gray-100 text-gray-500';
 
     // Mobile: Sidebar ausblenden, Hauptbereich vollflächig einblenden
@@ -478,11 +479,14 @@ window.openTicketDetail = async (ticketId) => {
                         </select>` : `<p class="text-sm font-semibold">${t.assignee?.full_name || '—'}</p>`}
                 </div>
 
-                <!-- Eskalation (nur owner) -->
-                ${isOwner && t.status !== 'Erledigt' ? `
-                    <div class="border-t pt-4">
+                <!-- Eskalation/Weiterleitung -->
+                ${(isOwner || isLandlord) && t.status !== 'Erledigt' ? `
+                    <div class="border-t pt-4 space-y-2">
+                        ${isLandlord && t.apartment_id ? `
+                            <button onclick="forwardToTenant('${t.id}', ${t.apartment_id})"
+                                class="btn-secondary w-full text-xs py-2 min-h-[44px]">An Mieter weiterleiten</button>` : ''}
                         <button onclick="escalateTicket('${t.id}')"
-                            class="btn-secondary w-full text-xs py-2 min-h-[44px]">An Verwalter weiterleiten</button>
+                            class="btn-secondary w-full text-xs py-2 min-h-[44px]">An Verwalter eskalieren</button>
                     </div>` : ''}
 
                 <!-- Priorität -->
@@ -618,7 +622,24 @@ window.assignTicket = async (ticketId, userId) => {
     showToast('Zuweisung gespeichert.', 'success');
 };
 
-// ─── Eskalation (owner → Verwalter) ──────────────────────────
+// ─── Weiterleitung (landlord → tenant) ───────────────────────
+window.forwardToTenant = async (ticketId, apartmentId) => {
+    const { data: tenantId } = await _supabase.rpc('get_tenant_for_apartment', { apt_id: apartmentId });
+    if (!tenantId) {
+        showToast('Kein aktiver Mieter für diese Einheit gefunden.', 'error');
+        return;
+    }
+    const senderName = userProfile?.full_name || 'Vermieter';
+    const sysMsg = `${senderName} hat dieses Ticket an den Mieter weitergeleitet.`;
+    await Promise.all([
+        _supabase.from('tickets').update({ assigned_to: tenantId, status: 'Offen' }).eq('id', ticketId),
+        _supabase.from('ticket_messages').insert([{ ticket_id: ticketId, sender_id: currentUser.id, message: sysMsg, is_system_message: true }]),
+    ]);
+    showToast('Ticket an Mieter weitergeleitet.', 'success');
+    await openTicketDetail(ticketId);
+};
+
+// ─── Eskalation (owner/landlord → Verwalter) ────────────────
 window.escalateTicket = async (ticketId) => {
     // Manager für das Gebäude finden
     const ticketData = await _supabase.from('tickets').select('building_id, creator:profiles!tickets_creator_id_fkey(full_name)').eq('id', ticketId).single();
@@ -654,6 +675,7 @@ window.showCreateTicketModal = async () => {
         }));
     }
 
+    window._tktMyUnits = myUnits; // für loadApartmentsForTicket
     const hideLocationFields = isTenantOrOwner && myUnits.length <= 1;
 
     // Gebäude-Liste: Admins sehen alle, Nicht-Admins nur ihre eigenen
@@ -739,9 +761,19 @@ window.showCreateTicketModal = async () => {
 window.loadApartmentsForTicket = async (bId, preselect = null) => {
     const sel = document.getElementById('tkt_apt');
     if (!sel || !bId) return;
-    const { data } = await _supabase.from('apartments').select('id, apartment_number').eq('building_id', bId).order('apartment_number');
+    const isAdmin = ['admin', 'manager'].includes(userProfile?.role);
+    let apts;
+    if (isAdmin) {
+        const { data } = await _supabase.from('apartments').select('id, apartment_number').eq('building_id', bId).order('apartment_number');
+        apts = data || [];
+    } else {
+        // Nur eigene Einheiten (aus _tktMyUnits, gesetzt im Modal)
+        apts = (window._tktMyUnits || [])
+            .filter(u => u.apt.building_id == bId)
+            .map(u => u.apt);
+    }
     sel.innerHTML = '<option value="">— Keine Einheit —</option>'
-        + (data || []).map(a => `<option value="${a.id}" ${a.id === preselect ? 'selected' : ''}>Wohnung ${a.apartment_number}</option>`).join('');
+        + apts.map(a => `<option value="${a.id}" ${a.id === preselect || a.id == preselect ? 'selected' : ''}>Wohnung ${a.apartment_number}</option>`).join('');
 };
 
 window.saveTicket = async () => {
