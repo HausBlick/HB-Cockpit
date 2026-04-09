@@ -719,7 +719,11 @@ window.showCreateTicketModal = async () => {
                 <label class="text-[10px] uppercase font-bold text-gray-500">Einheit (optional)</label>
                 <select id="tkt_apt"><option value="">— Erst Gebäude wählen —</option></select>
             </div>
-            ${(role !== 'tenant') ? `<div class="space-y-2" id="tkt_recipient_wrap">
+            ${role === 'landlord' ? `<div class="flex items-center gap-2 py-1">
+                <input type="checkbox" id="tkt_to_tenant" class="w-4 h-4 accent-hb-olive">
+                <label for="tkt_to_tenant" class="text-sm text-gray-600">Dieses Ticket an den Mieter der Einheit senden</label>
+            </div>` : ''}
+            ${(role === 'admin' || role === 'manager') ? `<div class="space-y-2" id="tkt_recipient_wrap">
                 <label class="text-[10px] uppercase font-bold text-gray-500">Empfänger (optional)</label>
                 <select id="tkt_recipient"><option value="">— Wird geladen… —</option></select>
             </div>` : ''}
@@ -800,11 +804,20 @@ window.saveTicket = async () => {
     const aptId = parseInt(document.getElementById('tkt_apt')?.value) || null;
     const role  = userProfile?.role;
 
-    // Empfänger: manuell gewählt (Admin/Landlord) oder auto-Routing (Tenant→Landlord)
-    const recipientSel = document.getElementById('tkt_recipient');
-    let assignedTo = recipientSel?.value || null;
-    if (!assignedTo && role === 'tenant' && window._tktLandlordId) {
+    // Empfänger bestimmen
+    let assignedTo = null;
+    if (role === 'tenant' && window._tktLandlordId) {
+        // Tenant → automatisch an Landlord
         assignedTo = window._tktLandlordId;
+    } else if (role === 'landlord' && document.getElementById('tkt_to_tenant')?.checked && aptId) {
+        // Landlord → Checkbox "an Mieter" → Tenant der Einheit suchen
+        const { data: tenantId } = await _supabase.rpc('get_tenant_for_apartment', { apt_id: aptId });
+        assignedTo = tenantId || null;
+        if (!tenantId) showToast('Kein aktiver Mieter für diese Einheit gefunden.', 'error');
+    } else {
+        // Admin/Manager → manuell gewählt
+        const recipientSel = document.getElementById('tkt_recipient');
+        assignedTo = recipientSel?.value || null;
     }
 
     const { data: ticket, error } = await _supabase.from('tickets').insert([{
