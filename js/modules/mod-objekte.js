@@ -141,12 +141,14 @@ async function selectBuilding(id) {
 
 async function showBuildingInfo(b) {
     const area = document.getElementById('units-area');
-    const bankRes = await _supabase.from('building_bank_accounts').select('*').eq('building_id', b.id);
+    const [bankRes, dkRes, bmRes] = await Promise.all([
+        _supabase.from('building_bank_accounts').select('*').eq('building_id', b.id),
+        _supabase.from('distribution_keys').select('id, name, type, total_value, heiz_split_percent, is_system_default').eq('building_id', b.id).order('is_system_default', { ascending: false }),
+        _supabase.from('board_members').select('id, person_id, valid_from, valid_to, persons(first_name, last_name)').eq('building_id', b.id).is('valid_to', null),
+    ]);
     const bankAccounts = bankRes.data || [];
-    const { data: dkData } = await _supabase.from('distribution_keys')
-        .select('id, name, type, total_value, heiz_split_percent, is_system_default')
-        .eq('building_id', b.id).order('is_system_default', { ascending: false });
-    const distKeys = dkData || [];
+    const distKeys = dkRes.data || [];
+    const boardMembers = bmRes.data || [];
     const addr = b.street ? `${b.street} ${b.house_number || ''}, ${b.zip_code || ''} ${b.city || ''}` : '—';
 
     area.innerHTML = `
@@ -216,15 +218,40 @@ async function showBuildingInfo(b) {
                 </div>
 
                 <!-- TAB 3: GRUNDBUCH -->
-                <div id="bldg-tab-legal" class="bldg-tab-content hidden grid grid-cols-2 md:grid-cols-3 gap-3">
-                    ${infoField('Gesamt-MEA', b.total_mea)}
-                    ${infoField('Grundbuchamt', b.land_registry)}
-                    ${infoField('Gemarkung', b.district)}
-                    ${infoField('Flur', b.parcel)}
-                    ${infoField('Flurstück-Nr.', b.parcel_number)}
-                    ${infoField('Notar', b.notary_name)}
-                    ${infoField('Teilungserklärung', b.declaration_of_division_date)}
-                    ${infoField('Letzte Änderung TE', b.declaration_last_amendment_date)}
+                <div id="bldg-tab-legal" class="bldg-tab-content hidden">
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        ${infoField('Gesamt-MEA', b.total_mea)}
+                        ${infoField('Grundbuchamt', b.land_registry)}
+                        ${infoField('Gemarkung', b.district)}
+                        ${infoField('Flur', b.parcel)}
+                        ${infoField('Flurstück-Nr.', b.parcel_number)}
+                        ${infoField('Notar', b.notary_name)}
+                        ${infoField('Teilungserklärung', b.declaration_of_division_date)}
+                        ${infoField('Letzte Änderung TE', b.declaration_last_amendment_date)}
+                    </div>
+                    <!-- Verwaltungsbeirat -->
+                    <div class="mt-4 border-t border-gray-100 pt-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="text-sm font-bold text-hb-offblack">Verwaltungsbeirat</h4>
+                            <button onclick="_showAddBoardMemberModal(${b.id})"
+                                class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100">+ Beirat hinzufügen</button>
+                        </div>
+                        <div id="board-members-list">
+                            ${boardMembers.length ? boardMembers.map(bm => {
+                                const name = bm.persons ? [bm.persons.first_name, bm.persons.last_name].filter(Boolean).join(' ') : '—';
+                                const von = bm.valid_from ? new Date(bm.valid_from).toLocaleDateString('de-DE') : '—';
+                                const bis = bm.valid_to ? new Date(bm.valid_to).toLocaleDateString('de-DE') : 'unbefristet';
+                                return `<div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                                    <div>
+                                        <span class="text-sm font-semibold text-gray-700">${name}</span>
+                                        <span class="text-xs text-gray-400 ml-2">${von} – ${bis}</span>
+                                    </div>
+                                    <button onclick="_removeBoardMember(${bm.id}, ${b.id})"
+                                        class="text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5">Entfernen</button>
+                                </div>`;
+                            }).join('') : '<p class="text-sm text-gray-400">Kein Beirat zugewiesen.</p>'}
+                        </div>
+                    </div>
                 </div>
 
                 <!-- TAB 4: TECHNIK -->
@@ -1439,4 +1466,81 @@ window._dkDeleteKey = async function(keyId, buildingId) {
     if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
     showToast('Schlüssel gelöscht.');
     await _dkRefreshTab(buildingId);
+};
+
+// ─── Verwaltungsbeirat ───────────────────────────────────────
+
+window._showAddBoardMemberModal = async (buildingId) => {
+    // Eigentümer des Gebäudes laden
+    const { data: apts } = await _supabase.from('apartments').select('id').eq('building_id', buildingId);
+    const aptIds = (apts || []).map(a => a.id);
+    const { data: bmData } = await _supabase.from('board_members').select('person_id').eq('building_id', buildingId).is('valid_to', null);
+    const existingBmIds = new Set((bmData || []).map(bm => bm.person_id));
+
+    let candidates = [];
+    if (aptIds.length) {
+        const { data } = await _supabase.from('ownerships')
+            .select('owner_id, owner:persons!ownerships_owner_id_fkey(id, first_name, last_name)')
+            .in('apartment_id', aptIds).eq('is_active', true);
+        const seen = new Set();
+        (data || []).forEach(o => {
+            if (o.owner && !existingBmIds.has(o.owner.id) && !seen.has(o.owner.id)) {
+                seen.add(o.owner.id);
+                candidates.push(o.owner);
+            }
+        });
+    }
+
+    if (!candidates.length) {
+        showToast('Alle Eigentümer dieses Gebäudes sind bereits Beiratsmitglieder.', 'info');
+        return;
+    }
+
+    showModal('add-board-member-modal', `
+        <div class="flex justify-between items-center">
+            <h3 class="text-lg font-extrabold text-hb-offblack">Beirat hinzufügen</h3>
+            <button onclick="hideModal('add-board-member-modal')" class="text-gray-400 hover:text-hb-orange font-bold text-xl min-h-[44px] min-w-[44px] flex items-center justify-center">✕</button>
+        </div>
+        <div class="space-y-3">
+            <div class="space-y-2">
+                <label class="text-[10px] uppercase font-bold text-gray-500">Eigentümer auswählen</label>
+                <select id="bm_person_id" class="w-full">
+                    ${candidates.map(c => `<option value="${c.id}">${[c.first_name, c.last_name].filter(Boolean).join(' ')}</option>`).join('')}
+                </select>
+            </div>
+            <div class="space-y-2">
+                <label class="text-[10px] uppercase font-bold text-gray-500">Gültig ab</label>
+                <input type="date" id="bm_valid_from" value="${new Date().toISOString().split('T')[0]}">
+            </div>
+            <button onclick="_saveBoardMember(${buildingId})" class="btn-primary w-full">Beirat zuweisen</button>
+        </div>
+    `);
+};
+
+window._saveBoardMember = async (buildingId) => {
+    const personId = document.getElementById('bm_person_id')?.value;
+    const validFrom = document.getElementById('bm_valid_from')?.value;
+    if (!personId) { showToast('Bitte eine Person auswählen.', 'error'); return; }
+
+    const { error } = await _supabase.from('board_members').insert([{
+        person_id: personId,
+        building_id: buildingId,
+        valid_from: validFrom || new Date().toISOString().split('T')[0],
+    }]);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    hideModal('add-board-member-modal');
+    showToast('Beiratsmitglied hinzugefügt.', 'success');
+    const b = _buildingsAll.find(x => x.id === buildingId);
+    if (b) await showBuildingInfo(b);
+};
+
+window._removeBoardMember = async (bmId, buildingId) => {
+    if (!confirm('Beiratsmitglied wirklich entfernen?')) return;
+    const { error } = await _supabase.from('board_members')
+        .update({ valid_to: new Date().toISOString().split('T')[0] })
+        .eq('id', bmId);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    showToast('Beiratsmitglied entfernt.', 'success');
+    const b = _buildingsAll.find(x => x.id === buildingId);
+    if (b) await showBuildingInfo(b);
 };
