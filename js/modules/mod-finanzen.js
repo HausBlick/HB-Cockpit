@@ -82,7 +82,8 @@ async function loadFinance() {
     if (!isAdminManager) {
         // RPC umgeht RLS — Owner hat keinen Lesezugriff auf board_members/beirat_access_periods
         const { data: accessArr } = await _supabase.rpc('get_beirat_access');
-        const access = Array.isArray(accessArr) ? accessArr[0] : accessArr;
+        _finState.beiratPeriods = Array.isArray(accessArr) ? accessArr : [];
+        const access = _finState.beiratPeriods[0];
         if (access?.building_id) {
             _finState.isBeirat        = true;
             _finState.beiratBuildingId = access.building_id;
@@ -2416,6 +2417,14 @@ window._finDeleteAccessPeriod = async (id) => {
 // ─── Beirat: Read-Only Belegansicht ──────────────────────────
 // ============================================================
 
+window._finSwitchBeiratYear = async (fy) => {
+    const period = (_finState.beiratPeriods || []).find(p => p.fiscal_year === fy);
+    if (!period) return;
+    _finState.beiratBuildingId = period.building_id;
+    _finState.beiratFiscalYear = period.fiscal_year;
+    await _finRenderBeiratView();
+};
+
 async function _finRenderBeiratView() {
     const bid = _finState.beiratBuildingId;
     const fy  = _finState.beiratFiscalYear;
@@ -2491,7 +2500,13 @@ async function _finRenderBeiratView() {
                 <h2 class="text-2xl font-extrabold text-hb-olive tracking-tight">${formatBuildingName(bldg)}</h2>
                 <p class="text-sm text-gray-500 mt-1">Wirtschaftsjahr ${fy} — schreibgeschützt</p>
             </div>
-            ${protoStatusBadge ? `<div>${protoStatusBadge}</div>` : ''}
+            <div class="flex items-center gap-3">
+                ${protoStatusBadge ? `<div>${protoStatusBadge}</div>` : ''}
+                ${(_finState.beiratPeriods || []).length > 1 ? `
+                    <select onchange="_finSwitchBeiratYear(+this.value)" class="text-sm border border-gray-200 rounded-lg px-3 py-2">
+                        ${_finState.beiratPeriods.map(p => `<option value="${p.fiscal_year}" ${p.fiscal_year === fy ? 'selected' : ''}>${p.fiscal_year}</option>`).join('')}
+                    </select>` : ''}
+            </div>
         </div>
 
         <!-- Hinweisbox -->
