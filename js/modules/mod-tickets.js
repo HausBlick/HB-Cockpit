@@ -703,6 +703,13 @@ window.showCreateTicketModal = async () => {
             <button onclick="saveTicket()" class="btn-primary w-full">Ticket erstellen</button>
     `);
 
+    // Landlord-ID für Tenant-Routing via DB-Funktion
+    window._tktLandlordId = null;
+    if (role === 'tenant' && myUnits.length >= 1) {
+        const { data: landlordId } = await _supabase.rpc('get_landlord_for_apartment', { apt_id: myUnits[0].apt.id });
+        if (landlordId) window._tktLandlordId = landlordId;
+    }
+
     // Auto-Vorausfüllung: Einheit automatisch setzen wenn nur eine vorhanden
     if (isTenantOrOwner && myUnits.length >= 1) {
         const unit = myUnits[0];
@@ -736,22 +743,8 @@ window.saveTicket = async () => {
     const aptId = parseInt(document.getElementById('tkt_apt')?.value) || null;
     const role  = userProfile?.role;
 
-    // Ticket-Routing: Tenant → Landlord (Eigentümer der Einheit), sonst kein Auto-Assign
-    let assignedTo = null;
-    if (role === 'tenant' && aptId) {
-        // Eigentümer (landlord) der Einheit suchen
-        const { data: ownership } = await _supabase.from('ownerships')
-            .select('owner_id, owner:persons!ownerships_owner_id_fkey(auth_user_id)')
-            .eq('apartment_id', aptId).eq('is_active', true).limit(1).maybeSingle();
-        if (ownership?.owner?.auth_user_id) {
-            // Prüfen ob der Eigentümer die Rolle "landlord" hat
-            const { data: prof } = await _supabase.from('profiles')
-                .select('role').eq('id', ownership.owner.auth_user_id).single();
-            if (prof?.role === 'landlord') {
-                assignedTo = ownership.owner.auth_user_id;
-            }
-        }
-    }
+    // Ticket-Routing: Tenant → Landlord (im Modal vorberechnet)
+    const assignedTo = (role === 'tenant' && window._tktLandlordId) ? window._tktLandlordId : null;
 
     const { error } = await _supabase.from('tickets').insert([{
         title,
