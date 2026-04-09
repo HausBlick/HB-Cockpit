@@ -79,8 +79,15 @@ Dieses Projekt nutzt zwei KI-gesteuerte Dokumente mit strikter Aufgabenteilung:
 | `manager` | Vollzugriff, limitiert auf zugewiesene Gebäude (`management_assignments`) |
 | `owner` | Lesend: eigene Einheiten, WEG-Dokumente, Tickets, Kontaktbuch |
 | `tenant` | Lesend: eigener Mietvertrag, Dokumente, Schwarzes Brett. Darf Tickets erstellen |
-| `landlord` | Wie owner + Vermieter-Bereich: eigene Mieter sehen, Dokumente durchreichen |
-| `advisory` | Wie owner + Beirat: Lesezugriff auf Finanzdaten (Konten, Buchungen, Belege) via `board_members` |
+
+**Zusatz-Features (additiv zur Basis-Rolle `owner`):**
+
+| Flag/Tabelle | Beschreibung |
+|---|---|
+| `profiles.is_landlord` | Owner + Vermieter-Bereich: eigene Mieter sehen/anlegen, Tickets an Mieter weiterleiten |
+| `board_members` (pro Gebäude) | Owner + Beirat: Lesezugriff auf Finanzdaten (Konten, Buchungen, Belege) — gebäudespezifisch |
+
+> **Architektur-Entscheidung Rollenbausteine:** `profiles.role` hat nur 4 Werte (admin/manager/owner/tenant). Landlord und Advisory sind keine eigenen Rollen, sondern additive Features. Ein Owner kann gleichzeitig Vermieter (`is_landlord=true`) UND Beirat (`board_members`-Eintrag) sein. Die Nav und Berechtigungen werden dynamisch zusammengesetzt.
 
 ---
 
@@ -96,7 +103,7 @@ Gebäude-Kontext wird via `sessionStorage` (`hb_active_building`) zwischen Seite
 | `dashboard.html` | Dashboard, Tickets, News, Kontakte, Kalender, CRM, Objekte, Einstellungen | Alle Rollen |
 | `zeiterfassung.html` | Zeiterfassung & Projekte | admin, manager |
 | `etv.html` | Eigentümerversammlung | admin, manager |
-| `finanzen.html` | Buchhaltung & Finanzen (13 Tabs, Deep-Link `?tab=buchungen`) | admin, manager, advisory |
+| `finanzen.html` | Buchhaltung & Finanzen (13 Tabs, Deep-Link `?tab=buchungen`) | admin, manager, owner (mit board_members) |
 
 ```
 dashboard.html              # HTML-Shell — SPA für Alltags-Module (+ Dokumente für alle Rollen)
@@ -651,4 +658,29 @@ Button "Beschlüsse aktivieren" in JAB Step 6 (neben "Abrechnung abschließen").
 **Geänderte Dateien:**
 - `mod-finanzen.js`: `_finActivateBeschluss()` neu, Button in Step 6 HTML.
 - Neu: `scripts/migration_hausgeld_history.sql` — Tabelle + RLS + Index.
+
+### Rollenbausteine-Refactoring (landlord/advisory → Flags)
+Migration `migration_role_refactor.sql`: `profiles.is_landlord` BOOLEAN. `profiles.role` CHECK von 6→4 Rollen (admin/manager/owner/tenant). Bestehende `landlord`-User → `owner` + `is_landlord=true`, `advisory`-User → `owner` (board_members-Eintrag bleibt). 3 RLS-Policies auf `is_landlord` umgestellt.
+
+**Architektur-Entscheidung:** Landlord und Advisory sind keine eigenen Rollen, sondern additive Features auf der Basis-Rolle `owner`. Ein Owner kann gleichzeitig Vermieter (`is_landlord=true`) UND Beirat (`board_members`-Eintrag für spezifische Gebäude) sein.
+
+**Geänderte Dateien:**
+- `config.js`: `ROLE_LABELS` von 6→4 Einträge, `EXTERNAL_PAGE_ROLES.finanzen` auf `owner` statt `advisory`.
+- `nav.js`: `init()` lädt `is_landlord` + `board_members` → setzt `_isLandlord`/`_isAdvisory` Flags. `renderNav()`: Owner-Block mit konditionalen Landlord/Advisory-Sektionen statt 3 separaten Blöcken. Auth-Guard berücksichtigt `_isAdvisory`. Role-Label kombiniert (z.B. "Vermieter & Beirat").
+- `mod-tickets.js`: `role === 'landlord'` → `userProfile._isLandlord`. `isTenantOrOwner` vereinfacht.
+- `mod-dashboard.js`: Hausgeld-Anzeige auf `role === 'owner'` vereinfacht.
+- `mod-persons-edit.js`: Rollen-Dropdown von 6→4 Optionen. Neue Checkbox "Vermieter" (`is_landlord`). Hinweistext "Beirat-Zugang über Gebäude-Zuweisung". Speicherlogik um `is_landlord` erweitert.
+- Neu: `scripts/migration_role_refactor.sql` — Spalte, Datenmigration, CHECK-Constraint, RLS-Policies.
+
+### Ticket-System Erweiterungen (Rollen-Test)
+- Ticket-Routing: Tenant→Landlord automatisch, Landlord→Tenant via Pill-Toggle, Owner→Verwalter via Eskalation.
+- Empfänger-Dropdown für Admin/Manager (alle Eigentümer/Vermieter des Gebäudes).
+- Ticket-Beschreibung wird als erste Chat-Nachricht eingefügt.
+- Gebäude/Einheit-Felder für Tenants mit nur 1 Einheit ausgeblendet.
+- Gebäude-Filter in Ticket-Sidebar auf eigene Gebäude beschränkt.
+- Deep-Links (Gebäude/Einheit) nur für Admin/Manager klickbar.
+- Schwarzes Brett für alle Rollen in Sidebar sichtbar.
+- RLS: SELECT-Policies für profiles, buildings, apartments (alle authenticated), tickets (eigene+zugewiesene+admin).
+- RPCs: `get_landlord_for_apartment`, `get_tenant_for_apartment`, `get_my_units_for_tickets`, `get_ticket_recipients` (alle SECURITY DEFINER).
+- `mod-objekte.js`: Rollencheck am Einstieg (nur admin/manager).
 

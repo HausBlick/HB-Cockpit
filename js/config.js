@@ -136,8 +136,6 @@ const ROLE_LABELS = {
     manager:  'Objektbetreuer',
     owner:    'Eigentümer Cockpit',
     tenant:   'Mieter Portal',
-    landlord: 'Vermieter Cockpit',
-    advisory: 'Beirat Cockpit',
 };
 
 const SALUTATIONS = ['Herr', 'Frau', 'Divers'];
@@ -166,7 +164,7 @@ const EXTERNAL_PAGES = {
 const EXTERNAL_PAGE_ROLES = {
     'zeiterfassung': ['admin', 'manager'],
     'etv':           ['admin', 'manager'],
-    'finanzen':      ['admin', 'manager', 'advisory'],
+    'finanzen':      ['admin', 'manager', 'owner'],  // Advisory-Zugang wird via _isAdvisory + board_members geprüft
 };
 
 function _getCurrentPage() {

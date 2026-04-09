@@ -38,19 +38,37 @@ async function init() {
 
         const { data: profile } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
         if (!profile) return;
+
+        // Rollenbausteine: Advisory aus board_members ableiten
+        profile._isLandlord = profile.is_landlord === true;
+        profile._isAdvisory = false;
+        if (profile.role === 'owner') {
+            const { data: person } = await _supabase.from('persons').select('id').eq('auth_user_id', user.id).maybeSingle();
+            if (person) {
+                const today = new Date().toISOString().split('T')[0];
+                const { data: bm } = await _supabase.from('board_members').select('id').eq('person_id', person.id);
+                profile._isAdvisory = (bm || []).length > 0;
+            }
+        }
         userProfile = profile;
 
         const page = _getCurrentPage();
 
         // Auth-Guard für rollengeschützte externe Seiten
         const allowedRoles = EXTERNAL_PAGE_ROLES[page];
-        if (allowedRoles && !allowedRoles.includes(profile.role)) {
-            window.location.href = 'dashboard.html';
-            return;
+        if (allowedRoles) {
+            const hasAccess = allowedRoles.includes(profile.role) || (allowedRoles.includes('advisory') && profile._isAdvisory);
+            if (!hasAccess) { window.location.href = 'dashboard.html'; return; }
         }
 
+        // Role-Label: Kombination anzeigen
+        let roleLabel = ROLE_LABELS[profile.role] || 'Nutzer Portal';
+        if (profile._isLandlord && profile._isAdvisory) roleLabel = 'Vermieter & Beirat';
+        else if (profile._isLandlord) roleLabel = 'Vermieter Cockpit';
+        else if (profile._isAdvisory) roleLabel = 'Eigentümer & Beirat';
+
         // Header-Elemente befüllen
-        document.getElementById('role-label').textContent = ROLE_LABELS[profile.role] || 'Nutzer Portal';
+        document.getElementById('role-label').textContent = roleLabel;
         document.getElementById('user-avatar').textContent    = profile.full_name.charAt(0).toUpperCase();
         document.getElementById('dropdown-name').textContent  = profile.full_name;
         document.getElementById('dropdown-email').textContent = profile.email;
@@ -132,31 +150,14 @@ function renderNav(role) {
         html += _navItem('loadTickets',  icons.tickets, 'Meine Tickets', 'nav-badge-tickets');
         html += _navItem('loadContacts', icons.contact, 'Kontaktbuch');
 
-    } else if (role === 'landlord') {
-        html += `<li class="nav-section-title">Mein Asset</li>`;
-        html += _navItem('loadMyUnits',   icons.buildings, 'Meine Einheiten');
-        html += _navItem('loadDocuments', icons.docs,      'Dokumente', 'nav-badge-docs');
-
-        html += `<li class="nav-section-title">Kommunikation</li>`;
-        html += _navItem('loadNews',     icons.news,    'Schwarzes Brett', 'nav-badge-news');
-        html += _navItem('loadTickets',  icons.tickets, 'Meine Tickets', 'nav-badge-tickets');
-        html += _navItem('loadContacts', icons.contact, 'Kontaktbuch');
-
-        html += `<li class="nav-section-title">Vermieter-Bereich</li>`;
-        html += _navItem('loadMyTenants', icons.users, 'Meine Mieter');
-
-    } else if (role === 'advisory') {
-        html += `<li class="nav-section-title">Mein Asset</li>`;
-        html += _navItem('loadMyUnits',   icons.buildings, 'Meine Einheiten');
-        html += _navItem('loadDocuments', icons.docs,      'Dokumente', 'nav-badge-docs');
-
-        html += `<li class="nav-section-title">Kommunikation</li>`;
-        html += _navItem('loadNews',     icons.news,    'Schwarzes Brett', 'nav-badge-news');
-        html += _navItem('loadTickets',  icons.tickets, 'Meine Tickets', 'nav-badge-tickets');
-        html += _navItem('loadContacts', icons.contact, 'Kontaktbuch');
-
-        html += `<li class="nav-section-title">Finanzen</li>`;
-        html += _navItem('loadFinance', icons.finance, 'Belegprüfung');
+        if (userProfile?._isLandlord) {
+            html += `<li class="nav-section-title">Vermieter-Bereich</li>`;
+            html += _navItem('loadMyTenants', icons.users, 'Meine Mieter');
+        }
+        if (userProfile?._isAdvisory) {
+            html += `<li class="nav-section-title">Finanzen</li>`;
+            html += _navItem('loadFinance', icons.finance, 'Belegprüfung');
+        }
 
     } else {
         // tenant
@@ -198,7 +199,7 @@ function renderBottomNav(role) {
             { icon: moreIcon,        label: 'Mehr',      fn: '_more' },
         ];
     } else {
-        // owner, landlord, advisory
+        // owner (+ landlord/advisory Features additiv via Sidebar "Mehr")
         items = [
             { icon: icons.dashboard, label: 'Home',      fn: 'loadDashboard' },
             { icon: icons.tickets,   label: 'Tickets',   fn: 'loadTickets',   badge: 'bnav-badge-tickets' },
