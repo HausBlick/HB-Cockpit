@@ -43,12 +43,9 @@ async function init() {
         profile._isLandlord = profile.is_landlord === true;
         profile._isAdvisory = false;
         if (profile.role === 'owner') {
-            const { data: person } = await _supabase.from('persons').select('id').eq('auth_user_id', user.id).maybeSingle();
-            if (person) {
-                const today = new Date().toISOString().split('T')[0];
-                const { data: bm } = await _supabase.from('board_members').select('id').eq('person_id', person.id);
-                profile._isAdvisory = (bm || []).length > 0;
-            }
+            // RPC umgeht RLS — Owner hat ggf. keinen Lesezugriff auf board_members
+            const { data: isAdvisory } = await _supabase.rpc('check_is_advisory');
+            profile._isAdvisory = isAdvisory === true;
         }
         userProfile = profile;
 
