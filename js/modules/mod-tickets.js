@@ -706,7 +706,10 @@ window.showCreateTicketModal = async () => {
     // Landlord-ID für Tenant-Routing via DB-Funktion
     window._tktLandlordId = null;
     if (role === 'tenant' && myUnits.length >= 1) {
-        const { data: landlordId } = await _supabase.rpc('get_landlord_for_apartment', { apt_id: myUnits[0].apt.id });
+        const aptId = myUnits[0].apt.id;
+        console.log('[Ticket-Routing] Tenant apt_id:', aptId, 'type:', typeof aptId);
+        const { data: landlordId, error: rpcErr } = await _supabase.rpc('get_landlord_for_apartment', { apt_id: aptId });
+        console.log('[Ticket-Routing] RPC result:', landlordId, 'error:', rpcErr);
         if (landlordId) window._tktLandlordId = landlordId;
     }
 
