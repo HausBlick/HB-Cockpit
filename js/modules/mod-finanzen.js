@@ -81,7 +81,8 @@ async function loadFinance() {
 
     if (!isAdminManager) {
         // RPC umgeht RLS — Owner hat keinen Lesezugriff auf board_members/beirat_access_periods
-        const { data: access } = await _supabase.rpc('get_beirat_access');
+        const { data: accessArr } = await _supabase.rpc('get_beirat_access');
+        const access = Array.isArray(accessArr) ? accessArr[0] : accessArr;
         if (access?.building_id) {
             _finState.isBeirat        = true;
             _finState.beiratBuildingId = access.building_id;
