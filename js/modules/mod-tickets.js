@@ -625,8 +625,39 @@ window.escalateTicket = async (ticketId) => {
 
 // ─── Ticket erstellen ─────────────────────────────────────────
 window.showCreateTicketModal = async () => {
-    const { data: buildings } = await _supabase.from('buildings').select('id, name, file_number, street, house_number').order('name');
-    const bList = buildings || [];
+    const role = userProfile?.role;
+    const isTenantOrOwner = (role === 'tenant' || role === 'owner' || role === 'landlord' || role === 'advisory');
+
+    // Für Nicht-Admin-Rollen: Einheiten aus tenancies/ownerships laden
+    let myUnits = [];
+    if (isTenantOrOwner) {
+        const { data: person } = await _supabase.from('persons').select('id').eq('auth_user_id', currentUser.id).maybeSingle();
+        if (person) {
+            if (role === 'tenant') {
+                const { data } = await _supabase.from('tenancies')
+                    .select('apartment_id, apartments(id, apartment_number, building_id, buildings(id, name, file_number, street, house_number))')
+                    .eq('tenant_id', person.id).eq('status', 'Aktiv');
+                myUnits = (data || []).map(t => ({ apt: t.apartments, bld: t.apartments?.buildings })).filter(u => u.apt && u.bld);
+            } else {
+                const { data } = await _supabase.from('ownerships')
+                    .select('apartment_id, apartments(id, apartment_number, building_id, buildings(id, name, file_number, street, house_number))')
+                    .eq('owner_id', person.id).eq('is_active', true);
+                myUnits = (data || []).map(o => ({ apt: o.apartments, bld: o.apartments?.buildings })).filter(u => u.apt && u.bld);
+            }
+        }
+    }
+
+    const hideLocationFields = isTenantOrOwner && myUnits.length <= 1;
+
+    // Gebäude-Liste: Admins sehen alle, Nicht-Admins nur ihre eigenen
+    let bList = [];
+    if (!isTenantOrOwner) {
+        const { data: buildings } = await _supabase.from('buildings').select('id, name, file_number, street, house_number').order('name');
+        bList = buildings || [];
+    } else {
+        const seen = new Set();
+        myUnits.forEach(u => { if (!seen.has(u.bld.id)) { seen.add(u.bld.id); bList.push(u.bld); } });
+    }
 
     const modal = showModal('create-ticket-modal', `
             <div class="flex justify-between items-center">
@@ -647,7 +678,7 @@ window.showCreateTicketModal = async () => {
                         <option>Elektro</option>
                     </select>
                 </div>
-                <div class="space-y-2">
+                <div class="space-y-2 ${hideLocationFields ? 'hidden' : ''}">
                     <label class="text-[10px] uppercase font-bold text-gray-500">Gebäude</label>
                     <select id="tkt_building" onchange="loadApartmentsForTicket(this.value)">
                         <option value="">— Bitte wählen —</option>
@@ -655,7 +686,7 @@ window.showCreateTicketModal = async () => {
                     </select>
                 </div>
             </div>
-            <div class="space-y-2">
+            <div class="space-y-2 ${hideLocationFields ? 'hidden' : ''}">
                 <label class="text-[10px] uppercase font-bold text-gray-500">Einheit (optional)</label>
                 <select id="tkt_apt"><option value="">— Erst Gebäude wählen —</option></select>
             </div>
@@ -672,8 +703,13 @@ window.showCreateTicketModal = async () => {
             <button onclick="saveTicket()" class="btn-primary w-full">Ticket erstellen</button>
     `);
 
-    // Vorausfüllen wenn Profil apartment_id hat
-    if (userProfile?.apartment_id) {
+    // Auto-Vorausfüllung: Einheit automatisch setzen wenn nur eine vorhanden
+    if (isTenantOrOwner && myUnits.length >= 1) {
+        const unit = myUnits[0];
+        const bSel = document.getElementById('tkt_building');
+        if (bSel) bSel.value = unit.bld.id;
+        await loadApartmentsForTicket(unit.bld.id, unit.apt.id);
+    } else if (userProfile?.apartment_id) {
         const { data: apt } = await _supabase.from('apartments').select('id, building_id, apartment_number').eq('id', userProfile.apartment_id).single();
         if (apt) {
             const bSel = document.getElementById('tkt_building');
@@ -698,6 +734,24 @@ window.saveTicket = async () => {
 
     const bId   = parseInt(document.getElementById('tkt_building')?.value) || null;
     const aptId = parseInt(document.getElementById('tkt_apt')?.value) || null;
+    const role  = userProfile?.role;
+
+    // Ticket-Routing: Tenant → Landlord (Eigentümer der Einheit), sonst kein Auto-Assign
+    let assignedTo = null;
+    if (role === 'tenant' && aptId) {
+        // Eigentümer (landlord) der Einheit suchen
+        const { data: ownership } = await _supabase.from('ownerships')
+            .select('owner_id, owner:persons!ownerships_owner_id_fkey(auth_user_id)')
+            .eq('apartment_id', aptId).eq('is_active', true).limit(1).maybeSingle();
+        if (ownership?.owner?.auth_user_id) {
+            // Prüfen ob der Eigentümer die Rolle "landlord" hat
+            const { data: prof } = await _supabase.from('profiles')
+                .select('role').eq('id', ownership.owner.auth_user_id).single();
+            if (prof?.role === 'landlord') {
+                assignedTo = ownership.owner.auth_user_id;
+            }
+        }
+    }
 
     const { error } = await _supabase.from('tickets').insert([{
         title,
@@ -708,6 +762,7 @@ window.saveTicket = async () => {
         apartment_id: aptId,
         creator_id:   currentUser.id,
         tenant_id:    currentUser.id,
+        assigned_to:  assignedTo,
     }]);
     if (error) { showToast(error.message, 'error'); return; }
     hideModal('create-ticket-modal');
