@@ -128,6 +128,7 @@ function renderNav(role) {
         html += _navItem('loadDocuments', icons.docs,      'Dokumente', 'nav-badge-docs');
 
         html += `<li class="nav-section-title">Kommunikation</li>`;
+        html += _navItem('loadNews',     icons.news,    'Schwarzes Brett', 'nav-badge-news');
         html += _navItem('loadTickets',  icons.tickets, 'Meine Tickets', 'nav-badge-tickets');
         html += _navItem('loadContacts', icons.contact, 'Kontaktbuch');
 
@@ -137,6 +138,7 @@ function renderNav(role) {
         html += _navItem('loadDocuments', icons.docs,      'Dokumente', 'nav-badge-docs');
 
         html += `<li class="nav-section-title">Kommunikation</li>`;
+        html += _navItem('loadNews',     icons.news,    'Schwarzes Brett', 'nav-badge-news');
         html += _navItem('loadTickets',  icons.tickets, 'Meine Tickets', 'nav-badge-tickets');
         html += _navItem('loadContacts', icons.contact, 'Kontaktbuch');
 
@@ -149,6 +151,7 @@ function renderNav(role) {
         html += _navItem('loadDocuments', icons.docs,      'Dokumente', 'nav-badge-docs');
 
         html += `<li class="nav-section-title">Kommunikation</li>`;
+        html += _navItem('loadNews',     icons.news,    'Schwarzes Brett', 'nav-badge-news');
         html += _navItem('loadTickets',  icons.tickets, 'Meine Tickets', 'nav-badge-tickets');
         html += _navItem('loadContacts', icons.contact, 'Kontaktbuch');
 
