@@ -15,6 +15,6 @@ AS $$
     JOIN profiles pr ON pr.id = p.auth_user_id
     WHERE o.apartment_id = apt_id
       AND o.is_active = true
-      AND pr.role = 'landlord'
+      AND pr.is_landlord = true
     LIMIT 1;
 $$;

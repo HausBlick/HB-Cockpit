@@ -227,9 +227,9 @@ function _contactCardHtml(c) {
     const phoneLine = (c.phone || c.mobile) ? `<div class="flex items-center gap-2 text-xs text-gray-500"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="flex-shrink-0"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.65 3.36 2 2 0 0 1 3.62 1.18h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 8.91a16 16 0 0 0 6 6l.82-.82a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21.73 16z"/></svg><a href="tel:${c.phone || c.mobile}" onclick="event.stopPropagation()" class="hover:text-hb-olive">${c.phone || c.mobile}</a></div>` : '';
     const emailLine = c.email ? `<div class="flex items-center gap-2 text-xs text-gray-500 min-w-0"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="flex-shrink-0"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg><a href="mailto:${c.email}" onclick="event.stopPropagation()" class="hover:text-hb-olive truncate">${c.email}</a></div>` : '';
 
-    // Release-Toggle für Owner
+    // Release-Toggle nur für Vermieter (Landlord)
     let releaseToggle = '';
-    if (isOwner) {
+    if (isOwner && userProfile?._isLandlord) {
         const released = _contactReleases.some(r => r.released_by === currentUser.id && r.contact_id === c.id);
         releaseToggle = `
             <div class="border-t border-gray-50 mt-2 pt-2" onclick="event.stopPropagation()">

@@ -140,17 +140,15 @@ function renderNav(role) {
     } else if (role === 'owner') {
         html += `<li class="nav-section-title">Mein Asset</li>`;
         html += _navItem('loadMyUnits',   icons.buildings, 'Meine Einheiten');
+        if (userProfile?._isLandlord) {
+            html += _navItem('loadMyTenants', icons.users, 'Meine Mieter');
+        }
         html += _navItem('loadDocuments', icons.docs,      'Dokumente', 'nav-badge-docs');
 
         html += `<li class="nav-section-title">Kommunikation</li>`;
         html += _navItem('loadNews',     icons.news,    'Schwarzes Brett', 'nav-badge-news');
         html += _navItem('loadTickets',  icons.tickets, 'Meine Tickets', 'nav-badge-tickets');
         html += _navItem('loadContacts', icons.contact, 'Kontaktbuch');
-
-        if (userProfile?._isLandlord) {
-            html += `<li class="nav-section-title">Vermieter-Bereich</li>`;
-            html += _navItem('loadMyTenants', icons.users, 'Meine Mieter');
-        }
         if (userProfile?._isAdvisory) {
             html += `<li class="nav-section-title">Finanzen</li>`;
             html += _navItem('loadFinance', icons.finance, 'Belegprüfung');
