@@ -630,13 +630,16 @@ window.showCreateTicketModal = async () => {
 
     // Für Nicht-Admin-Rollen: Einheiten aus tenancies/ownerships laden
     let myUnits = [];
+    console.log('[Ticket] role:', role, 'isTenantOrOwner:', isTenantOrOwner);
     if (isTenantOrOwner) {
-        const { data: person } = await _supabase.from('persons').select('id').eq('auth_user_id', currentUser.id).maybeSingle();
+        const { data: person, error: pErr } = await _supabase.from('persons').select('id').eq('auth_user_id', currentUser.id).maybeSingle();
+        console.log('[Ticket] person:', person, 'error:', pErr);
         if (person) {
             if (role === 'tenant') {
-                const { data } = await _supabase.from('tenancies')
+                const { data, error: tErr } = await _supabase.from('tenancies')
                     .select('apartment_id, apartments(id, apartment_number, building_id, buildings(id, name, file_number, street, house_number))')
                     .eq('tenant_id', person.id).eq('status', 'Aktiv');
+                console.log('[Ticket] tenancies:', data, 'error:', tErr);
                 myUnits = (data || []).map(t => ({ apt: t.apartments, bld: t.apartments?.buildings })).filter(u => u.apt && u.bld);
             } else {
                 const { data } = await _supabase.from('ownerships')
