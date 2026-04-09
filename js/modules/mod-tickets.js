@@ -709,7 +709,7 @@ window.showCreateTicketModal = async () => {
                 </div>
                 <div class="space-y-2 ${hideLocationFields ? 'hidden' : ''}">
                     <label class="text-[10px] uppercase font-bold text-gray-500">Gebäude</label>
-                    <select id="tkt_building" onchange="loadApartmentsForTicket(this.value)">
+                    <select id="tkt_building" onchange="loadApartmentsForTicket(this.value); loadRecipientsForTicket(this.value)">
                         <option value="">— Bitte wählen —</option>
                         ${bList.map(b => `<option value="${b.id}">${formatBuildingName(b)}</option>`).join('')}
                     </select>
@@ -719,6 +719,10 @@ window.showCreateTicketModal = async () => {
                 <label class="text-[10px] uppercase font-bold text-gray-500">Einheit (optional)</label>
                 <select id="tkt_apt"><option value="">— Erst Gebäude wählen —</option></select>
             </div>
+            ${(role !== 'tenant') ? `<div class="space-y-2" id="tkt_recipient_wrap">
+                <label class="text-[10px] uppercase font-bold text-gray-500">Empfänger (optional)</label>
+                <select id="tkt_recipient"><option value="">— Wird geladen… —</option></select>
+            </div>` : ''}
             <div class="space-y-2">
                 <label class="text-[10px] uppercase font-bold text-gray-500">Beschreibung *</label>
                 <textarea id="tkt_desc" rows="4" placeholder="Beschreibe das Problem so genau wie möglich…"></textarea>
@@ -735,10 +739,7 @@ window.showCreateTicketModal = async () => {
     // Landlord-ID für Tenant-Routing via DB-Funktion
     window._tktLandlordId = null;
     if (role === 'tenant' && myUnits.length >= 1) {
-        const aptId = myUnits[0].apt.id;
-        console.log('[Ticket-Routing] Tenant apt_id:', aptId, 'type:', typeof aptId);
-        const { data: landlordId, error: rpcErr } = await _supabase.rpc('get_landlord_for_apartment', { apt_id: aptId });
-        console.log('[Ticket-Routing] RPC result:', landlordId, 'error:', rpcErr);
+        const { data: landlordId } = await _supabase.rpc('get_landlord_for_apartment', { apt_id: myUnits[0].apt.id });
         if (landlordId) window._tktLandlordId = landlordId;
     }
 
@@ -748,14 +749,28 @@ window.showCreateTicketModal = async () => {
         const bSel = document.getElementById('tkt_building');
         if (bSel) bSel.value = unit.bld.id;
         await loadApartmentsForTicket(unit.bld.id, unit.apt.id);
+        await loadRecipientsForTicket(unit.bld.id);
     } else if (userProfile?.apartment_id) {
         const { data: apt } = await _supabase.from('apartments').select('id, building_id, apartment_number').eq('id', userProfile.apartment_id).single();
         if (apt) {
             const bSel = document.getElementById('tkt_building');
             if (bSel) bSel.value = apt.building_id;
             await loadApartmentsForTicket(apt.building_id, apt.id);
+            await loadRecipientsForTicket(apt.building_id);
         }
     }
+};
+
+window.loadRecipientsForTicket = async (bId) => {
+    const sel = document.getElementById('tkt_recipient');
+    if (!sel || !bId) { if (sel) sel.innerHTML = '<option value="">— Kein Empfänger —</option>'; return; }
+    const { data } = await _supabase.rpc('get_ticket_recipients', { bld_id: parseInt(bId) });
+    const recipients = data || [];
+    sel.innerHTML = '<option value="">— Kein Empfänger —</option>'
+        + recipients.map(r => {
+            const label = `${r.full_name} (${r.apartment_number ? 'WE ' + r.apartment_number + ', ' : ''}${ROLE_LABELS[r.role] || r.role})`;
+            return `<option value="${r.user_id}">${label}</option>`;
+        }).join('');
 };
 
 window.loadApartmentsForTicket = async (bId, preselect = null) => {
@@ -785,10 +800,14 @@ window.saveTicket = async () => {
     const aptId = parseInt(document.getElementById('tkt_apt')?.value) || null;
     const role  = userProfile?.role;
 
-    // Ticket-Routing: Tenant → Landlord (im Modal vorberechnet)
-    const assignedTo = (role === 'tenant' && window._tktLandlordId) ? window._tktLandlordId : null;
+    // Empfänger: manuell gewählt (Admin/Landlord) oder auto-Routing (Tenant→Landlord)
+    const recipientSel = document.getElementById('tkt_recipient');
+    let assignedTo = recipientSel?.value || null;
+    if (!assignedTo && role === 'tenant' && window._tktLandlordId) {
+        assignedTo = window._tktLandlordId;
+    }
 
-    const { error } = await _supabase.from('tickets').insert([{
+    const { data: ticket, error } = await _supabase.from('tickets').insert([{
         title,
         description:  desc,
         category:     document.getElementById('tkt_cat')?.value || 'Sonstiges',
@@ -798,8 +817,18 @@ window.saveTicket = async () => {
         creator_id:   currentUser.id,
         tenant_id:    currentUser.id,
         assigned_to:  assignedTo,
-    }]);
+    }]).select('id').single();
     if (error) { showToast(error.message, 'error'); return; }
+
+    // Beschreibung als erste Chat-Nachricht einfügen
+    if (ticket?.id && desc) {
+        await _supabase.from('ticket_messages').insert([{
+            ticket_id: ticket.id,
+            sender_id: currentUser.id,
+            message: desc,
+        }]);
+    }
+
     hideModal('create-ticket-modal');
     showToast('Ticket erstellt.', 'success');
     refreshNavBadges?.();
