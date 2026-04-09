@@ -53,7 +53,8 @@ async function loadTickets() {
     if (window.innerWidth < 1024) {
         document.getElementById('ticket-main').style.display = 'none';
     } else {
-        await _loadTicketView('mine');
+        const isAdmin = ['admin', 'manager'].includes(userProfile?.role);
+        await _loadTicketView(isAdmin ? 'mine' : 'inbox');
     }
 }
 
@@ -87,6 +88,10 @@ async function _renderFilterMenu() {
         'Warte auf Rückmeldung': relevant.filter(t => t.status === 'Warte auf Rückmeldung').length,
         'Wiedervorlage':         relevant.filter(t => t.status === 'Wiedervorlage').length,
         'Erledigt':              relevant.filter(t => t.status === 'Erledigt').length,
+        inbox:                   all.filter(t => t.assigned_to === currentUser.id && t.status !== 'Erledigt').length,
+        sent:                    all.filter(t => t.creator_id === currentUser.id && t.status !== 'Erledigt').length,
+        'inbox-done':            all.filter(t => t.assigned_to === currentUser.id && t.status === 'Erledigt').length,
+        'sent-done':             all.filter(t => t.creator_id === currentUser.id && t.status === 'Erledigt').length,
     };
 
     const badge = (n) => n > 0
@@ -104,14 +109,19 @@ async function _renderFilterMenu() {
         checkCircle: `<svg ${s}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
     };
 
-    const filters = [
+    const filters = isAdmin ? [
         { id: 'mine',                  label: 'Meine Tickets',           icon: svgIcons.person,      showBadge: true  },
         { id: 'Offen',                 label: 'Offen',                   icon: svgIcons.circle,      showBadge: true  },
         { id: 'In Bearbeitung',        label: 'In Bearbeitung',          icon: svgIcons.tool,        showBadge: true  },
         { id: 'Warte auf Rückmeldung', label: 'Warte auf Antwort',       icon: svgIcons.clock,       showBadge: true  },
         { id: 'Wiedervorlage',         label: 'Wiedervorlage',           icon: svgIcons.repeat,      showBadge: true  },
         { id: 'Erledigt',              label: 'Alle erledigten',         icon: svgIcons.checkCircle, showBadge: false },
-        { id: 'mine-done',             label: 'Meine erledigten Tickets', icon: svgIcons.checkSquare, showBadge: false },
+        { id: 'mine-done',             label: 'Meine erledigten',        icon: svgIcons.checkSquare, showBadge: false },
+    ] : [
+        { id: 'inbox',                 label: 'Posteingang',             icon: svgIcons.person,      showBadge: true  },
+        { id: 'sent',                  label: 'Gesendet',                icon: svgIcons.circle,      showBadge: true  },
+        { id: 'inbox-done',            label: 'Erledigt im Posteingang', icon: svgIcons.checkCircle, showBadge: false },
+        { id: 'sent-done',             label: 'Erledigte Gesendete',     icon: svgIcons.checkSquare, showBadge: false },
     ];
 
     menu.innerHTML = filters.map(f => `
@@ -213,6 +223,14 @@ async function _loadTicketView(filterId) {
     } else if (filterId === 'mine-done') {
         query = query.or(`creator_id.eq.${currentUser.id},assigned_to.eq.${currentUser.id}`)
                      .eq('status', 'Erledigt');
+    } else if (filterId === 'inbox') {
+        query = query.eq('assigned_to', currentUser.id).neq('status', 'Erledigt');
+    } else if (filterId === 'sent') {
+        query = query.eq('creator_id', currentUser.id).neq('status', 'Erledigt');
+    } else if (filterId === 'inbox-done') {
+        query = query.eq('assigned_to', currentUser.id).eq('status', 'Erledigt');
+    } else if (filterId === 'sent-done') {
+        query = query.eq('creator_id', currentUser.id).eq('status', 'Erledigt');
     } else if (filterId.startsWith('building-')) {
         const bId = filterId.replace('building-', '');
         query = query.eq('building_id', bId).neq('status', 'Erledigt');
@@ -230,9 +248,12 @@ function _renderTicketList(filterId) {
     const main = document.getElementById('ticket-main');
     if (!main) return;
 
-    const title = filterId === 'mine' ? 'Meine Tickets'
-        : filterId.startsWith('building-') ? 'Gebäude-Tickets'
-        : filterId;
+    const titleMap = {
+        mine: 'Meine Tickets', inbox: 'Posteingang', sent: 'Gesendet',
+        'inbox-done': 'Erledigt im Posteingang', 'sent-done': 'Erledigte Gesendete',
+        'mine-done': 'Meine erledigten',
+    };
+    const title = titleMap[filterId] || (filterId.startsWith('building-') ? 'Gebäude-Tickets' : filterId);
 
     main.innerHTML = `
         <div class="card lg:h-full flex flex-col overflow-hidden">

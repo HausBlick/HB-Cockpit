@@ -45,22 +45,33 @@ window.copyInviteCode = () => {
 
 // --- Daten laden ---
 async function loadPersonForEdit(personId) {
-    const [personRes, bankRes, tenanciesRes, ownershipsRes, boardRes, spRes] = await Promise.all([
-        _supabase.from('persons').select('*').eq('id', personId).single(),
-        _supabase.from('person_bank_accounts').select('*').eq('person_id', personId).maybeSingle(),
-        _supabase.from('tenancies')
-            .select('id, start_date, end_date, status, apartment_id, apartments(apartment_number, buildings(name))')
-            .eq('tenant_id', personId),
-        _supabase.from('ownerships')
-            .select('id, valid_from, valid_to, is_active, apartment_id, apartments(apartment_number, buildings(name))')
-            .eq('owner_id', personId),
-        _supabase.from('board_members')
-            .select('id, valid_from, valid_to, buildings(name)')
-            .eq('person_id', personId),
-        _supabase.from('service_providers')
-            .select('id, category, buildings(name)')
-            .eq('person_id', personId),
-    ]);
+    let personRes, bankRes, tenanciesRes, ownershipsRes, boardRes, spRes;
+    try {
+        [personRes, bankRes, tenanciesRes, ownershipsRes, boardRes, spRes] = await Promise.all([
+            _supabase.from('persons').select('*').eq('id', personId).single(),
+            _supabase.from('person_bank_accounts').select('*').eq('person_id', personId).maybeSingle(),
+            _supabase.from('tenancies')
+                .select('id, start_date, end_date, status, apartment_id, apartments(apartment_number, buildings(name))')
+                .eq('tenant_id', personId),
+            _supabase.from('ownerships')
+                .select('id, valid_from, valid_to, is_active, apartment_id, apartments(apartment_number, buildings(name))')
+                .eq('owner_id', personId),
+            _supabase.from('board_members')
+                .select('id, valid_from, valid_to, buildings(name)')
+                .eq('person_id', personId),
+            _supabase.from('service_providers')
+                .select('id, category, buildings(name)')
+                .eq('person_id', personId),
+        ]);
+    } catch (err) {
+        console.error('loadPersonForEdit error:', err);
+        return { person: null };
+    }
+
+    if (personRes.error) {
+        console.error('Person load error:', personRes.error);
+        return { person: null };
+    }
 
     // Profil-Rolle + Flags laden falls auth_user_id vorhanden
     let profileRole = null;
@@ -80,6 +91,7 @@ async function loadPersonForEdit(personId) {
         boardMemberships: boardRes.data || [],
         serviceProviders: spRes.data || [],
         profileRole,
+        profileIsLandlord,
     };
 }
 
@@ -212,7 +224,7 @@ async function showPersonForm(id = null) {
         <div class="w-8 h-8 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div>
     </div>`;
 
-    let p = {}, bank = {}, tenancies = [], ownerships = [], boardMemberships = [], serviceProviders = [], profileRole = null;
+    let p = {}, bank = {}, tenancies = [], ownerships = [], boardMemberships = [], serviceProviders = [], profileRole = null, profileIsLandlord = false;
     if (!isNew) {
         const data = await loadPersonForEdit(id);
         if (!data.person) { showToast('Person nicht gefunden.', 'error'); loadUserManagement(); return; }
@@ -223,6 +235,7 @@ async function showPersonForm(id = null) {
         boardMemberships = data.boardMemberships;
         serviceProviders = data.serviceProviders;
         profileRole = data.profileRole;
+        profileIsLandlord = data.profileIsLandlord || false;
     }
 
     const isCompany = p.is_company || false;
