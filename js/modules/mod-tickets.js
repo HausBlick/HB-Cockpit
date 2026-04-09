@@ -719,9 +719,15 @@ window.showCreateTicketModal = async () => {
                 <label class="text-[10px] uppercase font-bold text-gray-500">Einheit (optional)</label>
                 <select id="tkt_apt"><option value="">— Erst Gebäude wählen —</option></select>
             </div>
-            ${role === 'landlord' ? `<div class="flex items-center gap-2 py-1">
-                <input type="checkbox" id="tkt_to_tenant" class="w-4 h-4 accent-hb-olive">
-                <label for="tkt_to_tenant" class="text-sm text-gray-600">Dieses Ticket an den Mieter der Einheit senden</label>
+            ${role === 'landlord' ? `<div class="space-y-2">
+                <label class="text-[10px] uppercase font-bold text-gray-500">Ticket senden an</label>
+                <div class="flex rounded-lg overflow-hidden border border-gray-200">
+                    <button type="button" onclick="document.getElementById('tkt_to_tenant').value='manager'; this.classList.add('bg-hb-olive','text-white'); this.classList.remove('bg-white','text-gray-600'); this.nextElementSibling.classList.remove('bg-hb-olive','text-white'); this.nextElementSibling.classList.add('bg-white','text-gray-600')"
+                        class="flex-1 py-2.5 text-sm font-semibold transition-colors bg-hb-olive text-white">Hausverwaltung</button>
+                    <button type="button" onclick="document.getElementById('tkt_to_tenant').value='tenant'; this.classList.add('bg-hb-olive','text-white'); this.classList.remove('bg-white','text-gray-600'); this.previousElementSibling.classList.remove('bg-hb-olive','text-white'); this.previousElementSibling.classList.add('bg-white','text-gray-600')"
+                        class="flex-1 py-2.5 text-sm font-semibold transition-colors bg-white text-gray-600">Mieter der Einheit</button>
+                </div>
+                <input type="hidden" id="tkt_to_tenant" value="manager">
             </div>` : ''}
             ${(role === 'admin' || role === 'manager') ? `<div class="space-y-2" id="tkt_recipient_wrap">
                 <label class="text-[10px] uppercase font-bold text-gray-500">Empfänger (optional)</label>
@@ -809,7 +815,7 @@ window.saveTicket = async () => {
     if (role === 'tenant' && window._tktLandlordId) {
         // Tenant → automatisch an Landlord
         assignedTo = window._tktLandlordId;
-    } else if (role === 'landlord' && document.getElementById('tkt_to_tenant')?.checked && aptId) {
+    } else if (role === 'landlord' && document.getElementById('tkt_to_tenant')?.value === 'tenant' && aptId) {
         // Landlord → Checkbox "an Mieter" → Tenant der Einheit suchen
         const { data: tenantId } = await _supabase.rpc('get_tenant_for_apartment', { apt_id: aptId });
         assignedTo = tenantId || null;
