@@ -163,7 +163,7 @@ function renderNav(role) {
         // tenant
         html += `<li class="nav-section-title">Kommunikation</li>`;
         html += _navItem('loadNews',     icons.news,    'Schwarzes Brett', 'nav-badge-news');
-        html += _navItem('loadTickets',  icons.tickets, 'Meine Meldungen', 'nav-badge-tickets');
+        html += _navItem('loadTickets',  icons.tickets, 'Meine Tickets', 'nav-badge-tickets');
         html += _navItem('loadContacts', icons.contact, 'Kontaktbuch');
 
         html += `<li class="nav-section-title">Service & Dokumente</li>`;
@@ -193,7 +193,7 @@ function renderBottomNav(role) {
     } else if (role === 'tenant') {
         items = [
             { icon: icons.dashboard, label: 'Home',      fn: 'loadDashboard' },
-            { icon: icons.tickets,   label: 'Meldungen', fn: 'loadTickets',   badge: 'bnav-badge-tickets' },
+            { icon: icons.tickets,   label: 'Tickets', fn: 'loadTickets',   badge: 'bnav-badge-tickets' },
             { icon: icons.news,      label: 'News',      fn: 'loadNews',      badge: 'bnav-badge-news' },
             { icon: icons.docs,      label: 'Dokumente', fn: 'loadDocuments', badge: 'bnav-badge-docs' },
             { icon: moreIcon,        label: 'Mehr',      fn: '_more' },
