@@ -714,6 +714,13 @@ Migration `migration_role_refactor.sql`: `profiles.is_landlord` BOOLEAN. `profil
 - WP-Tab: "Wieder öffnen"-Button bei Status `closed` → setzt auf `active`.
 - JAB Step 6: "Sperre aufheben"-Button (ersetzt "Abschließen" wenn bereits gesperrt) → hebt `budget_plan`-Status + `journal is_locked` auf. Buttons kontextsensitiv.
 
+### Feedback-Runde 9. April (Nachfixes)
+- **News:** Client-seitige `visibility_scope`-Filterung entfernt — RLS filtert korrekt. Gebäudespezifische News jetzt für Eigentümer/Mieter sichtbar.
+- **Kontakte:** Mieter sieht nur Notfallkontakte + vom Vermieter freigegebene. Tenant-Building-IDs aus `tenancies` statt `userProfile.apartment_id`.
+- **Kontakte:** "Für Mieter freigeben"-Toggle nur für Landlords (`_isLandlord`), nicht für reine Owner.
+- **Tickets:** Nicht-Admins sehen "Posteingang" (empfangene) + "Gesendet" (erstellte) statt gemischte Ansicht.
+- **JAB Step 6:** `fiscalYear`-Fallback für Sperre-aufheben-Button.
+
 ### Test-User & Debugging
 - `scripts/create_test_users.sql`: 4 Test-User (tenant, owner, landlord, advisory) mit Verknüpfungen für WEG Zeppelinstraße 8. Idempotent (Cleanup + Neuanlage).
 - `scripts/debug_beirat_access.sql`: Diagnose-SQL für Beirat-Zugriffsprüfung.
