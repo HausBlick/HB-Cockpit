@@ -42,11 +42,14 @@ async function loadContacts() {
             (c.building_ids || []).some(bid => _myBuildingIds.includes(bid))
         );
     } else {
-        // tenant: global + eigenes Gebäude + freigegebene
-        const releasedIds = new Set(_contactReleases.map(r => r.contact_id));
+        // tenant: nur globale Notfallkontakte + vom Vermieter freigegebene
+        const releasedIds = new Set(
+            _contactReleases
+                .filter(r => _myBuildingIds.includes(r.building_id))
+                .map(r => r.contact_id)
+        );
         _contactsData = allContacts.filter(c =>
-            c.visibility_scope === 'global' ||
-            (c.building_ids || []).some(bid => _myBuildingIds.includes(bid)) ||
+            (c.visibility_scope === 'global' && c.is_emergency) ||
             releasedIds.has(c.id)
         );
     }
@@ -75,12 +78,14 @@ async function _getMyBuildingIds(role, uid) {
         (own || []).forEach(o => { if (o.apartments?.building_id) ids.add(o.apartments.building_id); });
         return [...ids];
     }
-    // tenant
-    if (userProfile?.apartment_id) {
-        const { data } = await _supabase.from('apartments').select('building_id').eq('id', userProfile.apartment_id).single();
-        return data?.building_id ? [data.building_id] : [];
-    }
-    return [];
+    // tenant: Gebäude über tenancies ermitteln (apartment_id ist nicht immer gesetzt)
+    const { data: person } = await _supabase.from('persons').select('id').eq('auth_user_id', uid).maybeSingle();
+    if (!person) return [];
+    const { data: ten } = await _supabase.from('tenancies')
+        .select('apartments(building_id)').eq('tenant_id', person.id).eq('status', 'Aktiv');
+    const ids = new Set();
+    (ten || []).forEach(t => { if (t.apartments?.building_id) ids.add(t.apartments.building_id); });
+    return [...ids];
 }
 
 // ─── Seiten-Rendering ─────────────────────────────────────────

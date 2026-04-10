@@ -79,14 +79,8 @@ async function _fetchAndRenderNews() {
 
     if (error) { showToast('Fehler beim Laden.', 'error'); return; }
 
-    const role = userProfile?.role;
-    _newsData = (data || []).filter(item => {
-        if (role === 'admin' || role === 'manager') return true;
-        if (item.visibility_scope === 'global') return true;
-        if (item.visibility_scope === 'building' && item.building_id === _userBuildingId) return true;
-        if (item.visibility_scope === 'unit' && item.apartment_id === userProfile?.apartment_id) return true;
-        return false;
-    });
+    // RLS filtert bereits korrekt — keine Client-Filterung mehr nötig
+    _newsData = data || [];
 
     _renderGrid();
 }
