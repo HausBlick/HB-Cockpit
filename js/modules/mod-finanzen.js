@@ -2432,7 +2432,7 @@ async function _finRenderBeiratView() {
     const fy  = _finState.beiratFiscalYear;
     const ca  = document.getElementById('content-area');
 
-    const [{ data: bldg }, { data: entries }, { data: attachments }, { data: existingProtocol }, { data: gsData }] = await Promise.all([
+    const [{ data: bldg }, { data: entries }, , { data: existingProtocol }, { data: gsData }] = await Promise.all([
         _supabase.from('buildings').select('name, file_number, street, house_number').eq('id', bid).single(),
         _supabase.from('journal_entries')
             .select('*, debit_account:accounts!debit_account_id(account_number,account_name), credit_account:accounts!credit_account_id(account_number,account_name)')
@@ -2653,7 +2653,8 @@ function _finRenderJAB() {
 
     // Step 6: Abschluss/Reopen-Button Toggle
     if (step === 6) {
-        _finIsYearClosed(_finState.buildingId, _finState.jabData?.fy).then(closed => {
+        const jabFy = _finState.jabData?.fy || _finState.fiscalYear;
+        _finIsYearClosed(_finState.buildingId, jabFy).then(closed => {
             const btnClose = document.getElementById('btn-jab-abschluss');
             const btnReopen = document.getElementById('btn-jab-reopen');
             if (btnClose) btnClose.classList.toggle('hidden', closed);
