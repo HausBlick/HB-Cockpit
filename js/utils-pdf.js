@@ -1278,7 +1278,7 @@ async function generateEinzelwirtschaftsplanPDF(planId, saveForETV = false) {
         const planZeitraum = `01.01.${plan.fiscal_year} – 31.12.${plan.fiscal_year}`;
         const dkZeitraum = `01.01.–31.12.${plan.fiscal_year}`;
         const dateStr = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        const _typeLabels = { mea: 'MEA', sqm: 'Fläche (m²)', units: 'Einheiten', consumption: 'Verbrauch', persons: 'Personen', heizkosten: 'HeizKV', custom: 'Individuell' };
+        const _typeLabels = DISTRIBUTION_KEY_LABELS;
 
         function _fmtEur(v) {
             const r = Math.round((Number(v || 0) + Number.EPSILON) * 100) / 100;
@@ -1511,7 +1511,7 @@ async function generateEinzelwirtschaftsplanPDF(planId, saveForETV = false) {
     }
 
     // Helper: distribution key type labels
-    const typeLabels = { mea: 'MEA', sqm: 'Fläche (m²)', units: 'Einheiten', consumption: 'Verbrauch', persons: 'Personen', heizkosten: 'HeizKV', custom: 'Individuell' };
+    const typeLabels = DISTRIBUTION_KEY_LABELS;
 
     // Helper: calc apartment share for one budget item
     function calcShare(item, aptId) {
@@ -2165,7 +2165,7 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData, save
         var dateStr = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
         var zeitraum = '01.01.' + fy + ' – 31.12.' + fy;
         var dkZeitraum = '01.01.–31.12.' + fy;
-        var _typeLabels = { mea: 'MEA', sqm: 'Fläche (m²)', units: 'Einheiten', consumption: 'Verbrauch', persons: 'Personen', heizkosten: 'HeizKV', custom: 'Individuell' };
+        var _typeLabels = DISTRIBUTION_KEY_LABELS;
         var bghText = 'Zur Beschlussfassung steht ausschließlich die Abrechnungsspitze. Etwaige Zahlungsrückstände basieren auf dem Wirtschaftsplan des Vorjahres. Der Abrechnungssaldo dient lediglich der Information. (BGH-Urteil v. 09.03.2012 V ZR 147/11)';
         var monatNamen = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
@@ -2561,7 +2561,7 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData, save
     function fmtVal(v) {
         return Number(v || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
     }
-    var typeLabels = { mea: 'MEA', sqm: 'Fläche (m²)', units: 'Einheiten', consumption: 'Verbrauch', persons: 'Personen', heizkosten: 'HeizKV', custom: 'Individuell' };
+    var typeLabels = DISTRIBUTION_KEY_LABELS;
 
     // Distribution key share calculation
     function calcShare(costItem, aptId) {
