@@ -149,6 +149,11 @@ const BUDGET_PLAN_STATUSES = { draft: 'Entwurf', approved: 'Beschlossen', active
 
 const DUNNING_LEVEL_LABELS = { 1: 'Zahlungserinnerung', 2: '1. Mahnung', 3: 'Letzte Mahnung' };
 
+const DISTRIBUTION_KEY_LABELS = {
+    mea: 'MEA', sqm: 'Fläche (m²)', units: 'Einheiten',
+    consumption: 'Verbrauch', persons: 'Personen', heizkosten: 'HeizKV', custom: 'Individuell'
+};
+
 // ============================================================
 // Multi-Page Routing (Phase 1B)
 // Module die als eigene HTML-Seiten ausgelagert sind

@@ -348,12 +348,12 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
   > Platzhalter-Parser `{{variable_name}}` mit automatischer Ersetzung. Template-Renderer `generateFromTemplate()` in utils-pdf.js.
   > Dokumenten-Designer in Einstellungen (Splitscreen: Block-Editor + Live-Preview). Drag & Drop, Variablen-Palette, Debounced PDF-Vorschau.
   > PoC: Mahnung auf Template-System migriert (mit Legacy-Fallback). Weitere PDF-Typen schrittweise migrierbar.
-- 7.11 📋 **Stammdaten-Dynamisierung** (Quick-Wins, bei passender Gelegenheit mitzunehmen)
-  - 7.11-A **Gebäude-Bankdaten in Mahnung-PDF** — `building_bank_accounts` in `generateMahnungPDF()` laden, Platzhalter `{{gebaeude_iban/bic/bank}}` registrieren. Kein DB-Change.
-  - 7.11-B **Verwalter-Bankdaten global** — 3 Spalten in `global_settings` (`company_iban`, `company_bic`, `company_bank_name`), UI in mod-settings.js, Platzhalter `{{verwalter_iban/bic/bank}}`.
-  - 7.11-C **Verzugszins Auto-Berechnung** — Mahnlauf-Default auf `base_rate + 5` (§ 288 BGB) vorbelegen, Hint-Text ergänzen.
-  - 7.11-D **typeLabels zentralisieren** — `DISTRIBUTION_KEY_LABELS` in `config.js`, 5 Stellen in utils-pdf.js + mod-finanzen.js umstellen.
-  - 7.11-E **Mahngebühr-Verrechnungs-Hinweis** — Toast nach "Bezahlt"-Buchung: "Mahngebühr auf WEG-Konto gutgeschrieben — bitte Überweisung auf Verwalterkonto veranlassen."
+- 7.11 🔄 **Stammdaten-Dynamisierung** (Quick-Wins)
+  - 7.11-A ~~Gebäude-Bankdaten in Mahnung-PDF~~ — Nicht nötig: Mahnungstext verweist auf bekanntes WEG-Konto.
+  - 7.11-B ~~Verwalter-Bankdaten global~~ — Nicht nötig: Bankdaten bereits auf Briefbogen abgebildet.
+  - 7.11-C ✅ **Verzugszins Auto-Berechnung** — Mahnlauf-Default auf `base_rate + 5` (§ 288 BGB) vorbelegt, Hint-Text ergänzt.
+  - 7.11-D ✅ **typeLabels zentralisieren** — `DISTRIBUTION_KEY_LABELS` in `config.js`, 6 Stellen in utils-pdf.js + mod-finanzen.js umgestellt.
+  - 7.11-E ✅ **Mahngebühr-Verrechnungs-Hinweis** — Toast nach "Bezahlt"-Buchung mit Hinweis auf Überweisung auf Verwalterkonto.
 
 ### 💡 Phase 8 — Automatisierung & Erweiterungen
 *Nach Projektabschluss — optionale Nachrüstung.*
@@ -724,4 +724,10 @@ Migration `migration_role_refactor.sql`: `profiles.is_landlord` BOOLEAN. `profil
 ### Test-User & Debugging
 - `scripts/create_test_users.sql`: 4 Test-User (tenant, owner, landlord, advisory) mit Verknüpfungen für WEG Zeppelinstraße 8. Idempotent (Cleanup + Neuanlage).
 - `scripts/debug_beirat_access.sql`: Diagnose-SQL für Beirat-Zugriffsprüfung.
+
+### Phase 7.11 — Stammdaten-Dynamisierung (Quick-Wins)
+- 7.11-A/B: Entscheidung: nicht umgesetzt — Bankdaten bereits über Briefbogen bzw. Mahnungstext abgedeckt.
+- **7.11-C Verzugszins Auto-Berechnung:** Mahnlauf-Default auf `gsRate + 5` (§ 288 BGB) vorbelegt. Label "Basiszinssatz" → "Verzugszinssatz". Hint-Text zeigt Berechnungsformel.
+- **7.11-D typeLabels zentralisiert:** `DISTRIBUTION_KEY_LABELS` in `config.js` (7 Typen: mea/sqm/units/consumption/persons/heizkosten/custom). 6 Stellen ersetzt: 2× `mod-finanzen.js` (distKeyLabel + Select-Options), 4× `utils-pdf.js` (_typeLabels/typeLabels).
+- **7.11-E Mahngebühr-Verrechnungs-Hinweis:** Nach "Bezahlt"-Buchung bei Mahnungen mit Gebühr: Info-Toast nach 1,5s Delay ("Mahngebühr auf WEG-Konto gutgeschrieben — bitte Überweisung auf Verwalterkonto veranlassen").
 
