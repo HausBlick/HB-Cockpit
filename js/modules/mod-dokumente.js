@@ -486,6 +486,10 @@ window._publishDoc = async (docId) => {
     }).eq('id', Number(docId));
 
     if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+
+    // E-Mail-Benachrichtigung (fire & forget)
+    sendNotification('document_released', { document_id: docId, building_id: doc.building_id, title: docTitle });
+
     showToast(`Freigegeben als: ${generated}`, 'success');
     _docsState.data = await _fetchDocs();
     _renderDocsView();

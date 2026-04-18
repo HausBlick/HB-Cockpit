@@ -45,6 +45,8 @@ function _settingsRender(s) {
             <div class="flex gap-1 mb-5 border-b border-hb-olive/10 pb-0">
                 <button id="stab-allgemein" onclick="_settingsTab('allgemein')"
                     class="px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all">Allgemein</button>
+                <button id="stab-email" onclick="_settingsTab('email')"
+                    class="px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all">E-Mail</button>
                 <button id="stab-designer" onclick="_settingsTab('designer')"
                     class="px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all">Dokumenten-Designer</button>
             </div>
@@ -70,6 +72,8 @@ function _settingsTab(tab) {
 
     if (tab === 'allgemein') {
         _settingsRenderAllgemein(window._settingsData || {});
+    } else if (tab === 'email') {
+        _settingsRenderEmail(window._settingsData || {});
     } else if (tab === 'designer') {
         _settingsRenderDesigner();
     }
@@ -268,6 +272,174 @@ async function _settingsUploadLetterhead(input) {
 
     showToast('Briefbogen gespeichert.');
     loadSettings();
+}
+
+// ─── Tab: E-Mail-Benachrichtigungen ──────────────────────────
+async function _settingsRenderEmail(s) {
+    const container = document.getElementById('settings-tab-content');
+
+    container.innerHTML = `
+        <div class="max-w-3xl space-y-5">
+            <!-- Card 1: Konfiguration -->
+            <div class="card">
+                <div class="bg-hb-olive px-5 py-3">
+                    <span class="text-sm font-bold text-white">E-Mail-Konfiguration</span>
+                </div>
+                <div class="p-5 space-y-4">
+                    <label class="flex items-center gap-4 cursor-pointer">
+                        <div class="hb-toggle">
+                            <input type="checkbox" id="s-notif-enabled" ${s.notifications_enabled ? 'checked' : ''}>
+                            <span class="hb-toggle-track"></span>
+                            <span class="hb-toggle-thumb"></span>
+                        </div>
+                        <div>
+                            <p class="text-sm font-semibold text-hb-offblack">Benachrichtigungen aktiviert</p>
+                            <p class="text-xs text-gray-400">Globaler Schalter — deaktiviert stoppt alle E-Mail-Benachrichtigungen.</p>
+                        </div>
+                    </label>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                        <div>
+                            <label class="text-xs font-semibold text-gray-500 mb-1 block">Absender-Name</label>
+                            <input id="s-notif-sender-name" type="text" value="${s.notification_sender_name || 'HausBlick Portal'}" placeholder="HausBlick Portal">
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold text-gray-500 mb-1 block">Absender-E-Mail</label>
+                            <input id="s-notif-sender-email" type="email" value="${s.notification_sender_email || 'portal@hausblick-fn.de'}" placeholder="portal@hausblick-fn.de">
+                            <p class="text-xs text-gray-400 mt-1">Muss in Brevo als Absender verifiziert sein.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="px-5 pb-5">
+                    <button onclick="_settingsSaveEmail()" class="btn-primary text-sm px-5 py-2">E-Mail-Einstellungen speichern</button>
+                </div>
+            </div>
+
+            <!-- Card 2: Trigger-Übersicht -->
+            <div class="card">
+                <div class="bg-hb-olive px-5 py-3">
+                    <span class="text-sm font-bold text-white">Benachrichtigungs-Trigger</span>
+                </div>
+                <div class="p-5">
+                    <div class="space-y-3">
+                        <div class="flex items-start gap-3 pb-3 border-b border-gray-100">
+                            <div class="w-8 h-8 flex items-center justify-center bg-hb-olive/10 text-hb-olive rounded-lg flex-shrink-0">${icons.tickets}</div>
+                            <div>
+                                <p class="text-sm font-semibold text-hb-offblack">Neues Ticket</p>
+                                <p class="text-xs text-gray-400">Empfänger: Zugewiesener + Admins/Manager des Gebäudes</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3 pb-3 border-b border-gray-100">
+                            <div class="w-8 h-8 flex items-center justify-center bg-hb-olive/10 text-hb-olive rounded-lg flex-shrink-0">${icons.tickets}</div>
+                            <div>
+                                <p class="text-sm font-semibold text-hb-offblack">Ticket-Statusänderung</p>
+                                <p class="text-xs text-gray-400">Empfänger: Ersteller + Zugewiesener</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3 pb-3 border-b border-gray-100">
+                            <div class="w-8 h-8 flex items-center justify-center bg-hb-olive/10 text-hb-olive rounded-lg flex-shrink-0">${icons.docs}</div>
+                            <div>
+                                <p class="text-sm font-semibold text-hb-offblack">Dokument freigegeben</p>
+                                <p class="text-xs text-gray-400">Empfänger: Alle Nutzer des Gebäudes mit Portal-Zugang</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 flex items-center justify-center bg-hb-olive/10 text-hb-olive rounded-lg flex-shrink-0">${icons.news}</div>
+                            <div>
+                                <p class="text-sm font-semibold text-hb-offblack">Neuer News-Beitrag</p>
+                                <p class="text-xs text-gray-400">Empfänger: Alle Nutzer des Gebäudes (global: alle)</p>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-4">Nutzer können einzelne Trigger unter "Mein Profil" deaktivieren.</p>
+                </div>
+            </div>
+
+            <!-- Card 3: E-Mail-Log -->
+            <div class="card">
+                <div class="bg-hb-olive px-5 py-3 flex items-center justify-between">
+                    <span class="text-sm font-bold text-white">E-Mail-Protokoll</span>
+                    <button onclick="_settingsLoadEmailLog()" class="text-xs bg-white text-hb-olive px-3 py-1 rounded-lg font-semibold hover:bg-gray-50">Aktualisieren</button>
+                </div>
+                <div id="email-log-container" class="p-5">
+                    <p class="text-xs text-gray-400 text-center">Wird geladen...</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    _settingsLoadEmailLog();
+}
+
+// ─── Speichern: E-Mail-Einstellungen ─────────────────────────
+async function _settingsSaveEmail() {
+    const updates = {
+        notifications_enabled:      document.getElementById('s-notif-enabled').checked,
+        notification_sender_name:   document.getElementById('s-notif-sender-name').value.trim() || 'HausBlick Portal',
+        notification_sender_email:  document.getElementById('s-notif-sender-email').value.trim() || 'portal@hausblick-fn.de',
+        updated_at:                 new Date().toISOString(),
+    };
+
+    const { error } = await _supabase.from('global_settings').update(updates).eq('id', 1);
+    if (error) { showToast('Fehler beim Speichern: ' + error.message, 'error'); return; }
+
+    // Lokalen State aktualisieren
+    Object.assign(window._settingsData || {}, updates);
+    showToast('E-Mail-Einstellungen gespeichert.');
+}
+
+// ─── E-Mail-Log laden ────────────────────────────────────────
+async function _settingsLoadEmailLog() {
+    const container = document.getElementById('email-log-container');
+    if (!container) return;
+
+    const { data: logs, error } = await _supabase
+        .from('email_log')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+    if (error) {
+        container.innerHTML = `<p class="text-xs text-hb-orange">Fehler: ${error.message}</p>`;
+        return;
+    }
+
+    if (!logs?.length) {
+        container.innerHTML = '<p class="text-xs text-gray-400 text-center py-4">Noch keine E-Mails versendet.</p>';
+        return;
+    }
+
+    const statusBadge = (s) => {
+        const styles = { sent: 'bg-green-100 text-green-700', failed: 'bg-red-100 text-red-700', skipped: 'bg-gray-100 text-gray-500', pending: 'bg-yellow-100 text-yellow-700' };
+        const labels = { sent: 'Gesendet', failed: 'Fehler', skipped: 'Übersprungen', pending: 'Ausstehend' };
+        return `<span class="text-xs px-2 py-0.5 rounded-full font-semibold ${styles[s] || styles.pending}">${labels[s] || s}</span>`;
+    };
+
+    const triggerLabels = { ticket_new: 'Neues Ticket', ticket_status: 'Status-Update', document_released: 'Dokument', news_new: 'News' };
+
+    container.innerHTML = `
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm rtable">
+                <thead><tr class="bg-gray-50 text-xs font-bold text-gray-500">
+                    <th class="px-3 py-2 text-left">Zeitpunkt</th>
+                    <th class="px-3 py-2 text-left">Typ</th>
+                    <th class="px-3 py-2 text-left">Empfänger</th>
+                    <th class="px-3 py-2 text-left">Betreff</th>
+                    <th class="px-3 py-2 text-left">Status</th>
+                </tr></thead>
+                <tbody class="divide-y divide-hb-olive/10">
+                    ${logs.map(l => `<tr class="hover:bg-hb-ultralight">
+                        <td class="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">${new Date(l.created_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+                        <td class="px-3 py-2 text-xs">${triggerLabels[l.trigger_type] || l.trigger_type}</td>
+                        <td class="px-3 py-2 text-xs text-gray-600">${_escHtml(l.recipient_email)}</td>
+                        <td class="px-3 py-2 text-xs text-gray-600 max-w-[200px] truncate">${_escHtml(l.subject)}</td>
+                        <td class="px-3 py-2">${statusBadge(l.status)}${l.error_message ? `<span class="text-xs text-red-400 ml-1" title="${_escAttr(l.error_message)}">(?)</span>` : ''}</td>
+                    </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+
+    makeTableResponsive?.(container.querySelector('table'));
 }
 
 // ============================================================

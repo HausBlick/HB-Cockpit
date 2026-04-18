@@ -40,6 +40,13 @@
         body textarea { height: auto; min-height: 80px; padding: 10px 16px; }
         input:focus, select:focus, textarea:focus { background-color: white; border-color: #687451; outline: none; box-shadow: 0 0 0 3px rgba(104, 116, 81, 0.1); }
         input[type="checkbox"] { width: auto; accent-color: #687451; width: 1.2rem; height: 1.2rem; cursor: pointer; border-radius: 4px; }
+        /* Toggle Switch */
+        .hb-toggle { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+        .hb-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+        .hb-toggle .hb-toggle-track { position: absolute; inset: 0; background: #d1d5db; border-radius: 12px; transition: background 0.2s; cursor: pointer; }
+        .hb-toggle input:checked + .hb-toggle-track { background: #687451; }
+        .hb-toggle .hb-toggle-thumb { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: white; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.15); transition: transform 0.2s; pointer-events: none; }
+        .hb-toggle input:checked ~ .hb-toggle-thumb { transform: translateX(20px); }
         .btn-primary { background-color: #687451; color: white; border-radius: 12px; transition: all 0.2s; font-weight: 600; padding: 12px 24px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
         .btn-primary:hover { background-color: #555f42; transform: translateY(-1px); }
         .btn-secondary { background-color: #e5e7eb; color: #374151; border-radius: 12px; transition: all 0.2s; font-weight: 600; padding: 12px 24px; cursor: pointer; }

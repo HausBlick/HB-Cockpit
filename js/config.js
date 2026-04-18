@@ -190,3 +190,18 @@ function _syncBuildingToSession() {
         sessionStorage.setItem('hb_active_building', String(selectedBuildingId));
     }
 }
+
+// ============================================================
+// E-Mail-Benachrichtigungen (Phase 7.2)
+// Fire-and-forget — blockiert nie die UI
+// ============================================================
+
+function sendNotification(type, payload) {
+    try {
+        _supabase.functions.invoke('send-notification', {
+            body: { type, payload },
+        }).catch(e => console.warn('Notification failed:', e));
+    } catch (e) {
+        console.warn('Notification failed:', e);
+    }
+}

@@ -630,7 +630,13 @@ window.updateTicketStatus = async (ticketId, newStatus) => {
 
     const { error } = await _supabase.from('tickets').update(payload).eq('id', ticketId);
     if (error) showToast(error.message, 'error');
-    else { showToast('Status aktualisiert.', 'success'); refreshNavBadges?.(); }
+    else {
+        showToast('Status aktualisiert.', 'success');
+        refreshNavBadges?.();
+        // E-Mail-Benachrichtigung (fire & forget)
+        const { data: t } = await _supabase.from('tickets').select('title').eq('id', ticketId).single();
+        sendNotification('ticket_status', { ticket_id: ticketId, new_status: newStatus, title: t?.title || '' });
+    }
 };
 
 window.saveSnoozeDate = async (ticketId, date) => {
@@ -859,6 +865,11 @@ window.saveTicket = async () => {
         assigned_to:  assignedTo,
     }]).select('id').single();
     if (error) { showToast(error.message, 'error'); return; }
+
+    // E-Mail-Benachrichtigung (fire & forget)
+    if (ticket?.id) {
+        sendNotification('ticket_new', { ticket_id: ticket.id, building_id: bId, title });
+    }
 
     // Beschreibung als erste Chat-Nachricht einfügen
     if (ticket?.id && desc) {
