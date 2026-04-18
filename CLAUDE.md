@@ -128,7 +128,7 @@ js/
     mod-finanzen.js         # Buchhaltung (Konten, Buchungen, Wirtschaftsplan, Abrechnung, CSV/SEPA)
     mod-zeiterfassung.js    # Zeiterfassung & Projekte (→ zeiterfassung.html, nicht mehr in dashboard.html)
     mod-settings.js         # Admin-Einstellungen (Firmendaten, Finanz-Defaults, Logo/Briefbogen-Upload, Dokumenten-Designer)
-    mod-placeholder.js      # Platzhalter für kommende Module (loadProfile, loadMyUnits, loadMyTenants)
+    mod-placeholder.js      # Mein Profil (Kontodaten + Benachrichtigungs-Toggles), Platzhalter (loadMyUnits, loadMyTenants)
     mod-etv.js              # Eigentümerversammlung (Planung, Check-in, Abstimmung, Protokoll)
 ```
 
@@ -181,7 +181,11 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 `hausgeld_history` (building_id FK BIGINT, apartment_id FK BIGINT, old_hausgeld DECIMAL, new_hausgeld DECIMAL, change_reason TEXT, fiscal_year INT, changed_by FK UUID→profiles, changed_at TIMESTAMP. Index auf apartment_id+changed_at.)
 
 **Phase 7 System-Tabellen:**
-`global_settings` (single-row id=1: Firmenstammdaten, Finanz-Defaults, logo_url, letterhead_pdf_url. RLS: lesen=alle, schreiben=admin)
+`global_settings` (single-row id=1: Firmenstammdaten, Finanz-Defaults, logo_url, letterhead_pdf_url, notifications_enabled BOOLEAN, notification_sender_email TEXT, notification_sender_name TEXT. RLS: lesen=alle, schreiben=admin)
+
+**Phase 7.2 E-Mail-Benachrichtigungen:**
+`notification_preferences` (user_id FK→profiles, trigger_type CHECK(ticket_new/ticket_status/document_released/news_new), enabled BOOLEAN DEFAULT true. UNIQUE(user_id, trigger_type). RLS: eigene lesen/schreiben, Admin liest alle.)
+`email_log` (trigger_type TEXT, recipient_email TEXT, recipient_user_id FK→profiles, subject TEXT, status CHECK(pending/sent/failed/skipped), error_message TEXT, metadata JSONB. RLS: nur Admin/Manager lesen, Insert via service_role. Append-only Audit-Trail.)
 
 **Phase 7.10 PDF-Vorlagen-System:**
 `pdf_templates` (id UUID, type TEXT UNIQUE, name TEXT, description TEXT, content JSONB, use_letterhead BOOLEAN DEFAULT true, created_at, updated_at. RLS: lesen=authenticated, schreiben=admin. Index auf type.)
@@ -236,6 +240,7 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | RPC | migration_check_is_advisory | `check_is_advisory()` — Prüft ob User aktives Beiratsmitglied ist (SECURITY DEFINER). |
 | RPC | migration_get_beirat_access | `get_beirat_access()` — Alle aktiven Beirat-Freigabezeiträume des Users (SECURITY DEFINER). |
 | PDF-Fix | migration_fix_umlageschluessel_format | JAB/WP-Templates: korrekte Blockfolge + EUR-Format auf Verteilung. |
+| Phase 7.2 | phase72_email_notifications | `notification_preferences` (User-Opt-In/Out pro Trigger), `email_log` (Audit-Trail), `global_settings` +3 Spalten (notifications_enabled, sender_email, sender_name). RLS, Indexes. Edge Function `send-notification` (Brevo HTTP API). |
 
 ---
 
@@ -335,7 +340,7 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 ### 🔄 Phase 7 — System, Einstellungen & Benachrichtigungen
 *Querschnitts-Modul: Konfiguration, E-Mail-Push, User-Profile, Audit, PWA.*
 - 7.1 **Admin-Einstellungen** (Firmenstammdaten, Briefkopf-Upload, Mahngebühr, Basiszins) ✅
-- 7.2 **E-Mail-Benachrichtigungen** (Trigger: neue Tickets, Statusänderungen, neu freigegebene Dokumente, News) 📋
+- 7.2 **E-Mail-Benachrichtigungen** (Brevo SMTP API, 4 Trigger, Edge Function, User-Opt-Out) ✅
 - 7.3 **Nutzer-Einstellungen** (Passwort ändern, Notification Opt-Ins je Trigger-Typ) 📋
 - 7.4 **System-Logs / Audit Trail** (revisionssichere Aktions-Historie für Admin: Wer hat wann was geändert?) 📋
 - 7.5 **In-App Hilfe & Onboarding** (Fragezeichen-Symbol je Modul → kontextbezogene Doku / Guided Tour) 📋
@@ -730,4 +735,33 @@ Migration `migration_role_refactor.sql`: `profiles.is_landlord` BOOLEAN. `profil
 - **7.11-C Verzugszins Auto-Berechnung:** Mahnlauf-Default auf `gsRate + 5` (§ 288 BGB) vorbelegt. Label "Basiszinssatz" → "Verzugszinssatz". Hint-Text zeigt Berechnungsformel.
 - **7.11-D typeLabels zentralisiert:** `DISTRIBUTION_KEY_LABELS` in `config.js` (7 Typen: mea/sqm/units/consumption/persons/heizkosten/custom). 6 Stellen ersetzt: 2× `mod-finanzen.js` (distKeyLabel + Select-Options), 4× `utils-pdf.js` (_typeLabels/typeLabels).
 - **7.11-E Mahngebühr-Verrechnungs-Hinweis:** Nach "Bezahlt"-Buchung bei Mahnungen mit Gebühr: Info-Toast nach 1,5s Delay ("Mahngebühr auf WEG-Konto gutgeschrieben — bitte Überweisung auf Verwalterkonto veranlassen").
+
+### Phase 7.2 — E-Mail-Benachrichtigungen (Brevo)
+Migration `phase72_email_notifications.sql`: `notification_preferences` (User-Opt-In/Out), `email_log` (DSGVO Audit-Trail), `global_settings` +3 Spalten.
+
+**Architektur:**
+- **E-Mail-Dienst:** Brevo (ex Sendinblue) — DSGVO-konform, Server in Deutschland, Free Tier 300/Tag.
+- **Edge Function:** `send-notification` (Deno, Supabase Edge Functions). 1 Funktion für alle 4 Trigger-Typen. JWT-gesichert, nutzt service_role für DB-Zugriff + Brevo HTTP API (`api.brevo.com/v3/smtp/email`).
+- **Frontend:** `sendNotification(type, payload)` in `config.js` — fire-and-forget, blockiert nie die UI.
+- **Default:** Opt-In (alle Benachrichtigungen aktiv). User können einzelne Trigger unter "Mein Profil" deaktivieren.
+
+**4 Trigger-Typen:**
+| Trigger | Auslöser | Empfänger |
+|---|---|---|
+| `ticket_new` | `saveTicket()` in mod-tickets.js | assigned_to + Admins/Manager |
+| `ticket_status` | `updateTicketStatus()` in mod-tickets.js | creator_id + assigned_to |
+| `document_released` | `_publishDoc()` in mod-dokumente.js | Alle Nutzer des Gebäudes |
+| `news_new` | `saveNews()` in mod-news.js | Alle Nutzer des Gebäudes (global: alle) |
+
+**E-Mail-Adress-Auflösung:** `profiles.id` → `persons.auth_user_id` → `persons.email` (Fallback: `auth.users.email`).
+
+**Geänderte Dateien:**
+- `config.js`: `sendNotification()` Helper (fire-and-forget).
+- `mod-tickets.js`: Trigger `ticket_new` nach `saveTicket()`, Trigger `ticket_status` nach `updateTicketStatus()`.
+- `mod-dokumente.js`: Trigger `document_released` nach `_publishDoc()`.
+- `mod-news.js`: Trigger `news_new` nach `saveNews()` (+ `.select('id').single()` Refactor).
+- `mod-settings.js`: Neuer Tab "E-Mail" (Konfiguration, Trigger-Übersicht, E-Mail-Log mit Status-Badges).
+- `mod-placeholder.js`: `loadProfile()` implementiert (Kontodaten read-only + 4 Benachrichtigungs-Toggles mit Upsert).
+- Neu: `scripts/migration_email_notifications.sql`.
+- Neu: Edge Function `send-notification/index.ts` (deployed via Supabase MCP).
 

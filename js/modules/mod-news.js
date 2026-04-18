@@ -502,8 +502,12 @@ window.saveNews = async () => {
         author_id:        currentUser.id,
         likes:            0,
     };
-    const { error } = await _supabase.from('news').insert([payload]);
+    const { data: newsRow, error } = await _supabase.from('news').insert([payload]).select('id').single();
     if (error) { showToast(error.message, 'error'); return; }
+
+    // E-Mail-Benachrichtigung (fire & forget)
+    sendNotification('news_new', { news_id: newsRow?.id, building_id: payload.building_id, title });
+
     document.getElementById('create-news-modal')?.remove();
     showToast('Beitrag veröffentlicht.', 'success');
     await _loadLikedAndRead();
