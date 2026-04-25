@@ -404,7 +404,7 @@ function _etvRenderExec() {
     const presentGroups = groups.filter(g => g.anyPresent);
 
     const resultLabel = (status) => {
-        if (status === 'approved') return { text: 'Angenommen', cls: 'bg-green-100 text-green-700 border-green-200' };
+        if (status === 'approved') return { text: 'Angenommen', cls: 'bg-hb-success/12 text-hb-success border-hb-success/20' };
         if (status === 'rejected') return { text: 'Abgelehnt', cls: 'bg-hb-orange/10 text-hb-orange border-hb-orange/20' };
         if (status === 'postponed') return { text: 'Vertagt', cls: 'bg-gray-100 text-gray-500 border-gray-200' };
         return { text: 'Offen', cls: 'bg-gray-100 text-gray-400 border-gray-200' };
@@ -438,7 +438,7 @@ function _etvRenderExec() {
 
                     <div class="relative pt-1">
                         <div class="flex mb-2 items-center justify-between gap-2">
-                            <span class="text-[9px] font-black inline-block py-1 px-2 uppercase rounded-full ${isQuorum ? 'text-green-600 bg-green-100' : 'text-hb-orange bg-orange-100'}">
+                            <span class="text-[9px] font-black inline-block py-1 px-2 uppercase rounded-full ${isQuorum ? 'text-hb-success bg-hb-success/12' : 'text-hb-orange bg-hb-orange/10'}">
                                 ${isQuorum ? 'Beschlussfähig' : 'Prüfung'}
                             </span>
                             <span class="text-lg font-black ${isQuorum ? 'text-hb-olive' : 'text-hb-orange'}">
@@ -492,7 +492,7 @@ function _etvRenderExec() {
                 ${!sidebarOpen ? `
                     <button onclick="_etvToggleSidebar()" class="w-full mb-3 bg-white rounded-2xl border border-hb-olive/12 hover:border-hb-olive shadow-sm hover:shadow-md transition-all p-3 flex items-center gap-3 group">
                         <div class="bg-hb-ultralight rounded-xl p-2 flex items-center gap-2">
-                            <span class="text-[9px] font-black uppercase tracking-widest ${isQuorum ? 'text-green-700 bg-green-100' : 'text-hb-orange bg-orange-100'} px-2 py-0.5 rounded-full">${isQuorum ? 'BF' : 'Prüf'}</span>
+                            <span class="text-[9px] font-black uppercase tracking-widest ${isQuorum ? 'text-hb-success bg-hb-success/12' : 'text-hb-orange bg-hb-orange/10'} px-2 py-0.5 rounded-full">${isQuorum ? 'BF' : 'Prüf'}</span>
                             <span class="text-base font-black ${isQuorum ? 'text-hb-olive' : 'text-hb-orange'}">${percent}%</span>
                         </div>
                         <div class="flex-grow text-left">
@@ -625,7 +625,7 @@ function _etvRenderTopDetailPanel(top, resultLabelFn) {
                 <div class="bg-hb-ultralight/60 px-5 py-5 border-t border-hb-olive/10">
                     <div class="text-[10px] font-black text-hb-olive uppercase tracking-widest mb-3">Abstimmung</div>
                     <div class="grid grid-cols-3 gap-2">
-                        <button onclick="_etvCastVote('${top.id}', 'yes')" class="bg-white border-2 border-green-600/20 text-green-700 px-4 py-3 rounded-xl font-black text-sm hover:bg-green-600 hover:text-white hover:border-green-600 transition-all active:scale-95">JA</button>
+                        <button onclick="_etvCastVote('${top.id}', 'yes')" class="bg-white border-2 border-hb-success/20 text-hb-success px-4 py-3 rounded-xl font-black text-sm hover:bg-hb-success hover:text-white hover:border-hb-success transition-all active:scale-95">JA</button>
                         <button onclick="_etvCastVote('${top.id}', 'no')" class="bg-white border-2 border-hb-orange/20 text-hb-orange px-4 py-3 rounded-xl font-black text-sm hover:bg-hb-orange hover:text-white hover:border-hb-orange transition-all active:scale-95">NEIN</button>
                         <button onclick="_etvCastVote('${top.id}', 'abstain')" class="bg-white border-2 border-gray-200 text-gray-400 px-4 py-3 rounded-xl font-black text-sm hover:bg-gray-500 hover:text-white hover:border-gray-500 transition-all active:scale-95">ENTH.</button>
                     </div>
@@ -1381,7 +1381,7 @@ window._etvOpenStaging = async () => {
     }));
 
     const badge = (ok) => ok
-        ? `<span class="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-lg">Bereit</span>`
+        ? `<span class="text-xs font-bold text-hb-success bg-hb-success/12 px-2 py-0.5 rounded-lg">Bereit</span>`
         : `<span class="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-lg">Fehlt</span>`;
 
     const tableRows = rows.map(r => `

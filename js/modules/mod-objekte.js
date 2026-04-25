@@ -34,7 +34,7 @@ function infoSection(title) {
 }
 function boolField(label, value) {
     const icon = value ? '✓ Ja' : '✗ Nein';
-    const cls  = value ? 'text-emerald-600' : 'text-gray-400';
+    const cls  = value ? 'text-hb-success' : 'text-gray-400';
     return `<div class="space-y-1">
         <p class="text-[10px] uppercase font-bold text-gray-400 tracking-widest">${label}</p>
         <p class="text-sm font-semibold ${cls}">${icon}</p>
@@ -330,7 +330,7 @@ async function fetchApartmentsForBuilding(bId) {
                 ${currentApartments.map(apt => {
                     const hg = hgMap[apt.id] ?? apt.hausgeld;
                     const statusCls = apt.tenant_status === 'Vermietet'
-                        ? 'bg-emerald-100 text-emerald-700'
+                        ? 'bg-hb-success/12 text-hb-success'
                         : 'bg-gray-100 text-gray-500';
                     return `<tr onclick="showApartmentInfo(${apt.id})"
                         class="hover:bg-hb-ultralight cursor-pointer transition-colors">
@@ -901,7 +901,7 @@ function costKeyRowHtml(k = '', v = '') {
     return `<div class="cost-key-row flex gap-2 items-center">
         <input type="text" class="ck-key flex-1 text-xs h-9 px-2" value="${k}" placeholder="Schlüssel">
         <input type="text" class="ck-val flex-1 text-xs h-9 px-2" value="${v}" placeholder="Wert">
-        <button type="button" onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-600 font-bold px-2">✕</button>
+        <button type="button" onclick="this.parentElement.remove()" class="text-hb-error/70 hover:text-hb-error font-bold px-2">✕</button>
     </div>`;
 }
 window.addCostKeyRow = () => {
@@ -939,7 +939,7 @@ function renderAssignmentsList({ tenancies, ownerships }) {
     ];
     return rows.map(r => {
         const name   = personDisplayName(r.person);
-        const badge  = r.role === 'Eigentümer' ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800';
+        const badge  = r.role === 'Eigentümer' ? 'bg-hb-olive/12 text-hb-olive' : 'bg-hb-gold-soft/30 text-hb-gold-bold';
         const period = r.from ? `${r.from}${r.to ? ' – ' + r.to : ''}` : '';
         return `<div class="flex items-center justify-between py-2 px-3 bg-hb-ultralight rounded-xl border border-gray-100">
             <div class="flex items-center gap-3 min-w-0">
@@ -990,7 +990,7 @@ window.openAssignModal = (aptId) => {
                 <input type="text" id="assign_search" placeholder="Name oder E-Mail…" oninput="searchPersonsForAssign(this.value)" autocomplete="off">
                 <div id="assign_results" class="absolute z-10 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 hidden max-h-48 overflow-y-auto"></div>
             </div>
-            <div id="assign_selected" class="hidden p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-bold text-emerald-800">
+            <div id="assign_selected" class="hidden p-3 bg-hb-success/10 border border-hb-success/20 rounded-xl text-sm font-bold text-hb-success">
                 <span id="assign_selected_name"></span><input type="hidden" id="assign_person_id">
             </div>
             <div id="assign_quickcreate" class="hidden border-t pt-4 space-y-3">

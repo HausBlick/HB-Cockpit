@@ -169,7 +169,7 @@ window.openNewsModal = async (newsId) => {
     const canEdit = userProfile?.role === 'admin' || userProfile?.role === 'manager'
         || (userProfile?.role === 'owner' && item.author?.id === currentUser.id);
     const date    = new Date(item.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
-    const catColor = { Ankündigung: 'bg-blue-100 text-blue-700', Wartung: 'bg-hb-orange/10 text-hb-orange', Allgemein: 'bg-gray-100 text-gray-600' }[item.category] || 'bg-gray-100 text-gray-600';
+    const catColor = { Ankündigung: 'bg-hb-olive/12 text-hb-olive', Wartung: 'bg-hb-orange/10 text-hb-orange', Allgemein: 'bg-gray-100 text-gray-600' }[item.category] || 'bg-gray-100 text-gray-600';
 
     document.getElementById('news-modal')?.remove();
     const modal = document.createElement('div');

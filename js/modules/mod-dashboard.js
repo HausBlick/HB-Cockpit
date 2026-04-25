@@ -21,10 +21,10 @@ function _dashDaysUntil(dateStr) {
 
 function _dashDeadlineBadge(days) {
     if (days === null) return '—';
-    if (days < 0)                            return '<span class="text-[10px] font-black uppercase bg-red-100 text-red-600 px-1.5 py-0.5 rounded">Überfällig</span>';
-    if (days < DEADLINE_THRESHOLDS.critical) return '<span class="text-[10px] font-black uppercase bg-red-100 text-red-600 px-1.5 py-0.5 rounded">Kritisch</span>';
+    if (days < 0)                            return '<span class="text-[10px] font-black uppercase bg-hb-error/12 text-hb-error px-1.5 py-0.5 rounded">Überfällig</span>';
+    if (days < DEADLINE_THRESHOLDS.critical) return '<span class="text-[10px] font-black uppercase bg-hb-error/12 text-hb-error px-1.5 py-0.5 rounded">Kritisch</span>';
     if (days <= DEADLINE_THRESHOLDS.warning) return '<span class="text-[10px] font-black uppercase bg-hb-orange/10 text-hb-orange px-1.5 py-0.5 rounded">Bald</span>';
-    return '<span class="text-[10px] font-black uppercase bg-green-100 text-green-600 px-1.5 py-0.5 rounded">OK</span>';
+    return '<span class="text-[10px] font-black uppercase bg-hb-success/12 text-hb-success px-1.5 py-0.5 rounded">OK</span>';
 }
 
 function _dashKpi(icon, label, value, highlight, onclickAttr) {

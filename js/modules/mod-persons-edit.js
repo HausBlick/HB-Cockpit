@@ -375,11 +375,11 @@ async function showPersonForm(id = null) {
                         <div>
                             <p class="text-sm font-bold text-gray-800">Registrierungsstatus</p>
                             <p class="text-xs text-gray-500">${p.is_registered
-                                ? `<span class="text-emerald-600 font-bold">Registriert</span> — auth_user_id: ${p.auth_user_id || '—'}`
+                                ? `<span class="text-hb-success font-bold">Registriert</span> — auth_user_id: ${p.auth_user_id || '—'}`
                                 : 'Noch nicht registriert.'}</p>
                         </div>
                         ${p.is_registered
-                            ? `<span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">Aktiv</span>`
+                            ? `<span class="bg-hb-success/12 text-hb-success text-xs font-bold px-3 py-1 rounded-full">Aktiv</span>`
                             : `<span class="bg-gray-100 text-gray-500 text-xs font-bold px-3 py-1 rounded-full">Inaktiv</span>`}
                     </div>
 

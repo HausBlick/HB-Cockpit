@@ -37,13 +37,13 @@ async function loadCalendar() {
         <!-- Legende -->
         <div class="flex flex-wrap gap-4 mt-4 px-1">
             <div class="flex items-center gap-1.5 text-xs text-gray-500">
-                <span class="inline-block w-3 h-3 rounded bg-red-200"></span> Überfällig / &lt; 14 Tage
+                <span class="inline-block w-3 h-3 rounded bg-hb-error/40"></span> Überfällig / &lt; 14 Tage
             </div>
             <div class="flex items-center gap-1.5 text-xs text-gray-500">
                 <span class="inline-block w-3 h-3 rounded bg-hb-orange/30"></span> ${DEADLINE_THRESHOLDS.critical}–${DEADLINE_THRESHOLDS.warning} Tage
             </div>
             <div class="flex items-center gap-1.5 text-xs text-gray-500">
-                <span class="inline-block w-3 h-3 rounded bg-green-200"></span> &gt; 30 Tage
+                <span class="inline-block w-3 h-3 rounded bg-hb-success/40"></span> &gt; 30 Tage
             </div>
             <div class="flex items-center gap-1.5 text-xs text-gray-500">
                 <span class="inline-block w-3 h-3 rounded bg-hb-olive/20"></span> Ticket Wiedervorlage
@@ -156,9 +156,9 @@ function _kalRender() {
 
         const pills = dayEvts.map((e, idx) => {
             const colorCls = {
-                red:    'bg-red-100 text-red-700',
+                red:    'bg-hb-error/12 text-hb-error',
                 orange: 'bg-hb-orange/15 text-hb-orange',
-                green:  'bg-green-100 text-green-700',
+                green:  'bg-hb-success/12 text-hb-success',
                 olive:  'bg-hb-olive/10 text-hb-olive',
             }[e.color] || 'bg-gray-100 text-gray-600';
 
@@ -252,10 +252,10 @@ window._kalShowPopup = (event, eventKey) => {
 
     const days     = e.days;
     const daysText = days < 0
-        ? `<span class="text-red-600 font-bold">${Math.abs(days)} Tage überfällig</span>`
+        ? `<span class="text-hb-error font-bold">${Math.abs(days)} Tage überfällig</span>`
         : days === 0
-            ? `<span class="text-red-600 font-bold">Heute fällig</span>`
-            : `<span class="${days < DEADLINE_THRESHOLDS.critical ? 'text-red-600' : days <= DEADLINE_THRESHOLDS.warning ? 'text-hb-orange' : 'text-green-600'} font-bold">in ${days} Tagen</span>`;
+            ? `<span class="text-hb-error font-bold">Heute fällig</span>`
+            : `<span class="${days < DEADLINE_THRESHOLDS.critical ? 'text-hb-error' : days <= DEADLINE_THRESHOLDS.warning ? 'text-hb-orange' : 'text-hb-success'} font-bold">in ${days} Tagen</span>`;
 
     const dateFormatted = new Date(e.date + 'T12:00:00').toLocaleDateString('de-DE', {
         day: '2-digit', month: 'long', year: 'numeric'
