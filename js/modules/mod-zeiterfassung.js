@@ -20,7 +20,7 @@ async function loadZeiterfassung() {
     ca.innerHTML = `<div class="flex justify-center py-16"><div class="w-8 h-8 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div></div>`;
 
     if (!['admin', 'manager'].includes(userProfile?.role)) {
-        ca.innerHTML = `<div class="p-10 card text-center max-w-sm mx-auto mt-10"><h2 class="text-lg font-bold mb-2">Kein Zugriff</h2><p class="text-sm text-gray-500">Nur für Verwalter zugänglich.</p></div>`;
+        ca.innerHTML = `<div class="p-10 card text-center max-w-sm mx-auto mt-10"><h2 class="text-lg font-bold mb-2">Kein Zugriff</h2><p class="text-[15px] text-gray-500">Nur für Verwalter zugänglich.</p></div>`;
         return;
     }
 
@@ -127,7 +127,7 @@ function _timeRenderProjectList() {
                     </div>
                     <div class="p-5 flex-grow">
                         <h3 class="font-bold text-hb-offblack mb-1">${p.title}</h3>
-                        <p class="text-sm text-gray-500 line-clamp-2">${p.description || 'Keine Beschreibung.'}</p>
+                        <p class="text-[15px] text-gray-500 line-clamp-2">${p.description || 'Keine Beschreibung.'}</p>
                     </div>
                     <div class="p-5 pt-0 mt-auto flex justify-between items-center border-t border-hb-olive/10 pt-4">
                         <div class="text-xs text-gray-500">Taktung: <b>${p.billing_increment_min} Min.</b></div>

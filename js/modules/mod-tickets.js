@@ -42,7 +42,7 @@ async function loadTickets() {
             </div>
             <!-- Rechter Bereich -->
             <div class="flex-1 min-w-0 lg:h-full" id="ticket-main">
-                <div class="card lg:h-full flex items-center justify-center text-gray-400 text-sm">
+                <div class="card lg:h-full flex items-center justify-center text-gray-400 text-[15px]">
                     Bitte wähle eine Ansicht aus.
                 </div>
             </div>
@@ -428,7 +428,7 @@ window.openTicketDetail = async (ticketId) => {
                 <!-- Chat -->
                 <div class="flex-grow overflow-y-auto p-4 space-y-3 bg-gray-50/30" id="ticket-chat" style="min-height:200px">
                     ${messages.map(m => _messageBubble(m)).join('')}
-                    ${!messages.length ? '<p class="text-center text-sm text-gray-400 py-8">Noch keine Nachrichten.</p>' : ''}
+                    ${!messages.length ? '<p class="text-center text-[15px] text-gray-400 py-8">Noch keine Nachrichten.</p>' : ''}
                 </div>
                 <!-- Eingabe -->
                 <div class="p-3 border-t border-gray-100 flex-shrink-0 flex gap-2 items-end bg-white">

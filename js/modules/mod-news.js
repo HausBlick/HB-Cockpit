@@ -25,7 +25,7 @@ async function loadNews() {
         <div class="flex justify-between items-end mb-6">
             <div>
                 <h2 class="text-[28px] font-bold text-hb-olive tracking-tight">Schwarzes Brett</h2>
-                <p class="text-sm text-gray-500 mt-1">${desc}</p>
+                <p class="text-[15px] text-gray-500 mt-1">${desc}</p>
             </div>
             ${canCreate ? `<button onclick="showCreateNewsModal()"
                 class="btn-primary flex items-center gap-2 text-sm shadow-sm">
@@ -93,7 +93,7 @@ function _renderGrid() {
         : _newsData.filter(n => n.category === _newsFilter);
 
     if (!filtered.length) {
-        grid.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400 text-sm">Keine Beiträge vorhanden.</div>`;
+        grid.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400 text-[15px]">Keine Beiträge vorhanden.</div>`;
         return;
     }
     grid.innerHTML = filtered.map(n => _newsCardHtml(n)).join('');
@@ -123,7 +123,7 @@ function _newsCardHtml(n) {
                 ${n.buildings ? `<span class="text-[10px] text-gray-400">${formatBuildingName(n.buildings)}</span>` : ''}
             </div>
             <h3 class="font-extrabold text-hb-offblack text-base leading-snug pr-8">${n.title}</h3>
-            <p class="text-sm text-gray-500 line-clamp-3 flex-grow">${preview}…</p>
+            <p class="text-[15px] text-gray-500 line-clamp-3 flex-grow">${preview}…</p>
             <span class="text-xs text-hb-olive font-semibold -mt-1">Mehr lesen →</span>
             <div class="flex justify-between items-center pt-2 border-t border-gray-50 text-xs text-gray-400">
                 <span>${n.author?.full_name || '—'} · ${date}</span>
@@ -194,7 +194,7 @@ window.openNewsModal = async (newsId) => {
                         class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
                 </div>
             </div>
-            <div class="p-6 overflow-y-auto flex-grow text-sm text-gray-700 leading-relaxed
+            <div class="p-6 overflow-y-auto flex-grow text-[15px] text-gray-700 leading-relaxed
                         [&_h3]:text-base [&_h3]:font-bold [&_h3]:mb-2 [&_h3]:mt-3
                         [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2
                         [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2

@@ -561,7 +561,7 @@ async function _settingsRenderDesigner() {
             </div>
         </div>
         <div id="ds-empty-state" class="card p-10 text-center">
-            <p class="text-gray-400 text-sm">Wähle oben eine Vorlage aus, um den Designer zu starten.</p>
+            <p class="text-gray-400 text-[15px]">Wähle oben eine Vorlage aus, um den Designer zu starten.</p>
             <p class="text-gray-300 text-xs mt-2">Vorlagen werden aus der Datenbank geladen (Tabelle pdf_templates).</p>
         </div>
     `;

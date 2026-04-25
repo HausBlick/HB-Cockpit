@@ -40,7 +40,7 @@ async function loadETV() {
     const { data: buildings } = await _supabase.from('buildings').select('id, name, file_number, street, house_number').order('name');
     _etvState.buildings = buildings || [];
     if (_etvState.buildings.length === 0) {
-        ca.innerHTML = `<div class="p-10 card text-center max-w-sm mx-auto mt-10"><p class="text-sm text-gray-500">Keine Gebäude gefunden.</p></div>`;
+        ca.innerHTML = `<div class="p-10 card text-center max-w-sm mx-auto mt-10"><p class="text-[15px] text-gray-500">Keine Gebäude gefunden.</p></div>`;
         return;
     }
     if (!_etvState.buildingId || !_etvState.buildings.find(b => b.id === _etvState.buildingId)) {
@@ -566,7 +566,7 @@ function _etvRenderTopDetailPanel(top, resultLabelFn) {
     const section = (label, value, opts = {}) => value ? `
         <div>
             <div class="text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">${label}</div>
-            <div class="text-sm text-hb-offblack leading-relaxed ${opts.italic ? 'italic text-gray-500' : ''} ${opts.box ? 'bg-hb-orange/5 border border-hb-orange/15 rounded-xl p-3' : ''} whitespace-pre-wrap">${value}</div>
+            <div class="text-[15px] text-hb-offblack leading-relaxed ${opts.italic ? 'italic text-gray-500' : ''} ${opts.box ? 'bg-hb-orange/5 border border-hb-orange/15 rounded-xl p-3' : ''} whitespace-pre-wrap">${value}</div>
         </div>
     ` : '';
 
@@ -655,13 +655,13 @@ function _etvRenderFollow() {
                 <div class="absolute top-0 right-0 p-8 opacity-5 scale-150 rotate-12">${icons.document || ''}</div>
                 
                 <h2 class="text-3xl font-black text-hb-offblack mb-4 tracking-tighter">Protokoll-Finale</h2>
-                <p class="text-sm text-gray-400 max-w-xl leading-relaxed font-bold mb-10">
+                <p class="text-[15px] text-gray-400 max-w-xl leading-relaxed font-bold mb-10">
                     Die Versammlung ist abgeschlossen. Generieren Sie nun das rechtssichere Protokoll zur Unterschrift und Veröffentlichung.
                 </p>
 
                 <div class="bg-hb-ultralight p-8 rounded-2xl border border-hb-olive/10 mb-10 relative">
                     <div class="absolute -top-3 left-8 bg-hb-olive text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest">Unterschriften-Status</div>
-                    <div class="text-sm text-gray-600 leading-relaxed italic">
+                    <div class="text-[15px] text-gray-600 leading-relaxed italic">
                         "Dieses Protokoll wurde am ${new Date().toLocaleDateString('de-DE')} von [Versammlungsleiter] und [Beirat] unterzeichnet. 
                         Das Original mit den handschriftlichen Unterschriften kann gemäß § 24 Abs. 6 WEG beim Verwalter eingesehen werden."
                     </div>
@@ -990,7 +990,7 @@ window._etvTopDocsModal = async (agendaItemId) => {
                     <div>
                         <h4 class="text-[10px] font-black text-hb-olive uppercase tracking-widest mb-3">Hochgeladene Dokumente (${docs.length})</h4>
                         ${docs.length ? `<div class="bg-hb-ultralight rounded-2xl p-4">${docRows}</div>`
-                            : '<p class="text-sm text-gray-400 italic">Noch keine Dokumente hochgeladen.</p>'}
+                            : '<p class="text-[15px] text-gray-400 italic">Noch keine Dokumente hochgeladen.</p>'}
                     </div>
 
                     <!-- Upload -->

@@ -41,7 +41,7 @@ async function loadUserManagement() {
         <div class="flex justify-between items-end mb-6 text-left">
             <div>
                 <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">Globales Adressbuch</h2>
-                <p class="text-sm text-gray-500 mt-1">Verwalten Sie Eigentümer, Mieter und Dienstleister zentral.</p>
+                <p class="text-[15px] text-gray-500 mt-1">Verwalten Sie Eigentümer, Mieter und Dienstleister zentral.</p>
             </div>
             <button onclick="showPersonForm()" class="btn-primary flex items-center gap-2 text-sm shadow-sm">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

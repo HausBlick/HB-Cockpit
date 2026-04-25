@@ -42,7 +42,7 @@ async function loadDocuments() {
         <div class="flex justify-between items-end mb-6 text-left">
             <div>
                 <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">Dokumenten Cloud</h2>
-                <p class="text-sm text-gray-500 mt-1">Dokumente zentral verwalten und bereitstellen.</p>
+                <p class="text-[15px] text-gray-500 mt-1">Dokumente zentral verwalten und bereitstellen.</p>
             </div>
             <div class="flex items-center gap-3">
                 ${canTree ? `
@@ -537,7 +537,7 @@ window._openDocModal = async (docId) => {
                     ? `<iframe src="${signedUrl}" class="w-full h-full" style="min-height:500px;" frameborder="0"></iframe>`
                     : `<div class="p-10 text-center text-gray-400">
                            <div class="text-5xl mb-4">${_docsFileIcon(doc.file_type)}</div>
-                           <p class="text-sm mb-3">Vorschau nicht verfügbar.</p>
+                           <p class="text-[15px] mb-3">Vorschau nicht verfügbar.</p>
                            ${signedUrl ? `<a href="${signedUrl}" download="${displayName}" class="text-hb-olive text-sm hover:underline">Datei herunterladen</a>` : ''}
                        </div>`}
             </div>
@@ -749,7 +749,7 @@ window._openUploadModal = () => {
                     onclick="document.getElementById('doc-file-input').click()"
                     class="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center cursor-pointer hover:border-hb-olive hover:bg-hb-olive/5 transition-colors">
                     <div class="text-3xl mb-1">📁</div>
-                    <p class="text-sm text-gray-500">Dateien ablegen oder <span class="text-hb-olive font-semibold">hier klicken</span></p>
+                    <p class="text-[15px] text-gray-500">Dateien ablegen oder <span class="text-hb-olive font-semibold">hier klicken</span></p>
                     <p class="text-xs text-gray-400 mt-0.5">PDF, Word, Excel, Bilder — max. 20 MB</p>
                     <input type="file" id="doc-file-input" multiple class="hidden" onchange="_handleDocFileInput(this.files)">
                 </div>
