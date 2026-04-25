@@ -178,20 +178,25 @@ function _pdfDrawDate(page, font, settings) {
 // ─── Text-Wrap-Hilfsfunktion ──────────────────────────────────
 // Bricht einen langen Text in Zeilen auf, die in maxWidth passen
 function _pdfSplitText(text, font, fontSize, maxWidth) {
-    const words = text.split(' ');
-    const lines = [];
-    let current = '';
-    for (const word of words) {
-        const test = current ? `${current} ${word}` : word;
-        if (font.widthOfTextAtSize(test, fontSize) > maxWidth && current) {
-            lines.push(current);
-            current = word;
-        } else {
-            current = test;
+    // Zeilenumbrüche respektieren — jede Zeile separat umbrechen
+    const paragraphs = String(text).split('\n');
+    const allLines = [];
+    for (const para of paragraphs) {
+        if (para.trim() === '') { allLines.push(''); continue; }
+        const words = para.split(' ');
+        let current = '';
+        for (const word of words) {
+            const test = current ? `${current} ${word}` : word;
+            if (font.widthOfTextAtSize(test, fontSize) > maxWidth && current) {
+                allLines.push(current);
+                current = word;
+            } else {
+                current = test;
+            }
         }
+        if (current) allLines.push(current);
     }
-    if (current) lines.push(current);
-    return lines;
+    return allLines;
 }
 
 // ─── Template-Engine: Platzhalter-Parser ─────────────────────
@@ -293,10 +298,15 @@ async function generateFromTemplate(blocks, data, tables, options) {
             const size = block.size || 13;
             const font = block.bold !== false ? fBold : fReg;
             const color = resolveColor(block.color);
+            const lineH = size + 4;
+            const lines = _pdfSplitText(text, font, size, contentW);
             // Ensure heading + at least ~60pt for following content (prevents orphaned headings)
-            await ensureSpace(size + 60);
-            page.drawText(text, { x: mLeft, y, size, font, color });
-            y -= size + (block.gap != null ? block.gap : 4);
+            await ensureSpace(lines.length * lineH + 60);
+            for (const line of lines) {
+                page.drawText(line, { x: mLeft, y, size, font, color });
+                y -= lineH;
+            }
+            y -= (block.gap != null ? block.gap : 0);
             break;
         }
 
@@ -307,8 +317,9 @@ async function generateFromTemplate(blocks, data, tables, options) {
             const color = resolveColor(block.color);
             const lineH = size + 4;
             const lines = _pdfSplitText(text, font, size, contentW);
-            await ensureSpace(lines.length * lineH);
             for (const line of lines) {
+                if (line === '') { y -= lineH * 0.5; continue; } // Leerzeile = halber Abstand
+                if (y - lineH < bottomMargin) { await addPage(); }
                 page.drawText(line, { x: mLeft, y, size, font, color });
                 y -= lineH;
             }
@@ -410,6 +421,47 @@ async function generateFromTemplate(blocks, data, tables, options) {
             break;
         }
 
+        case 'info_box': {
+            // Grüne Info-Box mit zentriertem Text (z.B. Termin/Ort)
+            const pad = block.padding || 14;
+            const fontSize = block.size || 10;
+            const lineH = fontSize + 5;
+            const font = block.bold !== false ? fBold : fReg;
+            const color = resolveColor(block.color || 'offblack');
+            // Hintergrund: helles Olive (ultralight-Grün) mit Olive-Border
+            const bgColor = rgb(0.965, 0.973, 0.953);    // #F7F8F3
+            const borderClr = rgb(0.408, 0.455, 0.318);   // hb-olive
+
+            // Zeilen berechnen
+            const rawLines = (block.lines || [block.text || '']).map(l => _pdfReplacePlaceholders(l, data));
+            // Jede Zeile kann Umbrüche erfordern
+            const allLines = [];
+            for (const raw of rawLines) {
+                const split = _pdfSplitText(raw, font, fontSize, contentW - pad * 2);
+                allLines.push(...split);
+            }
+            const boxH = pad * 2 + allLines.length * lineH;
+            await ensureSpace(boxH + 10);
+
+            page.drawRectangle({
+                x: mLeft, y: y - boxH,
+                width: contentW, height: boxH,
+                color: bgColor, borderColor: borderClr, borderWidth: 1,
+            });
+
+            for (let i = 0; i < allLines.length; i++) {
+                const ly = y - pad - (i * lineH) - fontSize;
+                if (block.align === 'center') {
+                    const tw = font.widthOfTextAtSize(allLines[i], fontSize);
+                    page.drawText(allLines[i], { x: mLeft + (contentW - tw) / 2, y: ly, size: fontSize, font, color });
+                } else {
+                    page.drawText(allLines[i], { x: mLeft + pad, y: ly, size: fontSize, font, color });
+                }
+            }
+            y -= boxH + 5;
+            break;
+        }
+
         case 'table': {
             const source = block.source || '';
             const rows = (tables && tables[source]) || [];
@@ -489,6 +541,74 @@ async function generateFromTemplate(blocks, data, tables, options) {
             // Bottom divider
             if (rows.length && !highlightLast) {
                 page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
+            }
+            break;
+        }
+
+        case 'anlagen_list': {
+            // Kompakte Anlagenliste (automatisch aus angehängten Dokumenten)
+            const anlagen = (tables && tables['anlagen']) || [];
+            if (!anlagen.length) break;
+            const fontSize = block.size || 9;
+            const font = block.bold ? fBold : fReg;
+            const color = resolveColor(block.color || 'gray');
+            const lineH = fontSize + 4;
+            const titleText = _pdfReplacePlaceholders(block.title || '', data);
+
+            if (titleText) {
+                await ensureSpace(lineH * 2 + 10);
+                page.drawText(titleText, { x: mLeft, y, size: block.title_size || fontSize, font: fBold, color: resolveColor(block.title_color || 'gray') });
+                y -= (block.title_size || fontSize) + 5;
+            }
+
+            for (const item of anlagen) {
+                const line = `–  ${item.name}`;
+                const lines = _pdfSplitText(line, font, fontSize, contentW - 10);
+                if (y - lines.length * lineH < bottomMargin) { await addPage(); }
+                for (const l of lines) {
+                    page.drawText(l, { x: mLeft + 8, y, size: fontSize, font, color });
+                    y -= lineH;
+                }
+            }
+            break;
+        }
+
+        case 'agenda_list': {
+            // Kompakte Tagesordnungs-Liste (nur TOP-Nummern + Titel)
+            const items = (tables && tables['tagesordnung']) || [];
+            if (!items.length) break;
+            const fontSize = block.size || 9.5;
+            const font = block.bold ? fBold : fReg;
+            const color = resolveColor(block.color);
+            const lineH = fontSize + 4;
+            const titleText = _pdfReplacePlaceholders(block.title || '', data);
+
+            // Titel (z.B. "Tagesordnung:")
+            if (titleText) {
+                await ensureSpace(lineH * 2 + 10);
+                page.drawText(titleText, { x: mLeft, y, size: block.title_size || fontSize + 1, font: fBold, color: resolveColor(block.title_color || 'offblack') });
+                y -= (block.title_size || fontSize + 1) + 6;
+            }
+
+            for (const item of items) {
+                const prefix = `TOP ${item.nr}: `;
+                const prefixW = font.widthOfTextAtSize(prefix, fontSize);
+                const titleLines = _pdfSplitText(item.titel, font, fontSize, contentW - prefixW);
+
+                const itemH = titleLines.length * lineH;
+                if (y - itemH < bottomMargin) { await addPage(); }
+
+                // Erste Zeile mit "TOP X:" Prefix
+                page.drawText(prefix, { x: mLeft, y, size: fontSize, font: fBold, color });
+                page.drawText(titleLines[0], { x: mLeft + prefixW, y, size: fontSize, font, color });
+                y -= lineH;
+
+                // Folgezeilen (eingerückt)
+                for (let li = 1; li < titleLines.length; li++) {
+                    if (y < bottomMargin) { await addPage(); }
+                    page.drawText(titleLines[li], { x: mLeft + prefixW, y, size: fontSize, font, color });
+                    y -= lineH;
+                }
             }
             break;
         }
@@ -662,6 +782,43 @@ const PDF_PREVIEW_DUMMY_DATA = {
             ],
         },
     },
+    etv_einladung: {
+        placeholders: {
+            anrede: 'geehrter Herr',
+            nachname: 'Mustermann',
+            vorname: 'Hans',
+            gebaeude_name: 'WEG Musterstraße 12',
+            gebaeude_adresse: 'Musterstraße 12, 12345 Berlin',
+            datum: '15.06.2026',
+            uhrzeit: '18:00',
+            ort: 'Gemeinschaftsraum, Musterstraße 12',
+            wirtschaftsjahr: '2025',
+            einheit: 'WE-01',
+            firma: 'HausBlick Verwaltungs GmbH',
+            empfaenger_name: 'Hans Mustermann',
+            empfaenger_strasse: 'Beispielweg 5',
+            empfaenger_plz_ort: '12345 Berlin',
+        },
+        tables: {
+            anlagen: [
+                { name: 'Einzelwirtschaftsplan 2025' },
+                { name: 'Jahresabrechnung 2025' },
+                { name: 'Kostenvoranschlag_Dachsanierung.pdf' },
+            ],
+            tagesordnung: [
+                { nr: '1', titel: 'Bericht der Verwaltung' },
+                { nr: '2', titel: 'Abrechnung 2024' },
+                { nr: '3', titel: 'Entlastungsbeschluss HV 2024' },
+                { nr: '4', titel: 'Entlastungsbeschluss Beiräte 2024' },
+                { nr: '5', titel: 'Verwalterbestellung (Wiederbestellung) vom 01.01.2026 bis zum 31.12.2027' },
+                { nr: '6', titel: 'Plan Vorschuss und Plan Erhaltungsrücklage 2026' },
+                { nr: '7', titel: 'Finanzierung von Instandhaltungsmaßnahmen' },
+                { nr: '7.1', titel: 'Dachreparatur um Bereich Wohnung 45/46' },
+                { nr: '7.2', titel: 'Befestigung Steine im Laubengang' },
+                { nr: '8', titel: 'Verschiedenes' },
+            ],
+        },
+    },
 };
 
 // ─── Verfügbare Platzhalter pro Template-Typ ─────────────────
@@ -723,6 +880,22 @@ const PDF_TEMPLATE_VARIABLES = {
         { key: 'saldo_info', label: 'Saldo-Info-Satz (ergibt sich ein...)' },
         { key: 'bgh_hinweis', label: 'BGH-Hinweis (rechtlicher Hinweis)' },
     ],
+    etv_einladung: [
+        { key: 'anrede', label: 'Anrede (geehrter Herr / geehrte Frau)' },
+        { key: 'nachname', label: 'Nachname' },
+        { key: 'vorname', label: 'Vorname' },
+        { key: 'gebaeude_name', label: 'Gebäude-Name' },
+        { key: 'gebaeude_adresse', label: 'Gebäude-Adresse' },
+        { key: 'datum', label: 'Versammlungsdatum' },
+        { key: 'uhrzeit', label: 'Uhrzeit' },
+        { key: 'ort', label: 'Versammlungsort' },
+        { key: 'wirtschaftsjahr', label: 'Wirtschaftsjahr' },
+        { key: 'einheit', label: 'Einheitennummer' },
+        { key: 'firma', label: 'Firmenname' },
+        { key: 'empfaenger_name', label: 'Empfänger Name' },
+        { key: 'empfaenger_strasse', label: 'Empfänger Straße' },
+        { key: 'empfaenger_plz_ort', label: 'Empfänger PLZ Ort' },
+    ],
 };
 
 // ─── Verfügbare Tabellen-Quellen pro Template-Typ ────────────
@@ -743,6 +916,10 @@ const PDF_TEMPLATE_TABLES = {
         { key: 'verteilung', label: 'Verteilungsergebnis (Ist-Kosten + Gesamt)', columns: ['konto', 'bezeichnung', 'schluessel', 'gesamt', 'anteil'] },
         { key: 'vermoegen_konten', label: 'Vermögensbericht: Kontensalden (Bank & Rücklage)', columns: ['konto', 'bezeichnung', 'saldo', 'status'] },
         { key: 'vermoegen_forderungen', label: 'Vermögensbericht: Offene Forderungen', columns: ['einheit', 'eigentuemer', 'betrag', 'typ'] },
+    ],
+    etv_einladung: [
+        { key: 'tagesordnung', label: 'Tagesordnung (TOP-Nr. + Titel)', columns: ['nr', 'titel'] },
+        { key: 'anlagen', label: 'Anlagen (Dateinamen)', columns: ['name'] },
     ],
 };
 
@@ -789,8 +966,10 @@ async function generateMahnungPDF(noticeIdOrIds) {
 
     let anrede = 'Sehr geehrte Damen und Herren,';
     if (person && person.salutation && person.last_name) {
-        const prefix = person.salutation === 'Herr' ? 'Sehr geehrter Herr' : 'Sehr geehrte Frau';
-        anrede = prefix + ' ' + person.last_name + ',';
+        if (person.salutation === 'Herr') anrede = 'Sehr geehrter Herr ' + person.last_name + ',';
+        else if (person.salutation === 'Frau') anrede = 'Sehr geehrte Frau ' + person.last_name + ',';
+        else if (person.salutation === 'Eheleute') anrede = 'Sehr geehrte Eheleute ' + person.last_name + ',';
+        else if (person.salutation === 'Familie') anrede = 'Sehr geehrte Familie ' + person.last_name + ',';
     }
 
     var fmtAmt = function(v) { return Number(v || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 }); };
@@ -2365,8 +2544,10 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData, save
             // Anrede
             var anrede = 'Sehr geehrte Damen und Herren,';
             if (owner.salutation && owner.lastName) {
-                var prefix = owner.salutation === 'Herr' ? 'Sehr geehrter Herr' : 'Sehr geehrte Frau';
-                anrede = prefix + ' ' + owner.lastName + ',';
+                if (owner.salutation === 'Herr') anrede = 'Sehr geehrter Herr ' + owner.lastName + ',';
+                else if (owner.salutation === 'Frau') anrede = 'Sehr geehrte Frau ' + owner.lastName + ',';
+                else if (owner.salutation === 'Eheleute') anrede = 'Sehr geehrte Eheleute ' + owner.lastName + ',';
+                else if (owner.salutation === 'Familie') anrede = 'Sehr geehrte Familie ' + owner.lastName + ',';
             }
 
             // Erste Seite erstellen (Anschreiben)
@@ -2764,8 +2945,10 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData, save
         // Anrede
         var anrede = 'Sehr geehrte Damen und Herren,';
         if (owner.salutation && owner.lastName) {
-            var prefix = owner.salutation === 'Herr' ? 'Sehr geehrter Herr' : 'Sehr geehrte Frau';
-            anrede = prefix + ' ' + owner.lastName + ',';
+            if (owner.salutation === 'Herr') anrede = 'Sehr geehrter Herr ' + owner.lastName + ',';
+            else if (owner.salutation === 'Frau') anrede = 'Sehr geehrte Frau ' + owner.lastName + ',';
+            else if (owner.salutation === 'Eheleute') anrede = 'Sehr geehrte Eheleute ' + owner.lastName + ',';
+            else if (owner.salutation === 'Familie') anrede = 'Sehr geehrte Familie ' + owner.lastName + ',';
         }
         page.drawText(anrede, { x: mLeft, y: height - 230, size: 10, font: fReg, color: offblack });
 
@@ -3180,12 +3363,13 @@ async function generateETVProtokollPDF(sessionId) {
     const bld = session.building;
 
     const [agendaRes, attRes, votesRes] = await Promise.all([
-        _supabase.from('etv_agenda_items').select('*').eq('session_id', sessionId).order('sort_order'),
+        _supabase.from('etv_agenda_items').select('*').eq('session_id', sessionId),
         _supabase.from('etv_attendance').select('*, person:persons(first_name, last_name)').eq('session_id', sessionId),
         _supabase.from('etv_votes').select('*').in('agenda_item_id', (await _supabase.from('etv_agenda_items').select('id').eq('session_id', sessionId)).data?.map(i => i.id) || [])
     ]);
 
-    const agenda  = agendaRes.data || [];
+    const _sortOrder = (a, b) => { const pa = String(a.sort_order).split('.').map(Number), pb = String(b.sort_order).split('.').map(Number); for (let i = 0; i < Math.max(pa.length, pb.length); i++) { const va = pa[i] ?? -1, vb = pb[i] ?? -1; if (va !== vb) return va - vb; } return 0; };
+    const agenda  = (agendaRes.data || []).sort(_sortOrder);
     const att     = attRes.data || [];
     const votes   = votesRes.data || [];
 
@@ -3297,18 +3481,23 @@ async function generateETVProtokollPDF(sessionId) {
         y -= 8;
 
         // Ergebnis
-        const itemVotes = votes.filter(v => v.agenda_item_id === item.id);
-        const yes = itemVotes.filter(v => v.vote === 'yes').reduce((sum, v) => sum + (Number(v.weight_mea) || 0), 0);
-        const no  = itemVotes.filter(v => v.vote === 'no').reduce((sum, v) => sum + (Number(v.weight_mea) || 0), 0);
-        const abs = itemVotes.filter(v => v.vote === 'abstain').reduce((sum, v) => sum + (Number(v.weight_mea) || 0), 0);
+        if (item.voting_type === 'none') {
+            page.drawText('Kein Beschluss — nicht abstimmungsrelevant', { x: mLeft + 10, y, size: 9, font: fSemi, color: gray50 });
+            y -= 30;
+        } else {
+            const itemVotes = votes.filter(v => v.agenda_item_id === item.id);
+            const yes = itemVotes.filter(v => v.vote === 'yes').reduce((sum, v) => sum + (Number(v.weight_mea) || 0), 0);
+            const no  = itemVotes.filter(v => v.vote === 'no').reduce((sum, v) => sum + (Number(v.weight_mea) || 0), 0);
+            const abs = itemVotes.filter(v => v.vote === 'abstain').reduce((sum, v) => sum + (Number(v.weight_mea) || 0), 0);
 
-        const resLabel = item.result_status.toUpperCase();
-        const resColor = item.result_status === 'approved' ? olive : (item.result_status === 'rejected' ? orange : offblack);
+            const resLabel = item.result_status.toUpperCase();
+            const resColor = item.result_status === 'approved' ? olive : (item.result_status === 'rejected' ? orange : offblack);
 
-        page.drawText(`Abstimmung (MEA): JA: ${yes.toLocaleString('de-DE')} | NEIN: ${no.toLocaleString('de-DE')} | ENTH.: ${abs.toLocaleString('de-DE')}`, { x: mLeft + 10, y, size: 8, font: fSemi, color: gray50 });
-        y -= 14;
-        page.drawText(`Beschluss-Ergebnis: ${resLabel}`, { x: mLeft + 10, y, size: 9, font: fBold, color: resColor });
-        y -= 30;
+            page.drawText(`Abstimmung (MEA): JA: ${yes.toLocaleString('de-DE')} | NEIN: ${no.toLocaleString('de-DE')} | ENTH.: ${abs.toLocaleString('de-DE')}`, { x: mLeft + 10, y, size: 8, font: fSemi, color: gray50 });
+            y -= 14;
+            page.drawText(`Beschluss-Ergebnis: ${resLabel}`, { x: mLeft + 10, y, size: 9, font: fBold, color: resColor });
+            y -= 30;
+        }
     }
 
     // ── UNTERSCHRIFTEN ───────────────────────────────────────
@@ -3344,11 +3533,12 @@ async function generateETVProtokollPDF(sessionId) {
 
 // ─── ETV Einladungs-PDF ───────────────────────────────────────
 
-async function generateETVEinladungPDF(sessionId) {
+async function generateETVEinladungPDF(sessionId, options = {}) {
+    const isDraft = !!options.draft;
     if (typeof PDFLib === 'undefined') {
         showToast('PDF-Bibliothek nicht geladen. Bitte Seite neu laden.', 'error'); return;
     }
-    showToast('Einladungen werden erstellt…');
+    showToast(isDraft ? 'Entwurf wird erstellt…' : 'Einladungen werden erstellt…');
 
     const settings = await _pdfGetSettings();
     const { data: session } = await _supabase
@@ -3362,18 +3552,39 @@ async function generateETVEinladungPDF(sessionId) {
     const aptIds = (buildingApts || []).map(a => a.id);
 
     const [agendaRes, ownRes] = await Promise.all([
-        _supabase.from('etv_agenda_items').select('*').eq('session_id', sessionId).order('sort_order'),
+        _supabase.from('etv_agenda_items').select('*').eq('session_id', sessionId),
         aptIds.length > 0
             ? _supabase.from('ownerships')
-                .select('apartment_id, person:persons!ownerships_owner_id_fkey(first_name, last_name, salutation, street, house_number, zip_code, city), apartment:apartments(apartment_number, mea_numerator, mea_denominator)')
+                .select('apartment_id, person:persons!ownerships_owner_id_fkey(id, first_name, last_name, salutation, street, house_number, zip_code, city), apartment:apartments(apartment_number, mea_numerator, mea_denominator)')
                 .in('apartment_id', aptIds)
                 .eq('is_active', true)
             : Promise.resolve({ data: [] })
     ]);
 
-    const agenda = agendaRes.data || [];
+    const _sortOrder = (a, b) => { const pa = String(a.sort_order).split('.').map(Number), pb = String(b.sort_order).split('.').map(Number); for (let i = 0; i < Math.max(pa.length, pb.length); i++) { const va = pa[i] ?? -1, vb = pb[i] ?? -1; if (va !== vb) return va - vb; } return 0; };
+    const agenda = (agendaRes.data || []).sort(_sortOrder);
     const owners = ownRes.data || [];
     if (owners.length === 0) { showToast('Keine aktiven Eigentümer für dieses Gebäude gefunden.', 'error'); return; }
+
+    // TOP-Dokumente laden
+    const agendaIds = agenda.map(a => a.id);
+    let agendaDocs = [];
+    if (agendaIds.length) {
+        const { data } = await _supabase.from('etv_agenda_documents').select('*').in('agenda_item_id', agendaIds);
+        agendaDocs = data || [];
+    }
+
+    // TOP-Dokument-PDFs vorab laden (einmalig, nicht pro Eigentümer)
+    const _loadedDocPDFs = {};
+    for (const doc of agendaDocs) {
+        try {
+            const { data: sd } = await _supabase.storage.from('documents').createSignedUrl(doc.file_path, 300);
+            if (sd?.signedUrl) {
+                const resp = await fetch(sd.signedUrl);
+                if (resp.ok) _loadedDocPDFs[doc.id] = await resp.arrayBuffer();
+            }
+        } catch(e) { /* Dokument nicht verfügbar */ }
+    }
 
     const { PDFDocument, rgb } = PDFLib;
     let templateDoc = null;
@@ -3386,9 +3597,13 @@ async function generateETVEinladungPDF(sessionId) {
         } catch(e) { /* kein Briefbogen */ }
     }
 
-    const pdfDoc = await PDFDocument.create();
-    pdfDoc.registerFontkit(fontkit);
-    const { reg: fReg, semi: fSemi, bold: fBold } = await _pdfLoadInterFonts(pdfDoc);
+    const bld     = session.building;
+    const bldName = formatBuildingName(bld);
+    const bldAddr = `${bld.street || ''} ${bld.house_number || ''}, ${bld.zip_code || ''} ${bld.city || ''}`.trim().replace(/^,\s*/, '');
+    const dateStr = new Date(session.meeting_date).toLocaleDateString('de-DE');
+    const timeStr = new Date(session.meeting_date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const fy      = session.fiscal_year;
+    const todayStr = new Date().toLocaleDateString('de-DE');
 
     const olive    = rgb(0.408, 0.455, 0.318);
     const offblack = rgb(0.216, 0.216, 0.216);
@@ -3399,183 +3614,420 @@ async function generateETVEinladungPDF(sessionId) {
     const contentW = mRight - mLeft;
     const pageH = 841.89;
 
-    const bld     = session.building;
-    const bldName = formatBuildingName(bld);
-    const bldAddr = `${bld.street || ''} ${bld.house_number || ''}, ${bld.zip_code || ''} ${bld.city || ''}`.trim().replace(/^,\s*/, '');
-    const dateStr = new Date(session.meeting_date).toLocaleDateString('de-DE');
-    const timeStr = new Date(session.meeting_date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-    const fy      = session.fiscal_year;
-    const todayStr = new Date().toLocaleDateString('de-DE');
-
-    const addPage = async () => {
-        if (templateDoc) {
-            const [copied] = await pdfDoc.copyPages(templateDoc, [0]);
-            return pdfDoc.addPage(copied);
+    // Staged Anlagen (WP + JAB) vorab laden — nur im Final-Modus
+    const _loadedStaging = {};
+    if (!isDraft) {
+        for (const own of owners) {
+            for (const docType of ['wp', 'jab']) {
+                const storagePath = `etv-staging/${bld.id}/${fy}/${docType}/${own.apartment_id}.pdf`;
+                try {
+                    const { data: sd } = await _supabase.storage.from('documents').createSignedUrl(storagePath, 300);
+                    if (sd?.signedUrl) {
+                        const resp = await fetch(sd.signedUrl);
+                        if (resp.ok) _loadedStaging[`${own.apartment_id}_${docType}`] = await resp.arrayBuffer();
+                    }
+                } catch(e) { /* kein Staging-Dokument */ }
+            }
         }
-        const pg = pdfDoc.addPage([595.28, pageH]);
-        pg.drawText(settings.company_name || 'Hausverwaltung', { x: mLeft, y: pageH - 50, size: 11, font: fBold, color: olive });
-        return pg;
-    };
+    }
+
+    // ── Pro Eigentümer ein separates PDF ─────────────────────
+    const zipFiles = [];
+
+    // Template laden (falls vorhanden)
+    let etvTemplate = null;
+    try { etvTemplate = await _pdfLoadTemplate('etv_einladung'); } catch(e) {}
 
     for (const own of owners) {
         const person = own.person;
         const apt    = own.apartment;
         if (!person) continue;
 
+        const pdfDoc = await PDFDocument.create();
+        pdfDoc.registerFontkit(fontkit);
+        const { reg: fReg, semi: fSemi, bold: fBold } = await _pdfLoadInterFonts(pdfDoc);
+        const fonts = { reg: fReg, semi: fSemi, bold: fBold };
+        const white = rgb(1, 1, 1);
+
+        const addPage = async () => {
+            if (templateDoc) {
+                const [copied] = await pdfDoc.copyPages(templateDoc, [0]);
+                return pdfDoc.addPage(copied);
+            }
+            const pg = pdfDoc.addPage([595.28, pageH]);
+            pg.drawText(settings.company_name || 'Hausverwaltung', { x: mLeft, y: pageH - 50, size: 11, font: fBold, color: olive });
+            return pg;
+        };
+
         const fullName = `${person.first_name} ${person.last_name}`;
-        const salut    = person.salutation === 'Herr' ? 'geehrter Herr' : person.salutation === 'Frau' ? 'geehrte Frau' : 'geehrte(r)';
+        const salut    = person.salutation === 'Herr' ? 'geehrter Herr' : person.salutation === 'Frau' ? 'geehrte Frau' : person.salutation === 'Eheleute' ? 'geehrte Eheleute' : person.salutation === 'Familie' ? 'geehrte Familie' : 'geehrte(r)';
         const addrLines = [
             fullName,
             `${person.street || ''} ${person.house_number || ''}`.trim(),
             `${person.zip_code || ''} ${person.city || ''}`.trim()
         ].filter(l => l.length > 0);
+        const ownerPersonId = own.person?.id;
 
+        // ── SEITE 1: ANSCHREIBEN (DIN 5008 + Template) ──────────
         let page = await addPage();
         let y = 740;
 
-        // Adressfeld
+        // DIN 5008: Adressfeld
         addrLines.forEach((line, i) => {
             page.drawText(line, { x: mLeft, y: y - i * 14, size: 10, font: i === 0 ? fSemi : fReg, color: offblack });
         });
         y -= addrLines.length * 14 + 28;
 
-        // Datum rechtsbündig
+        // DIN 5008: Datum rechtsbündig
         const dW = fReg.widthOfTextAtSize(todayStr, 10);
         page.drawText(todayStr, { x: mRight - dW, y: y + 14, size: 10, font: fReg, color: gray50 });
 
-        // Überschrift
+        // DIN 5008: Betreff
         page.drawText('Einladung zur Eigentümerversammlung', { x: mLeft, y, size: 13, font: fBold, color: offblack });
         y -= 17;
         page.drawText(`Wirtschaftsjahr ${fy}  |  ${bldName}`, { x: mLeft, y, size: 9, font: fSemi, color: olive });
         y -= 24;
 
-        // Info-Box
-        const boxH = 50;
-        page.drawRectangle({ x: mLeft, y: y - boxH, width: contentW, height: boxH, color: rgb(0.98, 0.98, 0.96), borderColor: divider, borderWidth: 0.5 });
-        page.drawText('Termin:', { x: mLeft + 10, y: y - 16, size: 8, font: fBold, color: gray50 });
-        page.drawText(`${dateStr}  um  ${timeStr} Uhr`, { x: mLeft + 48, y: y - 16, size: 9, font: fSemi, color: offblack });
-        page.drawText('Ort:', { x: mLeft + 10, y: y - 32, size: 8, font: fBold, color: gray50 });
-        page.drawText(session.location || '—', { x: mLeft + 48, y: y - 32, size: 9, font: fReg, color: offblack });
-        page.drawText('Objekt:', { x: mLeft + 240, y: y - 16, size: 8, font: fBold, color: gray50 });
-        const bldAddrSplit = _pdfSplitText(bldAddr, fReg, 8.5, contentW - 260);
-        bldAddrSplit.forEach((l, i) => page.drawText(l, { x: mLeft + 278, y: y - 16 - i * 12, size: 8.5, font: fReg, color: offblack }));
-        y -= boxH + 16;
-
-        // Anrede + Intro
-        page.drawText(`Sehr ${salut} ${person.last_name},`, { x: mLeft, y, size: 10, font: fReg, color: offblack });
-        y -= 16;
-        const intro = `hiermit laden wir Sie herzlich zur Eigentümerversammlung der WEG ${bldAddr} ein. Die Versammlung findet am ${dateStr} um ${timeStr} Uhr statt (${session.location || 'Versammlungsort'}). Wir bitten um pünktliches Erscheinen.`;
-        for (const line of _pdfSplitText(intro, fReg, 9.5, contentW)) {
-            page.drawText(line, { x: mLeft, y, size: 9.5, font: fReg, color: offblack });
-            y -= 13;
+        // Info-Box nur im Legacy-Modus (Template hat eigene info_box)
+        if (!etvTemplate) {
+            const boxH = 50;
+            page.drawRectangle({ x: mLeft, y: y - boxH, width: contentW, height: boxH, color: rgb(0.98, 0.98, 0.96), borderColor: divider, borderWidth: 0.5 });
+            page.drawText('Termin:', { x: mLeft + 10, y: y - 16, size: 8, font: fBold, color: gray50 });
+            page.drawText(`${dateStr}  um  ${timeStr} Uhr`, { x: mLeft + 48, y: y - 16, size: 9, font: fSemi, color: offblack });
+            page.drawText('Ort:', { x: mLeft + 10, y: y - 32, size: 8, font: fBold, color: gray50 });
+            page.drawText(session.location || '—', { x: mLeft + 48, y: y - 32, size: 9, font: fReg, color: offblack });
+            page.drawText('Objekt:', { x: mLeft + 240, y: y - 16, size: 8, font: fBold, color: gray50 });
+            const bldAddrSplit = _pdfSplitText(bldAddr, fReg, 8.5, contentW - 260);
+            bldAddrSplit.forEach((l, i) => page.drawText(l, { x: mLeft + 278, y: y - 16 - i * 12, size: 8.5, font: fReg, color: offblack }));
+            y -= boxH + 16;
         }
-        y -= 14;
 
-        // Tagesordnung
-        page.drawText('TAGESORDNUNG', { x: mLeft, y, size: 10, font: fBold, color: olive });
-        y -= 6;
-        page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.5, color: divider });
-        y -= 14;
+        // Template-Body (editierbar im Designer) oder Legacy-Fallback
+        if (etvTemplate) {
+            const tplData = {
+                anrede: salut, nachname: person.last_name, vorname: person.first_name,
+                gebaeude_name: bldName, gebaeude_adresse: bldAddr,
+                datum: dateStr, uhrzeit: timeStr, ort: session.location || 'Versammlungsort',
+                wirtschaftsjahr: String(fy), einheit: apt?.apartment_number || '—',
+                firma: settings.company_name || '', empfaenger_name: fullName,
+                empfaenger_strasse: `${person.street || ''} ${person.house_number || ''}`.trim(),
+                empfaenger_plz_ort: `${person.zip_code || ''} ${person.city || ''}`.trim(),
+            };
+            // Anlagen-Daten zusammenstellen (in TOP-Reihenfolge)
+            const anlagenItems = [];
+            for (const it of agenda) {
+                const topDocs = agendaDocs.filter(d =>
+                    d.agenda_item_id === it.id &&
+                    (d.scope === 'building' || (d.scope === 'owner' && d.owner_person_id === ownerPersonId))
+                );
+                for (const d of topDocs) anlagenItems.push({ name: `TOP ${it.sort_order} — ${d.file_name}` });
+            }
+            if (!isDraft) {
+                if (_loadedStaging[`${own.apartment_id}_wp`])  anlagenItems.push({ name: 'Einzelwirtschaftsplan ' + fy });
+                if (_loadedStaging[`${own.apartment_id}_jab`]) anlagenItems.push({ name: 'Jahresabrechnung ' + fy });
+            }
+
+            const tplTables = {
+                tagesordnung: agenda.map(a => ({ nr: a.sort_order, titel: a.title })),
+                anlagen: anlagenItems,
+            };
+            await generateFromTemplate(etvTemplate.content, tplData, tplTables, {
+                pdfDoc, page, fonts, settings, templateDoc, startY: y,
+            });
+        } else {
+            // Legacy-Fallback
+            page.drawText(`Sehr ${salut} ${person.last_name},`, { x: mLeft, y, size: 10, font: fReg, color: offblack });
+            y -= 16;
+            const intro = `hiermit laden wir Sie herzlich zur Eigentümerversammlung der WEG ${bldAddr} ein. Die Versammlung findet am ${dateStr} um ${timeStr} Uhr statt (${session.location || 'Versammlungsort'}). Wir bitten um pünktliches Erscheinen.`;
+            for (const line of _pdfSplitText(intro, fReg, 9.5, contentW)) {
+                page.drawText(line, { x: mLeft, y, size: 9.5, font: fReg, color: offblack });
+                y -= 13;
+            }
+            y -= 14;
+            page.drawText('Mit freundlichen Grüßen', { x: mLeft, y, size: 9.5, font: fReg, color: offblack });
+            y -= 20;
+            page.drawText(settings.company_name || 'Hausverwaltung', { x: mLeft, y, size: 9.5, font: fBold, color: offblack });
+        }
+
+        // ── SEITE 2+: TAGESORDNUNG ──────────────────────────────
+        page = await addPage();
+        y = 740;
+
+        page.drawText('TAGESORDNUNG', { x: mLeft, y, size: 14, font: fBold, color: olive });
+        y -= 8;
+        page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.5, color: olive });
+        y -= 18;
 
         for (const item of agenda) {
-            if (y < mBottom + 60) { page = await addPage(); y = 740; }
+            // TOP-Titel mit Textumbruch berechnen
+            const topLabel = `TOP ${item.sort_order}: `;
+            const labelW = fBold.widthOfTextAtSize(topLabel, 9.5);
+            const titleLines = _pdfSplitText(item.title, fBold, 9.5, contentW - labelW - 16);
+            const topBarH = Math.max(24, 10 + titleLines.length * 14);
 
-            // TOP-Zeile
-            page.drawRectangle({ x: mLeft, y: y - 18, width: contentW, height: 22, color: rgb(0.96, 0.97, 0.94), borderColor: divider, borderWidth: 0.3 });
-            page.drawText(`${item.sort_order}.`, { x: mLeft + 6, y: y - 13, size: 9, font: fBold, color: olive });
-            const titleLines = _pdfSplitText(item.title, fBold, 9, contentW - 30);
-            titleLines.forEach((l, i) => page.drawText(l, { x: mLeft + 22, y: y - 13 - i * 12, size: 9, font: fBold, color: offblack }));
-            y -= Math.max(26, 14 + titleLines.length * 12);
+            // Platz berechnen: TOP-Bar + Vorbemerkung + Beschlussantrag + Anlagen + Abstand
+            const premLines = item.preliminary_remark ? _pdfSplitText(item.preliminary_remark, fReg, 9, contentW - 24) : [];
+            const resLines  = item.proposed_resolution ? _pdfSplitText(item.proposed_resolution, fReg, 9, contentW - 24) : [];
+            const topItemDocs = agendaDocs.filter(d =>
+                d.agenda_item_id === item.id &&
+                (d.scope === 'building' || (d.scope === 'owner' && d.owner_person_id === ownerPersonId))
+            );
+            const minNeeded = topBarH + 20; // mindestens Bar + etwas Inhalt
+            if (y < mBottom + minNeeded) { page = await addPage(); y = 740; }
+
+            // TOP-Header-Bar (hb-olive, weiße Schrift)
+            page.drawRectangle({ x: mLeft, y: y - topBarH, width: contentW, height: topBarH, color: olive });
+            page.drawText(topLabel, { x: mLeft + 8, y: y - topBarH + (topBarH - 10) / 2 + (titleLines.length > 1 ? (titleLines.length - 1) * 7 : 0), size: 9.5, font: fBold, color: white });
+            titleLines.forEach((l, i) => {
+                const ly = y - topBarH + (topBarH - 10) / 2 + (titleLines.length - 1 - i) * 14;
+                page.drawText(l, { x: mLeft + 8 + labelW, y: ly, size: 9.5, font: fBold, color: white });
+            });
+            y -= topBarH + 6;
 
             // Vorbemerkung
-            if (item.preliminary_remark) {
-                const lines = _pdfSplitText(item.preliminary_remark, fReg, 9, contentW - 16);
-                for (const line of lines) {
-                    if (y < mBottom + 20) { page = await addPage(); y = 740; }
-                    page.drawText(line, { x: mLeft + 8, y, size: 9, font: fReg, color: gray50 });
+            if (premLines.length) {
+                y -= 6; // Abstand zur TOP-Bar
+                if (y < mBottom + 30) { page = await addPage(); y = 740; }
+                page.drawText('Vorbemerkung:', { x: mLeft + 10, y, size: 11, font: fBold, color: olive });
+                y -= 16;
+                for (const line of premLines) {
+                    if (y < mBottom + 14) { page = await addPage(); y = 740; }
+                    page.drawText(line, { x: mLeft + 10, y, size: 9, font: fReg, color: gray50 });
                     y -= 13;
                 }
                 y -= 4;
             }
 
             // Beschlussantrag
-            if (item.proposed_resolution) {
+            if (resLines.length) {
+                y -= 4; // Abstand zur Vorbemerkung
                 if (y < mBottom + 30) { page = await addPage(); y = 740; }
-                page.drawText('Beschlussantrag:', { x: mLeft + 8, y, size: 7.5, font: fBold, color: gray50 });
-                y -= 11;
-                const lines = _pdfSplitText(item.proposed_resolution, fReg, 9, contentW - 20);
-                for (const line of lines) {
-                    if (y < mBottom + 20) { page = await addPage(); y = 740; }
-                    page.drawText(line, { x: mLeft + 8, y, size: 9, font: fReg, color: offblack });
+                page.drawText('Beschlussantrag:', { x: mLeft + 10, y, size: 11, font: fBold, color: olive });
+                y -= 16;
+                for (const line of resLines) {
+                    if (y < mBottom + 14) { page = await addPage(); y = 740; }
+                    page.drawText(line, { x: mLeft + 10, y, size: 9, font: fReg, color: offblack });
                     y -= 13;
                 }
+                y -= 4;
             }
-            y -= 12;
-        }
 
-        // Grußformel
-        if (y < mBottom + 60) { page = await addPage(); y = 740; }
-        y -= 10;
-        page.drawText('Mit freundlichen Grüßen', { x: mLeft, y, size: 9.5, font: fReg, color: offblack });
-        y -= 20;
-        page.drawText(settings.company_name || 'Hausverwaltung', { x: mLeft, y, size: 9.5, font: fBold, color: offblack });
+            // TOP-Anlagen
+            if (topItemDocs.length) {
+                y -= 4;
+                if (y < mBottom + 20) { page = await addPage(); y = 740; }
+                page.drawText('Anlagen:', { x: mLeft + 10, y, size: 11, font: fBold, color: olive });
+                y -= 16;
+                for (const td of topItemDocs) {
+                    if (y < mBottom + 14) { page = await addPage(); y = 740; }
+                    page.drawText(`→ ${td.file_name}`, { x: mLeft + 18, y, size: 8, font: fReg, color: olive });
+                    y -= 11;
+                }
+            }
+
+            y -= 14;
+        }
 
         // ── VOLLMACHT (neue Seite) ────────────────────────────
         page = await addPage();
         y = 740;
 
-        page.drawText('VOLLMACHT', { x: mLeft, y, size: 14, font: fBold, color: olive });
-        y -= 8;
-        page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.5, color: divider });
+        // Titel
+        page.drawText('Vollmacht zur Eigentümerversammlung', { x: mLeft, y, size: 16, font: fBold, color: olive });
+        y -= 10;
+        page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 1, color: olive });
+        y -= 24;
+
+        // Intro-Text
+        const vollIntro = 'hiermit übertrage(n) ich/wir meine/unsere Vollmacht zur Eigentümerversammlung.';
+        page.drawText(vollIntro, { x: mLeft, y, size: 9.5, font: fReg, color: offblack });
         y -= 20;
 
-        const vollText = `Ich, ${fullName}, Eigentümer der Einheit ${apt?.apartment_number || '—'} in der WEG ${bldAddr}, bevollmächtige hiermit die nachgenannte Person zur Wahrnehmung meiner Stimmrechte auf der Eigentümerversammlung am ${dateStr} um ${timeStr} Uhr (${session.location || 'Versammlungsort'}).`;
-        for (const line of _pdfSplitText(vollText, fReg, 10, contentW)) {
-            page.drawText(line, { x: mLeft, y, size: 10, font: fReg, color: offblack });
-            y -= 14;
+        // ── Info-Box (Objekt, Datum, Vollmachtgeber, Vollmachtnehmer) ──
+        const vBoxPad = 10;
+        const halfW = (contentW - 10) / 2;
+        const vFieldH = 14;
+
+        // Zeile 1: ETV + ETV-Datum
+        page.drawRectangle({ x: mLeft, y: y - 34, width: halfW, height: 34, borderColor: gray50, borderWidth: 0.5 });
+        page.drawRectangle({ x: mLeft + halfW + 10, y: y - 34, width: halfW, height: 34, borderColor: gray50, borderWidth: 0.5 });
+        page.drawText('ETV', { x: mLeft + vBoxPad, y: y - 10, size: 7, font: fBold, color: gray50 });
+        page.drawText(`${bldName} — WJ ${fy}`, { x: mLeft + vBoxPad, y: y - 24, size: 9, font: fSemi, color: offblack });
+        page.drawText('Datum / Uhrzeit', { x: mLeft + halfW + 10 + vBoxPad, y: y - 10, size: 7, font: fBold, color: gray50 });
+        page.drawText(`${dateStr}  um  ${timeStr} Uhr`, { x: mLeft + halfW + 10 + vBoxPad, y: y - 24, size: 9, font: fSemi, color: offblack });
+        y -= 38;
+
+        // Zeile 2: Vollmachtgeber (vorbefüllt)
+        const vgLines = addrLines;
+        const vgBoxH = 14 + vgLines.length * 13;
+        page.drawRectangle({ x: mLeft, y: y - vgBoxH, width: halfW, height: vgBoxH, borderColor: gray50, borderWidth: 0.5 });
+        page.drawText('Vollmachtgeber', { x: mLeft + vBoxPad, y: y - 10, size: 7, font: fBold, color: gray50 });
+        vgLines.forEach((l, i) => page.drawText(l, { x: mLeft + vBoxPad, y: y - 22 - i * 13, size: 9, font: fReg, color: offblack }));
+
+        // Zeile 2: Vollmachtnehmer (leer zum Ausfüllen)
+        page.drawRectangle({ x: mLeft + halfW + 10, y: y - vgBoxH, width: halfW, height: vgBoxH, borderColor: gray50, borderWidth: 0.5 });
+        page.drawText('Vollmachtnehmer', { x: mLeft + halfW + 10 + vBoxPad, y: y - 10, size: 7, font: fBold, color: gray50 });
+        // Linien zum Ausfüllen
+        for (let li = 0; li < Math.min(vgLines.length, 3); li++) {
+            const ly = y - 24 - li * 13;
+            page.drawLine({ start: { x: mLeft + halfW + 10 + vBoxPad, y: ly }, end: { x: mLeft + halfW + 10 + halfW - vBoxPad, y: ly }, thickness: 0.3, color: rgb(0.8, 0.8, 0.8) });
         }
-        y -= 20;
+        y -= vgBoxH + 10;
 
-        page.drawText('Bevollmächtigte Person (Vor- und Nachname):', { x: mLeft, y, size: 9, font: fBold, color: gray50 });
+        // ── Stimmrechts-Optionen (Checkboxen) ──────────────────
+        page.drawText('Bei der Ausübung des Stimmrechts sind folgende Weisungen zu beachten:', { x: mLeft, y, size: 9, font: fBold, color: offblack });
+        y -= 18;
+
+        const cbSize = 10;
+        const cbOpts = [
+            'Ich/Wir ermächtige(n) die/den Bevollmächtigte/n sämtliche Abstimmungen vorbehaltlos nach ihrem/seinem Ermessen vorzunehmen.',
+            'Ich/Wir erteile(n) der/dem Bevollmächtigten Stimmrechtsanweisungen für die angeführten Tagesordnungspunkte (siehe Tabelle).',
+            'Ich/Wir bevollmächtige(n) die Hausverwaltung, die nachfolgenden Stimmrechtsanweisungen als Vertreter wahrzunehmen.',
+        ];
+        for (const opt of cbOpts) {
+            const optLines = _pdfSplitText(opt, fReg, 8.5, contentW - cbSize - 12);
+            const optH = optLines.length * 12;
+            if (y - optH < mBottom + 20) { page = await addPage(); y = 740; }
+            // Checkbox
+            page.drawRectangle({ x: mLeft, y: y - cbSize, width: cbSize, height: cbSize, borderColor: gray50, borderWidth: 0.5 });
+            optLines.forEach((l, i) => {
+                page.drawText(l, { x: mLeft + cbSize + 8, y: y - 2 - i * 12, size: 8.5, font: fReg, color: offblack });
+            });
+            y -= Math.max(optH, cbSize) + 8;
+        }
+        y -= 6;
+
+        // ── Abstimmungstabelle ──────────────────────────────────
+        // Nur abstimmungsrelevante TOPs (nicht "none")
+        const voteTops = agenda.filter(a => a.voting_type !== 'none');
+        if (voteTops.length) {
+            const colTop = 55;
+            const colTitle = contentW - colTop - 120;
+            const colVote = 40;
+            const rowH = 20;
+
+            // Header
+            const headerH = 20;
+            if (y - headerH < mBottom + 20) { page = await addPage(); y = 740; }
+            page.drawRectangle({ x: mLeft, y: y - headerH, width: contentW, height: headerH, color: olive });
+            page.drawText('Top', { x: mLeft + 6, y: y - headerH + 6, size: 8, font: fBold, color: white });
+            page.drawText('Titel', { x: mLeft + colTop + 6, y: y - headerH + 6, size: 8, font: fBold, color: white });
+            const vx = mLeft + colTop + colTitle;
+            page.drawText('ja', { x: vx + 12, y: y - headerH + 6, size: 8, font: fBold, color: white });
+            page.drawText('nein', { x: vx + colVote + 7, y: y - headerH + 6, size: 8, font: fBold, color: white });
+            page.drawText('enthalten', { x: vx + colVote * 2 + 2, y: y - headerH + 6, size: 8, font: fBold, color: white });
+            y -= headerH;
+
+            for (const item of voteTops) {
+                const titleText = item.title;
+                const tLines = _pdfSplitText(titleText, fReg, 8.5, colTitle - 10);
+                const rH = Math.max(rowH, tLines.length * 12 + 8);
+
+                if (y - rH < mBottom + 10) {
+                    page = await addPage(); y = 740;
+                    // Header wiederholen
+                    page.drawRectangle({ x: mLeft, y: y - headerH, width: contentW, height: headerH, color: olive });
+                    page.drawText('Top', { x: mLeft + 6, y: y - headerH + 6, size: 8, font: fBold, color: white });
+                    page.drawText('Titel', { x: mLeft + colTop + 6, y: y - headerH + 6, size: 8, font: fBold, color: white });
+                    const vx2 = mLeft + colTop + colTitle;
+                    page.drawText('ja', { x: vx2 + 12, y: y - headerH + 6, size: 8, font: fBold, color: white });
+                    page.drawText('nein', { x: vx2 + colVote + 7, y: y - headerH + 6, size: 8, font: fBold, color: white });
+                    page.drawText('enthalten', { x: vx2 + colVote * 2 + 2, y: y - headerH + 6, size: 8, font: fBold, color: white });
+                    y -= headerH;
+                }
+
+                // Trennlinie
+                page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.3, color: rgb(0.85, 0.85, 0.85) });
+
+                // TOP-Nr
+                page.drawText(`Top ${item.sort_order}`, { x: mLeft + 6, y: y - rH + (rH - 8) / 2 + (tLines.length > 1 ? (tLines.length - 1) * 6 : 0), size: 8.5, font: fBold, color: offblack });
+
+                // Titel (mehrzeilig)
+                tLines.forEach((l, i) => {
+                    page.drawText(l, { x: mLeft + colTop + 6, y: y - 12 - i * 12, size: 8.5, font: fReg, color: offblack });
+                });
+
+                // Checkboxen (ja/nein/enthalten)
+                const cbY = y - rH + (rH - cbSize) / 2 + (tLines.length > 1 ? (tLines.length - 1) * 6 : 0);
+                const vx3 = mLeft + colTop + colTitle;
+                page.drawRectangle({ x: vx3 + 10, y: cbY, width: cbSize, height: cbSize, borderColor: gray50, borderWidth: 0.5 });
+                page.drawRectangle({ x: vx3 + colVote + 10, y: cbY, width: cbSize, height: cbSize, borderColor: gray50, borderWidth: 0.5 });
+                page.drawRectangle({ x: vx3 + colVote * 2 + 10, y: cbY, width: cbSize, height: cbSize, borderColor: gray50, borderWidth: 0.5 });
+
+                y -= rH;
+            }
+            // Untere Trennlinie
+            page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.3, color: rgb(0.85, 0.85, 0.85) });
+        }
         y -= 16;
-        page.drawLine({ start: { x: mLeft, y }, end: { x: mLeft + 300, y }, thickness: 0.5, color: offblack });
-        y -= 40;
 
-        page.drawLine({ start: { x: mLeft, y }, end: { x: mLeft + 200, y }, thickness: 0.5, color: offblack });
-        page.drawLine({ start: { x: mLeft + 230, y }, end: { x: mLeft + 380, y }, thickness: 0.5, color: offblack });
-        page.drawText('Unterschrift', { x: mLeft, y: y - 12, size: 7, font: fReg, color: gray50 });
-        page.drawText('Datum', { x: mLeft + 230, y: y - 12, size: 7, font: fReg, color: gray50 });
-        y -= 45;
-
-        // Hinweis-Box
-        const hw = 'Die Vollmacht muss im Original vor Beginn der Versammlung beim Versammlungsleiter eingereicht werden. Eine Vollmacht per E-Mail oder Fax ist nur zulässig, wenn die Gemeinschaftsordnung dies ausdrücklich erlaubt.';
-        const hwLines = _pdfSplitText(hw, fReg, 8, contentW - 20);
-        const hwBoxH = hwLines.length * 11 + 20;
-        page.drawRectangle({ x: mLeft, y: y - hwBoxH, width: contentW, height: hwBoxH, color: rgb(1.0, 0.97, 0.94), borderColor: orange, borderWidth: 0.5 });
-        page.drawText('Hinweis:', { x: mLeft + 10, y: y - 14, size: 8, font: fBold, color: orange });
-        hwLines.forEach((l, i) => page.drawText(l, { x: mLeft + 10, y: y - 26 - i * 11, size: 8, font: fReg, color: offblack }));
+        // ── Unterschrift (Linien) ────────────────────────────────
+        if (y < mBottom + 40) { page = await addPage(); y = 740; }
+        y -= 24;
+        page.drawLine({ start: { x: mLeft, y }, end: { x: mLeft + halfW - 10, y }, thickness: 0.5, color: offblack });
+        page.drawLine({ start: { x: mLeft + halfW + 10, y }, end: { x: mRight, y }, thickness: 0.5, color: offblack });
+        page.drawText('Ort, Datum', { x: mLeft, y: y - 12, size: 7, font: fReg, color: gray50 });
+        page.drawText('Unterschrift', { x: mLeft + halfW + 10, y: y - 12, size: 7, font: fReg, color: gray50 });
 
         // ── Staged Anlagen (WP + JAB) anhängen ───────────────
         for (const docType of ['wp', 'jab']) {
-            const storagePath = `etv-staging/${bld.id}/${fy}/${docType}/${own.apartment_id}.pdf`;
-            try {
-                const { data: sd } = await _supabase.storage.from('documents').createSignedUrl(storagePath, 120);
-                if (sd?.signedUrl) {
-                    const resp = await fetch(sd.signedUrl);
-                    if (resp.ok) {
-                        const annexBytes = await resp.arrayBuffer();
-                        const annexDoc   = await PDFDocument.load(annexBytes);
-                        const count      = annexDoc.getPageCount();
-                        const copied     = await pdfDoc.copyPages(annexDoc, [...Array(count).keys()]);
-                        copied.forEach(p => pdfDoc.addPage(p));
-                    }
-                }
-            } catch(e) { /* Kein Dokument vorhanden — überspringen */ }
+            const key = `${own.apartment_id}_${docType}`;
+            if (_loadedStaging[key]) {
+                try {
+                    const annexDoc = await PDFDocument.load(_loadedStaging[key]);
+                    const count    = annexDoc.getPageCount();
+                    const copied   = await pdfDoc.copyPages(annexDoc, [...Array(count).keys()]);
+                    copied.forEach(p => pdfDoc.addPage(p));
+                } catch(e) { /* Fehler beim Merge */ }
+            }
         }
+
+        // ── TOP-Dokumente anhängen in TOP-Reihenfolge (building-scope + owner-scope) ──
+        for (const item of agenda) {
+            const topDocs = agendaDocs.filter(d =>
+                d.agenda_item_id === item.id &&
+                (d.scope === 'building' || (d.scope === 'owner' && d.owner_person_id === ownerPersonId))
+            );
+            for (const doc of topDocs) {
+                if (_loadedDocPDFs[doc.id]) {
+                    try {
+                        const annexDoc = await PDFDocument.load(_loadedDocPDFs[doc.id]);
+                        const count    = annexDoc.getPageCount();
+                        const copied   = await pdfDoc.copyPages(annexDoc, [...Array(count).keys()]);
+                        copied.forEach(p => pdfDoc.addPage(p));
+                    } catch(e) { /* Fehler beim Merge */ }
+                }
+            }
+        }
+
+        const pdfBytes = await pdfDoc.save();
+        const safeName = fullName.replace(/[^a-z0-9äöüß]/gi, '_');
+        const draftTag = isDraft ? 'ENTWURF_' : '';
+        const fileName = `${draftTag}Einladung_ETV_${fy}_${safeName}.pdf`;
+        zipFiles.push({ name: fileName, data: pdfBytes });
     }
 
-    const pdfBytes = await pdfDoc.save();
-    _pdfDownload(pdfBytes, `Einladungen_ETV_${fy}_${bldName.replace(/[^a-z0-9]/gi, '_')}.pdf`);
+    // ── Export: ZIP oder Einzel-PDF ──────────────────────────
+    if (zipFiles.length === 1) {
+        // Nur 1 Eigentümer → direkt als PDF
+        _pdfDownload(zipFiles[0].data, zipFiles[0].name);
+    } else if (typeof JSZip !== 'undefined') {
+        const zip = new JSZip();
+        for (const f of zipFiles) zip.file(f.name, f.data);
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `${isDraft ? 'ENTWURF_' : ''}Einladungen_ETV_${fy}_${bldName.replace(/[^a-z0-9]/gi, '_')}.zip`;
+        a.click(); URL.revokeObjectURL(url);
+    } else {
+        // Fallback ohne JSZip: alle als einzelne Downloads
+        for (const f of zipFiles) _pdfDownload(f.data, f.name);
+    }
+
+    if (isDraft) {
+        showToast(`Entwurf für ${zipFiles.length} Eigentümer erstellt (ohne Staging/Freigabe).`, 'success');
+        return;
+    }
 
     // Status-Trigger: Verknüpfte Dokumente (JAB/WP) von draft → released schalten
     try {
@@ -3589,12 +4041,12 @@ async function generateETVEinladungPDF(sessionId) {
             await _supabase.from('documents')
                 .update({ status: 'released', updated_at: new Date().toISOString() })
                 .in('id', docIds);
-            showToast(`${owners.length} Einladungen generiert. ${draftDocs.length} Dokumente für Eigentümer freigeschaltet.`, 'success');
+            showToast(`${zipFiles.length} Einladungen generiert. ${draftDocs.length} Dokumente freigeschaltet.`, 'success');
         } else {
-            showToast(`${owners.length} Einladungen erfolgreich generiert.`, 'success');
+            showToast(`${zipFiles.length} Einladungen erfolgreich generiert.`, 'success');
         }
     } catch(e) {
         console.error('Status-Trigger Fehler:', e);
-        showToast(`${owners.length} Einladungen generiert. Dokument-Freigabe fehlgeschlagen.`, 'warning');
+        showToast(`${zipFiles.length} Einladungen generiert. Dokument-Freigabe fehlgeschlagen.`, 'warning');
     }
 }

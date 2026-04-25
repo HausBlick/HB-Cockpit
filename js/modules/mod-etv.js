@@ -3,6 +3,18 @@
  * Tool zur Begleitung von Eigentümerversammlungen (Vorbereitung, Durchführung, Protokoll)
  */
 
+// Natürliche Sortierung für hierarchische TOP-Nummern (1, 1.1, 1.2, 2, 2.1, 10, ...)
+function _etvSortOrder(a, b) {
+    const pa = String(a.sort_order).split('.').map(Number);
+    const pb = String(b.sort_order).split('.').map(Number);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const va = pa[i] ?? -1;
+        const vb = pb[i] ?? -1;
+        if (va !== vb) return va - vb;
+    }
+    return 0;
+}
+
 const _etvState = {
     buildingId: null,
     buildings: [],
@@ -12,6 +24,9 @@ const _etvState = {
     attendance: [],
     apartments: [],
     owners: [],
+    agendaDocs: [],
+    selectedTopId: null, // aktiver TOP im rechten Detail-Panel der Durchführung
+    sidebarCollapsed: true, // Quorum/Anwesenheits-Sidebar in der Durchführung
     activeTab: 'prep' // prep (Vorbereitung), exec (Durchführung), follow (Nachbereitung)
 };
 
@@ -79,7 +94,7 @@ async function _etvInitOverview() {
                     const date = new Date(s.meeting_date);
                     const isToday = date.toDateString() === new Date().toDateString();
                     return `
-                    <div class="bg-white rounded-[20px] border border-hb-olive/20 overflow-hidden shadow-sm hover:shadow-lg transition-all group">
+                    <div class="bg-white rounded-2xl border border-hb-olive/12 overflow-hidden shadow-sm hover:shadow-lg transition-all group">
                         <div class="${s.status === 'active' ? 'bg-hb-orange' : 'bg-hb-olive'} p-4 flex justify-between items-center">
                             <span class="text-white font-black text-xs tracking-tighter uppercase opacity-80">${s.fiscal_year}</span>
                             <span class="px-2.5 py-1 rounded-full text-[10px] uppercase font-bold ${s.status === 'active' ? 'bg-white text-hb-orange animate-pulse' : 'bg-white/20 text-white'}">
@@ -99,7 +114,7 @@ async function _etvInitOverview() {
                     </div>
                     `;
                 }).join('') || `
-                    <div class="col-span-full py-20 bg-white rounded-[20px] border-2 border-dashed border-hb-olive/20 flex flex-col items-center justify-center text-gray-400">
+                    <div class="col-span-full py-20 bg-white rounded-2xl border-2 border-dashed border-hb-olive/12 flex flex-col items-center justify-center text-gray-400">
                         <p class="font-bold">Keine Versammlungen gefunden.</p>
                         <p class="text-xs">Starten Sie mit der Planung Ihrer ersten ETV.</p>
                     </div>
@@ -121,12 +136,13 @@ window._etvOnBuildingChange = async (val) => {
  */
 window._etvOpenSession = async (sessionId) => {
     _etvState.sessionId = sessionId;
+    _etvState.selectedTopId = null;
     
     // Komplett-Check: Session, TOPs, Präsenz, Wohnungen & Eigentümer
     const [sRes, aRes, attRes, aptRes] = await Promise.all([
         _supabase.from('etv_sessions').select('*').eq('id', sessionId).single(),
-        _supabase.from('etv_agenda_items').select('*').eq('session_id', sessionId).order('sort_order'),
-        _supabase.from('etv_attendance').select('*, person:persons(first_name, last_name)').eq('session_id', sessionId),
+        _supabase.from('etv_agenda_items').select('*').eq('session_id', sessionId),
+        _supabase.from('etv_attendance').select('*, person:persons!etv_attendance_person_id_fkey(first_name, last_name)').eq('session_id', sessionId),
         _supabase.from('apartments').select('id, apartment_number, mea_numerator, mea_denominator').eq('building_id', _etvState.buildingId),
     ]);
     const aptIds = (aptRes.data || []).map(a => a.id);
@@ -135,13 +151,24 @@ window._etvOpenSession = async (sessionId) => {
         : { data: [] };
 
     _etvState.session = sRes.data;
-    _etvState.agenda = aRes.data || [];
+    _etvState.agenda = (aRes.data || []).sort(_etvSortOrder);
     _etvState.attendance = attRes.data || [];
     _etvState.apartments = aptRes.data || [];
     _etvState.owners = ownRes.data || [];
 
-    // Falls Präsenz noch leer ist (erste Öffnung), initialisieren wir sie aus den Ownerships
-    if (_etvState.attendance.length === 0 && _etvState.owners.length > 0) {
+    // TOP-Dokumente laden
+    const agendaIds = _etvState.agenda.map(a => a.id);
+    if (agendaIds.length) {
+        const { data: docs } = await _supabase.from('etv_agenda_documents')
+            .select('*, owner:persons(first_name, last_name)')
+            .in('agenda_item_id', agendaIds);
+        _etvState.agendaDocs = docs || [];
+    } else {
+        _etvState.agendaDocs = [];
+    }
+
+    // Präsenzliste mit aktuellen Eigentümern abgleichen (legt fehlende Einträge an)
+    if (_etvState.owners.length > 0) {
         await _etvAutoInitAttendance();
     }
 
@@ -151,16 +178,59 @@ window._etvOpenSession = async (sessionId) => {
 /**
  * Initialisiert die Präsenzliste basierend auf den aktuellen Eigentümern
  */
+/**
+ * Gruppiert Attendance-Einträge nach Person.
+ * Eigentümer mit mehreren WE erscheinen als ein Eintrag mit allen WEs.
+ * Liefert: [{ person_id, person, attendances:[…], apartments:[…], totalMEA, allPresent, anyPresent }]
+ */
+function _etvGroupedAttendance() {
+    const groups = new Map();
+    for (const a of _etvState.attendance) {
+        if (!a.person_id) continue;
+        if (!groups.has(a.person_id)) {
+            groups.set(a.person_id, {
+                person_id: a.person_id,
+                person: a.person,
+                attendances: [],
+                apartments: []
+            });
+        }
+        const g = groups.get(a.person_id);
+        g.attendances.push(a);
+        const apt = _etvState.apartments.find(apt => apt.id === a.apartment_id);
+        if (apt) g.apartments.push(apt);
+    }
+    for (const g of groups.values()) {
+        g.totalMEA = g.apartments.reduce((s, apt) => s + (apt.mea_numerator || 0), 0);
+        g.allPresent = g.attendances.length > 0 && g.attendances.every(a => a.is_present);
+        g.anyPresent = g.attendances.some(a => a.is_present);
+    }
+    return Array.from(groups.values());
+}
+
 async function _etvAutoInitAttendance() {
-    const inserts = _etvState.owners.map(own => ({
+    const validOwners = _etvState.owners.filter(own => own.person && own.person.id);
+    const existingApartmentIds = new Set(_etvState.attendance.map(a => a.apartment_id));
+    const missing = validOwners.filter(o => !existingApartmentIds.has(o.apartment_id));
+    if (missing.length === 0) return;
+
+    const inserts = missing.map(own => ({
         session_id: _etvState.sessionId,
         person_id: own.person.id,
         apartment_id: own.apartment_id,
         is_present: false
     }));
-    
-    const { data, error } = await _supabase.from('etv_attendance').insert(inserts).select('*, person:persons(first_name, last_name)');
-    if (!error) _etvState.attendance = data;
+
+    const { data, error } = await _supabase
+        .from('etv_attendance')
+        .insert(inserts)
+        .select('*, person:persons!etv_attendance_person_id_fkey(first_name, last_name)');
+
+    if (error) {
+        showToast('Präsenzliste konnte nicht aktualisiert werden: ' + error.message, 'error');
+        return;
+    }
+    _etvState.attendance = [..._etvState.attendance, ...data];
 }
 
 /**
@@ -228,7 +298,7 @@ function _etvRenderPrep() {
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
             <!-- Tagesordnung -->
             <div class="lg:col-span-2">
-                <div class="bg-white rounded-[25px] border border-hb-olive/20 shadow-sm overflow-hidden flex flex-col h-full min-h-[500px]">
+                <div class="bg-white rounded-2xl border border-hb-olive/12 shadow-sm overflow-hidden flex flex-col h-full min-h-[500px]">
                     <div class="bg-hb-olive p-5 flex justify-between items-center">
                         <div>
                             <h3 class="text-white font-black text-lg tracking-tight">Tagesordnungspunkte (TOPs)</h3>
@@ -239,24 +309,44 @@ function _etvRenderPrep() {
                         </button>
                     </div>
                     <div class="p-0 divide-y divide-hb-olive/10 flex-grow">
-                        ${_etvState.agenda.length ? _etvState.agenda.map(top => `
-                            <div class="p-6 flex gap-6 hover:bg-hb-ultralight/20 transition-all group">
-                                <div class="bg-hb-ultralight text-hb-olive h-12 w-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-inner">${top.sort_order}</div>
-                                <div class="flex-grow">
-                                    <div class="flex items-center gap-3">
-                                        <h4 class="font-black text-hb-offblack text-lg">${top.title}</h4>
-                                        <span class="px-2 py-0.5 bg-gray-100 text-[9px] font-black text-gray-500 rounded-md border border-gray-200 uppercase tracking-tighter italic">
-                                            ${top.voting_type} • ${top.majority_type.replace('_', ' ')}
-                                        </span>
+                        ${_etvState.agenda.length ? _etvState.agenda.map(top => {
+                            const topDocs = _etvState.agendaDocs.filter(d => d.agenda_item_id === top.id);
+                            const bldDocs = topDocs.filter(d => d.scope === 'building');
+                            const ownDocs = topDocs.filter(d => d.scope === 'owner');
+                            return `
+                            <div class="p-6 hover:bg-hb-ultralight/20 transition-all group">
+                                <div class="flex gap-6">
+                                    <div class="bg-hb-ultralight text-hb-olive h-12 w-12 min-w-[48px] rounded-2xl flex items-center justify-center font-black text-xl shadow-inner">${top.sort_order}</div>
+                                    <div class="flex-grow">
+                                        <div class="flex items-center gap-3">
+                                            <h4 class="font-black text-hb-offblack text-lg">${top.title}</h4>
+                                            <span class="px-2 py-0.5 bg-gray-100 text-[9px] font-black text-gray-500 rounded-md border border-gray-200 uppercase tracking-tighter italic">
+                                                ${top.voting_type === 'none' ? 'Kein Beschluss' : top.voting_type + ' • ' + top.majority_type.replace('_', ' ')}
+                                            </span>
+                                        </div>
+                                        <p class="text-xs text-gray-400 mt-1 line-clamp-1 italic">${top.proposed_resolution || 'Kein Beschlussantrag hinterlegt.'}</p>
                                     </div>
-                                    <p class="text-xs text-gray-400 mt-1 line-clamp-1 italic">${top.proposed_resolution || 'Kein Beschlussantrag hinterlegt.'}</p>
+                                    <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                        <button onclick="_etvTopDocsModal('${top.id}')" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100" title="Dokumente verwalten">${icons.document || '📎'} ${topDocs.length || ''}</button>
+                                        <button onclick="_etvEditTOP('${top.id}')" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100">Bearbeiten</button>
+                                        <button onclick="_etvDeleteTOP('${top.id}')" class="text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5">Löschen</button>
+                                    </div>
                                 </div>
-                                <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onclick="_etvEditTOP('${top.id}')" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100">Bearbeiten</button>
-                                    <button onclick="_etvDeleteTOP('${top.id}')" class="text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5">Löschen</button>
-                                </div>
-                            </div>
-                        `).join('') : `
+                                ${topDocs.length ? `
+                                <div class="ml-[72px] mt-3 flex flex-wrap gap-2">
+                                    ${bldDocs.map(d => `
+                                        <span class="inline-flex items-center gap-1.5 bg-hb-ultralight text-hb-olive text-[10px] font-bold px-2.5 py-1 rounded-lg border border-hb-olive/10">
+                                            📄 ${d.file_name} <span class="text-gray-400">(alle)</span>
+                                        </span>
+                                    `).join('')}
+                                    ${ownDocs.length ? `
+                                        <span class="inline-flex items-center gap-1.5 bg-hb-orange/5 text-hb-orange text-[10px] font-bold px-2.5 py-1 rounded-lg border border-hb-orange/10">
+                                            📄 ${ownDocs.length} eigentümerspezifisch
+                                        </span>
+                                    ` : ''}
+                                </div>` : ''}
+                            </div>`;
+                        }).join('') : `
                             <div class="flex flex-col items-center justify-center p-20 text-gray-400">
                                 ${icons.list || ''}
                                 <p class="mt-4 font-bold italic">Noch keine TOPs definiert.</p>
@@ -268,7 +358,7 @@ function _etvRenderPrep() {
 
             <!-- Dokumente & Vorbereitung -->
             <div class="space-y-6">
-                <div class="bg-white p-8 rounded-[25px] border border-hb-olive/20 shadow-sm">
+                <div class="bg-white p-8 rounded-2xl border border-hb-olive/12 shadow-sm">
                     <h4 class="font-black text-hb-offblack mb-6 flex items-center gap-3">
                         <span class="bg-hb-olive text-white p-2 rounded-xl scale-75">${icons.document || ''}</span>
                         Einladung & Unterlagen
@@ -277,13 +367,16 @@ function _etvRenderPrep() {
                         <button onclick="_etvPreviewEinladung()" class="w-full bg-hb-olive text-white py-4 rounded-2xl text-sm font-black flex items-center justify-center gap-3 shadow-lg hover:translate-y-[-2px] transition-all">
                             Einladungs-PDF generieren
                         </button>
+                        <button onclick="_etvDraftEinladung()" class="w-full bg-hb-ultralight text-hb-olive py-4 rounded-2xl text-sm font-black flex items-center justify-center gap-3 border border-hb-olive/10 hover:bg-hb-olive/10 transition-all">
+                            Entwurf herunterladen
+                        </button>
                         <button onclick="_etvOpenStaging()" class="w-full bg-hb-ultralight text-hb-olive py-4 rounded-2xl text-sm font-black flex items-center justify-center gap-3 border border-hb-olive/10 hover:bg-hb-olive/10 transition-all">
                             Dokumente in Staging (TOPs)
                         </button>
                     </div>
                     <div class="mt-8 p-4 bg-hb-ultralight/50 rounded-2xl border border-hb-olive/5">
                         <div class="text-[10px] font-black text-hb-olive uppercase mb-2 tracking-widest">Hinweis</div>
-                        <p class="text-xs text-gray-400 leading-relaxed italic">Die Einladung enthält automatisch die Tagesordnung sowie ein personalisiertes Vollmachtsformular für jeden Eigentümer.</p>
+                        <p class="text-xs text-gray-400 leading-relaxed italic">Pro Eigentümer wird ein PDF erstellt: Anschreiben + Tagesordnung + Vollmacht + Anlagen. Download als ZIP. Anschreiben-Text im Dokumenten-Designer editierbar (Einstellungen → Dokumenten-Designer → ETV-Einladung).</p>
                     </div>
                 </div>
             </div>
@@ -306,121 +399,250 @@ function _etvRenderExec() {
     const quorumThreshold = _etvState.session?.quorum_percent ?? 50;
     const isQuorum = percent >= quorumThreshold;
 
+    // Personen-gruppierte Sicht (ein Eigentümer = ein Eintrag, auch bei mehreren WE)
+    const groups = _etvGroupedAttendance();
+    const presentGroups = groups.filter(g => g.anyPresent);
+
+    const resultLabel = (status) => {
+        if (status === 'approved') return { text: 'Angenommen', cls: 'bg-green-100 text-green-700 border-green-200' };
+        if (status === 'rejected') return { text: 'Abgelehnt', cls: 'bg-hb-orange/10 text-hb-orange border-hb-orange/20' };
+        if (status === 'postponed') return { text: 'Vertagt', cls: 'bg-gray-100 text-gray-500 border-gray-200' };
+        return { text: 'Offen', cls: 'bg-gray-100 text-gray-400 border-gray-200' };
+    };
+
+    // Default-TOP-Auswahl beim ersten Render bzw. wenn die Selektion ungültig wurde
+    if (_etvState.agenda.length > 0) {
+        const stillExists = _etvState.selectedTopId && _etvState.agenda.find(t => t.id === _etvState.selectedTopId);
+        if (!stillExists) _etvState.selectedTopId = _etvState.agenda[0].id;
+    } else {
+        _etvState.selectedTopId = null;
+    }
+    const selectedTop = _etvState.agenda.find(t => t.id === _etvState.selectedTopId);
+
+    const sidebarOpen = !_etvState.sidebarCollapsed;
+    const middleSpan = sidebarOpen ? 'xl:col-span-4' : 'xl:col-span-5';
+    const detailSpan = sidebarOpen ? 'xl:col-span-5' : 'xl:col-span-7';
+
     return `
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8 max-w-7xl mx-auto h-full overflow-hidden">
-            <!-- Sidebar: Quorum & Check-in -->
-            <div class="lg:col-span-1 space-y-6 flex flex-col overflow-y-auto">
-                <div class="bg-white p-8 rounded-[25px] border border-hb-olive/20 shadow-sm">
-                    <h4 class="font-black text-hb-offblack mb-6 uppercase text-xs tracking-widest">Live-Quorum</h4>
-                    
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 h-full overflow-hidden">
+            ${sidebarOpen ? `
+            <!-- Sidebar: Quorum & Check-in (eingeklappt-Default, hier ausgeklappt) -->
+            <div class="xl:col-span-3 space-y-4 flex flex-col overflow-y-auto min-w-0">
+                <div class="bg-white p-5 rounded-2xl border border-hb-olive/12 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <h4 class="font-black text-hb-offblack uppercase text-[10px] tracking-widest">Live-Quorum</h4>
+                        <button onclick="_etvToggleSidebar()" title="Einklappen" class="text-gray-400 hover:text-hb-olive p-1 rounded-lg hover:bg-hb-ultralight transition-all">
+                            ‹
+                        </button>
+                    </div>
+
                     <div class="relative pt-1">
-                        <div class="flex mb-3 items-center justify-between">
-                            <div>
-                                <span class="text-[10px] font-black inline-block py-1 px-2 uppercase rounded-full ${isQuorum ? 'text-green-600 bg-green-100' : 'text-hb-orange bg-orange-100'}">
-                                    ${isQuorum ? 'Beschlussfähig' : 'Prüfung läuft'}
-                                </span>
-                            </div>
-                            <div class="text-right">
-                                <span class="text-xl font-black ${isQuorum ? 'text-hb-olive' : 'text-hb-orange'}">
-                                    ${percent}%
-                                </span>
-                            </div>
+                        <div class="flex mb-2 items-center justify-between gap-2">
+                            <span class="text-[9px] font-black inline-block py-1 px-2 uppercase rounded-full ${isQuorum ? 'text-green-600 bg-green-100' : 'text-hb-orange bg-orange-100'}">
+                                ${isQuorum ? 'Beschlussfähig' : 'Prüfung'}
+                            </span>
+                            <span class="text-lg font-black ${isQuorum ? 'text-hb-olive' : 'text-hb-orange'}">
+                                ${percent}%
+                            </span>
                         </div>
-                        <div class="overflow-hidden h-3 mb-4 text-xs flex rounded-full bg-hb-ultralight shadow-inner">
-                            <div style="width:${percent}%" class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center ${isQuorum ? 'bg-hb-olive' : 'bg-hb-orange'} transition-all duration-1000"></div>
+                        <div class="overflow-hidden h-2 mb-2 rounded-full bg-hb-ultralight shadow-inner">
+                            <div style="width:${percent}%" class="${isQuorum ? 'bg-hb-olive' : 'bg-hb-orange'} h-full transition-all duration-1000"></div>
                         </div>
                         <div class="text-[9px] font-bold text-gray-400 leading-tight italic">
-                            Präsent: ${presentMEA.toLocaleString('de-DE')} von ${totalMEA.toLocaleString('de-DE')} MEA
+                            ${presentMEA.toLocaleString('de-DE')} / ${totalMEA.toLocaleString('de-DE')} MEA
                         </div>
                     </div>
 
-                    <button onclick="_etvOpenCheckinModal()" class="w-full mt-8 bg-hb-olive text-white py-4 rounded-2xl font-black shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-3">
-                        ${icons.user || ''} Digitaler Check-in
+                    <button onclick="_etvOpenCheckinModal()" class="w-full mt-5 bg-hb-olive text-white py-3 rounded-xl font-black text-sm shadow hover:scale-105 transition-all flex items-center justify-center gap-2">
+                        ${icons.user || ''} Check-in
                     </button>
                 </div>
 
-                <!-- Präsenzliste Kurzform -->
-                <div class="bg-white rounded-[25px] border border-hb-olive/20 shadow-sm flex-grow overflow-hidden flex flex-col">
-                    <div class="p-5 border-b border-hb-olive/10 bg-hb-ultralight/20">
-                        <h5 class="text-[10px] font-black text-hb-olive uppercase tracking-widest">Anwesend (${presentUnits.length})</h5>
+                <!-- Präsenzliste Kurzform (gruppiert nach Person) -->
+                <div class="bg-white rounded-2xl border border-hb-olive/12 shadow-sm flex-grow overflow-hidden flex flex-col">
+                    <div class="p-4 border-b border-hb-olive/10 bg-hb-ultralight/20">
+                        <h5 class="text-[10px] font-black text-hb-olive uppercase tracking-widest">Anwesend (${presentGroups.length} · ${presentUnits.length} WE)</h5>
                     </div>
-                    <div class="p-2 overflow-y-auto flex-grow divide-y divide-hb-olive/5">
-                        ${presentUnits.map(a => `
-                            <div class="p-3 flex items-center justify-between group">
-                                <div class="flex flex-col">
-                                    <span class="text-xs font-black text-hb-offblack">${a.person.first_name} ${a.person.last_name}</span>
-                                    <span class="text-[10px] text-gray-400 font-bold tracking-tighter">WE ${(_etvState.apartments.find(apt => apt.id === a.apartment_id))?.apartment_number}</span>
+                    <div class="p-1.5 overflow-y-auto flex-grow divide-y divide-hb-olive/5">
+                        ${presentGroups.length === 0 ? `
+                            <div class="p-4 text-center text-[11px] text-gray-400 italic">Noch niemand eingecheckt</div>
+                        ` : presentGroups.map(g => {
+                            const personName = g.person ? `${g.person.first_name} ${g.person.last_name}` : 'Unbekannt';
+                            const weList = g.apartments.map(a => `WE ${a.apartment_number}`).join(', ');
+                            return `
+                            <div class="p-2.5 flex items-center justify-between group">
+                                <div class="flex flex-col min-w-0">
+                                    <span class="text-xs font-black text-hb-offblack truncate">${personName}</span>
+                                    <span class="text-[10px] text-gray-400 font-bold tracking-tighter truncate">${weList}${g.apartments.length > 1 ? ` · ${g.totalMEA} MEA` : ''}</span>
                                 </div>
-                                <button onclick="_etvTogglePresent('${a.id}', false)" class="text-hb-orange opacity-0 group-hover:opacity-100 p-2 hover:bg-hb-orange/5 rounded-lg transition-all">
+                                <button onclick="_etvTogglePersonPresent('${g.person_id}', false)" class="text-hb-orange opacity-0 group-hover:opacity-100 p-1.5 hover:bg-hb-orange/5 rounded-lg transition-all shrink-0">
                                     ${icons.delete || '×'}
                                 </button>
                             </div>
-                        `).join('')}
+                        `;
+                        }).join('')}
                     </div>
                 </div>
             </div>
+            ` : ''}
 
-            <!-- Abstimmungs-Konsole -->
-            <div class="lg:col-span-3 space-y-6 overflow-y-auto pr-2 pb-10">
-                ${_etvState.agenda.map(top => `
-                    <div class="bg-white rounded-[30px] border border-hb-olive/20 shadow-sm overflow-hidden flex flex-col group transition-all hover:shadow-xl">
-                        <div class="p-8 flex justify-between items-start gap-6">
-                            <div class="flex gap-6">
-                                <div class="bg-hb-ultralight text-hb-olive h-16 w-16 min-w-[64px] rounded-[22px] flex items-center justify-center font-black text-2xl shadow-inner border border-hb-olive/10 group-hover:bg-hb-olive group-hover:text-white transition-all">
-                                    ${top.sort_order}
-                                </div>
-                                <div>
-                                    <div class="flex items-center gap-3 mb-1">
-                                        <h4 class="font-black text-hb-offblack text-xl">${top.title}</h4>
-                                        <span class="bg-hb-ultralight text-hb-olive px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border border-hb-olive/5">
-                                            ${top.voting_type}
-                                        </span>
-                                    </div>
-                                    <p class="text-sm text-gray-500 leading-relaxed italic max-w-2xl">
-                                        ${top.proposed_resolution || 'Kein Beschlussantrag hinterlegt.'}
-                                    </p>
-                                </div>
-                            </div>
-                            
-                            <div class="flex flex-col items-end gap-2">
-                                <div class="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${top.result_status === 'approved' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-400 border-gray-200'}">
-                                    ${top.result_status === 'pending' ? 'Warten' : top.result_status.toUpperCase()}
-                                </div>
-                            </div>
+            <!-- TOP-Liste (Mitte) -->
+            <div class="${middleSpan} overflow-y-auto pr-1 pb-10 min-w-0">
+                <!-- Toggle-Pill (zeigt Quorum-Live-Status, klick öffnet Sidebar) -->
+                ${!sidebarOpen ? `
+                    <button onclick="_etvToggleSidebar()" class="w-full mb-3 bg-white rounded-2xl border border-hb-olive/12 hover:border-hb-olive shadow-sm hover:shadow-md transition-all p-3 flex items-center gap-3 group">
+                        <div class="bg-hb-ultralight rounded-xl p-2 flex items-center gap-2">
+                            <span class="text-[9px] font-black uppercase tracking-widest ${isQuorum ? 'text-green-700 bg-green-100' : 'text-hb-orange bg-orange-100'} px-2 py-0.5 rounded-full">${isQuorum ? 'BF' : 'Prüf'}</span>
+                            <span class="text-base font-black ${isQuorum ? 'text-hb-olive' : 'text-hb-orange'}">${percent}%</span>
                         </div>
+                        <div class="flex-grow text-left">
+                            <div class="text-[11px] font-black text-hb-offblack">${presentGroups.length} Eigentümer · ${presentUnits.length} WE anwesend</div>
+                            <div class="text-[9px] text-gray-400 font-bold uppercase tracking-tight">Quorum & Check-in öffnen</div>
+                        </div>
+                        <span class="text-hb-olive text-xl group-hover:translate-x-1 transition-transform">›</span>
+                    </button>
+                ` : ''}
 
-                        <!-- Abstimmungs-Knöpfe -->
-                        <div class="bg-hb-ultralight/40 p-6 border-t border-hb-olive/5 flex justify-between items-center">
-                            <div class="flex items-center gap-4">
-                                <button onclick="_etvCastVote('${top.id}', 'yes')" class="group/btn relative bg-white border-2 border-green-600/20 text-green-700 px-8 py-3 rounded-2xl font-black text-sm hover:bg-green-600 hover:text-white hover:border-green-600 transition-all shadow-sm active:scale-95">
-                                    JA
-                                    <span class="absolute -top-2 -right-2 bg-green-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black scale-0 group-hover/btn:scale-100 transition-transform shadow-md">✓</span>
-                                </button>
-                                <button onclick="_etvCastVote('${top.id}', 'no')" class="group/btn relative bg-white border-2 border-hb-orange/20 text-hb-orange px-8 py-3 rounded-2xl font-black text-sm hover:bg-hb-orange hover:text-white hover:border-hb-orange transition-all shadow-sm active:scale-95">
-                                    NEIN
-                                    <span class="absolute -top-2 -right-2 bg-hb-orange text-white w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black scale-0 group-hover/btn:scale-100 transition-transform shadow-md">×</span>
-                                </button>
-                                <button onclick="_etvCastVote('${top.id}', 'abstain')" class="group/btn relative bg-white border-2 border-gray-200 text-gray-400 px-8 py-3 rounded-2xl font-black text-sm hover:bg-gray-500 hover:text-white hover:border-gray-500 transition-all shadow-sm active:scale-95">
-                                    ENTH.
-                                </button>
+                <div class="text-[10px] font-black text-hb-olive uppercase tracking-widest mb-2 px-1">Tagesordnung (${_etvState.agenda.length})</div>
+                <div class="space-y-2.5">
+                    ${_etvState.agenda.length === 0 ? `
+                        <div class="bg-white rounded-2xl border border-hb-olive/10 p-8 text-center text-sm text-gray-400 italic">Keine TOPs hinterlegt — bitte unter "Vorbereitung" anlegen.</div>
+                    ` : _etvState.agenda.map(top => {
+                        const result = resultLabel(top.result_status);
+                        const isActive = top.id === _etvState.selectedTopId;
+                        return `
+                        <div onclick="_etvSelectTop('${top.id}')" class="cursor-pointer rounded-2xl p-4 flex items-center gap-4 transition-all border ${isActive ? 'bg-hb-olive text-white border-hb-olive shadow-md' : 'bg-white border-hb-olive/10 hover:border-hb-olive/40 hover:bg-hb-ultralight/30'}">
+                            <div class="${isActive ? 'bg-white text-hb-olive' : 'bg-hb-ultralight text-hb-olive'} h-14 w-14 min-w-[56px] rounded-2xl flex items-center justify-center font-black text-xl shadow-inner">
+                                ${top.sort_order}
                             </div>
-                            
-                            <div class="flex items-center gap-4">
-                                <div class="text-right hidden sm:block">
-                                    <div class="text-[9px] font-black text-hb-olive uppercase tracking-widest opacity-60">Abstimmungsergebnis</div>
-                                    <div class="text-xs font-black text-hb-offblack italic">Einstimmiges JA</div>
+                            <div class="flex-grow min-w-0">
+                                <div class="font-black ${isActive ? 'text-white' : 'text-hb-offblack'} text-base leading-tight">${top.title}</div>
+                                <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                                    <span class="text-[10px] ${isActive ? 'bg-white/20 text-white' : 'bg-hb-ultralight text-hb-olive'} font-black uppercase tracking-tight px-2 py-0.5 rounded-md">
+                                        ${top.voting_type === 'none' ? 'Kein Beschluss' : (VOTING_TYPES[top.voting_type] || top.voting_type)}
+                                    </span>
+                                    ${top.voting_type !== 'none' && top.majority_type ? `
+                                    <span class="text-[10px] ${isActive ? 'text-white/70' : 'text-gray-500'} font-bold uppercase tracking-tight">
+                                        ${top.majority_type.replace('_', ' ')} Mehrheit
+                                    </span>` : ''}
                                 </div>
-                                <button class="bg-white p-3 rounded-2xl border border-hb-olive/10 text-hb-olive hover:bg-hb-olive hover:text-white transition-all shadow-sm">
-                                    ${icons.edit || '✎'}
-                                </button>
                             </div>
+                            <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border shrink-0 ${isActive ? 'bg-white/20 text-white border-white/30' : result.cls}">${result.text}</span>
                         </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+
+            <!-- Detail + Abstimmung (rechts) -->
+            <div class="${detailSpan} overflow-y-auto pb-10 min-w-0">
+                ${selectedTop ? _etvRenderTopDetailPanel(selectedTop, resultLabel) : `
+                    <div class="bg-white rounded-2xl border border-hb-olive/10 p-12 text-center text-sm text-gray-400 italic">
+                        Wähle links einen TOP, um Details und Abstimmung zu sehen.
                     </div>
-                `).join('')}
+                `}
             </div>
         </div>
     `;
 }
+
+window._etvToggleSidebar = () => {
+    _etvState.sidebarCollapsed = !_etvState.sidebarCollapsed;
+    const ca = document.getElementById('etv-content');
+    if (ca) ca.innerHTML = _etvRenderTabContent();
+};
+
+/**
+ * Rechtes Panel der Durchführung — zeigt vollen TOP-Inhalt (Interne Notiz, Vorbemerkung,
+ * Beschlussantrag, Dokumente) und enthält die Abstimmungs-Buttons.
+ */
+function _etvRenderTopDetailPanel(top, resultLabelFn) {
+    const result = resultLabelFn(top.result_status);
+    const isNoVote = top.voting_type === 'none';
+    const docs = _etvState.agendaDocs.filter(d => d.agenda_item_id === top.id);
+    const bldDocs = docs.filter(d => d.scope === 'building');
+    const ownDocs = docs.filter(d => d.scope === 'owner');
+
+    const section = (label, value, opts = {}) => value ? `
+        <div>
+            <div class="text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">${label}</div>
+            <div class="text-sm text-hb-offblack leading-relaxed ${opts.italic ? 'italic text-gray-500' : ''} ${opts.box ? 'bg-hb-orange/5 border border-hb-orange/15 rounded-xl p-3' : ''} whitespace-pre-wrap">${value}</div>
+        </div>
+    ` : '';
+
+    return `
+        <div class="bg-white rounded-2xl border border-hb-olive/12 shadow-sm overflow-hidden flex flex-col">
+            <!-- Kopf -->
+            <div class="bg-hb-olive p-5 text-white">
+                <div class="flex items-center gap-2 mb-2 flex-wrap">
+                    <span class="bg-white/20 text-white px-2 py-0.5 rounded text-[10px] font-black">TOP ${top.sort_order}</span>
+                    <span class="bg-white/20 text-white px-2 py-0.5 rounded text-[10px] font-black uppercase">
+                        ${isNoVote ? 'Kein Beschluss' : (VOTING_TYPES[top.voting_type] || top.voting_type)}
+                    </span>
+                    ${!isNoVote && top.majority_type ? `
+                    <span class="bg-white/20 text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase">${top.majority_type.replace('_', ' ')} Mehrheit</span>
+                    ` : ''}
+                    <span class="ml-auto px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${result.cls}">${result.text}</span>
+                </div>
+                <h3 class="text-xl font-black tracking-tight">${top.title}</h3>
+            </div>
+
+            <!-- Inhalt: Reihenfolge interne Notiz → Vorbemerkung → Beschlussantrag -->
+            <div class="p-5 space-y-5">
+                ${section('Interne Notiz (nur Verwalter)', top.internal_note, { box: true })}
+                ${section('Vorbemerkung', top.preliminary_remark)}
+                ${section('Beschlussantrag', top.proposed_resolution || 'Kein Beschlussantrag hinterlegt.', { italic: !top.proposed_resolution })}
+                ${section('Abstimmungs-Notiz', top.result_note)}
+
+                ${docs.length ? `
+                    <div>
+                        <div class="text-[10px] font-black text-hb-olive uppercase tracking-widest mb-2">Verknüpfte Dokumente (${docs.length})</div>
+                        <div class="space-y-1.5">
+                            ${bldDocs.map(d => `
+                                <div class="flex items-center gap-2 text-xs bg-hb-ultralight rounded-lg px-3 py-2 border border-hb-olive/10">
+                                    <span class="text-hb-olive">📄</span>
+                                    <span class="font-bold text-hb-offblack truncate flex-grow">${d.file_name}</span>
+                                    <span class="text-[10px] text-gray-400 font-bold">alle</span>
+                                </div>
+                            `).join('')}
+                            ${ownDocs.length ? `
+                                <div class="flex items-center gap-2 text-xs bg-hb-orange/5 rounded-lg px-3 py-2 border border-hb-orange/10">
+                                    <span class="text-hb-orange">📄</span>
+                                    <span class="font-bold text-hb-offblack flex-grow">${ownDocs.length} eigentümerspezifisch</span>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+
+            <!-- Abstimmungs-Bereich -->
+            ${isNoVote ? `
+                <div class="bg-hb-ultralight/40 px-5 py-4 border-t border-hb-olive/5 text-center">
+                    <span class="text-xs text-gray-400 italic">Nicht abstimmungsrelevant</span>
+                </div>
+            ` : `
+                <div class="bg-hb-ultralight/60 px-5 py-5 border-t border-hb-olive/10">
+                    <div class="text-[10px] font-black text-hb-olive uppercase tracking-widest mb-3">Abstimmung</div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="_etvCastVote('${top.id}', 'yes')" class="bg-white border-2 border-green-600/20 text-green-700 px-4 py-3 rounded-xl font-black text-sm hover:bg-green-600 hover:text-white hover:border-green-600 transition-all active:scale-95">JA</button>
+                        <button onclick="_etvCastVote('${top.id}', 'no')" class="bg-white border-2 border-hb-orange/20 text-hb-orange px-4 py-3 rounded-xl font-black text-sm hover:bg-hb-orange hover:text-white hover:border-hb-orange transition-all active:scale-95">NEIN</button>
+                        <button onclick="_etvCastVote('${top.id}', 'abstain')" class="bg-white border-2 border-gray-200 text-gray-400 px-4 py-3 rounded-xl font-black text-sm hover:bg-gray-500 hover:text-white hover:border-gray-500 transition-all active:scale-95">ENTH.</button>
+                    </div>
+                    <p class="text-[10px] font-bold text-gray-400 italic mt-3 leading-relaxed">
+                        Pauschal-Abstimmung. Einzelstimmenerfassung pro Eigentümer + automatische Mehrheits-Berechnung folgt in Phase 5.8-E.
+                    </p>
+                </div>
+            `}
+        </div>
+    `;
+}
+
+window._etvSelectTop = (topId) => {
+    _etvState.selectedTopId = topId;
+    const ca = document.getElementById('etv-content');
+    if (ca) ca.innerHTML = _etvRenderTabContent();
+};
 
 /**
  * PHASE 3: Nachbereitung (Protokoll & Versiegelung)
@@ -429,7 +651,7 @@ function _etvRenderFollow() {
     return `
         <div class="max-w-4xl mx-auto space-y-8 pb-20">
             <!-- Protokoll-Erstellung -->
-            <div class="bg-white p-10 rounded-[35px] border border-hb-olive/20 shadow-xl overflow-hidden relative">
+            <div class="bg-white p-10 rounded-3xl border border-hb-olive/12 shadow-xl overflow-hidden relative">
                 <div class="absolute top-0 right-0 p-8 opacity-5 scale-150 rotate-12">${icons.document || ''}</div>
                 
                 <h2 class="text-3xl font-black text-hb-offblack mb-4 tracking-tighter">Protokoll-Finale</h2>
@@ -437,7 +659,7 @@ function _etvRenderFollow() {
                     Die Versammlung ist abgeschlossen. Generieren Sie nun das rechtssichere Protokoll zur Unterschrift und Veröffentlichung.
                 </p>
 
-                <div class="bg-hb-ultralight p-8 rounded-[25px] border border-hb-olive/10 mb-10 relative">
+                <div class="bg-hb-ultralight p-8 rounded-2xl border border-hb-olive/10 mb-10 relative">
                     <div class="absolute -top-3 left-8 bg-hb-olive text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest">Unterschriften-Status</div>
                     <div class="text-sm text-gray-600 leading-relaxed italic">
                         "Dieses Protokoll wurde am ${new Date().toLocaleDateString('de-DE')} von [Versammlungsleiter] und [Beirat] unterzeichnet. 
@@ -458,7 +680,7 @@ function _etvRenderFollow() {
             </div>
 
             <!-- Beschlusssammlung §24 Abs 7 -->
-            <div class="bg-white p-10 rounded-[35px] border border-hb-olive/10 shadow-sm">
+            <div class="bg-white p-10 rounded-3xl border border-hb-olive/10 shadow-sm">
                 <div class="flex justify-between items-center mb-6">
                     <div>
                         <h4 class="font-black text-hb-offblack text-xl tracking-tight">Transfer in Beschlusssammlung</h4>
@@ -494,7 +716,7 @@ window._etvNewSessionModal = () => {
     const nextYear = new Date().getFullYear();
     const html = `
         <div id="etv-session-modal" class="fixed inset-0 bg-hb-offblack/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div class="bg-white rounded-[30px] shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
                 <div class="bg-hb-olive p-6 text-white">
                     <h3 class="text-xl font-black">Neue ETV planen</h3>
                     <p class="text-[10px] uppercase font-bold opacity-70 tracking-widest mt-1">Versammlungsdaten festlegen</p>
@@ -540,7 +762,7 @@ window._etvSaveSession = async () => {
     const { data, error } = await _supabase.from('etv_sessions').insert({
         building_id: _etvState.buildingId,
         fiscal_year: parseInt(fy),
-        meeting_date: `${date}T${time}:00`,
+        meeting_date: new Date(`${date}T${time || '00:00'}:00`).toISOString(),
         location: loc,
         status: 'planned'
     }).select().single();
@@ -555,10 +777,11 @@ window._etvSaveSession = async () => {
 // ─── AGENDA (TOPs) ──────────────────────────────────────────
 
 window._etvAddTOPModal = () => {
-    const nextSort = _etvState.agenda.length + 1;
+    const last = _etvState.agenda[_etvState.agenda.length - 1];
+    const nextSort = last ? (parseInt(last.sort_order) || _etvState.agenda.length) + 1 : 1;
     const html = `
         <div id="etv-top-modal" class="fixed inset-0 bg-hb-offblack/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div class="bg-white rounded-[30px] shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
                 <div class="bg-hb-olive p-6 text-white">
                     <h3 class="text-xl font-black">Tagesordnungspunkt hinzufügen</h3>
                 </div>
@@ -566,7 +789,7 @@ window._etvAddTOPModal = () => {
                     <div class="grid grid-cols-4 gap-4">
                         <div class="col-span-1">
                             <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Nr.</label>
-                            <input type="number" id="top-sort" value="${nextSort}" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm">
+                            <input type="text" id="top-sort" value="${nextSort}" placeholder="z.B. 2.1" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm">
                         </div>
                         <div class="col-span-3">
                             <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Titel des TOP</label>
@@ -623,7 +846,7 @@ window._etvSaveTOP = async () => {
 
     const { error } = await _supabase.from('etv_agenda_items').insert({
         session_id: _etvState.sessionId,
-        sort_order: parseInt(sort),
+        sort_order: sort.trim(),
         title,
         preliminary_remark: prem || null,
         proposed_resolution: res,
@@ -633,7 +856,7 @@ window._etvSaveTOP = async () => {
     });
 
     if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
-    
+
     document.getElementById('etv-top-modal').remove();
     showToast('TOP hinzugefügt.');
     _etvOpenSession(_etvState.sessionId);
@@ -650,7 +873,7 @@ window._etvEditTOP = (id) => {
     ).join('');
     const html = `
         <div id="etv-top-edit-modal" class="fixed inset-0 bg-hb-offblack/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div class="bg-white rounded-[30px] shadow-2xl w-full max-w-2xl overflow-hidden">
+            <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden">
                 <div class="bg-hb-olive p-6 text-white">
                     <h3 class="text-xl font-black">Tagesordnungspunkt bearbeiten</h3>
                 </div>
@@ -658,7 +881,7 @@ window._etvEditTOP = (id) => {
                     <div class="grid grid-cols-4 gap-4">
                         <div class="col-span-1">
                             <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Nr.</label>
-                            <input type="number" id="top-edit-sort" value="${top.sort_order}" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm">
+                            <input type="text" id="top-edit-sort" value="${top.sort_order}" placeholder="z.B. 2.1" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm">
                         </div>
                         <div class="col-span-3">
                             <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Titel des TOP</label>
@@ -707,7 +930,7 @@ window._etvUpdateTOP = async (id) => {
     const mType = document.getElementById('top-edit-maj-type').value;
     if (!title) { showToast('Titel erforderlich', 'error'); return; }
     const { error } = await _supabase.from('etv_agenda_items').update({
-        sort_order: parseInt(sort),
+        sort_order: sort.trim(),
         title,
         preliminary_remark: prem || null,
         proposed_resolution: res,
@@ -727,12 +950,139 @@ window._etvDeleteTOP = async (id) => {
     if (!error) _etvOpenSession(_etvState.sessionId);
 };
 
+// ─── TOP-DOKUMENTE ─────────────────────────────────────────
+
+window._etvTopDocsModal = async (agendaItemId) => {
+    const top = _etvState.agenda.find(t => t.id === agendaItemId);
+    if (!top) return;
+    const docs = _etvState.agendaDocs.filter(d => d.agenda_item_id === agendaItemId);
+    const owners = _etvState.owners;
+
+    const docRows = docs.map(d => {
+        const scopeLabel = d.scope === 'building'
+            ? '<span class="text-hb-olive font-bold">Alle Eigentümer</span>'
+            : `<span class="text-hb-orange font-bold">${d.owner ? d.owner.first_name + ' ' + d.owner.last_name : 'Eigentümer'}</span>`;
+        return `
+            <div class="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
+                <div class="flex items-center gap-3 min-w-0">
+                    <span class="text-gray-400">📄</span>
+                    <div class="min-w-0">
+                        <p class="text-sm font-bold text-hb-offblack truncate">${d.file_name}</p>
+                        <p class="text-[10px] text-gray-400">${scopeLabel}</p>
+                    </div>
+                </div>
+                <button onclick="_etvDeleteTopDoc('${d.id}', '${d.file_path}', '${agendaItemId}')" class="text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5 shrink-0">Entfernen</button>
+            </div>`;
+    }).join('');
+
+    const ownerOpts = owners.map(o =>
+        `<option value="${o.person?.id}">${o.person?.first_name} ${o.person?.last_name} (${_etvState.apartments.find(a => a.id === o.apartment_id)?.apartment_number || '?'})</option>`
+    ).join('');
+
+    const html = `
+        <div id="etv-topdocs-modal" class="fixed inset-0 bg-hb-offblack/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden">
+                <div class="bg-hb-olive p-6 text-white">
+                    <h3 class="text-xl font-black">Dokumente — TOP ${top.sort_order}: ${top.title}</h3>
+                </div>
+                <div class="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+                    <!-- Bestehende Dokumente -->
+                    <div>
+                        <h4 class="text-[10px] font-black text-hb-olive uppercase tracking-widest mb-3">Hochgeladene Dokumente (${docs.length})</h4>
+                        ${docs.length ? `<div class="bg-hb-ultralight rounded-2xl p-4">${docRows}</div>`
+                            : '<p class="text-sm text-gray-400 italic">Noch keine Dokumente hochgeladen.</p>'}
+                    </div>
+
+                    <!-- Upload -->
+                    <div class="border-t border-hb-olive/10 pt-6">
+                        <h4 class="text-[10px] font-black text-hb-olive uppercase tracking-widest mb-3">Neues Dokument hochladen</h4>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 mb-1.5">PDF-Datei</label>
+                                <input type="file" id="topdoc-file" accept="application/pdf" class="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-hb-ultralight file:text-hb-olive hover:file:bg-hb-olive/10">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 mb-1.5">Zuweisung</label>
+                                <select id="topdoc-scope" onchange="document.getElementById('topdoc-owner-wrap').classList.toggle('hidden', this.value === 'building')" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm font-bold">
+                                    <option value="building">Für alle Eigentümer</option>
+                                    <option value="owner">Für bestimmten Eigentümer</option>
+                                </select>
+                            </div>
+                            <div id="topdoc-owner-wrap" class="hidden">
+                                <label class="block text-xs font-bold text-gray-500 mb-1.5">Eigentümer auswählen</label>
+                                <select id="topdoc-owner" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm font-bold">
+                                    ${ownerOpts}
+                                </select>
+                            </div>
+                            <button onclick="_etvUploadTopDoc('${agendaItemId}')" class="w-full bg-hb-olive text-white py-3 rounded-xl font-black shadow-lg hover:scale-105 transition-all">
+                                Hochladen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-6 bg-hb-ultralight border-t border-hb-olive/5">
+                    <button onclick="document.getElementById('etv-topdocs-modal').remove()" class="w-full py-3 text-sm font-bold text-gray-400 hover:text-hb-offblack transition-colors">Schließen</button>
+                </div>
+            </div>
+        </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+};
+
+window._etvUploadTopDoc = async (agendaItemId) => {
+    const fileInput = document.getElementById('topdoc-file');
+    const file = fileInput?.files?.[0];
+    if (!file) { showToast('Bitte PDF auswählen.', 'error'); return; }
+    if (file.type !== 'application/pdf') { showToast('Nur PDF-Dateien erlaubt.', 'error'); return; }
+
+    const scope = document.getElementById('topdoc-scope').value;
+    const ownerPersonId = scope === 'owner' ? document.getElementById('topdoc-owner').value : null;
+
+    const sessionId = _etvState.sessionId;
+    const ts = Date.now();
+    const safeName = file.name.replace(/[^a-z0-9._-]/gi, '_');
+    const storagePath = `etv-docs/${sessionId}/${agendaItemId}/${ts}_${safeName}`;
+
+    showToast('Wird hochgeladen…');
+
+    const { error: uploadErr } = await _supabase.storage
+        .from('documents').upload(storagePath, file, { contentType: 'application/pdf', upsert: false });
+    if (uploadErr) { showToast('Upload fehlgeschlagen: ' + uploadErr.message, 'error'); return; }
+
+    const { error: dbErr } = await _supabase.from('etv_agenda_documents').insert({
+        agenda_item_id: agendaItemId,
+        file_path: storagePath,
+        file_name: file.name,
+        scope,
+        owner_person_id: ownerPersonId || null
+    });
+    if (dbErr) { showToast('DB-Fehler: ' + dbErr.message, 'error'); return; }
+
+    showToast('Dokument hochgeladen.', 'success');
+    document.getElementById('etv-topdocs-modal').remove();
+    await _etvOpenSession(_etvState.sessionId);
+};
+
+window._etvDeleteTopDoc = async (docId, filePath, agendaItemId) => {
+    if (!confirm('Dokument wirklich entfernen?')) return;
+    await _supabase.storage.from('documents').remove([filePath]);
+    const { error } = await _supabase.from('etv_agenda_documents').delete().eq('id', docId);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    showToast('Dokument entfernt.');
+    document.getElementById('etv-topdocs-modal').remove();
+    await _etvOpenSession(_etvState.sessionId);
+};
+
 // ─── CHECK-IN ───────────────────────────────────────────────
 
 window._etvOpenCheckinModal = () => {
+    const groups = _etvGroupedAttendance();
+    const presentGroups = groups.filter(g => g.allPresent).length;
+    const presentUnits = _etvState.attendance.filter(a => a.is_present).length;
+    const denomDefault = _etvState.apartments[0]?.mea_denominator || 1000;
+
     const html = `
         <div id="etv-checkin-modal" class="fixed inset-0 bg-hb-offblack/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div class="bg-white rounded-[35px] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]">
                 <div class="bg-hb-olive p-8 text-white flex justify-between items-center">
                     <div>
                         <h3 class="text-2xl font-black tracking-tight">Präsenzliste</h3>
@@ -740,23 +1090,44 @@ window._etvOpenCheckinModal = () => {
                     </div>
                     <div class="text-right">
                         <div class="text-[10px] font-black opacity-60 uppercase">Anwesend</div>
-                        <div class="text-3xl font-black">${_etvState.attendance.filter(a => a.is_present).length} / ${_etvState.attendance.length}</div>
+                        <div class="text-3xl font-black">${presentGroups} / ${groups.length}</div>
+                        <div class="text-[10px] font-bold opacity-60 mt-0.5">${presentUnits} / ${_etvState.attendance.length} WE</div>
                     </div>
                 </div>
                 <div class="flex-grow overflow-y-auto p-4 space-y-2">
-                    ${_etvState.attendance.map(a => {
-                        const apt = _etvState.apartments.find(apt => apt.id === a.apartment_id);
+                    ${groups.length === 0 ? `
+                        <div class="p-10 text-center text-sm text-gray-500">
+                            <div class="font-bold text-hb-offblack mb-2">Keine Eigentümer in der Präsenzliste</div>
+                            <p class="text-xs leading-relaxed">
+                                Für die Einheiten dieses Gebäudes ist kein aktiver Eigentümer-Eintrag hinterlegt.<br>
+                                Bitte unter <span class="font-bold">Objekte → Einheit → Eigentümer</span> nachpflegen und die Seite neu laden.
+                            </p>
+                        </div>
+                    ` : groups.map(g => {
+                        const personName = g.person ? `${g.person.first_name} ${g.person.last_name}` : 'Unbekannt';
+                        const weBadges = g.apartments.map(apt =>
+                            `<span class="bg-hb-ultralight text-hb-olive rounded-md px-2 py-0.5 text-[10px] font-bold border border-hb-olive/10">WE ${apt.apartment_number}</span>`
+                        ).join(' ');
+                        const isMulti = g.apartments.length > 1;
+                        const btnLabel = g.allPresent ? '✓ EINGECHECKT' : (g.anyPresent ? 'TEILWEISE' : 'CHECK-IN');
+                        const btnClass = g.allPresent
+                            ? 'bg-hb-olive text-white shadow-md'
+                            : (g.anyPresent ? 'bg-hb-orange/10 text-hb-orange border border-hb-orange/30' : 'bg-hb-ultralight text-gray-400 group-hover:bg-hb-olive/10 group-hover:text-hb-olive');
                         return `
                         <div class="flex items-center justify-between p-4 rounded-2xl hover:bg-hb-ultralight/50 transition-all border border-transparent hover:border-hb-olive/10 group">
-                            <div class="flex items-center gap-4">
-                                <div class="bg-hb-ultralight text-hb-olive h-10 w-10 rounded-xl flex items-center justify-center font-black text-xs border border-hb-olive/5">WE ${apt?.apartment_number}</div>
-                                <div>
-                                    <div class="font-black text-hb-offblack">${a.person.first_name} ${a.person.last_name}</div>
-                                    <div class="text-[10px] text-gray-400 font-bold uppercase tracking-tight">${apt?.mea_numerator || 0} / ${apt?.mea_denominator || 1000} MEA</div>
+                            <div class="flex items-center gap-4 min-w-0">
+                                <div class="bg-hb-ultralight text-hb-olive h-10 w-10 rounded-xl flex items-center justify-center font-black text-xs border border-hb-olive/5 shrink-0">${g.apartments.length}×WE</div>
+                                <div class="min-w-0">
+                                    <div class="font-black text-hb-offblack flex items-center gap-2">
+                                        ${personName}
+                                        ${isMulti ? `<span class="bg-hb-orange/10 text-hb-orange px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tight">Multi-WE</span>` : ''}
+                                    </div>
+                                    <div class="flex flex-wrap gap-1 mt-1">${weBadges}</div>
+                                    <div class="text-[10px] text-gray-400 font-bold uppercase tracking-tight mt-1">${g.totalMEA} / ${denomDefault} MEA${isMulti ? ' gesamt' : ''}</div>
                                 </div>
                             </div>
-                            <button onclick="_etvTogglePresent('${a.id}', ${!a.is_present})" class="px-6 py-2 rounded-xl text-xs font-black transition-all ${a.is_present ? 'bg-hb-olive text-white shadow-md' : 'bg-hb-ultralight text-gray-400 group-hover:bg-hb-olive/10 group-hover:text-hb-olive'}">
-                                ${a.is_present ? '✓ EINGECHECKT' : 'CHECK-IN'}
+                            <button onclick="_etvTogglePersonPresent('${g.person_id}', ${!g.allPresent})" class="px-6 py-2 rounded-xl text-xs font-black transition-all shrink-0 ${btnClass}">
+                                ${btnLabel}
                             </button>
                         </div>
                         `;
@@ -776,7 +1147,7 @@ window._etvTogglePresent = async (attId, isPresent) => {
     if (!error) {
         const att = _etvState.attendance.find(a => a.id === attId);
         if (att) att.is_present = isPresent;
-        
+
         // Modal aktualisieren
         const modal = document.getElementById('etv-checkin-modal');
         if (modal) {
@@ -784,7 +1155,35 @@ window._etvTogglePresent = async (attId, isPresent) => {
             _etvOpenCheckinModal();
         }
         _etvRenderMain();
+    } else {
+        showToast('Check-in fehlgeschlagen: ' + error.message, 'error');
     }
+};
+
+/**
+ * Bulk-Toggle: Alle WE-Einträge einer Person ein-/auschecken.
+ * Wird genutzt, wenn ein Eigentümer mehrere Einheiten besitzt — ein Klick erfasst alle.
+ */
+window._etvTogglePersonPresent = async (personId, isPresent) => {
+    const attIds = _etvState.attendance
+        .filter(a => a.person_id === personId)
+        .map(a => a.id);
+    if (attIds.length === 0) return;
+
+    const { error } = await _supabase.from('etv_attendance').update({ is_present: isPresent }).in('id', attIds);
+    if (error) {
+        showToast('Check-in fehlgeschlagen: ' + error.message, 'error');
+        return;
+    }
+    for (const att of _etvState.attendance) {
+        if (att.person_id === personId) att.is_present = isPresent;
+    }
+    const modal = document.getElementById('etv-checkin-modal');
+    if (modal) {
+        modal.remove();
+        _etvOpenCheckinModal();
+    }
+    _etvRenderMain();
 };
 
 // ─── VOTING ──────────────────────────────────────────────────
@@ -823,13 +1222,26 @@ window._etvCastVote = async (topId, vote) => {
 
 // ─── PDF & ABSCHLUSS ────────────────────────────────────────
 
+window._etvDraftEinladung = async () => {
+    if (typeof generateETVEinladungPDF !== 'function') {
+        showToast('PDF-Modul nicht bereit.', 'error'); return;
+    }
+    const btn = document.querySelector('[onclick*="_etvDraftEinladung"]');
+    const origText = btn?.textContent;
+    if (btn) { btn.disabled = true; btn.textContent = 'Entwurf wird erstellt…'; }
+    try {
+        await generateETVEinladungPDF(_etvState.sessionId, { draft: true });
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = origText; }
+    }
+};
+
 window._etvPreviewEinladung = async () => {
     if (typeof generateETVEinladungPDF !== 'function') {
         showToast('PDF-Modul nicht bereit.', 'error'); return;
     }
     if (!confirm('Kombi-PDFs (Einladung + Anlagen) generieren und Dokumente für Eigentümer freischalten?\n\nDie verknüpften Jahresabrechnungen und Wirtschaftspläne werden im Portal sichtbar.')) return;
 
-    // Fortschrittsanzeige
     const btn = document.querySelector('[onclick*="_etvPreviewEinladung"]');
     const origText = btn?.textContent;
     if (btn) { btn.disabled = true; btn.textContent = 'Kombi-PDFs werden generiert…'; }
@@ -851,14 +1263,15 @@ window._etvGenProtokoll = async () => {
 window._etvEditSessionSettings = () => {
     const s = _etvState.session;
     const dt = new Date(s.meeting_date);
-    const dateVal = dt.toISOString().split('T')[0];
-    const timeVal = dt.toTimeString().slice(0, 5);
+    const pad = n => String(n).padStart(2, '0');
+    const dateVal = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+    const timeVal = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
     const statusOptions = ETV_STATUSES.map(v =>
         `<option value="${v}" ${s.status === v ? 'selected' : ''}>${ETV_STATUS_LABELS[v] || v.toUpperCase()}</option>`
     ).join('');
     const html = `
         <div id="etv-settings-modal" class="fixed inset-0 bg-hb-offblack/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div class="bg-white rounded-[30px] shadow-2xl w-full max-w-lg overflow-hidden">
+            <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden">
                 <div class="bg-hb-olive p-6 text-white">
                     <h3 class="text-xl font-black">Versammlungsdetails bearbeiten</h3>
                     <p class="text-[10px] uppercase font-bold opacity-70 tracking-widest mt-1">ETV ${s.fiscal_year}</p>
@@ -914,7 +1327,7 @@ window._etvSaveSessionSettings = async () => {
     if (!date || !fy) { showToast('Bitte Datum und Jahr angeben.', 'error'); return; }
     const { error } = await _supabase.from('etv_sessions').update({
         fiscal_year: parseInt(fy),
-        meeting_date: `${date}T${time}:00`,
+        meeting_date: new Date(`${date}T${time || '00:00'}:00`).toISOString(),
         location: loc,
         status,
         quorum_percent: quorum
@@ -985,7 +1398,7 @@ window._etvOpenStaging = async () => {
 
     const html = `
         <div id="etv-staging-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div class="bg-white rounded-[20px] w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl">
+            <div class="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl">
                 <div class="bg-hb-olive p-6 rounded-t-[20px] flex items-center justify-between">
                     <div>
                         <h3 class="text-white font-bold text-lg">Staging-Status ETV ${fy}</h3>

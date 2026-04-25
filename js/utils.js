@@ -53,7 +53,7 @@ function showModal(id, contentHtml, { maxWidth = 'max-w-lg', onClose } = {}) {
         modal.innerHTML = `<div class="modal-sheet bg-white rounded-t-[15px] shadow-2xl w-full max-h-[85vh] overflow-y-auto p-5 space-y-4 translate-y-full" onclick="event.stopPropagation()">${contentHtml}</div>`;
     } else {
         modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
-        modal.innerHTML = `<div class="modal-inner bg-white rounded-[15px] shadow-2xl w-full ${maxWidth} max-h-[90vh] overflow-y-auto p-8 space-y-5 scale-95 opacity-0" onclick="event.stopPropagation()">${contentHtml}</div>`;
+        modal.innerHTML = `<div class="modal-inner bg-white rounded-2xl shadow-2xl w-full ${maxWidth} max-h-[90vh] overflow-y-auto p-8 space-y-5 scale-95 opacity-0" onclick="event.stopPropagation()">${contentHtml}</div>`;
     }
 
     document.body.appendChild(modal);

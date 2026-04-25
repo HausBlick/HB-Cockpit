@@ -326,7 +326,7 @@ async function _finLoadOverview() {
 
         <!-- Modal Neues Konto -->
         <div id="fin-account-modal" class="hidden fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-md p-6">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
                 <h3 class="text-base font-extrabold text-hb-offblack mb-4">Neues Konto anlegen</h3>
                 <div class="space-y-3">
                     <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Kontonummer</label>
@@ -362,7 +362,7 @@ async function _finLoadOverview() {
 
         <!-- Modal Konto bearbeiten -->
         <div id="fin-account-edit-modal" class="hidden fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-md p-6">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
                 <h3 class="text-base font-extrabold text-hb-offblack mb-4">Konto bearbeiten</h3>
                 <input type="hidden" id="fin-edit-acc-id">
                 <div class="space-y-3">
@@ -702,7 +702,7 @@ async function _finRenderBookings() {
     const entryRows = buildJournalRows();
     const yearClosed = await _finIsYearClosed(bid, fy);
     const closedBanner = yearClosed
-        ? `<div class="mb-4 px-4 py-3 rounded-[15px] border border-hb-orange/30 bg-hb-orange/5 flex items-center gap-3">
+        ? `<div class="mb-4 px-4 py-3 rounded-2xl border border-hb-orange/30 bg-hb-orange/5 flex items-center gap-3">
                <svg class="w-5 h-5 text-hb-orange shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m0 0v2m0-2h2m-2 0H10m5-7V7a5 5 0 00-10 0v4a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2v-6a2 2 0 00-2-2z"/></svg>
                <span class="text-sm text-hb-orange font-semibold">Wirtschaftsjahr ${fy} ist abgeschlossen — neue Buchungen sind gesperrt. Stornierungen bleiben möglich.</span>
            </div>`
@@ -871,7 +871,7 @@ window._finOpenEntryDetail = async (entryId) => {
     // Panel
     const panel = document.createElement('div');
     panel.id = 'fin-entry-panel';
-    Object.assign(panel.style, { position:'fixed', right:'0', top:'0', height:'100%', width:'420px', maxWidth:'100vw', zIndex:'50', transform:'translateX(100%)', transition:'transform 0.3s ease-in-out', display:'flex', flexDirection:'column', backgroundColor:'#F9FAF8', boxShadow:'-4px 0 24px rgba(0,0,0,0.1)' });
+    Object.assign(panel.style, { position:'fixed', right:'0', top:'0', height:'100%', width:'420px', maxWidth:'100vw', zIndex:'50', transform:'translateX(100%)', transition:'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)', display:'flex', flexDirection:'column', backgroundColor:'#F5F5F5', boxShadow:'-4px 0 24px rgba(0,0,0,0.1)' });
     const canEdit = !e.is_locked && e.entry_type !== 'storno';
     panel.innerHTML = `
         <div style="background:#687451;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
@@ -901,7 +901,7 @@ window._finOpenEntryDetail = async (entryId) => {
             </div>
         </div>
         ${canEdit ? `
-        <div style="padding:16px 20px;border-top:1px solid rgba(104,116,81,0.15);flex-shrink:0;display:flex;gap:8px">
+        <div style="padding:16px 20px;border-top:1px solid rgba(104,116,81,0.12);flex-shrink:0;display:flex;gap:8px">
             <button onclick="_finEditEntry(${e.id})" style="flex:1;background:#687451;color:white;border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer">Metadaten bearbeiten</button>
         </div>` : ''}
         `;
@@ -945,7 +945,7 @@ window._finEditEntry = (entryId) => {
     const modal = document.createElement('div');
     modal.id = 'fin-entry-edit-modal';
     modal.innerHTML = `<div class="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4" onclick="if(event.target===this)document.getElementById('fin-entry-edit-modal').remove()">
-        <div class="bg-white rounded-[15px] p-6 w-full max-w-md shadow-xl">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
             <h3 class="text-base font-bold text-hb-offblack mb-1">Buchung bearbeiten #${e.id}</h3>
             <p class="text-xs text-gray-400 mb-4">Finanzielle Felder (Konten, Betrag, Datum) sind GoBD-geschützt und können nicht geändert werden. Bitte Storno + Neubuchung für Korrekturen nutzen.</p>
             <div class="space-y-3">
@@ -1420,7 +1420,7 @@ function _finRenderOnboarding() {
                     <select id="ob-building" onchange="_finOnBuildingChange(this.value)">${buildingOpts}</select></div>
                 <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Stichtag</label>
                     <input id="ob-date" type="date" value="${new Date().getFullYear()}-01-01"></div>
-                <div class="bg-hb-olive/5 border border-hb-olive/20 rounded-[15px] p-4 text-sm text-gray-600">
+                <div class="bg-hb-olive/5 border border-hb-olive/12 rounded-2xl p-4 text-sm text-gray-600">
                     Alle Salden werden zum gewählten Stichtag als Eröffnungsbuchung hinterlegt. Dieser Schritt kann pro Gebäude nur einmal sinnvoll durchgeführt werden.
                 </div>
                 <button onclick="_finOBNext(1)" class="btn-primary w-full text-sm py-3">Weiter →</button>
@@ -1774,12 +1774,12 @@ function _finRenderWirtschaftsplan(plan, planItems) {
                 <div class="flex gap-2 flex-wrap">
                     ${statusAction}
                     ${!plan ? `<button onclick="_finNewPlan()" class="btn-primary text-sm px-4 py-2">+ Neuer Plan ${fy}</button>` : ''}
-                    ${plan?.status === 'draft' ? `<button onclick="_finOpenAddItemModal()" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 border border-hb-olive/20">+ Position hinzufügen</button>` : ''}
+                    ${plan?.status === 'draft' ? `<button onclick="_finOpenAddItemModal()" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 border border-hb-olive/12">+ Position hinzufügen</button>` : ''}
                     ${plan ? `<button onclick="generateWirtschaftsplanPDF(${plan.id})" class="text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg hover:bg-gray-100 border border-gray-200 flex items-center gap-1.5">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
                         PDF
                     </button>` : ''}
-                    ${plan ? `<button onclick="generateEinzelwirtschaftsplanPDF(${plan.id})" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 border border-hb-olive/20 flex items-center gap-1.5">
+                    ${plan ? `<button onclick="generateEinzelwirtschaftsplanPDF(${plan.id})" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 border border-hb-olive/12 flex items-center gap-1.5">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
                         Einzelpläne PDF
                     </button>` : ''}
@@ -1831,7 +1831,7 @@ function _finRenderWirtschaftsplan(plan, planItems) {
 
         <!-- Modal: Position hinzufügen -->
         <div id="fin-item-modal" class="hidden fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-md p-6">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
                 <h3 class="text-base font-extrabold text-hb-offblack mb-4">Position hinzufügen</h3>
                 <div class="space-y-3">
                     <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Konto *</label>
@@ -1854,7 +1854,7 @@ function _finRenderWirtschaftsplan(plan, planItems) {
 
         <!-- Modal: Sonderumlage -->
         <div id="fin-levy-modal" class="hidden fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-md p-6">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
                 <h3 class="text-base font-extrabold text-hb-offblack mb-4">Sonderumlage anlegen</h3>
                 <div class="space-y-3">
                     <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Titel *</label>
@@ -2357,7 +2357,7 @@ async function _finLoadBelegpruefung() {
 
         <!-- Modal: Freigabezeitraum -->
         <div id="fin-access-modal" class="hidden fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-md p-6">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
                 <h3 class="text-base font-extrabold text-hb-offblack mb-4">Freigabezeitraum definieren</h3>
                 <div class="space-y-3">
                     <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Von</label>
@@ -2526,7 +2526,7 @@ async function _finRenderBeiratView() {
         </div>
 
         <!-- Hinweisbox -->
-        <div class="mb-5 px-4 py-3 rounded-[15px] border border-hb-orange/30 bg-hb-orange/5 flex items-start gap-3">
+        <div class="mb-5 px-4 py-3 rounded-2xl border border-hb-orange/30 bg-hb-orange/5 flex items-start gap-3">
             <svg class="w-5 h-5 text-hb-orange shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z"/></svg>
             <p class="text-sm text-hb-offblack">${hintText}</p>
         </div>
@@ -2847,7 +2847,7 @@ function _finJABStep2Html(fy) {
                 <div><label class="text-xs font-semibold text-gray-500 mb-1 block">Zeitraum bis</label>
                     <input id="jab-to" type="date" value="${d?.to || fy+'-12-31'}"></div>
             </div>
-            ${!hasPlan ? `<div class="bg-hb-orange/10 border border-hb-orange/20 rounded-[15px] p-4 text-sm text-hb-orange font-semibold">
+            ${!hasPlan ? `<div class="bg-hb-orange/10 border border-hb-orange/20 rounded-2xl p-4 text-sm text-hb-orange font-semibold">
                 ⚠ Kein aktiver Wirtschaftsplan für ${fy} gefunden. Die Abrechnung ist trotzdem möglich.
             </div>` : ''}
             ${accountList}
@@ -3107,8 +3107,8 @@ function _finJABStep6Html() {
         <div class="flex items-center justify-between mb-2">
             <h4 class="text-sm font-bold text-hb-offblack">Abrechnungsergebnis je Eigentümer</h4>
             <div class="flex flex-wrap gap-2">
-                <button onclick="_finJABExportCSV()" class="text-xs text-hb-olive bg-hb-ultralight border border-hb-olive/20 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors">Als CSV exportieren</button>
-                <button onclick="_finJABExportPDF()" class="text-xs text-hb-olive bg-hb-ultralight border border-hb-olive/20 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors">Abrechnung als PDF exportieren</button>
+                <button onclick="_finJABExportCSV()" class="text-xs text-hb-olive bg-hb-ultralight border border-hb-olive/12 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors">Als CSV exportieren</button>
+                <button onclick="_finJABExportPDF()" class="text-xs text-hb-olive bg-hb-ultralight border border-hb-olive/12 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors">Abrechnung als PDF exportieren</button>
                 <button onclick="_finJABSaveForETV()" class="text-xs text-hb-orange bg-hb-ultralight border border-hb-orange/20 px-4 py-2 rounded-lg font-semibold hover:bg-hb-orange/5 transition-colors">Für ETV speichern</button>
                 <button onclick="_finJABAbschluss()" id="btn-jab-abschluss" class="btn-primary text-xs px-4 py-2">Abrechnung abschließen & sperren</button>
                 <button onclick="_finJABReopen()" id="btn-jab-reopen" class="text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5 hidden">Sperre aufheben</button>
@@ -4009,7 +4009,7 @@ window._finNoticePaidModal = (noticeId, demandId, overdueAmt, interestAmt, feeAm
     const modal = document.createElement('div');
     modal.id = 'fin-notice-paid-modal';
     modal.innerHTML = `<div class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)document.getElementById('fin-notice-paid-modal').remove()">
-        <div class="bg-white rounded-[15px] p-6 w-full max-w-md shadow-xl">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
             <h3 class="text-base font-bold text-hb-offblack mb-4">Zahlung erfassen</h3>
             <div class="mb-4">
                 <label class="text-xs font-semibold text-gray-500 mb-1 block">Zahlungsdatum</label>
@@ -4183,7 +4183,7 @@ async function _finLoadDatev() {
             </div>
             <div class="flex flex-col gap-3 mt-5">
                 <button onclick="_finExportDatev()" class="btn-primary text-sm py-3">DATEV-Export generieren &amp; herunterladen</button>
-                <button onclick="_fin35aExport()" class="text-xs text-hb-olive bg-hb-ultralight border border-hb-olive/20 px-4 py-2.5 rounded-lg font-semibold hover:bg-gray-100 transition-colors text-center">
+                <button onclick="_fin35aExport()" class="text-xs text-hb-olive bg-hb-ultralight border border-hb-olive/12 px-4 py-2.5 rounded-lg font-semibold hover:bg-gray-100 transition-colors text-center">
                     §35a EStG Steuerbescheinigung (separate CSV)
                 </button>
             </div>
@@ -4329,7 +4329,7 @@ async function _finLoadCsvImport() {
 
             <!-- Drop-Zone -->
             <div id="csv-dropzone"
-                class="border-2 border-dashed border-hb-olive/30 rounded-[15px] p-10 text-center cursor-pointer hover:border-hb-olive/60 hover:bg-hb-olive/5 transition-colors"
+                class="border-2 border-dashed border-hb-olive/30 rounded-2xl p-10 text-center cursor-pointer hover:border-hb-olive/60 hover:bg-hb-olive/5 transition-colors"
                 onclick="document.getElementById('csv-file-input').click()"
                 ondragover="event.preventDefault(); this.classList.add('border-hb-olive','bg-hb-olive/5')"
                 ondragleave="this.classList.remove('border-hb-olive','bg-hb-olive/5')"

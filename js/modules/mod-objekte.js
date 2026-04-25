@@ -280,7 +280,7 @@ async function showBuildingInfo(b) {
             </div>
 
             <!-- Einheitenliste: nimmt verbleibenden Platz, scrollbar -->
-            <div class="border-t border-hb-olive/20 flex-grow flex flex-col min-h-0">
+            <div class="border-t border-hb-olive/12 flex-grow flex flex-col min-h-0">
                 <div class="px-4 py-2.5 bg-hb-olive/80 flex justify-between items-center flex-shrink-0">
                     <h3 class="text-sm font-bold text-white">Einheiten</h3>
                     <button onclick="showApartmentForm()" class="bg-white text-hb-olive text-xs px-3 py-1 rounded-lg hover:bg-hb-ultralight transition-colors font-semibold">+ Einheit</button>
@@ -978,7 +978,7 @@ window.openAssignModal = (aptId) => {
     modal.id = 'assign-modal';
     modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
     modal.innerHTML = `
-        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-lg p-8 space-y-5 relative" onclick="event.stopPropagation()">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 space-y-5 relative" onclick="event.stopPropagation()">
             <button onclick="closeAssignModal()" class="absolute top-4 right-4 text-gray-400 hover:text-hb-orange font-bold text-lg leading-none">✕</button>
             <h3 class="text-xl font-extrabold text-hb-offblack">Person zuweisen</h3>
             <div class="flex gap-6">
@@ -1149,7 +1149,7 @@ function _dkRenderTab(keys, buildingId) {
         <div class="flex justify-between items-center">
             <p class="text-xs text-gray-500">${keys.length} Schlüssel konfiguriert</p>
             <button onclick="_dkOpenNewModal(${buildingId})"
-                class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 font-semibold border border-hb-olive/20">+ Neuer Schlüssel</button>
+                class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 font-semibold border border-hb-olive/12">+ Neuer Schlüssel</button>
         </div>
         ${rows}`;
 }
@@ -1171,7 +1171,7 @@ window._dkOpenNewModal = function(buildingId) {
     overlay.id = 'dk-new-overlay';
     overlay.className = 'fixed inset-0 bg-black/40 flex items-center justify-center z-50';
     overlay.innerHTML = `
-        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-md p-6 mx-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 mx-4">
             <div class="flex justify-between items-center mb-5">
                 <h3 class="text-base font-extrabold text-hb-offblack">Neuer Verteilerschlüssel</h3>
                 <button onclick="document.getElementById('dk-new-overlay').remove()"
@@ -1273,17 +1273,17 @@ window._dkOpenValuesModal = async function(keyId, buildingId) {
     // Quick-fill buttons based on type
     const fillBtns = [];
     if (key.type === 'mea' || key.type === 'custom' || key.type === 'heizkosten')
-        fillBtns.push('<button onclick="_dkFillFrom(\'mea\')" class="text-xs text-hb-olive bg-white border border-hb-olive/20 px-2 py-1 rounded-lg hover:bg-hb-ultralight">MEA</button>');
+        fillBtns.push('<button onclick="_dkFillFrom(\'mea\')" class="text-xs text-hb-olive bg-white border border-hb-olive/12 px-2 py-1 rounded-lg hover:bg-hb-ultralight">MEA</button>');
     if (key.type === 'sqm' || key.type === 'custom' || key.type === 'heizkosten')
-        fillBtns.push('<button onclick="_dkFillFrom(\'sqm\')" class="text-xs text-hb-olive bg-white border border-hb-olive/20 px-2 py-1 rounded-lg hover:bg-hb-ultralight">m²</button>');
+        fillBtns.push('<button onclick="_dkFillFrom(\'sqm\')" class="text-xs text-hb-olive bg-white border border-hb-olive/12 px-2 py-1 rounded-lg hover:bg-hb-ultralight">m²</button>');
     if (key.type === 'units' || key.type === 'custom')
-        fillBtns.push('<button onclick="_dkFillFrom(\'units\')" class="text-xs text-hb-olive bg-white border border-hb-olive/20 px-2 py-1 rounded-lg hover:bg-hb-ultralight">je 1/n</button>');
+        fillBtns.push('<button onclick="_dkFillFrom(\'units\')" class="text-xs text-hb-olive bg-white border border-hb-olive/12 px-2 py-1 rounded-lg hover:bg-hb-ultralight">je 1/n</button>');
 
     const overlay = document.createElement('div');
     overlay.id = 'dk-vals-overlay';
     overlay.className = 'fixed inset-0 bg-black/40 flex items-center justify-center z-50';
     overlay.innerHTML = `
-        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-lg mx-4 flex flex-col" style="max-height:90vh">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 flex flex-col" style="max-height:90vh">
             <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center flex-shrink-0">
                 <div>
                     <h3 class="text-base font-extrabold text-hb-offblack">${key.name}</h3>

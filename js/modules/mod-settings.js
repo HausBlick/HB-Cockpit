@@ -174,7 +174,7 @@ function _settingsRenderAllgemein(s) {
                         <p class="text-xs font-semibold text-gray-500 mb-2">Firmen-Logo (PNG/JPG)</p>
                         ${logoPreview}
                         <p class="text-xs text-gray-400 mb-3">Erscheint im Portal-Header und auf generierten Dokumenten.</p>
-                        <label class="cursor-pointer inline-flex items-center gap-2 text-xs text-hb-olive bg-hb-ultralight px-3 py-2 rounded-lg hover:bg-gray-100 font-semibold border border-hb-olive/20">
+                        <label class="cursor-pointer inline-flex items-center gap-2 text-xs text-hb-olive bg-hb-ultralight px-3 py-2 rounded-lg hover:bg-gray-100 font-semibold border border-hb-olive/12">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                             Logo hochladen
                             <input type="file" accept="image/png,image/jpeg,image/svg+xml" class="hidden" onchange="_settingsUploadLogo(this)">
@@ -184,7 +184,7 @@ function _settingsRenderAllgemein(s) {
                         <p class="text-xs font-semibold text-gray-500 mb-2">Briefbogen-Vorlage (PDF, A4)</p>
                         ${letterheadPreview}
                         <p class="text-xs text-gray-400 mb-3">Wird als Hintergrundebene für alle generierten Briefe (Mahnungen, Wirtschaftspläne) genutzt.</p>
-                        <label class="cursor-pointer inline-flex items-center gap-2 text-xs text-hb-olive bg-hb-ultralight px-3 py-2 rounded-lg hover:bg-gray-100 font-semibold border border-hb-olive/20">
+                        <label class="cursor-pointer inline-flex items-center gap-2 text-xs text-hb-olive bg-hb-ultralight px-3 py-2 rounded-lg hover:bg-gray-100 font-semibold border border-hb-olive/12">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                             Briefbogen hochladen
                             <input type="file" accept="application/pdf" class="hidden" onchange="_settingsUploadLetterhead(this)">
@@ -493,6 +493,9 @@ const _BLOCK_TYPES = [
     { type: 'spacer',     label: 'Abstand',         icon: '↕' },
     { type: 'page_break', label: 'Seitenumbruch',   icon: '⏎' },
     { type: 'hint_box',   label: 'Hinweis-Box',     icon: '!' },
+    { type: 'info_box',   label: 'Info-Box (grün)',  icon: '▣' },
+    { type: 'agenda_list', label: 'Tagesordnung',   icon: '☰' },
+    { type: 'anlagen_list', label: 'Anlagen',       icon: '📎' },
 ];
 
 // ─── Designer-Tab rendern ────────────────────────────────────
@@ -524,7 +527,7 @@ async function _settingsRenderDesigner() {
                     <div class="flex items-center gap-2 flex-wrap">
                         <button onclick="_dsSave()" class="btn-primary text-xs px-4 py-2">Speichern</button>
                         <div class="relative">
-                            <button onclick="_dsToggleAddMenu()" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-2 rounded-lg hover:bg-gray-100 font-semibold border border-hb-olive/20">
+                            <button onclick="_dsToggleAddMenu()" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-2 rounded-lg hover:bg-gray-100 font-semibold border border-hb-olive/12">
                                 + Block hinzufügen
                             </button>
                             <div id="ds-add-menu" class="hidden absolute left-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1 w-48"></div>
@@ -747,6 +750,96 @@ function _dsBlockHtml(block, idx) {
             </div>`;
         break;
 
+    case 'info_box': {
+        const linesArr = block.lines || [block.text || ''];
+        bodyHtml = `
+            <div class="mt-2 space-y-2">
+                <div class="p-2 bg-green-50 rounded-lg border border-green-200 text-xs text-green-700 italic">Grüne Box — ideal für Termin, Ort, Zusammenfassungen</div>
+                <div id="ds-infobox-lines-${idx}">
+                    ${linesArr.map((l, li) => `
+                        <div class="flex gap-2 items-center mb-1">
+                            <input type="text" value="${_escAttr(l)}" class="text-sm flex-1"
+                                placeholder="Zeile ${li + 1}…"
+                                oninput="(function(){ var ls = _designerState.blocks[${idx}].lines || []; ls[${li}] = this.value; _dsMarkDirty(); _dsSchedulePreview(); }).call(this)">
+                            ${linesArr.length > 1 ? `<button onclick="_designerState.blocks[${idx}].lines.splice(${li},1); _dsMarkDirty(); _dsRenderBlocks(); _dsSchedulePreview();" class="text-hb-orange text-xs px-1">×</button>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+                <button onclick="_designerState.blocks[${idx}].lines = _designerState.blocks[${idx}].lines || []; _designerState.blocks[${idx}].lines.push(''); _dsMarkDirty(); _dsRenderBlocks(); _dsSchedulePreview();"
+                    class="text-xs text-hb-olive hover:underline">+ Zeile hinzufügen</button>
+                <div class="flex gap-3 items-center">
+                    <select onchange="_dsUpdateBlock(${idx}, 'size', +this.value)" class="w-20 text-xs">
+                        ${[8,9,10,11,12,13,14].map(s => `<option value="${s}" ${block.size === s ? 'selected' : ''}>${s}pt</option>`).join('')}
+                    </select>
+                    <label class="flex items-center gap-1 text-xs text-gray-500">
+                        <input type="checkbox" ${block.bold !== false ? 'checked' : ''} onchange="_dsUpdateBlock(${idx}, 'bold', this.checked)"> Fett
+                    </label>
+                    <label class="flex items-center gap-1 text-xs text-gray-500">
+                        <input type="checkbox" ${block.align === 'center' ? 'checked' : ''} onchange="_dsUpdateBlock(${idx}, 'align', this.checked ? 'center' : 'left')"> Zentriert
+                    </label>
+                </div>
+            </div>`;
+        break;
+    }
+
+    case 'anlagen_list':
+        bodyHtml = `
+            <div class="mt-2 space-y-2">
+                <div class="p-2 bg-gray-50 rounded-lg border border-gray-200 text-xs text-gray-500 italic">Automatische Auflistung aller Anhänge (TOP-Dokumente + WP/JAB). Wird nur angezeigt wenn Anlagen vorhanden.</div>
+                <div class="flex gap-3 items-center">
+                    <div class="flex-1">
+                        <label class="text-xs text-gray-500 mb-1 block">Überschrift</label>
+                        <input type="text" value="${_escAttr(block.title || '')}" oninput="_dsUpdateBlock(${idx}, 'title', this.value)"
+                            placeholder="z.B. Anlagen:" class="text-sm w-full">
+                    </div>
+                    <div class="w-20">
+                        <label class="text-xs text-gray-500 mb-1 block">Größe</label>
+                        <select onchange="_dsUpdateBlock(${idx}, 'size', +this.value)" class="w-full text-xs">
+                            ${[8,9,10].map(s => `<option value="${s}" ${(block.size || 9) === s ? 'selected' : ''}>${s}pt</option>`).join('')}
+                        </select>
+                    </div>
+                    <select onchange="_dsUpdateBlock(${idx}, 'color', this.value)" class="w-24 text-xs">
+                        <option value="gray" ${(block.color || 'gray') === 'gray' ? 'selected' : ''}>Grau</option>
+                        <option value="" ${!block.color || block.color === '' ? 'selected' : ''}>Standard</option>
+                        <option value="olive" ${block.color === 'olive' ? 'selected' : ''}>Olive</option>
+                    </select>
+                </div>
+            </div>`;
+        break;
+
+    case 'agenda_list':
+        bodyHtml = `
+            <div class="mt-2 space-y-2">
+                <div class="p-2 bg-gray-50 rounded-lg border border-gray-200 text-xs text-gray-500 italic">Kompakte Auflistung aller TOPs (Nr. + Titel). Daten werden automatisch aus der Tagesordnung geladen.</div>
+                <div class="flex gap-3 items-center">
+                    <div class="flex-1">
+                        <label class="text-xs text-gray-500 mb-1 block">Überschrift</label>
+                        <input type="text" value="${_escAttr(block.title || '')}" oninput="_dsUpdateBlock(${idx}, 'title', this.value)"
+                            placeholder="z.B. Tagesordnung:" class="text-sm w-full">
+                    </div>
+                    <div class="w-20">
+                        <label class="text-xs text-gray-500 mb-1 block">Titel-Größe</label>
+                        <select onchange="_dsUpdateBlock(${idx}, 'title_size', +this.value)" class="w-full text-xs">
+                            ${[9,10,11,12,13,14].map(s => `<option value="${s}" ${(block.title_size || 11) === s ? 'selected' : ''}>${s}pt</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+                <div class="flex gap-3 items-center">
+                    <select onchange="_dsUpdateBlock(${idx}, 'size', +this.value)" class="w-20 text-xs">
+                        ${[8,9,9.5,10,11].map(s => `<option value="${s}" ${(block.size || 9.5) === s ? 'selected' : ''}>${s}pt</option>`).join('')}
+                    </select>
+                    <label class="flex items-center gap-1 text-xs text-gray-500">
+                        <input type="checkbox" ${block.bold ? 'checked' : ''} onchange="_dsUpdateBlock(${idx}, 'bold', this.checked)"> Fett
+                    </label>
+                    <select onchange="_dsUpdateBlock(${idx}, 'color', this.value)" class="w-24 text-xs">
+                        <option value="" ${!block.color ? 'selected' : ''}>Standard</option>
+                        <option value="gray" ${block.color === 'gray' ? 'selected' : ''}>Grau</option>
+                        <option value="olive" ${block.color === 'olive' ? 'selected' : ''}>Olive</option>
+                    </select>
+                </div>
+            </div>`;
+        break;
+
     case 'table': {
         const source = block.source || '';
         const templateType = _designerState?.template?.type || '';
@@ -829,6 +922,9 @@ function _dsAddBlock(type) {
         spacer:     { type: 'spacer', height: 15 },
         page_break: { type: 'page_break' },
         hint_box:   { type: 'hint_box', text: '', title: 'Hinweis:', size: 8, title_size: 8 },
+        info_box:   { type: 'info_box', lines: [''], size: 10, bold: true, align: 'center' },
+        agenda_list: { type: 'agenda_list', title: 'Tagesordnung:', title_size: 11, size: 9.5, bold: false },
+        anlagen_list: { type: 'anlagen_list', title: 'Anlagen:', title_size: 9, size: 9 },
         table:      { type: 'table', source: '', columns: [], show_header: true, highlight_last: false },
     };
     _designerState.blocks.push(defaults[type] || { type });
