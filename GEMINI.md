@@ -17,6 +17,10 @@ Dieses Projekt nutzt eine extrem token-effiziente **Drei-Datei-Architektur** zur
 
 0. Update-Log
 
+- **refactor(design): Design-Vorgaben nach DESIGN.md ausgelagert.** GEMINI.md verweist ab sofort auf DESIGN.md als Single Source of Truth für alle UI-Spezifikationen.
+- **feat(pdf): Phase 7.10.1 & 7.10.2 (WP & JAB Templates) abgeschlossen:** Migration von Jahresabrechnung und Einzelwirtschaftsplan auf das neue datenbankgestützte PDF-Vorlagen-System. Mahnung, WP und JAB sind nun alle vollständig im Dokumenten-Designer bearbeitbar.
+- **feat(sys): Phase 7.2 (E-Mail-Benachrichtigungen) abgeschlossen:** Brevo SMTP Edge Function implementiert. Automatischer Mail-Versand für neue Tickets, Status-Updates, freigegebene Dokumente und News inkl. Nutzer-Opt-Outs im Profil.
+- **feat(sys): Phase 7.11 (Stammdaten-Dynamisierung) abgeschlossen:** Auto-Berechnung für Verzugszinsen, zentralisierte Labels und erweiterte UI-Hinweise für Mahngebühren.
 - **feat(fin): Phase 6.15 (Der große Jahresabschluss / JAB-Wizard v2) abgeschlossen:** Vollständige Implementierung des rechtssicheren Jahresabschluss-Workflows inkl. GoBD-konformem Vermögensbericht, digitaler Belegprüfung (Beirat-Protokoll), Dokumenten-Staging (draft/released), Kombi-PDF-Generierung für ETV-Einladungen und automatisiertem Beschluss-Trigger für Hausgelder und Abrechnungsspitzen.
 - **feat(pdf): Phase 7.10 (PDF-Vorlagen-System) abgeschlossen:** Implementierung des Dokumenten-Designers in den Admin-Einstellungen inkl. Live-Preview, Variablen-Palette und Block-basiertem Editor. Mahnungen sind als erstes Template migriert.
 - **feat(arch): Phase 1B (Frontend-Architektur-Split) abgeschlossen:** Erfolgreiche Auslagerung der Experten-Module (Finanzen, ETV, Zeiterfassung) in separate HTML-Seiten. Dashboard-Performance durch Library-Stripping (pdf-lib etc.) massiv gesteigert. Dokumenten-Modul verbleibt strategisch im Dashboard.
@@ -62,24 +66,9 @@ Frontend (Basis): Vanilla JavaScript (ES6 Modules), HTML5, Tailwind CSS (via CDN
 
 Hosting: GitHub Pages (Continuous Deployment aus dem main-Branch).
 
-Das Design-System & Frontend-Rahmenbedingungen
-
-Minimalistisch, fokussiert und professionell. Um "Wildwuchs" zu vermeiden, gelten strikte Design-Vorgaben für alle Module:
-
-CI-Farben: hb-olive (#687451) für Aktionen/Primäres, hb-ultralight (#F9FAF8) als Hintergrund, hb-offblack (#373737) für Typografie und hb-signalorange (#EB762D) Für extreme Aufmerksamkeit und
-wichtige Hinweise/Akzente. Keine Fremdfarben!
-
-Konsistenz-Zwang: Alle Module müssen exakt dieselbe Formensprache (Weiche UI-Karten `rounded-[15px]`, identische Tabellen, einheitliche Button-Styles) nutzen.
-
-Mobile First & App-Feeling (High-End Native Patterns): Die mobile Ansicht ist keine zweitrangige Web-Ansicht. Alle Module unterliegen strikten, nativen UI-Regeln:
-1. Zwingendes Scroll-Containment und Sticky-Header.
-2. Mindestgröße für Touch-Targets (44px).
-3. Bottom Navigation: Feste Navigationsleiste unten für die 4-5 wichtigsten Schnellzugriffe.
-4. Bottom Sheets & Slide-Ins: Formulare und Menüs öffnen sich von unten (Swipe-Up) oder wischen seitwärts von rechts hinein (wie bei Ordnern in Drive). Ein Klick auf "Zurück" wischt die Ansicht wieder flüssig nach rechts heraus. Keine zentrierten Desktop-Modals mehr.
-5. Skeleton Loading: Ladezeiten werden mit grauen Platzhaltern überbrückt, nicht mit Ladekreisen.
-6. Mobile Cards statt Tabellen: Komplexe Tabellen werden auf dem Smartphone automatisch in klickbare Karten untereinander umgewandelt.
-
-PWA-Ready: Das Portal wird als Progressive Web App (PWA) konzipiert, sodass Nutzer es sich als "echte App" auf ihr Smartphone (iOS/Android) herunterladen und auf dem Homescreen ablegen können.
+### Design-System & Frontend-Rahmenbedingungen
+→ Vollständige Design-Spezifikation in **`DESIGN.md`** (Single Source of Truth).
+Kernprinzipien: Apple HIG-inspiriert, Mobile First, Clean & Modern.
 
 3. Rollen & Berechtigungskonzept (Die Kaskade)
 
@@ -233,7 +222,7 @@ API-Schnittstellen: Automatischer Datenabruf bei Techem, Ista & Co.
 
 ---
 
-## 🛠️ Aktuelle Validierungs-Tasks (Phase 6.15 Review)
+## 🛠️ Aktuelle Validierungs-Tasks (Phase 6.15, 7.2 & 7.10 Review)
 
 Nach Abschluss der Implementierung stehen folgende Tests für den Administrator an:
 
@@ -242,4 +231,6 @@ Nach Abschluss der Implementierung stehen folgende Tests für den Administrator 
 3. **Beirat-Cockpit:** Als Nutzer mit Sonderrolle `advisory` einloggen, Belege prüfen und das digitale Prüfprotokoll (Formular) absenden.
 4. **ETV-Einladung & Kombi-PDF:** Eine Versammlung planen und die Einladung versenden. Prüfen, ob das Kombi-PDF (Einladung + Tagesordnung + individuelle JAB/WP) generiert wird und Dokumente danach im Portal auf `released` stehen.
 5. **Beschluss aktivieren:** Nach der (testweisen) ETV den Button "Werte jetzt aktivieren" im Finanz-Modul drücken. Prüfen, ob `apartments.hausgeld` aktualisiert wurde und die Sollstellungen für Abrechnungsspitzen in `payment_demands` erzeugt wurden.
+6. **Dokumenten-Designer (7.10):** Prüfe in den Einstellungen die neuen Templates "Jahresabrechnung" und "Einzelwirtschaftsplan". Ändere testweise einen Textblock und generiere ein entsprechendes PDF im Finanz-Modul.
+7. **E-Mail-Benachrichtigungen (7.2):** Erstelle testweise ein Ticket oder einen News-Beitrag und prüfe, ob die E-Mail über Brevo korrekt versendet wird (Mail-Log in den Einstellungen prüfen). Opt-Out-Toggles im User-Profil testen.
 
