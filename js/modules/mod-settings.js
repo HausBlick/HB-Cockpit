@@ -409,7 +409,7 @@ async function _settingsLoadEmailLog() {
     }
 
     const statusBadge = (s) => {
-        const styles = { sent: 'bg-green-100 text-green-700', failed: 'bg-red-100 text-red-700', skipped: 'bg-gray-100 text-gray-500', pending: 'bg-yellow-100 text-yellow-700' };
+        const styles = { sent: 'bg-hb-success/12 text-hb-success', failed: 'bg-hb-error/12 text-hb-error', skipped: 'bg-gray-100 text-gray-500', pending: 'bg-hb-gold-soft/30 text-hb-gold-bold' };
         const labels = { sent: 'Gesendet', failed: 'Fehler', skipped: 'Übersprungen', pending: 'Ausstehend' };
         return `<span class="text-xs px-2 py-0.5 rounded-full font-semibold ${styles[s] || styles.pending}">${labels[s] || s}</span>`;
     };
@@ -432,7 +432,7 @@ async function _settingsLoadEmailLog() {
                         <td class="px-3 py-2 text-xs">${triggerLabels[l.trigger_type] || l.trigger_type}</td>
                         <td class="px-3 py-2 text-xs text-gray-600">${_escHtml(l.recipient_email)}</td>
                         <td class="px-3 py-2 text-xs text-gray-600 max-w-[200px] truncate">${_escHtml(l.subject)}</td>
-                        <td class="px-3 py-2">${statusBadge(l.status)}${l.error_message ? `<span class="text-xs text-red-400 ml-1" title="${_escAttr(l.error_message)}">(?)</span>` : ''}</td>
+                        <td class="px-3 py-2">${statusBadge(l.status)}${l.error_message ? `<span class="text-xs text-hb-error/70 ml-1" title="${_escAttr(l.error_message)}">(?)</span>` : ''}</td>
                     </tr>`).join('')}
                 </tbody>
             </table>
@@ -754,7 +754,7 @@ function _dsBlockHtml(block, idx) {
         const linesArr = block.lines || [block.text || ''];
         bodyHtml = `
             <div class="mt-2 space-y-2">
-                <div class="p-2 bg-green-50 rounded-lg border border-green-200 text-xs text-green-700 italic">Grüne Box — ideal für Termin, Ort, Zusammenfassungen</div>
+                <div class="p-2 bg-hb-success/10 rounded-lg border border-hb-success/20 text-xs text-hb-success italic">Grüne Box — ideal für Termin, Ort, Zusammenfassungen</div>
                 <div id="ds-infobox-lines-${idx}">
                     ${linesArr.map((l, li) => `
                         <div class="flex gap-2 items-center mb-1">

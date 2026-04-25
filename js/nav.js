@@ -228,7 +228,7 @@ function renderBottomNav(role) {
         }
     } catch (e) {
         console.error('renderBottomNav error:', e);
-        nav.innerHTML = '<div class="text-xs text-red-500 p-2">Nav-Fehler — bitte Seite neu laden</div>';
+        nav.innerHTML = '<div class="text-xs text-hb-error p-2">Nav-Fehler — bitte Seite neu laden</div>';
     }
 }
 

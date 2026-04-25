@@ -410,11 +410,22 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 - `utils.js` → `showToast()` Default geändert von `'success'` → `'info'`. Neue 3-Wege-Logik: `'success'` → `bg-hb-success`, `'error'` → `bg-hb-error`, sonst → `bg-hb-offblack`. **Verhaltenswechsel:** Bestehende Aufrufe ohne expliziten Type werden ab jetzt offblack statt hb-olive — wer Erfolgs-Grün will, muss explizit `'success'` übergeben.
 - CSS `.segment-bar` + `.segment-item` (Apple-Stil, horizontal scrollbare Pill-Buttons) in 4 großen HTML-Shells als bereitstehendes Pattern. Migration konkreter Filter-Bars erfolgt später.
 
-**Paket E — Verbotene Tailwind-Farben (red/blue/green) → Brand-Palette** (siehe folgenden Commit-Block, ergänzt nach Abschluss).
+**Paket E — Verbotene Tailwind-Farben (red/blue/green/emerald/purple) → Brand-Palette:**
+- 4 große HTML-Shells: Logout-Button `text-red-500/bg-red-50` → `text-hb-error/bg-hb-error/5`.
+- index.html / register.html: Error-/Success-Boxes auf `bg-hb-error/12` und `bg-hb-success/12`.
+- mod-dashboard.js: Deadline-Status (Überfällig/Kritisch/OK) auf hb-error/hb-success.
+- mod-etv.js: Voting-JA-Button auf hb-success, Quorum-Pillen "Beschlussfähig", "Bereit"-Badge.
+- mod-finanzen.js (23 Stellen): Saldos (negativ→hb-error, positiv→hb-success), Status-Badges Bezahlt/Aktiv/Ordnungsgemäß, Mahnung Stufe 3, Konto-Type-Badges (asset→olive, liability→gold-bold, revenue→success).
+- mod-kalender.js (7 Stellen): Legenden-Punkte, Pillen-Mapping, Tage-Status-Texte.
+- mod-news.js: Ankündigung-Badge `bg-blue-*` → olive.
+- mod-objekte.js (3 Stellen, +emerald-Nachzügler): Eigentümer-Badge → olive, Mieter-Badge → gold-bold, Bool-Häkchen, Vermietet-Status, Assign-Selected-Box → success.
+- mod-persons-edit.js (2 Stellen, emerald-Nachzügler): Registriert-Status, Aktiv-Badge → success.
+- mod-settings.js: E-Mail-Log-Status (sent/failed/pending) auf success/error/gold-bold; Designer-Demo grüne Box → hb-success.
+- nav.js: Nav-Fehler-Hinweis → hb-error.
 
-**Mitgenommen:** 3 verbliebene Sonder-Radien gefixt (utils.js Bottom Sheet `rounded-t-[15px]`, mod-etv.js Modal-Header/Footer `rounded-t-[20px]`/`rounded-b-[20px]` → 2xl).
+**Mitgenommen aus Paket-C-Audit:** 3 verbliebene Sonder-Radien gefixt (utils.js Bottom Sheet `rounded-t-[15px]`, mod-etv.js Modal-Header/Footer `rounded-t-[20px]`/`rounded-b-[20px]` → 2xl).
 
-Cache-Buster: utils.js + mod-etv.js auf `v=20260425h`.
+Cache-Buster: utils.js + mod-etv.js auf `v=20260425h` (Pakete C+H), alle in Paket E geänderten JS-Dateien (mod-dashboard, mod-etv, mod-finanzen, mod-kalender, mod-news, mod-objekte, mod-persons-edit, mod-settings, nav.js) auf `v=20260425i`.
 
 ### Design-Migration Block 1 — Fundament (Pakete A + B + D + F)
 DESIGN.md ist neue Single Source of Truth für alle UI-Tokens. Block 1 setzt das Fundament: Tailwind-Config, globales CSS, Border-Radien und Card-Borders. CLAUDE.md §3 (Design-System) und Design-Konventionen-Block durch Verweise auf DESIGN.md ersetzt — nur die nicht-UI-Architekturkonventionen (FK-Hint, Multi-Page-Nav, externe Shells, Responsive Tables) bleiben in CLAUDE.md.

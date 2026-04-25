@@ -262,7 +262,7 @@ async function _finLoadOverview() {
     for (const e of (credits || [])) if (saldoMap[e.credit_account_id] !== undefined) saldoMap[e.credit_account_id] -= Number(e.amount);
 
     const typeLabels = { asset: 'Aktiva', liability: 'Passiva', equity: 'Eigenkapital', revenue: 'Ertrag', expense: 'Aufwand' };
-    const typeBadge  = { asset: 'bg-blue-50 text-blue-700', liability: 'bg-purple-50 text-purple-700', equity: 'bg-hb-olive/10 text-hb-olive', revenue: 'bg-green-50 text-green-700', expense: 'bg-hb-orange/10 text-hb-orange' };
+    const typeBadge  = { asset: 'bg-hb-olive/10 text-hb-olive', liability: 'bg-hb-gold-soft/20 text-hb-gold-bold', equity: 'bg-hb-olive/10 text-hb-olive', revenue: 'bg-hb-success/12 text-hb-success', expense: 'bg-hb-orange/10 text-hb-orange' };
 
     // Saldo-Map auch für Ledger bereitstellen
     _finState._saldoMap = saldoMap;
@@ -277,7 +277,7 @@ async function _finLoadOverview() {
         );
         return filtered.map(a => {
             const saldo = saldoMap[a.id] ?? 0;
-            const saldoCls = saldo < 0 ? 'text-red-600' : saldo > 0 ? 'text-green-700' : 'text-gray-400';
+            const saldoCls = saldo < 0 ? 'text-hb-error' : saldo > 0 ? 'text-hb-success' : 'text-gray-400';
             const isChild = !!a.parent_account_id;
             const namePrefix = isChild ? '<span class="text-gray-400 mr-1.5">└</span>' : '';
             const rowClass = isChild ? 'bg-gray-50/50' : '';
@@ -542,7 +542,7 @@ window._finDeleteAccount = async (accountId) => {
 
 window._finFilterOverview = (q) => {
     const typeLabels = { asset: 'Aktiva', liability: 'Passiva', equity: 'Eigenkapital', revenue: 'Ertrag', expense: 'Aufwand' };
-    const typeBadge  = { asset: 'bg-blue-50 text-blue-700', liability: 'bg-purple-50 text-purple-700', equity: 'bg-hb-olive/10 text-hb-olive', revenue: 'bg-green-50 text-green-700', expense: 'bg-hb-orange/10 text-hb-orange' };
+    const typeBadge  = { asset: 'bg-hb-olive/10 text-hb-olive', liability: 'bg-hb-gold-soft/20 text-hb-gold-bold', equity: 'bg-hb-olive/10 text-hb-olive', revenue: 'bg-hb-success/12 text-hb-success', expense: 'bg-hb-orange/10 text-hb-orange' };
     const lower = q.toLowerCase();
     const saldoMap = _finState._saldoMap || {};
     const rows = _finState.accounts.filter(a =>
@@ -552,7 +552,7 @@ window._finFilterOverview = (q) => {
         (typeLabels[a.account_type] || '').toLowerCase().includes(lower)
     ).map(a => {
         const saldo = saldoMap[a.id] ?? 0;
-        const saldoCls = saldo < 0 ? 'text-red-600' : saldo > 0 ? 'text-green-700' : 'text-gray-400';
+        const saldoCls = saldo < 0 ? 'text-hb-error' : saldo > 0 ? 'text-hb-success' : 'text-gray-400';
         const isChild = !!a.parent_account_id;
         const namePrefix = isChild ? '<span class="text-gray-400 mr-1.5">└</span>' : '';
         const rowClass = isChild ? 'bg-gray-50/50' : '';
@@ -597,7 +597,7 @@ window._finOpenLedger = async (accountId, accountName) => {
         const gegenkonto = isSoll
             ? `${e.credit_account?.account_number || ''} ${e.credit_account?.account_name || ''}`.trim()
             : `${e.debit_account?.account_number  || ''} ${e.debit_account?.account_name  || ''}`.trim();
-        const saldoCls = runningBalance < 0 ? 'text-red-600' : runningBalance > 0 ? 'text-green-700' : 'text-gray-400';
+        const saldoCls = runningBalance < 0 ? 'text-hb-error' : runningBalance > 0 ? 'text-hb-success' : 'text-gray-400';
         return `<tr class="hover:bg-gray-50/60">
             <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(e.entry_date)}</td>
             <td class="px-4 py-3 text-sm text-gray-600 max-w-[160px] truncate" title="${gegenkonto}">${gegenkonto}</td>
@@ -1241,7 +1241,7 @@ function _finRenderDemands() {
     const fyOpts  = [fy+1, fy, fy-1].map(y => `<option value="${y}" ${y===fy?'selected':''}>${y}</option>`).join('');
 
     const statusBadge = (d) => {
-        if (d.status === 'paid') return '<span class="text-xs bg-green-50 text-green-700 font-semibold px-2 py-0.5 rounded-md">Bezahlt</span>';
+        if (d.status === 'paid') return '<span class="text-xs bg-hb-success/12 text-hb-success font-semibold px-2 py-0.5 rounded-md">Bezahlt</span>';
         if (d.due_date < today) return '<span class="text-xs bg-hb-orange/15 text-hb-orange font-semibold px-2 py-0.5 rounded-md">Überfällig</span>';
         return '<span class="text-xs bg-gray-100 text-gray-600 font-semibold px-2 py-0.5 rounded-md">Offen</span>';
     };
@@ -1670,7 +1670,7 @@ function _finRenderWirtschaftsplan(plan, planItems) {
     const statusBadge = (s) => ({
         draft:    '<span class="text-xs bg-gray-100 text-gray-600 font-semibold px-2 py-0.5 rounded-md">Entwurf</span>',
         approved: '<span class="text-xs bg-hb-olive/10 text-hb-olive font-semibold px-2 py-0.5 rounded-md">Beschlossen</span>',
-        active:   '<span class="text-xs bg-green-50 text-green-700 font-semibold px-2 py-0.5 rounded-md">Aktiv</span>',
+        active:   '<span class="text-xs bg-hb-success/12 text-hb-success font-semibold px-2 py-0.5 rounded-md">Aktiv</span>',
         closed:   '<span class="text-xs bg-gray-100 text-gray-400 font-semibold px-2 py-0.5 rounded-md">Abgeschlossen</span>',
     }[s] || '');
 
@@ -1747,7 +1747,7 @@ function _finRenderWirtschaftsplan(plan, planItems) {
     }
 
     // Sonderumlagen-Tabelle
-    const levyStatusBadge = (s) => s === 'active' ? '<span class="text-xs bg-green-50 text-green-700 font-semibold px-2 py-0.5 rounded-md">Aktiv</span>'
+    const levyStatusBadge = (s) => s === 'active' ? '<span class="text-xs bg-hb-success/12 text-hb-success font-semibold px-2 py-0.5 rounded-md">Aktiv</span>'
         : s === 'draft' ? '<span class="text-xs bg-gray-100 text-gray-600 font-semibold px-2 py-0.5 rounded-md">Entwurf</span>'
         : '<span class="text-xs bg-hb-orange/10 text-hb-orange font-semibold px-2 py-0.5 rounded-md">Abgeschlossen</span>';
     const levyRows = _finState.sonderumlagen.map(l => `
@@ -2125,7 +2125,7 @@ function _finRenderRuecklage(reserveAccs, saldoMap, planTargetMap, histEntries) 
         return `<div class="card p-4 flex-1 min-w-[220px]">
             <div class="text-xs font-black uppercase tracking-widest text-hb-orange mb-1">${a.account_number}</div>
             <div class="text-sm font-extrabold text-hb-offblack mb-1">${a.reserve_label || a.account_name}</div>
-            <div class="text-2xl font-extrabold ${saldo < 0 ? 'text-red-600' : 'text-hb-olive'}">${saldo.toLocaleString('de-DE', {minimumFractionDigits:2})} €</div>
+            <div class="text-2xl font-extrabold ${saldo < 0 ? 'text-hb-error' : 'text-hb-olive'}">${saldo.toLocaleString('de-DE', {minimumFractionDigits:2})} €</div>
             ${target != null ? `<div class="text-xs ${warn ? 'text-hb-orange font-semibold' : 'text-gray-400'} mt-1">
                 Soll: ${target.toLocaleString('de-DE', {minimumFractionDigits:2})} € ${warn ? '⚠ Abweichung >5%' : '✓'}
             </div>` : ''}
@@ -2138,14 +2138,14 @@ function _finRenderRuecklage(reserveAccs, saldoMap, planTargetMap, histEntries) 
     const histRows = histEntries.map(e => {
         const isDebit = e.debit_account_id == firstResAcc?.id;
         const typeLabel = isDebit ? 'Zuführung' : 'Entnahme';
-        const typeCls   = isDebit ? 'text-green-700 bg-green-50' : 'text-hb-orange bg-hb-orange/10';
+        const typeCls   = isDebit ? 'text-hb-success bg-hb-success/12' : 'text-hb-orange bg-hb-orange/10';
         runSaldo += isDebit ? Number(e.amount) : -Number(e.amount);
         return `<tr class="hover:bg-gray-50/60">
             <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(e.entry_date)}</td>
             <td class="px-4 py-3 text-sm">${e.description}</td>
             <td class="px-4 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-md ${typeCls}">${typeLabel}</span></td>
             <td class="px-4 py-3 text-sm font-bold text-right">${Number(e.amount).toLocaleString('de-DE', {minimumFractionDigits:2})} €</td>
-            <td class="px-4 py-3 text-sm font-semibold text-right ${runSaldo < 0 ? 'text-red-600' : 'text-green-700'}">${runSaldo.toLocaleString('de-DE', {minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3 text-sm font-semibold text-right ${runSaldo < 0 ? 'text-hb-error' : 'text-hb-success'}">${runSaldo.toLocaleString('de-DE', {minimumFractionDigits:2})} €</td>
         </tr>`;
     }).join('');
 
@@ -2264,7 +2264,7 @@ async function _finLoadBelegpruefung() {
             <td class="px-4 py-3 text-sm">${p.access_to}</td>
             <td class="px-4 py-3 text-sm">${p.fiscal_year}</td>
             <td class="px-4 py-3">
-                ${isActive ? '<span class="text-xs bg-green-50 text-green-700 font-semibold px-2 py-0.5 rounded-md">Aktiv</span>'
+                ${isActive ? '<span class="text-xs bg-hb-success/12 text-hb-success font-semibold px-2 py-0.5 rounded-md">Aktiv</span>'
                            : '<span class="text-xs bg-gray-100 text-gray-400 font-semibold px-2 py-0.5 rounded-md">Abgelaufen</span>'}
             </td>
             <td class="px-4 py-3 text-right">
@@ -2326,7 +2326,7 @@ async function _finLoadBelegpruefung() {
                         <td class="px-4 py-3 text-sm font-semibold">${p.auditor?.full_name || '—'}</td>
                         <td class="px-4 py-3 text-sm text-gray-500">${p.check_date ? new Date(p.check_date).toLocaleDateString('de-DE') : '—'}</td>
                         <td class="px-4 py-3">${p.is_formally_correct
-                            ? '<span class="text-xs font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-md">Ordnungsgemäß</span>'
+                            ? '<span class="text-xs font-bold bg-hb-success/12 text-hb-success px-2 py-0.5 rounded-md">Ordnungsgemäß</span>'
                             : '<span class="text-xs font-bold bg-hb-orange/15 text-hb-orange px-2 py-0.5 rounded-md">Beanstandung</span>'}</td>
                         <td class="px-4 py-3 text-xs text-gray-500 max-w-[200px] truncate">${p.scope_description || '—'}</td>
                         <td class="px-4 py-3 text-xs text-gray-500 max-w-[200px] truncate">${p.findings || '—'}</td>
@@ -2476,7 +2476,7 @@ async function _finRenderBeiratView() {
     const proto = existingProtocol;
     const alreadySubmitted = proto && proto.status !== 'pending';
     const protoStatusBadge = !proto ? ''
-        : proto.status === 'completed' ? '<span class="text-xs font-bold bg-green-100 text-green-700 px-2 py-1 rounded-md">Ordnungsgemäß geprüft</span>'
+        : proto.status === 'completed' ? '<span class="text-xs font-bold bg-hb-success/12 text-hb-success px-2 py-1 rounded-md">Ordnungsgemäß geprüft</span>'
         : proto.status === 'disputed' ? '<span class="text-xs font-bold bg-hb-orange/15 text-hb-orange px-2 py-1 rounded-md">Beanstandung</span>'
         : '<span class="text-xs font-bold bg-gray-100 text-gray-500 px-2 py-1 rounded-md">Ausstehend</span>';
 
@@ -2677,10 +2677,10 @@ function _finJABStep1Html(fy) {
         const bankRows = vsRows.map((r, i) => {
             const diff = r.statement_balance != null ? (Number(r.statement_balance) - r.system_balance) : null;
             const diffStr = diff != null ? diff.toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' €' : '—';
-            const diffClass = diff == null ? 'text-gray-300' : Math.abs(diff) < 0.01 ? 'text-green-600' : 'text-hb-orange font-bold';
+            const diffClass = diff == null ? 'text-gray-300' : Math.abs(diff) < 0.01 ? 'text-hb-success' : 'text-hb-orange font-bold';
             const validated = r.is_validated;
             const icon = validated ? '✓' : diff != null && Math.abs(diff) < 0.01 ? '✓' : '';
-            const iconClass = validated ? 'text-green-600' : '';
+            const iconClass = validated ? 'text-hb-success' : '';
             return `<tr class="hover:bg-gray-50/60">
                 <td class="px-4 py-3 text-xs font-mono text-gray-500">${r.account_number}</td>
                 <td class="px-4 py-3 text-sm">${r.account_name}</td>
@@ -2883,7 +2883,7 @@ function _finJABStep3Html() {
             <td class="px-4 py-3 text-sm">${a?.account_name||'–'}</td>
             <td class="px-4 py-3 text-sm text-right">${s.toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
             <td class="px-4 py-3 text-sm text-right">${h.toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
-            <td class="px-4 py-3 text-sm font-bold text-right ${sal>0?'text-hb-orange':sal<0?'text-green-700':'text-gray-400'}">${sal.toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
+            <td class="px-4 py-3 text-sm font-bold text-right ${sal>0?'text-hb-orange':sal<0?'text-hb-success':'text-gray-400'}">${sal.toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
         </tr>`;
     }).join('');
 
@@ -2979,7 +2979,7 @@ function _finJABStep4Html() {
                             class="text-sm text-right w-full rounded-lg border border-gray-200 bg-white px-2 py-1 focus:border-hb-olive focus:outline-none" style="height:36px">
                     </div>
                 </div>
-                <p id="jab-heat-split-error" class="text-xs text-red-500 mt-1 hidden">Verbrauchs- und Flächenanteil müssen zusammen 100% ergeben.</p>
+                <p id="jab-heat-split-error" class="text-xs text-hb-error mt-1 hidden">Verbrauchs- und Flächenanteil müssen zusammen 100% ergeben.</p>
             </div>`}
         </div>
         <div class="flex gap-3 mt-5">
@@ -3021,7 +3021,7 @@ function _finJABStep5Html() {
         <tr class="hover:bg-gray-50/60">
             <td class="px-4 py-3 text-sm font-semibold">${l.title}</td>
             <td class="px-4 py-3 text-sm text-right">${Number(l.total_amount).toLocaleString('de-DE',{minimumFractionDigits:2})} €</td>
-            <td class="px-4 py-3"><span class="text-xs ${l.status==='active'?'bg-green-50 text-green-700':'bg-gray-100 text-gray-600'} font-semibold px-2 py-0.5 rounded-md">${l.status}</span></td>
+            <td class="px-4 py-3"><span class="text-xs ${l.status==='active'?'bg-hb-success/12 text-hb-success':'bg-gray-100 text-gray-600'} font-semibold px-2 py-0.5 rounded-md">${l.status}</span></td>
         </tr>`).join('');
 
     return `
@@ -3808,7 +3808,7 @@ async function _finLoadMahnwesen() {
 
     const dunningBadge = l => l==1?'<span class="text-xs bg-gray-100 text-gray-600 font-semibold px-2 py-0.5 rounded-md">Stufe 1</span>'
         :l==2?'<span class="text-xs bg-hb-orange/15 text-hb-orange font-semibold px-2 py-0.5 rounded-md">Stufe 2</span>'
-        :'<span class="text-xs bg-red-50 text-red-600 font-semibold px-2 py-0.5 rounded-md">Stufe 3</span>';
+        :'<span class="text-xs bg-hb-error/12 text-hb-error font-semibold px-2 py-0.5 rounded-md">Stufe 3</span>';
     const noticeRows = (notices||[]).map(n => `
         <tr class="hover:bg-gray-50/60">
             <td class="px-4 py-3 text-sm text-gray-500">${_finFormatDate(n.created_at)}</td>
@@ -3821,7 +3821,7 @@ async function _finLoadMahnwesen() {
             <td class="px-4 py-3 text-center">
                 <div class="flex items-center justify-center gap-1">
                     ${n.status==='paid'
-                        ? `<span class="text-xs text-green-600 font-semibold">Bezahlt</span>
+                        ? `<span class="text-xs text-hb-success font-semibold">Bezahlt</span>
                            <button onclick="_finNoticeReverse(${n.id})" class="text-xs text-hb-orange px-2 py-1 rounded-lg hover:bg-hb-orange/5">Stornieren</button>`
                         : n.status==='cancelled'
                         ? '<span class="text-xs text-gray-400 font-semibold">Storniert</span>'
@@ -4496,7 +4496,7 @@ function _csvRenderPreview() {
 
     const rowHtml = rows.map((r, i) => {
         const isCredit = r.amount >= 0;
-        const colorClass = isCredit ? 'text-green-700' : 'text-red-600';
+        const colorClass = isCredit ? 'text-hb-success' : 'text-hb-error';
         return `<tr class="hover:bg-gray-50">
             <td class="px-3 py-2 text-center">
                 <input type="checkbox" id="csv-chk-${i}" checked class="accent-hb-olive">
@@ -4709,7 +4709,7 @@ window._sepaLoadPreview = async () => {
         .in('status', ['open', 'overdue'])
         .order('due_date');
 
-    if (error) { el.innerHTML = `<p class="text-red-500 text-sm p-4">${error.message}</p>`; return; }
+    if (error) { el.innerHTML = `<p class="text-hb-error text-sm p-4">${error.message}</p>`; return; }
 
     const rows = (demands || []).map(d => {
         const apt       = d.apartment;
