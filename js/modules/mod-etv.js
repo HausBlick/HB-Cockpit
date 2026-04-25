@@ -1399,7 +1399,7 @@ window._etvOpenStaging = async () => {
     const html = `
         <div id="etv-staging-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div class="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl">
-                <div class="bg-hb-olive p-6 rounded-t-[20px] flex items-center justify-between">
+                <div class="bg-hb-olive p-6 rounded-t-2xl flex items-center justify-between">
                     <div>
                         <h3 class="text-white font-bold text-lg">Staging-Status ETV ${fy}</h3>
                         <p class="text-white/70 text-xs mt-0.5">Vorbereitete Dokumente je Einheit</p>
@@ -1435,7 +1435,7 @@ window._etvOpenStaging = async () => {
                         <tbody class="divide-y divide-hb-olive/10">${tableRows}</tbody>
                     </table>
                 </div>
-                <div class="p-4 bg-hb-ultralight rounded-b-[20px] flex justify-end">
+                <div class="p-4 bg-hb-ultralight rounded-b-2xl flex justify-end">
                     <button onclick="document.getElementById('etv-staging-modal').remove()" class="btn-secondary text-sm px-6 py-2">Schließen</button>
                 </div>
             </div>

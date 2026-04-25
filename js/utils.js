@@ -3,10 +3,13 @@
 // UI-Hilfsfunktionen: Toast, Dropdown, Logout, Mobile-Menü
 // ============================================================
 
-function showToast(message, type = 'success') {
+// Varianten: 'success' (hb-success), 'error' (hb-error), 'info'/Default (hb-offblack).
+function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
-    const bgColor = type === 'error' ? 'bg-hb-orange' : 'bg-hb-olive';
+    const bgColor = type === 'success' ? 'bg-hb-success'
+                  : type === 'error'   ? 'bg-hb-error'
+                                       : 'bg-hb-offblack';
     toast.className = `${bgColor} text-white px-6 py-4 rounded-xl shadow-xl flex items-center gap-3 transform transition-all duration-300 translate-y-10 opacity-0 z-50`;
     toast.innerHTML = `<span class="text-sm font-bold text-left">${message}</span>`;
     container.appendChild(toast);
@@ -50,7 +53,8 @@ function showModal(id, contentHtml, { maxWidth = 'max-w-lg', onClose } = {}) {
 
     if (isMobile) {
         modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex flex-col justify-end';
-        modal.innerHTML = `<div class="modal-sheet bg-white rounded-t-[15px] shadow-2xl w-full max-h-[85vh] overflow-y-auto p-5 space-y-4 translate-y-full" onclick="event.stopPropagation()">${contentHtml}</div>`;
+        // Bottom Sheet mit iOS-Drag-Indicator (5×36px Griff oben)
+        modal.innerHTML = `<div class="modal-sheet bg-white rounded-t-2xl shadow-2xl w-full max-h-[85vh] overflow-y-auto translate-y-full" onclick="event.stopPropagation()"><div class="flex justify-center pt-2 pb-1 sticky top-0 bg-white z-10"><div class="w-9 h-1.5 rounded-full bg-gray-300"></div></div><div class="p-5 space-y-4">${contentHtml}</div></div>`;
     } else {
         modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
         modal.innerHTML = `<div class="modal-inner bg-white rounded-2xl shadow-2xl w-full ${maxWidth} max-h-[90vh] overflow-y-auto p-8 space-y-5 scale-95 opacity-0" onclick="event.stopPropagation()">${contentHtml}</div>`;
