@@ -41,7 +41,7 @@ async function loadDocuments() {
     document.getElementById('content-area').innerHTML = `
         <div class="flex justify-between items-end mb-6 text-left">
             <div>
-                <h2 class="text-2xl font-extrabold text-hb-offblack tracking-tight">Dokumenten Cloud</h2>
+                <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">Dokumenten Cloud</h2>
                 <p class="text-sm text-gray-500 mt-1">Dokumente zentral verwalten und bereitstellen.</p>
             </div>
             <div class="flex items-center gap-3">

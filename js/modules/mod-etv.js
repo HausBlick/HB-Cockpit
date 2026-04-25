@@ -78,7 +78,7 @@ async function _etvInitOverview() {
         <div class="p-6 max-w-6xl mx-auto h-full flex flex-col">
             <div class="flex justify-between items-center mb-8">
                 <div>
-                    <h1 class="text-2xl font-bold text-hb-offblack">Eigentümerversammlungen</h1>
+                    <h1 class="text-[28px] font-bold text-hb-offblack">Eigentümerversammlungen</h1>
                     <p class="text-xs text-gray-500 mt-1 uppercase tracking-widest font-bold">Planung & Durchführung</p>
                 </div>
                 <div class="flex items-center gap-3">

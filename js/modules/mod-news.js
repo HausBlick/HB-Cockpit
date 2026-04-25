@@ -24,7 +24,7 @@ async function loadNews() {
     container.innerHTML = `
         <div class="flex justify-between items-end mb-6">
             <div>
-                <h2 class="text-2xl font-extrabold text-hb-olive tracking-tight">Schwarzes Brett</h2>
+                <h2 class="text-[28px] font-bold text-hb-olive tracking-tight">Schwarzes Brett</h2>
                 <p class="text-sm text-gray-500 mt-1">${desc}</p>
             </div>
             ${canCreate ? `<button onclick="showCreateNewsModal()"

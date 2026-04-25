@@ -68,7 +68,7 @@ function _timeRenderShell() {
     ca.innerHTML = `
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
             <div>
-                <h1 class="text-xl font-bold text-hb-offblack">Zeiterfassung & Projekte</h1>
+                <h1 class="text-[28px] font-bold text-hb-offblack">Zeiterfassung & Projekte</h1>
                 <p class="text-xs text-gray-500 mt-1">${bName}</p>
             </div>
             <div class="flex gap-2">
@@ -165,7 +165,7 @@ async function _timeOpenProject(id) {
                     <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
                 </button>
                 <div>
-                    <h1 class="text-xl font-bold text-hb-offblack">${p.title}</h1>
+                    <h1 class="text-[28px] font-bold text-hb-offblack">${p.title}</h1>
                     <p class="text-xs text-gray-500 uppercase font-bold tracking-tight">${p.status === 'active' ? 'Projekt Aktiv' : 'Abgeschlossen'}</p>
                 </div>
             </div>

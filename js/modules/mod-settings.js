@@ -39,7 +39,7 @@ function _settingsRender(s) {
 
     document.getElementById('content-area').innerHTML = `
         <div class="py-6">
-            <h1 class="text-xl font-extrabold text-hb-offblack mb-4">Einstellungen</h1>
+            <h1 class="text-[28px] font-bold text-hb-offblack mb-4">Einstellungen</h1>
 
             <!-- Tab-Navigation -->
             <div class="flex gap-1 mb-5 border-b border-hb-olive/10 pb-0">
