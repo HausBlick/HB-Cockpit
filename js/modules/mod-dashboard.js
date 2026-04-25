@@ -33,7 +33,7 @@ function _dashKpi(icon, label, value, highlight, onclickAttr) {
     return `
         <div class="card p-5 ${cursor}" ${onclickAttr ? `onclick="${onclickAttr}"` : ''}>
             <div class="text-xl mb-2">${icon}</div>
-            <div class="text-3xl font-extrabold ${numClass} leading-none mb-1.5">${value}</div>
+            <div class="text-[32px] font-bold ${numClass} leading-none mb-1.5">${value}</div>
             <div class="text-xs text-gray-500 font-semibold leading-snug">${label}</div>
         </div>`;
 }
@@ -193,7 +193,7 @@ async function _renderAdminDashboard() {
     ca.innerHTML = `
         <!-- Begrüßung -->
         <div class="mb-6">
-            <h2 class="text-2xl font-extrabold text-hb-offblack tracking-tight">Hallo, ${firstName}!</h2>
+            <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">Hallo, ${firstName}!</h2>
         </div>
 
         <!-- Quick-Actions -->
@@ -481,7 +481,7 @@ async function _renderUserDashboard() {
     ca.innerHTML = `
         <!-- Begrüßung -->
         <div class="mb-6">
-            <h2 class="text-2xl font-extrabold text-hb-offblack tracking-tight">Hallo, ${name}!</h2>
+            <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">Hallo, ${name}!</h2>
             <p class="text-xs uppercase tracking-widest font-bold text-hb-orange mt-1">${roleLabel}</p>
         </div>
 

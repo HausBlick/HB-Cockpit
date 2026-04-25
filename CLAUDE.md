@@ -400,6 +400,26 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 
 ---
 
+### Design-Migration ABGESCHLOSSEN (Blöcke 1–3)
+DESIGN.md ist ab sofort Single Source of Truth. Tailwind-Config, CSS, Radien, Schatten, Borders, Farb-Palette, Tap-Feedback, Toast-Varianten, Typografie-Hierarchie — alles migriert.
+Offen für Nachzug: text-sm → text-[15px] Fließtext-Feinschliff (629 Stellen, bei Bedarf modul-weise).
+
+### Design-Migration Block 3 — Typografie-Hierarchie (Paket G abgespeckt)
+
+**Paket G — Page-H1 + KPI-Zahlen:**
+- **15 Page-H1 auf `text-[28px] font-bold`** angehoben (DESIGN.md §2 Typografie-Skala):
+  - Login/Register: index.html "Mieterportal", register.html "Willkommen im Haus!"
+  - Dashboard (admin + user): "Hallo, ${name}!"
+  - Module: "Eigentümerversammlungen" (mod-etv), "Buchhaltung" (mod-finanzen), "Belegprüfung Beirat → ${gebäude}" (mod-finanzen Beirat-View), "Kalender", "Schwarzes Brett" (mod-news), "Kontaktbuch", "Globales Adressbuch" (mod-personen), "Dokumenten Cloud" (mod-dokumente), "Einstellungen" (mod-settings — war text-xl), "Zeiterfassung & Projekte" (mod-zeiterfassung — war text-xl), Projekt-Detail-Header in mod-zeiterfassung.
+- **KPI-Zahlen im Dashboard auf `text-[32px] font-bold`** angehoben — zentral in `_dashKpi()` ([mod-dashboard.js:36](js/modules/mod-dashboard.js#L36)), wirkt auf alle Admin- und User-KPIs gleichzeitig.
+- **font-weight harmonisiert** auf `font-bold` (700) gemäß DESIGN.md §2 — bisher meist `font-extrabold` (800).
+
+**NICHT angefasst (laut Plan):** 629 `text-sm`-Vorkommen für Fließtext (zu hohes Layout-Risiko, geringer visueller Gewinn). Stattdessen nur globale Input-Größe via CSS in HTML-Shells (44px Höhe, 15px Schriftgröße) — bereits in Block 1 erledigt.
+
+**Bewusst stehen gelassen:** mod-persons-edit.js Modal-Titel (`text-2xl`), Tickets-/Objekte-Card-Titelleisten (`text-sm` weiß auf olive — eigenes Design-Pattern, kein Page-Header).
+
+Cache-Buster aller in Block 3 geänderten JS-Dateien (mod-dashboard, mod-dokumente, mod-etv, mod-finanzen, mod-kalender, mod-kontakte, mod-news, mod-personen, mod-settings, mod-zeiterfassung) auf `v=20260425j`.
+
 ### Design-Migration Block 2 — Patterns + Farb-Migration (Pakete C + H + E)
 
 **Paket C — Tap-Feedback & Bottom-Sheet-Drag-Indicator:**

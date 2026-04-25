@@ -22,7 +22,7 @@ async function loadCalendar() {
     ca.innerHTML = `
         <div class="flex justify-between items-end mb-6">
             <div>
-                <h2 class="text-2xl font-extrabold text-hb-olive tracking-tight">Kalender</h2>
+                <h2 class="text-[28px] font-bold text-hb-olive tracking-tight">Kalender</h2>
                 <p class="text-sm text-gray-500 mt-1">Gebäude-Fristen und Ticket-Wiedervorlagen im Überblick.</p>
             </div>
             <button onclick="_kalJumpToday()" class="text-xs text-hb-olive font-semibold bg-hb-ultralight border border-hb-olive/12 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">

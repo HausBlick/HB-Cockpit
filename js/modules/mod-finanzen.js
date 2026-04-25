@@ -157,7 +157,7 @@ function _finRenderShell() {
     document.getElementById('content-area').innerHTML = `
         <div class="flex justify-between items-end mb-6">
             <div>
-                <h2 class="text-2xl font-extrabold text-hb-olive tracking-tight">Buchhaltung</h2>
+                <h2 class="text-[28px] font-bold text-hb-olive tracking-tight">Buchhaltung</h2>
                 <p class="text-sm text-gray-500 mt-1">Konten, Buchungen, Zählerstände & Sollstellungen.</p>
             </div>
             <select id="fin-building-select" onchange="_finOnBuildingChange(this.value)"
@@ -2513,7 +2513,7 @@ async function _finRenderBeiratView() {
         <div class="flex justify-between items-end mb-6">
             <div>
                 <p class="text-xs uppercase tracking-widest font-bold text-hb-orange mb-1">Belegprüfung Beirat</p>
-                <h2 class="text-2xl font-extrabold text-hb-olive tracking-tight">${formatBuildingName(bldg)}</h2>
+                <h2 class="text-[28px] font-bold text-hb-olive tracking-tight">${formatBuildingName(bldg)}</h2>
                 <p class="text-sm text-gray-500 mt-1">Wirtschaftsjahr ${fy} — schreibgeschützt</p>
             </div>
             <div class="flex items-center gap-3">
