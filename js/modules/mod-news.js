@@ -176,7 +176,7 @@ window.openNewsModal = async (newsId) => {
     modal.id = 'news-modal';
     modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
     modal.innerHTML = `
-        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onclick="event.stopPropagation()">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onclick="event.stopPropagation()">
             <div class="p-6 border-b border-gray-100 flex justify-between items-start flex-shrink-0">
                 <div class="space-y-2">
                     <span class="${catColor} text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md">${item.category || 'Allgemein'}</span>
@@ -278,7 +278,7 @@ window.showEditNewsModal = async (newsId) => {
     modal.id = 'edit-news-modal';
     modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
     modal.innerHTML = `
-        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-2xl p-8 space-y-5" onclick="event.stopPropagation()">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-8 space-y-5" onclick="event.stopPropagation()">
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-extrabold text-hb-offblack">Beitrag bearbeiten</h3>
                 <button onclick="document.getElementById('edit-news-modal').remove()" class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
@@ -386,7 +386,7 @@ window.showCreateNewsModal = async () => {
     modal.id = 'create-news-modal';
     modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
     modal.innerHTML = `
-        <div class="bg-white rounded-[15px] shadow-2xl w-full max-w-2xl p-8 space-y-5" onclick="event.stopPropagation()">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-8 space-y-5" onclick="event.stopPropagation()">
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-extrabold text-hb-offblack">Neuer Beitrag</h3>
                 <button onclick="document.getElementById('create-news-modal').remove()" class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>

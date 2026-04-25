@@ -25,7 +25,7 @@ async function loadCalendar() {
                 <h2 class="text-2xl font-extrabold text-hb-olive tracking-tight">Kalender</h2>
                 <p class="text-sm text-gray-500 mt-1">Gebäude-Fristen und Ticket-Wiedervorlagen im Überblick.</p>
             </div>
-            <button onclick="_kalJumpToday()" class="text-xs text-hb-olive font-semibold bg-hb-ultralight border border-hb-olive/20 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+            <button onclick="_kalJumpToday()" class="text-xs text-hb-olive font-semibold bg-hb-ultralight border border-hb-olive/12 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">
                 Heute
             </button>
         </div>
@@ -263,7 +263,7 @@ window._kalShowPopup = (event, eventKey) => {
 
     const popup = document.createElement('div');
     popup.id = 'kal-popup';
-    popup.className = 'fixed z-50 bg-white rounded-[15px] shadow-2xl border border-hb-olive/20 p-5 w-72 text-left';
+    popup.className = 'fixed z-50 bg-white rounded-2xl shadow-2xl border border-hb-olive/12 p-5 w-72 text-left';
     popup.innerHTML = `
         <div class="flex justify-between items-start mb-3">
             <div class="text-xs font-black uppercase tracking-widest text-hb-orange">${e.label}</div>

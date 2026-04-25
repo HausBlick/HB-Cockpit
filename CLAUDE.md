@@ -52,22 +52,15 @@ Dieses Projekt nutzt zwei KI-gesteuerte Dokumente mit strikter Aufgabenteilung:
 
 ## 3. Design-System
 
-| Token | Wert | Verwendung |
-|---|---|---|
-| `hb-olive` | `#687451` | Primärfarbe, Buttons, aktive Tabs |
-| `hb-offblack` | `#373737` | Haupttext, Überschriften |
-| `hb-ultralight` | `#F9FAF8` | App-Hintergrund |
-| `hb-orange` | `#EB762D` | Akzentfarbe, Warnungen |
+→ Vollständige Spezifikation in **`DESIGN.md`** (Single Source of Truth).
 
-- **Cards:** `rounded-[15px]`, `box-shadow: 0 4px 20px -2px rgba(0,0,0,0.03)`
-- **Inputs:** Hintergrund `#F9FAF8`, Border `#e5e7eb`, Focus-Ring hb-olive (10% Opacity)
-- **Typografie:** Inter (Google Fonts)
+Kurzübersicht der wichtigsten Tokens:
+- **Primärfarbe:** hb-olive `#687451`
+- **Textfarbe:** hb-offblack `#373737`
+- **Hintergrund:** hb-ultralight `#F5F5F5`
+- **Akzent:** hb-orange `#EB762D`
 
-### Frontend-Rahmenbedingungen (verbindlich für alle Module)
-- **Keine Fremdfarben:** Ausschließlich hb-olive, hb-offblack, hb-ultralight, hb-orange — kein Wildwuchs
-- **Konsistenz-Zwang:** Alle Module nutzen exakt dieselbe Formensprache — `rounded-[15px]`-Cards, identische Tabellen-Header, einheitliche Button-Styles (siehe Design-Konventionen unten)
-- **Mobile First & App-Feeling:** Mobile Ansicht ist keine zweitrangige Web-Ansicht — Sticky-Header, flüssige Swipe-Menüs, gut greifbare Touch-Zonen (mind. 44px)
-- **PWA-Ready:** Portal wird als Progressive Web App konzipiert — Nutzer können es als "echte App" auf iOS/Android-Homescreen installieren
+Alle weiteren Farben, Typografie, Spacing, Radien, Schatten, Komponenten und Mobile-Patterns: siehe DESIGN.md.
 
 ---
 
@@ -132,23 +125,14 @@ js/
     mod-etv.js              # Eigentümerversammlung (Planung, Check-in, Abstimmung, Protokoll)
 ```
 
-### Design-Konventionen (aktuell gültig)
-- **Card-Titelleisten:** `bg-hb-olive`, Text `text-sm font-bold text-white` (kein uppercase), `+`-Buttons `bg-white text-hb-olive`
-- **Tabellen-Header:** `bg-gray-50 text-xs font-bold text-gray-500` (grau, kein uppercase)
-- **Tabellen-Trennlinien:** `divide-y divide-hb-olive/10`
-- **"Bearbeiten"-Buttons:** `text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100`
-- **"Löschen"/"Entfernen"-Buttons:** `text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5`
-- **Card-Border:** `border: 1px solid rgba(104,116,81,0.2)` + `overflow: hidden`
-- **Nav-Links:** Farbe `#687451`, aktiv: `bg-hb-olive text-white`
-- **Filter-Chips auf olive Hintergrund:** aktiv `bg-white text-hb-olive border-white`, inaktiv `text-white border-white/50`
+### Design-Konventionen
+→ Alle Konventionen (Card-Styles, Button-Varianten, Tabellen, Badges, Nav, Filter-Chips, Skeleton, Mobile-Patterns) sind verbindlich in **`DESIGN.md`** definiert.
+
+Architektur-Konventionen, die NICHT zum Design-System gehören (verbleiben hier):
 - **Supabase-Joins mit mehreren FKs:** immer expliziten FK-Hint verwenden, z.B. `profiles!uploaded_by(full_name)`
-- **Bottom-Nav (Mobile):** `.bnav-item` gray-400, `.bnav-active` hb-olive + Dot. 5 Items: Home, Tickets, News/Kontakte, Dokumente, Mehr
-- **Skeleton Loading:** `.skeleton` Klasse (Shimmer-Animation, rounded-[15px]). Typen via `showSkeleton()`: list, cards, table
-- **Mobile Scroll-Containment:** Content-Area ist der einzige Scroll-Container. Nie `overflow-y-auto` auf Body oder Main
-- **Responsive Tables:** `.rtable`-Klasse auf Container → automatische Card-Umwandlung auf Mobile. `makeTableResponsive(el)` nach jedem Table-Render aufrufen
-- **Touch-Targets:** Alle interaktiven Elemente `min-h-[44px] min-w-[44px]`. Buttons/Links mit `p-3` statt `p-1`
 - **Multi-Page Nav-Links:** Für Module in `EXTERNAL_PAGES` → `<a href="...">`. Für SPA-Module auf Dashboard → `onclick`. Auf externen Seiten → SPA-Links zeigen auf `dashboard.html?m=fnName`
 - **Externe Seiten HTML-Shell:** Identische Struktur wie `dashboard.html` (Sidebar, Header, Content-Area, Bottom-Nav). Nur seitenspezifische `<script>`-Tags. Logo/Header-Klick → `dashboard.html`
+- **Responsive Tables:** `.rtable`-Klasse auf Container → automatische Card-Umwandlung auf Mobile. `makeTableResponsive(el)` nach jedem Table-Render aufrufen
 
 ---
 
@@ -302,8 +286,8 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
   - 5.7-A **Widget "Meine Mieter"** (Dashboard-Widget: Mieter-Liste, Mietverträge, deren offene Tickets) 📋
   - 5.7-B **Dokument-Durchreichen** (Landlord kann WEG-Dokumente für eigene Mieter freigeben → Mieter-Silo: Mieter sieht nur aktiv durchgereichte Dokumente) 📋
 
-### 🔄 Phase 5.8 — ETV-Begleiter (Eigentümerversammlung)
-*Komplettmodul: Planung, Check-in, Abstimmung, Protokoll, Beschlusssammlung.*
+### 🔴 Phase 5.8 — ETV-Begleiter (Eigentümerversammlung) — AKTUELLE PRIORITÄT
+*Komplettmodul: Planung, Check-in, Abstimmung, Protokoll, Beschlusssammlung. Wird jetzt komplett fertiggestellt vor Phase 6.15ff.*
 - 5.8-A Planung: Sessions, TOPs, Check-in, Abstimmung (MEA/Kopf/Objekt), Protokoll-PDF ✅
 - 5.8-B Einladungs-PDF mit ETV-Staging-Workflow ✅
 - 5.8-C **Dynamische Platzhalter in TOPs** (Text-Platzhalter z.B. `[BEAUFTRAGTE_FIRMA]` mit Auswahlmöglichkeiten) 📋
@@ -311,6 +295,8 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 - 5.8-E **Kontextsensitive Abstimmungs-Engine** (variable Abfrage-Reihenfolge, Effizienz-Logik "Einstimmiges JA", Platzhalter-Finale) 📋
 - 5.8-F **Unterschriften-Workflow + Beschlusssammlung §24 Abs. 7 WEG** (Verwalter-Eintrag wer/wann unterschrieben, automatischer Transfer in gebäudespezifische Beschlusssammlung) 📋
 - 5.8-G **Kommunikation & Termine** (Auto-News "ETV-Planung gestartet", Antragsfrist, Kalendereintrag, digitale Einladung im Portal) 📋
+- 5.8-H **Person-Grouping in Präsenzliste** (Eigentümer mit mehreren WE wird einmal angezeigt mit Badges WE01+WE04, ein Klick checkt alle WE ein/aus. MEA + Kopfprinzip aggregieren Stimmen, Objektprinzip bleibt pro WE.) 📋
+- 5.8-I **Mehrere Eigentümer pro WE (Miteigentümer)** (Schema-Erweiterung: `UNIQUE(session_id, apartment_id, person_id)` statt aktuell `UNIQUE(session_id, apartment_id)`. Eheleute/Erbengemeinschaft als getrennte Personen, aber pro Einheit nur **eine** Stimme. Voting-Logik + Vollmachten-Zuordnung + PDF-Protokoll müssen mitziehen.) 📋
 
 ### 🔄 Phase 6 — Finanzen & Abrechnung
 *Kernmodul: Wirtschaftsplan, Hausgeldabrechnung, Erhaltungsrücklage.*
@@ -413,6 +399,21 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 > Migrationen, Architektur-Entscheidungen und DB-Schema-Änderungen bleiben erhalten.
 
 ---
+
+### Design-Migration Block 1 — Fundament (Pakete A + B + D + F)
+DESIGN.md ist neue Single Source of Truth für alle UI-Tokens. Block 1 setzt das Fundament: Tailwind-Config, globales CSS, Border-Radien und Card-Borders. CLAUDE.md §3 (Design-System) und Design-Konventionen-Block durch Verweise auf DESIGN.md ersetzt — nur die nicht-UI-Architekturkonventionen (FK-Hint, Multi-Page-Nav, externe Shells, Responsive Tables) bleiben in CLAUDE.md.
+
+**Paket A — Tailwind-Config & Farb-Tokens:** Alle 6 HTML-Shells synchron erweitert um neue Brand-Farben (`hb-white`, `hb-gray`, `hb-gold-bold`, `hb-gold-soft`) + semantische Farben (`hb-success #4A7C59`, `hb-error #C4453E`). `hb-ultralight` von `#F9FAF8` → `#F5F5F5` (Brand Guide). `borderRadius` korrigiert (lg=8px, xl=12px, 2xl=16px statt überall 15px). Neue `boxShadow`-Skala soft/md/lg.
+
+**Paket B — Globales CSS in HTML-Shells:** Body-Hintergrund, `.card`-Klasse (Radius 16px, Schatten `0 2px 8px rgba(0,0,0,0.08)`, Border-Opacity 0.12), Inputs/Selects/Textareas (Radius 12px, Höhe **44px** für Touch-Target, Schriftgröße 15px, Hintergrund #F5F5F5), `.skeleton` (16px), `.rtable tbody tr` (16px + 0.12 Border). Sidebar-/Modal-/Sheet-Animationen auf Apple-Easing `cubic-bezier(0.25, 1, 0.5, 1)`. Neu: `@media (prefers-reduced-motion: reduce)` global.
+
+**Paket D — Border-Radien-Konsolidierung:** 26× `rounded-[15px]` → `rounded-2xl` (16px) in 8 Dateien. mod-etv.js: Sonder-Radien `rounded-[20px/25px]` → `rounded-2xl`, `rounded-[30px/35px]` → `rounded-3xl` (Modals).
+
+**Paket F — Card-Border-Hardcodes:** 26× `border-hb-olive/20` → `border-hb-olive/12` in 6 Modulen (etv, finanzen, kalender, objekte, settings, zeiterfassung). Plus 1 Inline-Style in mod-finanzen.js (rgba 0.15 → 0.12).
+
+**Stille A11y-Fixes mitgenommen:** Input-Höhe 40 → 44px, Schriftgröße 14 → 15px, prefers-reduced-motion-Block.
+
+**Geänderte Dateien:** 6 HTML-Shells (dashboard, etv, finanzen, zeiterfassung, index, register), 9 JS-Module (utils, mod-finanzen, mod-kalender, mod-news, mod-objekte, mod-personen, mod-etv, mod-settings, mod-zeiterfassung). Cache-Buster aller geänderten JS-Dateien auf `v=20260425g`.
 
 ### Phase 1 — Tech-Debt & Infrastruktur
 RLS-Cleanup, FK-Indexes, Security-Warnings, Migration-Files, Frontend-Modularisierung (`dashboard.html` → `config.js`, `utils.js`, `nav.js`, `mod-*.js`).

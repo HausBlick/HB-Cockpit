@@ -203,7 +203,7 @@ async function _timeOpenProject(id) {
                                             <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"/></svg>
                                             Timer
                                         </button>
-                                        <button onclick="_timeOpenManualModal(${wp.id})" class="text-[10px] bg-hb-ultralight text-hb-olive px-2 py-1 rounded border border-hb-olive/20 hover:bg-white flex items-center gap-1">
+                                        <button onclick="_timeOpenManualModal(${wp.id})" class="text-[10px] bg-hb-ultralight text-hb-olive px-2 py-1 rounded border border-hb-olive/12 hover:bg-white flex items-center gap-1">
                                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                             Manuell
                                         </button>

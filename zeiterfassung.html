@@ -15,28 +15,38 @@
                     colors: {
                         'hb-olive':      '#687451',
                         'hb-offblack':   '#373737',
-                        'hb-ultralight': '#F9FAF8',
-                        'hb-orange':     '#EB762D'
+                        'hb-white':      '#FFFFFF',
+                        'hb-orange':     '#EB762D',
+                        'hb-gold-bold':  '#C5A059',
+                        'hb-gold-soft':  '#EEC981',
+                        'hb-gray':       '#B4B4B4',
+                        'hb-ultralight': '#F5F5F5',
+                        'hb-success':    '#4A7C59',
+                        'hb-error':      '#C4453E'
                     },
                     fontFamily: { sans: ['Inter', 'sans-serif'] },
-                    borderRadius: { 'lg': '15px', 'xl': '15px', '2xl': '15px' },
-                    boxShadow: { 'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.03)' }
+                    borderRadius: { 'lg': '8px', 'xl': '12px', '2xl': '16px' },
+                    boxShadow: {
+                        'soft': '0 2px 8px rgba(0,0,0,0.08)',
+                        'md':   '0 4px 16px rgba(0,0,0,0.10)',
+                        'lg':   '0 8px 32px rgba(0,0,0,0.14)'
+                    }
                 }
             }
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { background-color: #F9FAF8; font-size: 16px; color: #373737; }
-        #sidebar { transition: transform 0.3s ease-in-out; }
+        body { background-color: #F5F5F5; font-size: 16px; color: #373737; }
+        #sidebar { transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1); }
         .nav-link { border-radius: 12px; transition: all 0.2s; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 12px 16px; font-size: 14px; font-weight: 600; color: #687451; }
         .nav-link:hover { background-color: #f3f4f6; color: #687451; }
         .active-link { background-color: #687451 !important; color: white !important; }
         .nav-section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 800; color: #9ca3af; padding: 24px 16px 8px 16px; }
-        .card { background: white; border-radius: 15px; box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03); border: 1px solid rgba(104, 116, 81, 0.2); overflow: hidden; }
+        .card { background: white; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid rgba(104,116,81,0.12); overflow: hidden; }
         .dropdown-open { display: block !important; animation: fadeIn 0.15s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
-        body input, body select, body textarea { border-radius: 15px; background-color: #F9FAF8; border: 1px solid #e5e7eb; transition: all 0.2s; padding: 10px 16px; width: 100%; height: 40px; font-size: 14px; }
+        body input, body select, body textarea { border-radius: 12px; background-color: #F5F5F5; border: 1px solid #e5e7eb; transition: all 0.2s; padding: 10px 16px; width: 100%; height: 44px; font-size: 15px; }
         body textarea { height: auto; min-height: 80px; padding: 10px 16px; }
         input:focus, select:focus, textarea:focus { background-color: white; border-color: #687451; outline: none; box-shadow: 0 0 0 3px rgba(104, 116, 81, 0.1); }
         input[type="checkbox"] { width: auto; accent-color: #687451; width: 1.2rem; height: 1.2rem; cursor: pointer; border-radius: 4px; }
@@ -51,8 +61,8 @@
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         /* Modal / Bottom Sheet Transitions */
-        .modal-sheet { transition: transform 0.3s ease-out; }
-        .modal-inner { transition: transform 0.2s ease-out, opacity 0.2s ease-out; }
+        .modal-sheet { transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1); }
+        .modal-inner { transition: transform 0.25s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.25s cubic-bezier(0.25, 1, 0.5, 1); }
         /* Bottom Navigation */
         .bnav-item { color: #9ca3af; transition: color 0.15s; -webkit-tap-highlight-color: transparent; }
         .bnav-item.bnav-active { color: #687451; }
@@ -65,8 +75,8 @@
         @media (max-width: 767px) {
             .rtable table, .rtable thead, .rtable tbody, .rtable th, .rtable tr, .rtable td { display: block; }
             .rtable thead { position: absolute; left: -9999px; }
-            .rtable tbody tr { background: white; border-radius: 15px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid rgba(104,116,81,0.15); box-shadow: 0 2px 8px -2px rgba(0,0,0,0.04); }
-            .rtable tbody tr:active { background: #f9faf8; }
+            .rtable tbody tr { background: white; border-radius: 16px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid rgba(104,116,81,0.12); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+            .rtable tbody tr:active { background: #F5F5F5; }
             .rtable td { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; border: none !important; font-size: 14px; min-height: 28px; }
             .rtable td::before { content: attr(data-label); font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.03em; flex-shrink: 0; margin-right: 12px; }
             .rtable td.td-action { justify-content: flex-end; padding-top: 8px; margin-top: 4px; border-top: 1px solid rgba(104,116,81,0.08) !important; }
@@ -75,8 +85,12 @@
             .rtable .overflow-x-auto { overflow-x: visible; }
         }
         /* Skeleton Loading */
-        .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%); background-size: 200% 100%; animation: sk-shimmer 1.5s ease-in-out infinite; border-radius: 15px; }
+        .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%); background-size: 200% 100%; animation: sk-shimmer 1.5s ease-in-out infinite; border-radius: 16px; }
         @keyframes sk-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        /* A11y: Bewegungs-Reduktion respektieren */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { transition: none !important; animation: none !important; }
+        }
     </style>
 </head>
 <body class="font-sans flex flex-col md:flex-row text-left relative overflow-hidden" style="height:100vh;height:100dvh" onclick="closeDropdowns(event)">
@@ -137,9 +151,9 @@
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
     <script src="js/config.js?v=20260401d"></script>
-    <script src="js/utils.js?v=20260401d"></script>
+    <script src="js/utils.js?v=20260425g"></script>
     <script src="js/utils-pdf.js?v=20260401e"></script>
-    <script src="js/modules/mod-zeiterfassung.js?v=20260401d"></script>
+    <script src="js/modules/mod-zeiterfassung.js?v=20260425g"></script>
     <script src="js/nav.js?v=20260401d"></script>
 
 </body>

@@ -13,23 +13,38 @@
             theme: {
                 extend: {
                     colors: {
-                        'hb-olive': '#687451',
-                        'hb-offblack': '#373737',
-                        'hb-ultralight': '#F9FAF8',
-                        'hb-orange': '#EB762D'
+                        'hb-olive':      '#687451',
+                        'hb-offblack':   '#373737',
+                        'hb-white':      '#FFFFFF',
+                        'hb-orange':     '#EB762D',
+                        'hb-gold-bold':  '#C5A059',
+                        'hb-gold-soft':  '#EEC981',
+                        'hb-gray':       '#B4B4B4',
+                        'hb-ultralight': '#F5F5F5',
+                        'hb-success':    '#4A7C59',
+                        'hb-error':      '#C4453E'
                     },
-                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    borderRadius: { 'lg': '8px', 'xl': '12px', '2xl': '16px' },
+                    boxShadow: {
+                        'soft': '0 2px 8px rgba(0,0,0,0.08)',
+                        'md':   '0 4px 16px rgba(0,0,0,0.10)',
+                        'lg':   '0 8px 32px rgba(0,0,0,0.14)'
+                    }
                 }
             }
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { background-color: #F9FAF8; }
-        input { border-radius: 15px; background-color: #F9FAF8; border: 1px solid #e5e7eb; transition: all 0.2s; }
+        body { background-color: #F5F5F5; }
+        input { border-radius: 12px; background-color: #F5F5F5; border: 1px solid #e5e7eb; transition: all 0.2s; height: 44px; font-size: 15px; }
         input:focus { background-color: white; border-color: #687451; box-shadow: 0 0 0 3px rgba(104, 116, 81, 0.1); outline: none; }
-        .btn-primary { background-color: #687451; color: white; border-radius: 15px; transition: all 0.2s; font-weight: 600; }
+        .btn-primary { background-color: #687451; color: white; border-radius: 12px; transition: all 0.2s; font-weight: 600; }
         .btn-primary:hover { background-color: #555f42; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(104, 116, 81, 0.2); }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { transition: none !important; animation: none !important; }
+        }
     </style>
 </head>
 <body class="font-sans text-hb-offblack min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
@@ -45,7 +60,7 @@
     <div class="fixed bottom-[-10%] left-[-5%] w-[40vw] h-[40vw] bg-hb-orange/5 rounded-full blur-3xl pointer-events-none"></div>
 
     <!-- Register Container -->
-    <div class="w-full max-w-lg bg-white p-8 md:p-10 rounded-[15px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 relative z-10 my-10">
+    <div class="w-full max-w-lg bg-white p-8 md:p-10 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 relative z-10 my-10">
         <div class="text-center mb-8">
             <div class="w-16 h-16 bg-hb-ultralight rounded-2xl mx-auto flex items-center justify-center mb-4 text-hb-olive">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
@@ -79,8 +94,8 @@
                 </div>
             </div>
             
-            <div id="error-msg" class="hidden bg-red-50 text-red-600 text-xs font-bold p-3 rounded-[15px] border border-red-100 text-center mt-4"></div>
-            <div id="success-msg" class="hidden bg-green-50 text-green-700 text-xs font-bold p-4 rounded-[15px] border border-green-100 text-center mt-4">
+            <div id="error-msg" class="hidden bg-red-50 text-red-600 text-xs font-bold p-3 rounded-2xl border border-red-100 text-center mt-4"></div>
+            <div id="success-msg" class="hidden bg-green-50 text-green-700 text-xs font-bold p-4 rounded-2xl border border-green-100 text-center mt-4">
                 Registrierung erfolgreich! Sie werden in wenigen Sekunden zum Login weitergeleitet...
             </div>
 
