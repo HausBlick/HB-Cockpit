@@ -92,7 +92,7 @@ async function loadFinance() {
         if (!_finState.isBeirat) {
             ca.innerHTML = `<div class="p-10 card text-center max-w-sm mx-auto mt-10">
                 <h2 class="text-lg font-bold mb-2 text-hb-offblack">Kein Zugriff</h2>
-                <p class="text-sm text-gray-500">Aktuell keine aktive Belegprüfungs-Freigabe vorhanden.</p></div>`;
+                <p class="text-[15px] text-gray-500">Aktuell keine aktive Belegprüfungs-Freigabe vorhanden.</p></div>`;
             return;
         }
         // Beirat: direkt Belegansicht
@@ -158,7 +158,7 @@ function _finRenderShell() {
         <div class="flex justify-between items-end mb-6">
             <div>
                 <h2 class="text-[28px] font-bold text-hb-olive tracking-tight">Buchhaltung</h2>
-                <p class="text-sm text-gray-500 mt-1">Konten, Buchungen, Zählerstände & Sollstellungen.</p>
+                <p class="text-[15px] text-gray-500 mt-1">Konten, Buchungen, Zählerstände & Sollstellungen.</p>
             </div>
             <select id="fin-building-select" onchange="_finOnBuildingChange(this.value)"
                 class="w-56 text-sm">${buildingOpts}</select>
@@ -244,7 +244,7 @@ async function _finGetAccounts(buildingId) {
 
 async function _finLoadOverview() {
     const bid = _finState.buildingId;
-    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-sm">Kein Gebäude gewählt.</p>'; return; }
+    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-[15px]">Kein Gebäude gewählt.</p>'; return; }
 
     const [accounts, { data: debits }, { data: credits }, { data: dkData }] = await Promise.all([
         _finGetAccounts(bid),
@@ -637,7 +637,7 @@ window._finOpenLedger = async (accountId, accountName) => {
 
 async function _finLoadBookings() {
     const bid = _finState.buildingId;
-    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-sm">Kein Gebäude gewählt.</p>'; return; }
+    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-[15px]">Kein Gebäude gewählt.</p>'; return; }
 
     const accounts = _finState.accounts.length ? _finState.accounts : await _finGetAccounts(bid);
     _finState.accounts = accounts;
@@ -1083,7 +1083,7 @@ window._finPreviewAttachment = async (path) => {
 
 async function _finLoadMeters() {
     const bid = _finState.buildingId;
-    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-sm">Kein Gebäude gewählt.</p>'; return; }
+    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-[15px]">Kein Gebäude gewählt.</p>'; return; }
 
     const [{ data: apts }, { data: meters }, { data: lastReadings }] = await Promise.all([
         _supabase.from('apartments').select('id, apartment_number').eq('building_id', bid).order('apartment_number'),
@@ -1217,7 +1217,7 @@ window._finSaveReadings = async () => {
 async function _finLoadDemands() {
     const bid = _finState.buildingId;
     const fy  = _finState.fiscalYear;
-    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-sm">Kein Gebäude gewählt.</p>'; return; }
+    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-[15px]">Kein Gebäude gewählt.</p>'; return; }
 
     const [{ data: demands }, { data: apts }] = await Promise.all([
         _supabase.from('payment_demands')
@@ -1483,7 +1483,7 @@ function _finRenderOnboarding() {
     document.getElementById('fin-content').innerHTML = `
         <div class="card p-6 max-w-2xl">
             <h3 class="text-base font-extrabold text-hb-offblack mb-1">Buchhaltungs-Onboarding</h3>
-            <p class="text-sm text-gray-400 mb-5">Eröffnungssalden und Altbestände erfassen.</p>
+            <p class="text-[15px] text-gray-400 mb-5">Eröffnungssalden und Altbestände erfassen.</p>
             <div class="flex items-center gap-1 mb-6">${stepDots}</div>
             ${stepContent}
         </div>`;
@@ -1633,7 +1633,7 @@ window._finOBComplete = async () => {
 async function _finLoadWirtschaftsplan() {
     const bid = _finState.buildingId;
     const fy  = _finState.fiscalYear;
-    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-sm">Kein Gebäude gewählt.</p>'; return; }
+    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-[15px]">Kein Gebäude gewählt.</p>'; return; }
 
     const accounts = _finState.accounts.length ? _finState.accounts : await _finGetAccounts(bid);
     _finState.accounts = accounts;
@@ -1789,7 +1789,7 @@ function _finRenderWirtschaftsplan(plan, planItems) {
                     </button>` : ''}
                 </div>
             </div>
-            ${!plan ? `<p class="text-sm text-gray-400">Kein Wirtschaftsplan für ${fy} vorhanden.</p>` : `
+            ${!plan ? `<p class="text-[15px] text-gray-400">Kein Wirtschaftsplan für ${fy} vorhanden.</p>` : `
             <table class="w-full">
                 <thead class="bg-gray-50"><tr>
                     <th class="px-4 py-3 text-left text-xs font-bold text-gray-500">Kto.</th>
@@ -2073,7 +2073,7 @@ window._finActivateLevy = async (levyId) => {
 async function _finLoadRuecklage() {
     const bid = _finState.buildingId;
     const fy  = _finState.fiscalYear;
-    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-sm">Kein Gebäude gewählt.</p>'; return; }
+    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-[15px]">Kein Gebäude gewählt.</p>'; return; }
 
     const accounts = _finState.accounts.length ? _finState.accounts : await _finGetAccounts(bid);
     _finState.accounts = accounts;
@@ -2130,7 +2130,7 @@ function _finRenderRuecklage(reserveAccs, saldoMap, planTargetMap, histEntries) 
                 Soll: ${target.toLocaleString('de-DE', {minimumFractionDigits:2})} € ${warn ? '⚠ Abweichung >5%' : '✓'}
             </div>` : ''}
         </div>`;
-    }).join('') : '<p class="text-sm text-gray-400">Keine Rücklagekonten vorhanden. Konto anlegen und „Ist Rücklagekonto" setzen.</p>';
+    }).join('') : '<p class="text-[15px] text-gray-400">Keine Rücklagekonten vorhanden. Konto anlegen und „Ist Rücklagekonto" setzen.</p>';
 
     // Laufender Saldo für Entwicklungsübersicht
     let runSaldo = 0;
@@ -2240,7 +2240,7 @@ window._finBuchenRuecklage = async (type) => {
 async function _finLoadBelegpruefung() {
     const bid = _finState.buildingId;
     const fy  = _finState.fiscalYear;
-    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-sm">Kein Gebäude gewählt.</p>'; return; }
+    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-[15px]">Kein Gebäude gewählt.</p>'; return; }
 
     const [{ data: periods }, { data: entries }, { data: protocols }] = await Promise.all([
         _supabase.from('beirat_access_periods').select('*').eq('building_id', bid).order('access_from', { ascending: false }),
@@ -2514,7 +2514,7 @@ async function _finRenderBeiratView() {
             <div>
                 <p class="text-xs uppercase tracking-widest font-bold text-hb-orange mb-1">Belegprüfung Beirat</p>
                 <h2 class="text-[28px] font-bold text-hb-olive tracking-tight">${formatBuildingName(bldg)}</h2>
-                <p class="text-sm text-gray-500 mt-1">Wirtschaftsjahr ${fy} — schreibgeschützt</p>
+                <p class="text-[15px] text-gray-500 mt-1">Wirtschaftsjahr ${fy} — schreibgeschützt</p>
             </div>
             <div class="flex items-center gap-3">
                 ${protoStatusBadge ? `<div>${protoStatusBadge}</div>` : ''}
@@ -2528,7 +2528,7 @@ async function _finRenderBeiratView() {
         <!-- Hinweisbox -->
         <div class="mb-5 px-4 py-3 rounded-2xl border border-hb-orange/30 bg-hb-orange/5 flex items-start gap-3">
             <svg class="w-5 h-5 text-hb-orange shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z"/></svg>
-            <p class="text-sm text-hb-offblack">${hintText}</p>
+            <p class="text-[15px] text-hb-offblack">${hintText}</p>
         </div>
 
         <!-- Buchungsjournal -->
@@ -2609,7 +2609,7 @@ window._finBeiratSubmitProtocol = async () => {
 
 async function _finLoadJahresabrechnung() {
     const bid = _finState.buildingId;
-    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-sm">Kein Gebäude gewählt.</p>'; return; }
+    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-[15px]">Kein Gebäude gewählt.</p>'; return; }
     _finRenderJAB();
 }
 
@@ -2888,7 +2888,7 @@ function _finJABStep3Html() {
     }).join('');
 
     return `
-        <p class="text-sm text-gray-500 mb-3">Ist-Buchungen ${d.from} – ${d.to}: <strong>${(d.entries||[]).length}</strong> Buchungen</p>
+        <p class="text-[15px] text-gray-500 mb-3">Ist-Buchungen ${d.from} – ${d.to}: <strong>${(d.entries||[]).length}</strong> Buchungen</p>
         <div class="overflow-x-auto max-h-[400px] overflow-y-auto rounded-lg border border-hb-olive/10">
             <table class="w-full">
                 <thead class="bg-gray-50 sticky top-0"><tr>
@@ -3769,7 +3769,7 @@ window._finJABSaveForETV = async () => {
 
 async function _finLoadMahnwesen() {
     const bid = _finState.buildingId;
-    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-sm">Kein Gebäude gewählt.</p>'; return; }
+    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-[15px]">Kein Gebäude gewählt.</p>'; return; }
 
     const accounts = _finState.accounts.length ? _finState.accounts : await _finGetAccounts(bid);
     _finState.accounts = accounts;
@@ -4156,7 +4156,7 @@ window._finMahnungPDF = async (personId, buildingId) => {
 async function _finLoadDatev() {
     const bid = _finState.buildingId;
     const fy  = _finState.fiscalYear;
-    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-sm">Kein Gebäude gewählt.</p>'; return; }
+    if (!bid) { document.getElementById('fin-content').innerHTML = '<p class="text-gray-400 text-[15px]">Kein Gebäude gewählt.</p>'; return; }
 
     const fyOpts = [fy+1, fy, fy-1, fy-2].map(y => `<option value="${y}" ${y==fy?'selected':''}>${y}</option>`).join('');
 
@@ -4336,7 +4336,7 @@ async function _finLoadCsvImport() {
                 ondrop="_csvHandleDrop(event)">
                 <div class="text-4xl mb-3 text-hb-olive/40">↑</div>
                 <p class="font-semibold text-hb-olive">Datei hierher ziehen</p>
-                <p class="text-sm text-gray-400 mt-1">oder klicken zum Auswählen · CSV oder STA/MT940</p>
+                <p class="text-[15px] text-gray-400 mt-1">oder klicken zum Auswählen · CSV oder STA/MT940</p>
                 <input id="csv-file-input" type="file" accept=".csv,.sta,.txt,.mt940" class="hidden"
                     onchange="_csvHandleFile(this.files[0])">
             </div>
@@ -4486,7 +4486,7 @@ function _csvRenderPreview() {
     const el = document.getElementById('csv-preview');
     const rows = _csvState.rows;
     if (!rows.length) {
-        el.innerHTML = '<p class="text-sm text-gray-400 text-center py-6">Keine Buchungen gefunden.</p>';
+        el.innerHTML = '<p class="text-[15px] text-gray-400 text-center py-6">Keine Buchungen gefunden.</p>';
         return;
     }
 

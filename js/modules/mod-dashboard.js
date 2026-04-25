@@ -234,7 +234,7 @@ async function _renderAdminDashboard() {
                     <button onclick="_dashGoTickets('Offen')" class="text-[11px] text-white/70 hover:text-white transition-colors">Alle ansehen →</button>
                 </div>
                 ${(priorityTickRes.data || []).length === 0
-                    ? '<p class="p-6 text-sm text-gray-400 text-center">Keine offenen Tickets.</p>'
+                    ? '<p class="p-6 text-[15px] text-gray-400 text-center">Keine offenen Tickets.</p>'
                     : `<div class="overflow-x-auto"><table class="w-full text-sm">
                         <thead><tr class="bg-gray-50 text-xs font-bold text-gray-500">
                             <th class="p-3 text-left">Betreff</th>
@@ -271,7 +271,7 @@ async function _renderAdminDashboard() {
                     <h3 class="text-sm font-bold text-white">Ablaufende Fristen</h3>
                 </div>
                 ${deadlines.length === 0
-                    ? '<p class="p-6 text-sm text-gray-400 text-center">Keine Fristen in den nächsten 30 Tagen.</p>'
+                    ? '<p class="p-6 text-[15px] text-gray-400 text-center">Keine Fristen in den nächsten 30 Tagen.</p>'
                     : `<div class="overflow-x-auto"><table class="w-full text-sm">
                         <thead><tr class="bg-gray-50 text-xs font-bold text-gray-500">
                             <th class="p-3 text-left">Gebäude</th>
@@ -296,7 +296,7 @@ async function _renderAdminDashboard() {
                     <h3 class="text-sm font-bold text-white">Letzte Aktivitäten</h3>
                 </div>
                 ${activities.length === 0
-                    ? '<p class="p-6 text-sm text-gray-400 text-center">Keine Aktivitäten.</p>'
+                    ? '<p class="p-6 text-[15px] text-gray-400 text-center">Keine Aktivitäten.</p>'
                     : `<div class="divide-y divide-hb-olive/10">
                         ${activities.map(a => `
                             <div class="px-4 py-3 flex gap-3 items-start">
@@ -316,7 +316,7 @@ async function _renderAdminDashboard() {
 }
 
 function _dashDraftDocsHtml(docs) {
-    if (!docs.length) return '<p class="p-6 text-sm text-gray-400 text-center">Keine Entwürfe vorhanden.</p>';
+    if (!docs.length) return '<p class="p-6 text-[15px] text-gray-400 text-center">Keine Entwürfe vorhanden.</p>';
     return `<div class="overflow-x-auto"><table class="w-full text-sm">
         <thead><tr class="bg-gray-50 text-xs font-bold text-gray-500">
             <th class="p-3 text-left">Datei</th>
@@ -358,7 +358,7 @@ window._dashPublishDoc = async (docId) => {
     const tbody = document.getElementById('dash-draft-tbody');
     if (tbody && tbody.children.length === 0) {
         document.getElementById('dash-draft-body').innerHTML =
-            '<p class="p-6 text-sm text-gray-400 text-center">Keine Entwürfe vorhanden.</p>';
+            '<p class="p-6 text-[15px] text-gray-400 text-center">Keine Entwürfe vorhanden.</p>';
     }
     window.refreshNavBadges?.();
 };
@@ -519,7 +519,7 @@ async function _renderUserDashboard() {
                     <button onclick="_dashNavToNews()" class="text-[11px] text-white/70 hover:text-white transition-colors">Alle ansehen →</button>
                 </div>
                 ${latestNews.length === 0
-                    ? '<p class="p-6 text-sm text-gray-400 text-center">Keine aktuellen Meldungen.</p>'
+                    ? '<p class="p-6 text-[15px] text-gray-400 text-center">Keine aktuellen Meldungen.</p>'
                     : latestNews.map(n => {
                         const preview = (n.content || '').replace(/<[^>]*>/g, '').slice(0, 90);
                         return `<div onclick="_dashOpenNews('${n.id}')" class="p-4 cursor-pointer hover:bg-gray-50 transition-colors border-b border-hb-olive/10 last:border-0">
@@ -537,7 +537,7 @@ async function _renderUserDashboard() {
                     <button onclick="_dashGoTickets('mine')" class="text-[11px] text-white/70 hover:text-white transition-colors">Alle ansehen →</button>
                 </div>
                 ${(myTickRes.data || []).length === 0
-                    ? '<p class="p-6 text-sm text-gray-400 text-center">Keine offenen Tickets.</p>'
+                    ? '<p class="p-6 text-[15px] text-gray-400 text-center">Keine offenen Tickets.</p>'
                     : `<div class="overflow-x-auto"><table class="w-full text-sm">
                         <thead><tr class="bg-gray-50 text-xs font-bold text-gray-500">
                             <th class="p-3 text-left">Betreff</th>
@@ -561,7 +561,7 @@ async function _renderUserDashboard() {
                     <button onclick="_dashGoDocs()" class="text-[11px] text-white/70 hover:text-white transition-colors">Alle ansehen →</button>
                 </div>
                 ${unreadDocs.length === 0
-                    ? '<p class="p-6 text-sm text-gray-400 text-center">Keine neuen Dokumente.</p>'
+                    ? '<p class="p-6 text-[15px] text-gray-400 text-center">Keine neuen Dokumente.</p>'
                     : `<div class="overflow-x-auto"><table class="w-full text-sm">
                         <thead><tr class="bg-gray-50 text-xs font-bold text-gray-500">
                             <th class="p-3 text-left">Titel</th>
@@ -615,7 +615,7 @@ async function _renderUserDashboard() {
                                     </a>` : ''}
                             </div>
                         </div>
-                    </div>` : '<p class="p-6 text-sm text-gray-400 text-center">Noch kein Ansprechpartner hinterlegt.</p>'}
+                    </div>` : '<p class="p-6 text-[15px] text-gray-400 text-center">Noch kein Ansprechpartner hinterlegt.</p>'}
             </div>
 
         </div>`;

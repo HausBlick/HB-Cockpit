@@ -213,7 +213,7 @@ async function showBuildingInfo(b) {
                                          <td class="py-1.5 text-gray-600">${ba.bank_name || '—'}</td>
                                          <td class="py-1.5 font-mono text-xs text-gray-600">${ba.iban || '—'}</td></tr>`
                                 ).join('')}</tbody></table>`
-                            : '<p class="text-sm text-gray-400">Keine Bankkonten hinterlegt.</p>'}
+                            : '<p class="text-[15px] text-gray-400">Keine Bankkonten hinterlegt.</p>'}
                     </div>
                 </div>
 
@@ -249,7 +249,7 @@ async function showBuildingInfo(b) {
                                     <button onclick="_removeBoardMember(${bm.id}, ${b.id})"
                                         class="text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5">Entfernen</button>
                                 </div>`;
-                            }).join('') : '<p class="text-sm text-gray-400">Kein Beirat zugewiesen.</p>'}
+                            }).join('') : '<p class="text-[15px] text-gray-400">Kein Beirat zugewiesen.</p>'}
                         </div>
                     </div>
                 </div>
@@ -305,7 +305,7 @@ async function fetchApartmentsForBuilding(bId) {
     currentApartments = data || [];
 
     if (!currentApartments.length) {
-        list.innerHTML = '<p class="text-sm text-gray-400 p-4">Noch keine Einheiten angelegt.</p>';
+        list.innerHTML = '<p class="text-[15px] text-gray-400 p-4">Noch keine Einheiten angelegt.</p>';
         return;
     }
 
@@ -405,7 +405,7 @@ async function showApartmentInfo(id) {
                     ${infoSection('Abweichende Verteilerschlüssel')}
                     ${Object.keys(costKeys).length
                         ? Object.entries(costKeys).map(([k, v]) => infoField(k, v)).join('')
-                        : '<p class="col-span-full text-sm text-gray-400">Keine abweichenden Schlüssel.</p>'}
+                        : '<p class="col-span-full text-[15px] text-gray-400">Keine abweichenden Schlüssel.</p>'}
                 </div>
 
                 <!-- TAB 3: FINANZEN -->
@@ -526,7 +526,7 @@ async function showBuildingForm(id = null) {
                                 : '<span class="text-xs text-gray-400">Nach erstem Speichern verfügbar.</span>'}
                         </div>
                         <div id="bank-accounts-list" class="space-y-3">
-                            ${bankAccounts.map(ba => bankAccountRowHtml(ba)).join('') || '<p class="text-sm text-gray-400">Keine Konten hinterlegt.</p>'}
+                            ${bankAccounts.map(ba => bankAccountRowHtml(ba)).join('') || '<p class="text-[15px] text-gray-400">Keine Konten hinterlegt.</p>'}
                         </div>
                     </div>
                 </div>
@@ -787,7 +787,7 @@ async function showApartmentForm(id = null) {
                         </div>
                         <div id="cost-keys-list" class="space-y-2">
                             ${Object.entries(costKeys).map(([k, v]) => costKeyRowHtml(k, v)).join('')
-                              || '<p class="text-sm text-gray-400" id="cost-keys-empty">Keine abweichenden Schlüssel.</p>'}
+                              || '<p class="text-[15px] text-gray-400" id="cost-keys-empty">Keine abweichenden Schlüssel.</p>'}
                         </div>
                     </div>
                 </div>
@@ -932,7 +932,7 @@ function personDisplayName(p) {
 
 function renderAssignmentsList({ tenancies, ownerships }) {
     if (!tenancies.length && !ownerships.length)
-        return '<p class="text-sm text-gray-400">Noch keine Personen zugewiesen.</p>';
+        return '<p class="text-[15px] text-gray-400">Noch keine Personen zugewiesen.</p>';
     const rows = [
         ...ownerships.map(o => ({ role: 'Eigentümer', person: o['persons!ownerships_owner_id_fkey'] || o.persons, from: o.valid_from, to: o.valid_to, rm: `removeOwnership(${o.id})` })),
         ...tenancies.map(t  => ({ role: 'Mieter',     person: t['persons!tenancies_tenant_id_fkey']  || t.persons, from: t.start_date, to: t.end_date,   rm: `removeTenancy(${t.id})`  })),
@@ -994,7 +994,7 @@ window.openAssignModal = (aptId) => {
                 <span id="assign_selected_name"></span><input type="hidden" id="assign_person_id">
             </div>
             <div id="assign_quickcreate" class="hidden border-t pt-4 space-y-3">
-                <p class="text-sm font-bold text-hb-orange">Keine Person gefunden — direkt anlegen:</p>
+                <p class="text-[15px] font-bold text-hb-orange">Keine Person gefunden — direkt anlegen:</p>
                 <div class="grid grid-cols-2 gap-3">
                     <input type="text" id="qc_first" placeholder="Vorname">
                     <input type="text" id="qc_last"  placeholder="Nachname *">
@@ -1114,7 +1114,7 @@ function _dkTypeBadge(type) {
 
 function _dkRenderTab(keys, buildingId) {
     const rows = keys.length === 0
-        ? '<p class="text-sm text-gray-400 py-2">Noch keine Verteilerschlüssel angelegt.</p>'
+        ? '<p class="text-[15px] text-gray-400 py-2">Noch keine Verteilerschlüssel angelegt.</p>'
         : `<table class="w-full text-sm mt-3">
             <thead class="text-xs font-bold text-gray-500 bg-gray-50">
                 <tr>

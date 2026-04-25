@@ -98,7 +98,7 @@ function _renderContactsPage(role) {
         <div class="flex justify-between items-end mb-5">
             <div>
                 <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">Kontaktbuch</h2>
-                <p class="text-sm text-gray-500 mt-1">Ansprechpartner, Dienstleister und Notfallkontakte</p>
+                <p class="text-[15px] text-gray-500 mt-1">Ansprechpartner, Dienstleister und Notfallkontakte</p>
             </div>
             ${isAdmin || isOwner ? `
             <button onclick="showContactForm()" class="btn-primary flex items-center gap-2 text-sm shadow-sm">
@@ -198,7 +198,7 @@ function _renderContactGrid() {
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/>
                 </svg>
                 <p class="font-semibold">Keine Kontakte gefunden</p>
-                <p class="text-sm mt-1">Versuche einen anderen Filter oder Suchbegriff.</p>
+                <p class="text-[15px] mt-1">Versuche einen anderen Filter oder Suchbegriff.</p>
             </div>`;
         return;
     }
@@ -534,7 +534,7 @@ window.saveContact = async (contactId) => {
 function _showAddPersonsPrompt(contactId, companyName) {
     const modal = showModal('add-persons-prompt', `
             <h3 class="text-lg font-extrabold text-hb-offblack">Ansprechpartner hinzufügen?</h3>
-            <p class="text-sm text-gray-500">Möchten Sie für <strong>${companyName || 'diese Firma'}</strong> direkt Ansprechpartner anlegen?</p>
+            <p class="text-[15px] text-gray-500">Möchten Sie für <strong>${companyName || 'diese Firma'}</strong> direkt Ansprechpartner anlegen?</p>
             <div class="flex gap-3 justify-end">
                 <button onclick="hideModal('add-persons-prompt')" class="btn-secondary text-sm">Nicht jetzt</button>
                 <button onclick="hideModal('add-persons-prompt'); showContactPersonForm(${contactId})" class="btn-primary text-sm">Ansprechpartner anlegen</button>

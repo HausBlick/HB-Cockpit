@@ -205,7 +205,7 @@ function renderRolesTab(tenancies, ownerships, boardMemberships = [], servicePro
         </div>`;
     }).join('');
     const allRows = tenancyRows + ownershipRows + boardRows + spRows;
-    const empty = '<p class="text-sm text-gray-400 text-center py-4">Keine Zuweisungen vorhanden.</p>';
+    const empty = '<p class="text-[15px] text-gray-400 text-center py-4">Keine Zuweisungen vorhanden.</p>';
     container.innerHTML = `
         <div class="space-y-2">
             <p class="text-xs text-gray-400 mb-2">Zuweisungen erfolgen über das <strong>Objekte-Modul</strong>. Diese Ansicht ist schreibgeschützt.</p>

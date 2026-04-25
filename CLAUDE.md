@@ -400,9 +400,38 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 
 ---
 
-### Design-Migration ABGESCHLOSSEN (Blöcke 1–3)
-DESIGN.md ist ab sofort Single Source of Truth. Tailwind-Config, CSS, Radien, Schatten, Borders, Farb-Palette, Tap-Feedback, Toast-Varianten, Typografie-Hierarchie — alles migriert.
-Offen für Nachzug: text-sm → text-[15px] Fließtext-Feinschliff (629 Stellen, bei Bedarf modul-weise).
+### Design-Migration KOMPLETT ABGESCHLOSSEN (Blöcke 1–4)
+DESIGN.md ist Single Source of Truth. Tailwind-Config, CSS, Radien, Schatten, Borders, Farb-Palette, Tap-Feedback, Toast-Varianten, Typografie-Hierarchie und Fließtext-Feinschliff — alles migriert.
+
+### Design-Migration Block 4 — Fließtext-Feinschliff (text-sm → text-[15px])
+
+**Selektive Migration nach Faustregel:** NUR echte Fließtext-Stellen (`<p>`-Beschreibungen, Empty-States, Hint-Texte, Modal-Bodys mit `leading-relaxed`). Form-Labels, Toggle-Switches, Tabellen-Zellen, Buttons, Selects, Card-Header, Sidebar-Items, Inline-Wertanzeigen bleiben bewusst auf `text-sm` (14px) — kompakter Charakter.
+
+**63 Stellen migriert (von 633 text-sm-Vorkommen):**
+- HTML-Shells (2): index.html "Bitte loggen Sie sich ein", register.html Code-Hint
+- mod-news.js (4): Page-Subtitle, Empty-State, News-Card-Preview, Detail-Modal-Body
+- mod-kontakte.js (3): Page-Subtitle, Empty-State, Quick-Create-Frage
+- mod-kalender.js (1): Page-Subtitle
+- mod-personen.js (1): Page-Subtitle
+- mod-dashboard.js (10×replace_all): alle `<p class="p-6 text-sm text-gray-400 text-center">` Empty-States in Admin- und User-Widgets
+- mod-dokumente.js (3): Page-Subtitle, Vorschau-Hinweis, Drag-Drop-Hinweis
+- mod-tickets.js (2): "Bitte wähle..." Empty-State, "Noch keine Nachrichten"
+- mod-objekte.js (8×replace_all + 1): alle `text-sm text-gray-400` Empty-States, "Keine Person gefunden"
+- mod-etv.js (5): "Keine Gebäude", Protokoll-Beschreibung, Empty-State Dokumente, 2× Detail-Panel/Protokoll-Body
+- mod-zeiterfassung.js (2): Kein-Zugriff-Hinweis, Projekt-Beschreibung
+- mod-finanzen.js (10×replace_all "Kein Gebäude" + 11): Page-Subtitle, alle "Kein Gebäude gewählt", Belegprüfung-Empty, Eröffnungssalden-Description, Wirtschaftsplan-Empty, Rücklagekonten-Empty, Beirat-Subtitle + Hint, JAB-Description, CSV-Drop-Hinweis, Buchungen-Empty
+- mod-settings.js (1): Designer-Empty-State
+- mod-persons-edit.js (1): Zuweisungen-Empty-State
+
+**Bewusst belassen** (sind keine Fließtexte, sondern semantisch andere Elemente):
+- Form-Labels (z.B. mod-settings Toggle-Switch-Beschriftungen, mod-kontakte "24/7 Notfallkontakt")
+- Card-Title in Sidebars (mod-dokumente "Alle Dokumente", mod-tickets Kategorie-Pills)
+- Wert-Anzeigen in Forms (mod-placeholder Profile-Daten, mod-objekte Bool-Häkchen)
+- Apartment-Subtitle (m², Zimmer — kompakte Info-Zeile)
+- Inline-Hilfstexte in Tabellen-Zellen
+- Dropdown-User-Name (Header)
+
+Cache-Buster aller in Block 4 geänderten JS-Dateien (mod-news, mod-kontakte, mod-kalender, mod-personen, mod-dashboard, mod-dokumente, mod-tickets, mod-objekte, mod-etv, mod-zeiterfassung, mod-finanzen, mod-settings, mod-persons-edit) auf `v=20260425k`.
 
 ### Design-Migration Block 3 — Typografie-Hierarchie (Paket G abgespeckt)
 
