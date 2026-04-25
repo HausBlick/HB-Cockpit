@@ -400,6 +400,22 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 
 ---
 
+### Design-Migration Block 2 — Patterns + Farb-Migration (Pakete C + H + E)
+
+**Paket C — Tap-Feedback & Bottom-Sheet-Drag-Indicator:**
+- CSS in 4 großen HTML-Shells: `.btn-primary:active`, `.btn-secondary:active`, `.tap-feedback:active` → `transform: scale(0.97)` + `opacity: 0.7` über 100ms. Selects/Toggle-Switches/Container-Buttons bewusst NICHT betroffen (kontrollierte Opt-in-Selektoren statt globalem `button:active`).
+- `utils.js` → `showModal()`: Bottom-Sheet bekommt automatisch einen iOS-typischen Drag-Indicator (5×36px graue Pille, sticky oben). Plus alter `rounded-t-[15px]` → `rounded-t-2xl`.
+
+**Paket H — Toast-Varianten + Segment-Bar CSS:**
+- `utils.js` → `showToast()` Default geändert von `'success'` → `'info'`. Neue 3-Wege-Logik: `'success'` → `bg-hb-success`, `'error'` → `bg-hb-error`, sonst → `bg-hb-offblack`. **Verhaltenswechsel:** Bestehende Aufrufe ohne expliziten Type werden ab jetzt offblack statt hb-olive — wer Erfolgs-Grün will, muss explizit `'success'` übergeben.
+- CSS `.segment-bar` + `.segment-item` (Apple-Stil, horizontal scrollbare Pill-Buttons) in 4 großen HTML-Shells als bereitstehendes Pattern. Migration konkreter Filter-Bars erfolgt später.
+
+**Paket E — Verbotene Tailwind-Farben (red/blue/green) → Brand-Palette** (siehe folgenden Commit-Block, ergänzt nach Abschluss).
+
+**Mitgenommen:** 3 verbliebene Sonder-Radien gefixt (utils.js Bottom Sheet `rounded-t-[15px]`, mod-etv.js Modal-Header/Footer `rounded-t-[20px]`/`rounded-b-[20px]` → 2xl).
+
+Cache-Buster: utils.js + mod-etv.js auf `v=20260425h`.
+
 ### Design-Migration Block 1 — Fundament (Pakete A + B + D + F)
 DESIGN.md ist neue Single Source of Truth für alle UI-Tokens. Block 1 setzt das Fundament: Tailwind-Config, globales CSS, Border-Radien und Card-Borders. CLAUDE.md §3 (Design-System) und Design-Konventionen-Block durch Verweise auf DESIGN.md ersetzt — nur die nicht-UI-Architekturkonventionen (FK-Hint, Multi-Page-Nav, externe Shells, Responsive Tables) bleiben in CLAUDE.md.
 

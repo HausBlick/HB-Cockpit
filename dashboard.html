@@ -112,6 +112,18 @@
         .ds-block { transition: box-shadow 0.15s, opacity 0.15s; }
         .ds-block[draggable="true"]:active { cursor: grabbing; }
         .ds-block.ring-2 { box-shadow: 0 0 0 2px rgba(104,116,81,0.3); }
+        /* Tap-Feedback (Mobile) — physisches Druckgefühl auf primären Aktionen */
+        .btn-primary:active, .btn-secondary:active, .tap-feedback:active {
+            transform: scale(0.97);
+            opacity: 0.7;
+            transition: transform 100ms ease-out, opacity 100ms ease-out;
+        }
+        /* Segment-Bar (Apple-Stil) — horizontal scrollbare Pill-Buttons für Filter/Tabs */
+        .segment-bar { display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 4px; }
+        .segment-bar::-webkit-scrollbar { display: none; }
+        .segment-item { white-space: nowrap; padding: 8px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; color: #373737; background: transparent; cursor: pointer; transition: background 0.15s, color 0.15s; }
+        .segment-item:hover { background: rgba(104,116,81,0.05); }
+        .segment-item.active { background: #687451; color: white; }
     </style>
 </head>
 <body class="font-sans flex flex-col md:flex-row text-left relative overflow-hidden" style="height:100vh;height:100dvh" onclick="closeDropdowns(event)">
@@ -178,7 +190,7 @@
     ===================================================== -->
     <!-- pdf-lib + fontkit + utils-pdf.js → nur noch in externen Seiten (finanzen/etv/zeiterfassung) -->
     <script src="js/config.js?v=20260401d"></script>
-    <script src="js/utils.js?v=20260425g"></script>
+    <script src="js/utils.js?v=20260425h"></script>
     <script src="js/modules/mod-dashboard.js?v=20260401d"></script>
     <script src="js/modules/mod-objekte.js?v=20260425g"></script>
     <script src="js/modules/mod-personen.js?v=20260425g"></script>
