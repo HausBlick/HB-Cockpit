@@ -1006,7 +1006,7 @@ async function _timeGenerateReport(projId) {
                 });
 
                 y -= rowH;
-                page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.3, color: rgb(0.85, 0.87, 0.83) });
+                page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.3, color: olive });
             }
 
             currentCols = null; // Tabellenheader-Wiederholung deaktivieren
