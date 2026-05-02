@@ -941,22 +941,22 @@ async function _timeGenerateReport(projId) {
         // ── Zeiteinträge je Arbeitspaket ─────────────────────
         let totalProjectMin = 0;
 
-        // Spalten: Datum | Tätigkeit | Von | Bis | Dauer (rechtsbündig)
+        // Spalten: Datum | Tätigkeit | Von | Bis | Dauer
         const cDatum = mLeft + 3;
         const cTaet  = mLeft + 63;
-        const cVon   = mRight - 130;
-        const cBis   = mRight - 85;
-        const cDauer = mRight - 3; // rechtsbündig
+        const cVonR  = mRight - 95;  // rechtsbündige Kante Von-Spalte
+        const cBisR  = mRight - 47;  // rechtsbündige Kante Bis-Spalte
+        const cDauer = mRight - 3;   // rechtsbündig
 
         const cols = [
             { label: 'Datum',       x: cDatum },
             { label: 'Tätigkeit',   x: cTaet },
-            { label: 'Von',         x: cVon },
-            { label: 'Bis',         x: cBis },
+            { label: 'Von',         x: cVonR, align: 'right' },
+            { label: 'Bis',         x: cBisR, align: 'right' },
             { label: 'Dauer',       x: cDauer, align: 'right' }
         ];
 
-        const descMaxW = cVon - cTaet - 8;
+        const descMaxW = cVonR - 40 - cTaet - 8;
 
         for (const wp of wps) {
             const wpEntries = entries.filter(function(e) { return e.work_package_id === wp.id; });
@@ -990,15 +990,15 @@ async function _timeGenerateReport(projId) {
 
                 await ensureSpace(rowH + 4); // tatsächliche Zeilenhöhe reservieren
 
-                // Zebra (ungerade = hb-ultralight)
+                // Zebra: 0.5pt kürzer, damit die Trennlinie der Vorgängerzeile nicht überdeckt wird
                 if ((wpEntries.indexOf(e) % 2) === 1) {
-                    page.drawRectangle({ x: mLeft, y: y - rowH, width: contentW, height: rowH, color: rgb(0.976, 0.98, 0.973) });
+                    page.drawRectangle({ x: mLeft, y: y - rowH, width: contentW, height: rowH - 0.5, color: rgb(0.976, 0.98, 0.973) });
                 }
 
                 const textY = y - 11;
                 page.drawText(start.toLocaleDateString('de-DE'), { x: cDatum, y: textY, size: 8, font: fReg, color: offblack });
-                page.drawText(start.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }), { x: cVon, y: textY, size: 8, font: fReg, color: offblack });
-                page.drawText(end ? end.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '…', { x: cBis, y: textY, size: 8, font: fReg, color: offblack });
+                drawR(start.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }), cVonR, textY, 8, fReg, offblack);
+                drawR(end ? end.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '…', cBisR, textY, 8, fReg, offblack);
                 drawR(`${billed} Min.`, cDauer, textY, 8, fBold, offblack);
 
                 descLines.forEach(function(line, li) {
