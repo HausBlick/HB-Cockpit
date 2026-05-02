@@ -1034,8 +1034,8 @@ async function _timeGenerateReport(projId) {
 
         // ── Hinweis-Box (orange, wie im Einzelwirtschaftsplan) ─
         await ensureSpace(50);
-        const hintText = 'Dieses Dokument dient als Arbeitsnachweis für die erbrachten Leistungen. ' +
-            'Originalbelege und detaillierte Zeitprotokolle können beim Verwalter eingesehen werden.';
+        const hintText = 'Dieses Dokument dient als Arbeitsnachweis für die erbrachten Leistungen und stellt keine Rechnung dar. ' +
+            'Die Abrechnung erfolgt in der vereinbarten Taktung.';
         const hintPad = 10;
         const hintFS = 8;
         const hintLines = _pdfSplitText(hintText, fReg, hintFS, contentW - hintPad * 2 - 18);
