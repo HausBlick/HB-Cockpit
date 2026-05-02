@@ -942,14 +942,14 @@ async function _timeGenerateReport(projId) {
         let totalProjectMin = 0;
 
         // Spalten: Datum | Tätigkeit | Von | Bis | Dauer
-        const cDatum = mLeft + 3;
+        const cDatumR = mLeft + 62;  // rechtsbündige Kante Datum-Spalte
         const cTaet  = mLeft + 63;
         const cVonR  = mRight - 95;  // rechtsbündige Kante Von-Spalte
         const cBisR  = mRight - 47;  // rechtsbündige Kante Bis-Spalte
         const cDauer = mRight - 3;   // rechtsbündig
 
         const cols = [
-            { label: 'Datum',       x: cDatum },
+            { label: 'Datum',       x: cDatumR, align: 'right' },
             { label: 'Tätigkeit',   x: cTaet },
             { label: 'Von',         x: cVonR, align: 'right' },
             { label: 'Bis',         x: cBisR, align: 'right' },
@@ -996,7 +996,7 @@ async function _timeGenerateReport(projId) {
                 }
 
                 const textY = y - 11;
-                page.drawText(start.toLocaleDateString('de-DE'), { x: cDatum, y: textY, size: 8, font: fReg, color: offblack });
+                drawR(start.toLocaleDateString('de-DE'), cDatumR, textY, 8, fReg, offblack);
                 drawR(start.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }), cVonR, textY, 8, fReg, offblack);
                 drawR(end ? end.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '…', cBisR, textY, 8, fReg, offblack);
                 drawR(`${billed} Min.`, cDauer, textY, 8, fBold, offblack);
