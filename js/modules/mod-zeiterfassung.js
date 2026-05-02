@@ -876,18 +876,26 @@ async function _timeGenerateReport(projId) {
         }
 
         // Folgeseiten mit kompakter Kopfzeile
+        let currentCols = null; // gesetzt wenn Tabellenheader bei Seitenumbruch neu gezeichnet werden soll
+
         async function addPage() {
             const [copied] = await pdfDoc.copyPages(templateDoc, [0]);
             page = pdfDoc.addPage(copied);
             pgH = page.getSize().height;
-            // Kopfzeile
-            page.drawText(`Arbeitsrapport | ${p.title} | ${bldName}`, { x: mLeft, y: pgH - 40, size: 8, font: fReg, color: gray50 });
-            page.drawLine({ start: { x: mLeft, y: pgH - 45 }, end: { x: mRight, y: pgH - 45 }, thickness: 0.5, color: gray50 });
-            y = pgH - 100;
+            // Kopfzeile unterhalb der Briefbogen-Logo-Zone (~100pt ab Seitenanfang)
+            page.drawText(`Arbeitsrapport | ${p.title} | ${bldName}`, { x: mLeft, y: pgH - 112, size: 8, font: fReg, color: gray50 });
+            page.drawLine({ start: { x: mLeft, y: pgH - 118 }, end: { x: mRight, y: pgH - 118 }, thickness: 0.5, color: gray50 });
+            y = pgH - 136;
         }
 
         async function ensureSpace(needed) {
-            if (y - needed < mBottom) await addPage();
+            if (y - needed < mBottom) {
+                await addPage();
+                if (currentCols) {
+                    drawTableHeader(currentCols);
+                    y -= 2;
+                }
+            }
         }
 
         // ── Seite 1: Titel + Info-Boxen ──────────────────────
@@ -965,12 +973,11 @@ async function _timeGenerateReport(projId) {
             // Olive Tabellen-Header
             drawTableHeader(cols);
             y -= 2;
+            currentCols = cols; // Tabellenheader bei Seitenumbruch wiederholen
 
             let wpMin = 0;
 
             for (const e of wpEntries) {
-                await ensureSpace(30);
-
                 const start = new Date(e.start_time);
                 const end   = e.end_time ? new Date(e.end_time) : null;
                 const durMin  = end ? (end - start) / 60000 : 0;
@@ -980,6 +987,8 @@ async function _timeGenerateReport(projId) {
                 const desc = e.description || '—';
                 const descLines = _pdfSplitText(desc, fReg, 8, descMaxW);
                 const rowH = Math.max(16, descLines.length * 11 + 4);
+
+                await ensureSpace(rowH + 4); // tatsächliche Zeilenhöhe reservieren
 
                 // Zebra (ungerade = hb-ultralight)
                 if ((wpEntries.indexOf(e) % 2) === 1) {
@@ -1000,7 +1009,10 @@ async function _timeGenerateReport(projId) {
                 page.drawLine({ start: { x: mLeft, y }, end: { x: mRight, y }, thickness: 0.3, color: rgb(0.85, 0.87, 0.83) });
             }
 
+            currentCols = null; // Tabellenheader-Wiederholung deaktivieren
+
             // WP-Zwischensumme — Dauer rechtsbündig auf gleicher Position
+            await ensureSpace(22);
             y -= 2;
             const sumH = 18;
             page.drawRectangle({ x: mLeft, y: y - sumH, width: contentW, height: sumH, color: rgb(0.96, 0.97, 0.95) });
