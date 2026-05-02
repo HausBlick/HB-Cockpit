@@ -943,7 +943,7 @@ async function _timeGenerateReport(projId) {
 
         // Spalten: Datum | Tätigkeit | Von | Bis | Dauer
         const cDatumR = mLeft + 62;  // rechtsbündige Kante Datum-Spalte
-        const cTaet  = mLeft + 63;
+        const cTaet  = mLeft + 80;  // 18pt Abstand nach Datum-Spalte
         const cVonR  = mRight - 95;  // rechtsbündige Kante Von-Spalte
         const cBisR  = mRight - 47;  // rechtsbündige Kante Bis-Spalte
         const cDauer = mRight - 3;   // rechtsbündig
