@@ -560,6 +560,36 @@ function _etvRenderTopDetailPanel(top, resultLabelFn) {
     const result = resultLabelFn(top.result_status);
     const isNoVote = top.voting_type === 'none';
     const docs = _etvState.agendaDocs.filter(d => d.agenda_item_id === top.id);
+
+    // Anwesenheits-Daten für per-TOP-Beschlussfähigkeitsprüfung
+    const presentAtt  = _etvState.attendance.filter(a => a.is_present);
+    const totalMEA    = _etvState.apartments.reduce((s, a) => s + (a.mea_numerator || 0), 0);
+    const presentMEA  = presentAtt.reduce((s, a) => {
+        const apt = _etvState.apartments.find(ap => ap.id === a.apartment_id);
+        return s + (apt?.mea_numerator || 0);
+    }, 0);
+    const totalUnits   = _etvState.apartments.length;
+    const presentCount = presentAtt.length;
+
+    // Warnung wenn Mehrheitstyp mit aktueller Anwesenheit nicht erreichbar
+    let topWarning = null;
+    if (!isNoVote) {
+        if (top.majority_type === 'unanimous' && presentCount < totalUnits) {
+            topWarning = `Allstimmigkeit nicht erreichbar — ${totalUnits - presentCount} Eigentümer fehlen.`;
+        } else if (top.majority_type === 'double_qualified' && totalMEA > 0 && presentMEA * 2 <= totalMEA) {
+            topWarning = `Doppelt qualifizierte Mehrheit nicht erreichbar — es müssen >50% aller MEA zustimmen (aktuell ${(presentMEA / totalMEA * 100).toFixed(1)}% anwesend).`;
+        }
+    }
+
+    // Aktiver Button-Zustand basierend auf gespeichertem Ergebnis
+    const isApproved = top.result_status === 'approved';
+    const isRejected = top.result_status === 'rejected';
+    const isAbstain  = top.result_status === 'pending';
+    const hasVote    = isApproved || isRejected || isAbstain;
+    const btnBase    = 'px-4 py-3 rounded-xl font-black text-sm transition-all active:scale-95 border-2';
+    const btnJa      = `${btnBase} ${isApproved ? 'bg-hb-success text-white border-hb-success shadow-md' : 'bg-white border-hb-success/20 text-hb-success hover:bg-hb-success hover:text-white hover:border-hb-success'}`;
+    const btnNein    = `${btnBase} ${isRejected ? 'bg-hb-orange text-white border-hb-orange shadow-md'  : 'bg-white border-hb-orange/20 text-hb-orange hover:bg-hb-orange hover:text-white hover:border-hb-orange'}`;
+    const btnEnth    = `${btnBase} ${isAbstain  ? 'bg-gray-500 text-white border-gray-500 shadow-md'    : 'bg-white border-gray-200 text-gray-400 hover:bg-gray-500 hover:text-white hover:border-gray-500'}`;
     const bldDocs = docs.filter(d => d.scope === 'building');
     const ownDocs = docs.filter(d => d.scope === 'owner');
 
@@ -580,7 +610,7 @@ function _etvRenderTopDetailPanel(top, resultLabelFn) {
                         ${isNoVote ? 'Kein Beschluss' : (VOTING_TYPES[top.voting_type] || top.voting_type)}
                     </span>
                     ${!isNoVote && top.majority_type ? `
-                    <span class="bg-white/20 text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase">${top.majority_type.replace('_', ' ')} Mehrheit</span>
+                    <span class="bg-white/20 text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase">${MAJORITY_TYPES[top.majority_type] || top.majority_type.replace('_', ' ')}</span>
                     ` : ''}
                     <span class="ml-auto px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${result.cls}">${result.text}</span>
                 </div>
@@ -623,15 +653,24 @@ function _etvRenderTopDetailPanel(top, resultLabelFn) {
                 </div>
             ` : `
                 <div class="bg-hb-ultralight/60 px-5 py-5 border-t border-hb-olive/10">
+                    ${topWarning ? `
+                    <div class="flex items-start gap-2 bg-hb-error/8 border border-hb-error/20 rounded-xl px-4 py-3 mb-4">
+                        <span class="text-hb-error font-black text-base leading-none mt-0.5">!</span>
+                        <span class="text-[11px] font-bold text-hb-error leading-snug">${topWarning}</span>
+                    </div>
+                    ` : ''}
                     <div class="text-[10px] font-black text-hb-olive uppercase tracking-widest mb-3">Abstimmung</div>
                     <div class="grid grid-cols-3 gap-2">
-                        <button onclick="_etvCastVote('${top.id}', 'yes')" class="bg-white border-2 border-hb-success/20 text-hb-success px-4 py-3 rounded-xl font-black text-sm hover:bg-hb-success hover:text-white hover:border-hb-success transition-all active:scale-95">JA</button>
-                        <button onclick="_etvCastVote('${top.id}', 'no')" class="bg-white border-2 border-hb-orange/20 text-hb-orange px-4 py-3 rounded-xl font-black text-sm hover:bg-hb-orange hover:text-white hover:border-hb-orange transition-all active:scale-95">NEIN</button>
-                        <button onclick="_etvCastVote('${top.id}', 'abstain')" class="bg-white border-2 border-gray-200 text-gray-400 px-4 py-3 rounded-xl font-black text-sm hover:bg-gray-500 hover:text-white hover:border-gray-500 transition-all active:scale-95">ENTH.</button>
+                        <button onclick="_etvCastVote('${top.id}', 'yes')" class="${btnJa}">JA</button>
+                        <button onclick="_etvCastVote('${top.id}', 'no')" class="${btnNein}">NEIN</button>
+                        <button onclick="_etvCastVote('${top.id}', 'abstain')" class="${btnEnth}">ENTH.</button>
                     </div>
-                    <p class="text-[10px] font-bold text-gray-400 italic mt-3 leading-relaxed">
-                        Pauschal-Abstimmung. Einzelstimmenerfassung pro Eigentümer + automatische Mehrheits-Berechnung folgt in Phase 5.8-E.
-                    </p>
+                    ${hasVote ? `
+                    <div class="flex items-center gap-1.5 mt-3">
+                        <span class="text-hb-success text-xs font-black">✓</span>
+                        <span class="text-[10px] font-bold text-gray-500">Ergebnis gespeichert — erneut klicken zum Ändern</span>
+                    </div>
+                    ` : ''}
                 </div>
             `}
         </div>
