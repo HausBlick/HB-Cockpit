@@ -225,6 +225,7 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | RPC | migration_get_beirat_access | `get_beirat_access()` — Alle aktiven Beirat-Freigabezeiträume des Users (SECURITY DEFINER). |
 | PDF-Fix | migration_fix_umlageschluessel_format | JAB/WP-Templates: korrekte Blockfolge + EUR-Format auf Verteilung. |
 | Phase 7.2 | phase72_email_notifications | `notification_preferences` (User-Opt-In/Out pro Trigger), `email_log` (Audit-Trail), `global_settings` +3 Spalten (notifications_enabled, sender_email, sender_name). RLS, Indexes. Edge Function `send-notification` (Brevo HTTP API). |
+| Phase 5.8 | migration_etv_voting_protocol | `etv_votes.cast_by_person_id` UUID, `etv_attendance.proxy_name` TEXT, `etv_sessions` +5 Protokoll-Felder (chairman_name, secretary_name, actual_start_time, actual_end_time, general_notes), `etv_agenda_items.discussion_note`. |
 
 ---
 
@@ -291,8 +292,8 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 - 5.8-A Planung: Sessions, TOPs, Check-in, Abstimmung (MEA/Kopf/Objekt), Protokoll-PDF ✅
 - 5.8-B Einladungs-PDF mit ETV-Staging-Workflow ✅
 - 5.8-C **Dynamische Platzhalter in TOPs** (Text-Platzhalter z.B. `[BEAUFTRAGTE_FIRMA]` mit Auswahlmöglichkeiten) 📋
-- 5.8-D **Vollmachten-System** (Formular + TOP-bezogene Weisungen Ja/Nein/Enthaltung + Verwalter-Vollmacht) 📋
-- 5.8-E **Kontextsensitive Abstimmungs-Engine** (variable Abfrage-Reihenfolge, Effizienz-Logik "Einstimmiges JA", Platzhalter-Finale) 📋
+- 5.8-D **Vollmachten-System** (Formular + TOP-bezogene Weisungen Ja/Nein/Enthaltung + Verwalter-Vollmacht) ✅
+- 5.8-E **Kontextsensitive Abstimmungs-Engine** (variable Abfrage-Reihenfolge 📋, Effizienz-Logik "Einstimmiges JA" ✅, Platzhalter-Finale 📋)
 - 5.8-F **Unterschriften-Workflow + Beschlusssammlung §24 Abs. 7 WEG** (Verwalter-Eintrag wer/wann unterschrieben, automatischer Transfer in gebäudespezifische Beschlusssammlung) 📋
 - 5.8-G **Kommunikation & Termine** (Auto-News "ETV-Planung gestartet", Antragsfrist, Kalendereintrag, digitale Einladung im Portal) 📋
 - 5.8-H **Person-Grouping in Präsenzliste** (Eigentümer mit mehreren WE wird einmal angezeigt mit Badges WE01+WE04, ein Klick checkt alle WE ein/aus. MEA + Kopfprinzip aggregieren Stimmen, Objektprinzip bleibt pro WE.) 📋
