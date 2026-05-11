@@ -604,12 +604,18 @@ function _etvRenderTopDetailPanel(top, resultLabelFn) {
     const bldDocs = docs.filter(d => d.scope === 'building');
     const ownDocs = docs.filter(d => d.scope === 'owner');
 
-    const section = (label, value, opts = {}) => value ? `
+    const section = (label, value, opts = {}) => {
+        if (!value && !opts.field) return '';
+        const display = value || '<span class="italic text-gray-400">Noch nicht eingetragen.</span>';
+        return `
         <div>
-            <div class="text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">${label}</div>
-            <div class="text-[15px] text-hb-offblack leading-relaxed ${opts.italic ? 'italic text-gray-500' : ''} ${opts.box ? 'bg-hb-orange/5 border border-hb-orange/15 rounded-xl p-3' : ''} whitespace-pre-wrap">${value}</div>
+            <div class="flex items-center mb-1.5">
+                <div class="text-[10px] font-black text-hb-olive uppercase tracking-widest flex-grow">${label}</div>
+                ${opts.field ? `<button onclick="_etvQuickEditField('${top.id}','${opts.field}','${label.replace(/'/g, '&#39;')}')" class="text-[10px] text-gray-400 hover:text-hb-olive font-black px-2 py-0.5 rounded-lg hover:bg-hb-ultralight transition-all flex-shrink-0">✎ Bearbeiten</button>` : ''}
+            </div>
+            <div class="text-[15px] leading-relaxed ${value ? 'text-hb-offblack' : ''} ${opts.italic && value ? 'italic text-gray-500' : ''} ${opts.box ? 'bg-hb-orange/5 border border-hb-orange/15 rounded-xl p-3' : ''} whitespace-pre-wrap">${display}</div>
         </div>
-    ` : '';
+    `};
 
     return `
         <div class="bg-white rounded-2xl border border-hb-olive/12 shadow-sm overflow-hidden flex flex-col">
@@ -630,10 +636,10 @@ function _etvRenderTopDetailPanel(top, resultLabelFn) {
 
             <!-- Inhalt: Reihenfolge interne Notiz → Vorbemerkung → Beschlussantrag -->
             <div class="p-5 space-y-5">
-                ${section('Interne Notiz (nur Verwalter)', top.internal_note, { box: true })}
-                ${section('Vorbemerkung', top.preliminary_remark)}
-                ${section('Beschlussantrag', top.proposed_resolution || 'Kein Beschlussantrag hinterlegt.', { italic: !top.proposed_resolution })}
-                ${section('Abstimmungs-Notiz', top.result_note)}
+                ${section('Interne Notiz (nur Verwalter)', top.internal_note, { box: true, field: 'internal_note' })}
+                ${section('Vorbemerkung', top.preliminary_remark, { field: 'preliminary_remark' })}
+                ${section('Beschlussantrag', top.proposed_resolution, { field: 'proposed_resolution' })}
+                ${section('Abstimmungs-Notiz', top.result_note, { field: 'result_note' })}
 
                 ${docs.length ? `
                     <div>
@@ -1267,6 +1273,37 @@ window._etvCastVote = async (topId, vote) => {
     await _supabase.from('etv_agenda_items').update({ result_status: status }).eq('id', topId);
 
     showToast('Abstimmung abgeschlossen.', 'success');
+    _etvOpenSession(_etvState.sessionId);
+};
+
+// ─── QUICK-EDIT (Felder während Durchführung bearbeiten) ────
+
+window._etvQuickEditField = (topId, fieldName, label) => {
+    const top = _etvState.agenda.find(t => t.id === topId);
+    if (!top) return;
+    const current = top[fieldName] || '';
+    const isResolution = fieldName === 'proposed_resolution';
+    showModal('etv-qedit-modal', `
+        <div class="p-6 space-y-4">
+            <textarea id="etv-qedit-val" rows="${isResolution ? 8 : 5}"
+                class="w-full rounded-xl border border-hb-olive/20 bg-hb-ultralight px-4 py-3 text-[15px] text-hb-offblack leading-relaxed resize-none"
+                placeholder="${isResolution ? 'Beschlussantrag eingeben…' : ''}">${current}</textarea>
+            <div class="flex gap-3 justify-end">
+                <button onclick="hideModal('etv-qedit-modal')"
+                    class="px-5 py-2.5 rounded-xl border border-hb-olive/20 text-hb-offblack font-bold text-sm hover:bg-hb-ultralight transition-all">Abbrechen</button>
+                <button onclick="_etvQuickEditSave('${topId}','${fieldName}')"
+                    class="px-5 py-2.5 rounded-xl bg-hb-olive text-white font-bold text-sm hover:bg-hb-olive/90 transition-all">Speichern</button>
+            </div>
+        </div>
+    `, { title: label + ' bearbeiten', maxWidth: 'max-w-lg' });
+};
+
+window._etvQuickEditSave = async (topId, fieldName) => {
+    const val = document.getElementById('etv-qedit-val')?.value?.trim() || null;
+    const { error } = await _supabase.from('etv_agenda_items').update({ [fieldName]: val }).eq('id', topId);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    hideModal('etv-qedit-modal');
+    showToast('Gespeichert.', 'success');
     _etvOpenSession(_etvState.sessionId);
 };
 
