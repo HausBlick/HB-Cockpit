@@ -230,6 +230,7 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | Phase 5.8 | migration_etv_protokoll_signatories | `etv_sessions.beirat_signatory_1/2` TEXT — Beirat-Unterzeichner für Protokoll-PDF (wird in Nachbereitung-Tab eingetragen). |
 | Phase 5.8 | etv_protokoll_template | Default-Template `etv_protokoll` in `pdf_templates` — Anschreiben Protokoll-PDF (Seite 1), editierbar im Dokumentendesigner. |
 | DB-Fix | fix_documents_status_check_add_released | `documents.status` CHECK-Constraint um `released` erweitert (war nur draft/active/archived) — behebt Fehler beim Protokoll-/Dokument-Insert mit status='released'. |
+| Storage-Fix | fix_storage_documents_update_policy | UPDATE-Policy für `storage.objects` (bucket=documents) hinzugefügt — fehlte komplett, blockierte upsert-Uploads (z.B. Protokoll-PDF bei Neugeneration). |
 
 ---
 
