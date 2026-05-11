@@ -228,6 +228,7 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | Phase 5.8 | migration_etv_voting_protocol | `etv_votes.cast_by_person_id` UUID, `etv_attendance.proxy_name` TEXT, `etv_sessions` +5 Protokoll-Felder (chairman_name, secretary_name, actual_start_time, actual_end_time, general_notes). |
 | Cleanup | etv_drop_discussion_note | `etv_agenda_items.discussion_note` entfernt — redundant zu `result_note` (Abstimmungs-Notiz aus Tab 2). |
 | Phase 5.8 | migration_etv_protokoll_signatories | `etv_sessions.beirat_signatory_1/2` TEXT — Beirat-Unterzeichner für Protokoll-PDF (wird in Nachbereitung-Tab eingetragen). |
+| Phase 5.8 | etv_protokoll_template | Default-Template `etv_protokoll` in `pdf_templates` — Anschreiben Protokoll-PDF (Seite 1), editierbar im Dokumentendesigner. |
 
 ---
 
@@ -580,6 +581,7 @@ Migration `migration_etv_protokoll_signatories.sql`: `etv_sessions.beirat_signat
 - **`_etvSetTab()` jetzt async:** Lädt `etv_votes` beim ersten Wechsel zu Tab 3 (gecacht in `_etvState.votes`, Reset bei `_etvOpenSession`).
 - **`_etvCloseSession()` gefixt:** Schließt Session und wechselt direkt zu Tab 3 (kein Redirect auf Startseite mehr).
 - **Shared PDF-Helpers in `utils-pdf.js`:** `_pdfDrawTopHeader()` (olive Balken, dynamische Höhe, weiße Schrift) + `_pdfDrawSection()` (olive Label size 11 + mehrzeiliger Text mit Seitenumbruch-Handling) — gemeinsam genutzt von Einladungs- und Protokoll-PDF.
+- **Protokoll-Anschreiben (Seite 1) im Dokumentendesigner editierbar:** Template-Typ `etv_protokoll`. Migration `migration_etv_protokoll_template.sql`. DIN-5008-Kopf (Adressfeld, Datum, Betreff) bleibt fest; der Brieftext darunter nutzt `generateFromTemplate()` mit Legacy-Fallback. Platzhalter: `{{datum_versammlung}}`, `{{gebaeude_name}}`, `{{gebaeude_adresse}}`, `{{wirtschaftsjahr}}`, `{{firma}}`, `{{datum_heute}}`.
 
 ### Phase 7.7 — SSOT-Audit
 `getMonthlyHausgeld()` berechnet Hausgeld dynamisch aus WP + Verteilerschlüssel (3 Module umgestellt). Basiszins + Mahngebühren aus `global_settings`. Heizkosten-Split aus `distribution_keys.heiz_split_percent`. ETV-Quorum konfigurierbar (`etv_sessions.quorum_percent`, Migration `migration_etv_quorum_percent.sql`). 16 zentrale Enum-Konstanten in `config.js`, 10 Module umgestellt.
