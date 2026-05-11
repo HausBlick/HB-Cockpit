@@ -3486,9 +3486,11 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
     };
 
     // Running header für Protokoll-Seiten (ab Seite 2)
+    // Positioniert UNTERHALB des Briefbogen-Logo-Bereichs (~740pt Grenze)
+    const CONTENT_TOP = 710; // Inhalt-Start unterhalb Logo + Running-Header
     const drawRunningHeader = (pg, pNum) => {
-        const hY = pageH - 36;
-        pg.drawLine({ start: { x: mLeft, y: hY + 10 }, end: { x: mRight, y: hY + 10 }, thickness: 0.3, color: olive });
+        const hY = 730; // Unterhalb der ~740pt Briefbogen-Grenze
+        pg.drawLine({ start: { x: mLeft, y: hY + 8 }, end: { x: mRight, y: hY + 8 }, thickness: 0.3, color: olive });
         pg.drawText(`ETV ${fy} Protokoll  |  ${bldName}`, { x: mLeft, y: hY, size: 7, font: fReg, color: gray50 });
         const pStr = `${dateStr}  |  Seite ${pNum}`;
         pg.drawText(pStr, { x: mRight - fReg.widthOfTextAtSize(pStr, 7), y: hY, size: 7, font: fReg, color: gray50 });
@@ -3499,7 +3501,7 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
         if (y < mBottom + needed) {
             const newPg = await addPage();
             drawRunningHeader(newPg, pageNum);
-            return [newPg, pageH - 70];
+            return [newPg, CONTENT_TOP];
         }
         return [pg, y];
     };
@@ -3568,7 +3570,7 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
     // ════════════════════════════════════════════════════════════
     page = await addPage();
     drawRunningHeader(page, pageNum);
-    y = pageH - 70;
+    y = CONTENT_TOP;
 
     // Protokoll-Titel
     page.drawText(`ETV ${fy} (ordentliche Eigentümerversammlung)`, { x: mLeft, y, size: 16, font: fBold, color: offblack });
