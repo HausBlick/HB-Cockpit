@@ -3391,7 +3391,7 @@ async function _pdfDrawSection(page, y, label, text, { fBold, fReg, olive, offbl
         page.drawText(line, { x: mLeft + 10, y, size: 9, font: fReg, color: textColor || offblack });
         y -= 13;
     }
-    y -= 4;
+    y -= 10; // Abstand nach jeder Sektion (war 4 — zu gering)
     return [page, y];
 }
 
@@ -3698,7 +3698,7 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
                 page.drawText(val,        { x: mLeft + 130, y, size: 9, font: fReg, color: offblack });
                 y -= 13;
             }
-            y -= 4;
+            y -= 10; // Abstand vor Abstimmungsergebnis (war 4)
 
             // Abstimmungsergebnis-Zeilen
             page.drawText('Abstimmungsergebnis:', { x: mLeft + 18, y, size: 9, font: fBold, color: gray50 });
@@ -3728,7 +3728,7 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
             const bannerColor = isApproved ? green : isRejected ? rgb(0.769, 0.271, 0.239) : gray50;
             page.drawRectangle({ x: mLeft + 10, y: y - 18, width: contentW - 10, height: 18, color: bannerBg });
             page.drawText(bannerText, { x: mLeft + 18, y: y - 12, size: 9, font: fBold, color: bannerColor });
-            y -= 24;
+            y -= 34; // Banner-Unterkante + 16pt Abstand zum nächsten Label (war 24 → Überlappung)
         }
 
         // Diskussionsnotiz (= result_note aus Tab 2)
@@ -3743,7 +3743,7 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
     // ════════════════════════════════════════════════════════════
     // LETZTE SEITE — UNTERSCHRIFTEN-BLOCK
     // ════════════════════════════════════════════════════════════
-    if (y < mBottom + 200) { page = await addPage(); drawRunningHeader(page, pageNum); y = pageH - 70; }
+    if (y < mBottom + 200) { page = await addPage(); drawRunningHeader(page, pageNum); y = CONTENT_TOP; }
 
     y -= 20;
     page.drawLine({ start: { x: mLeft, y: y + 10 }, end: { x: mRight, y: y + 10 }, thickness: 0.5, color: olive });
