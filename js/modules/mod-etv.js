@@ -412,9 +412,10 @@ function _etvRenderExec() {
     const presentGroups = groups.filter(g => g.anyPresent);
 
     const resultLabel = (status) => {
-        if (status === 'approved') return { text: 'Angenommen', cls: 'bg-hb-success/12 text-hb-success border-hb-success/20' };
-        if (status === 'rejected') return { text: 'Abgelehnt', cls: 'bg-hb-orange/10 text-hb-orange border-hb-orange/20' };
-        if (status === 'postponed') return { text: 'Vertagt', cls: 'bg-gray-100 text-gray-500 border-gray-200' };
+        if (status === 'approved')  return { text: 'Angenommen',  cls: 'bg-hb-success/12 text-hb-success border-hb-success/20' };
+        if (status === 'rejected')  return { text: 'Abgelehnt',   cls: 'bg-hb-orange/10 text-hb-orange border-hb-orange/20' };
+        if (status === 'abstained') return { text: 'Enthaltung',  cls: 'bg-gray-100 text-gray-500 border-gray-300' };
+        if (status === 'postponed') return { text: 'Vertagt',     cls: 'bg-gray-100 text-gray-500 border-gray-200' };
         return { text: 'Offen', cls: 'bg-gray-100 text-gray-400 border-gray-200' };
     };
 
@@ -595,7 +596,7 @@ function _etvRenderTopDetailPanel(top, resultLabelFn) {
     // Aktiver Button-Zustand basierend auf gespeichertem Ergebnis
     const isApproved = top.result_status === 'approved';
     const isRejected = top.result_status === 'rejected';
-    const isAbstain  = top.result_status === 'pending';
+    const isAbstain  = top.result_status === 'abstained';
     const hasVote    = isApproved || isRejected || isAbstain;
     const btnBase    = 'px-4 py-3 rounded-xl font-black text-sm transition-all active:scale-95 border-2';
     const btnJa      = `${btnBase} ${isApproved ? 'bg-hb-success text-white border-hb-success shadow-md' : 'bg-white border-hb-success/20 text-hb-success hover:bg-hb-success hover:text-white hover:border-hb-success'}`;
@@ -1269,7 +1270,7 @@ window._etvCastVote = async (topId, vote) => {
     if (vErr) { showToast('Fehler beim Voten: ' + vErr.message, 'error'); return; }
 
     // 3. Status des TOP aktualisieren
-    const status = (vote === 'yes') ? 'approved' : (vote === 'no' ? 'rejected' : 'pending');
+    const status = (vote === 'yes') ? 'approved' : (vote === 'no' ? 'rejected' : 'abstained');
     await _supabase.from('etv_agenda_items').update({ result_status: status }).eq('id', topId);
 
     showToast('Abstimmung abgeschlossen.', 'success');
@@ -1426,7 +1427,13 @@ window._etvSaveSessionSettings = async () => {
 };
 
 window._etvCloseSession = async () => {
-    if (!confirm('Möchten Sie die Versammlung offiziell schließen? Danach sind keine Abstimmungen mehr möglich.')) return;
+    const votedStatuses = ['approved', 'rejected', 'abstained', 'postponed', 'none'];
+    const openTops = _etvState.agenda.filter(t => t.voting_type !== 'none' && !votedStatuses.includes(t.result_status));
+    if (openTops.length > 0) {
+        if (!confirm(`${openTops.length} TOP(s) wurden noch nicht abgestimmt. Trotzdem schließen?`)) return;
+    } else {
+        if (!confirm('Möchten Sie die Versammlung offiziell schließen? Danach sind keine Abstimmungen mehr möglich.')) return;
+    }
 
     const { error } = await _supabase.from('etv_sessions').update({ status: 'closed' }).eq('id', _etvState.sessionId);
     if (!error) {
