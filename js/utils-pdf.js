@@ -3373,7 +3373,7 @@ function _pdfDrawTopHeader(page, y, item, { fBold, white, olive }, { mLeft, cont
             size: 9.5, font: fBold, color: white
         });
     });
-    return y - barH - 6;
+    return y - barH - 14;
 }
 
 /**
@@ -3629,7 +3629,7 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
         });
         y -= 14;
     });
-    y -= 8;
+    y -= 16;
 
     // Beschlussfähigkeit-Zeile
     const quorText = `Die Eigentümerversammlung ist beschlussfähig:`;
@@ -3637,15 +3637,15 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
     const quorVal = isQuorate ? 'Ja' : 'Nein';
     const quorColor = isQuorate ? green : orange;
     page.drawText(quorVal, { x: mLeft + fBold.widthOfTextAtSize(quorText, 9) + 6, y, size: 9, font: fBold, color: quorColor });
-    y -= 13;
+    y -= 14;
     page.drawText('Die Teilnehmerliste liegt im Original beim Verwalter vor.', { x: mLeft, y, size: 8, font: fReg, color: gray50 });
-    y -= 20;
+    y -= 28;
 
     // Tagesordnungs-Kurzübersicht
-    page.drawLine({ start: { x: mLeft, y: y + 4 }, end: { x: mRight, y: y + 4 }, thickness: 0.3, color: olive });
-    y -= 4;
-    page.drawText(`Tagesordnungspunkte  (${totalCount} gesamt  /  ${approvedCount} Beschlüsse gefasst)`, { x: mLeft, y, size: 9, font: fBold, color: offblack });
-    y -= 20;
+    page.drawLine({ start: { x: mLeft, y: y + 6 }, end: { x: mRight, y: y + 6 }, thickness: 0.3, color: olive });
+    y -= 6;
+    page.drawText(`Tagesordnungspunkte  (${totalCount} gesamt  /  ${approvedCount} Beschlüsse gefasst)`, { x: mLeft, y, size: 9.5, font: fBold, color: offblack });
+    y -= 26;
 
     // ════════════════════════════════════════════════════════════
     // SEITEN 2ff — TAGESORDNUNGSPUNKTE (Design analog Einladungs-PDF)
