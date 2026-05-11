@@ -143,7 +143,7 @@ const SALUTATIONS = ['Herr', 'Frau', 'Divers', 'Eheleute', 'Familie'];
 const ETV_STATUSES       = ['planned', 'active', 'closed'];
 const ETV_STATUS_LABELS  = { planned: 'GEPLANT', active: 'AKTIV', closed: 'GESCHLOSSEN' };
 const VOTING_TYPES       = { mea: 'Wertprinzip (MEA)', heads: 'Kopfprinzip', object: 'Objektprinzip', none: 'Kein Beschluss' };
-const MAJORITY_TYPES     = { simple: 'Einfache Mehrheit', qualified: 'Qualifizierte Mehrheit', double_qualified: 'Doppelt Qualifiziert', none: 'Nicht relevant' };
+const MAJORITY_TYPES     = { simple: 'Einfache Mehrheit', qualified: 'Qualifizierte Mehrheit', double_qualified: 'Doppelt Qualifiziert', unanimous: 'Allstimmigkeit', none: 'Nicht relevant' };
 
 const BUDGET_PLAN_STATUSES = { draft: 'Entwurf', approved: 'Beschlossen', active: 'Aktiv', closed: 'Abgeschlossen' };
 
