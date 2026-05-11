@@ -3389,6 +3389,7 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
     const quorumPct  = session.quorum_percent ?? 50;
     const isQuorate  = presentPct >= quorumPct;
     const approvedCount = agenda.filter(a => a.result_status === 'approved').length;
+    const totalCount    = agenda.length;
 
     const { PDFDocument, rgb } = PDFLib;
     let templateDoc = null;

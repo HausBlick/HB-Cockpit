@@ -159,6 +159,8 @@ window._etvOpenSession = async (sessionId) => {
     _etvState.attendance = attRes.data || [];
     _etvState.apartments = aptRes.data || [];
     _etvState.owners = ownRes.data || [];
+    _etvState.votes = [];
+    _etvState._votesLoaded = false;
 
     // TOP-Dokumente laden
     const agendaIds = _etvState.agenda.map(a => a.id);
@@ -1689,8 +1691,9 @@ window._etvCloseSession = async () => {
 
     const { error } = await _supabase.from('etv_sessions').update({ status: 'closed' }).eq('id', _etvState.sessionId);
     if (!error) {
-        showToast('Versammlung geschlossen & archiviert.');
-        loadETV();
+        showToast('Versammlung geschlossen. Bitte Protokoll in Tab 3 erstellen.', 'success');
+        await _etvOpenSession(_etvState.sessionId);
+        _etvSetTab('follow');
     }
 };
 
