@@ -3836,38 +3836,46 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
     const filename = `Protokoll_ETV_${fy}_${safeName}.pdf`;
 
     if (publishNow) {
-        try {
-            const storagePath = `${bld.id}/Protokoll_ETV_${fy}.pdf`;
-            const { error: upErr } = await _supabase.storage.from('documents').upload(storagePath, pdfBytes, { contentType: 'application/pdf', upsert: true });
-            if (upErr) throw upErr;
-
-            // Upsert über file_path (korrekte Spaltenname — nicht storage_path)
+        const storagePath = `${bld.id}/Protokoll_ETV_${fy}.pdf`;
+        // 1. Storage-Upload
+        const { error: upErr } = await _supabase.storage.from('documents').upload(storagePath, pdfBytes, { contentType: 'application/pdf', upsert: true });
+        if (upErr) {
+            console.error('Protokoll Storage-Upload fehlgeschlagen:', upErr);
+            showToast('PDF erstellt, aber Upload fehlgeschlagen: ' + upErr.message, 'error');
+        } else {
+            // 2. Dokument-Eintrag anlegen / aktualisieren
             const { data: existing } = await _supabase.from('documents').select('id').eq('file_path', storagePath).maybeSingle();
+            let dbErr;
             if (existing) {
-                await _supabase.from('documents').update({
-                    status: 'released',
-                    updated_at: new Date().toISOString(),
+                const { error } = await _supabase.from('documents').update({
+                    status: 'released', updated_at: new Date().toISOString(),
                 }).eq('id', existing.id);
+                dbErr = error;
             } else {
-                await _supabase.from('documents').insert({
-                    building_id:       bld.id,
-                    title:             `Protokoll ETV ${fy}`,
-                    document_title:    `Protokoll ETV ${fy}`,
-                    original_filename: filename,
-                    file_path:         storagePath,
-                    file_type:         'application/pdf',
-                    category:          'Protokoll',
-                    year:              fy,
-                    visibility_scope:  'building',
-                    status:            'released',
-                    updated_at:        new Date().toISOString(),
-                    uploaded_by:       (typeof currentUser !== 'undefined' && currentUser?.id) || null,
+                const { error } = await _supabase.from('documents').insert({
+                    building_id:        bld.id,
+                    title:              `Protokoll ETV ${fy}`,
+                    document_title:     `Protokoll ETV ${fy}`,
+                    original_filename:  filename,
+                    generated_filename: filename,
+                    file_path:          storagePath,
+                    file_type:          'application/pdf',
+                    file_size:          pdfBytes.byteLength,
+                    category:           'Protokoll',
+                    year:               fy,
+                    visibility_scope:   'building',
+                    status:             'released',
+                    updated_at:         new Date().toISOString(),
+                    uploaded_by:        (typeof currentUser !== 'undefined' && currentUser?.id) || null,
                 });
+                dbErr = error;
             }
-            showToast('Protokoll generiert & im Portal freigegeben.', 'success');
-        } catch(e) {
-            console.error('Protokoll-Publish-Fehler:', e);
-            showToast('PDF erstellt, aber Freigabe fehlgeschlagen. Bitte manuell hochladen.', 'error');
+            if (dbErr) {
+                console.error('Protokoll DB-Insert fehlgeschlagen:', dbErr);
+                showToast('Datei hochgeladen, aber Dokument-Eintrag fehlgeschlagen: ' + dbErr.message, 'error');
+            } else {
+                showToast('Protokoll generiert & im Portal freigegeben.', 'success');
+            }
         }
     } else {
         showToast('Protokoll erfolgreich generiert.');
