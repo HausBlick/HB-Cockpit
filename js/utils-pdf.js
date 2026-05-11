@@ -3348,187 +3348,447 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData, save
 }
 
 // ─── ETV-PROTOKOLL GENERIERUNG ───────────────────────────────
-async function generateETVProtokollPDF(sessionId) {
+async function generateETVProtokollPDF(sessionId, options = {}) {
     if (typeof PDFLib === 'undefined') {
         showToast('PDF-Bibliothek nicht geladen. Bitte Seite neu laden.', 'error'); return;
     }
+    const { signatories = {}, publishNow = false } = options;
 
     showToast('ETV-Protokoll wird erstellt…');
 
     const settings = await _pdfGetSettings();
-    const { data: session } = await _supabase.from('etv_sessions').select('*, building:buildings(*)').eq('id', sessionId).single();
+    const { data: session } = await _supabase
+        .from('etv_sessions')
+        .select('*, building:buildings(id, name, file_number, street, house_number, zip_code, city)')
+        .eq('id', sessionId).single();
     if (!session) { showToast('Versammlung nicht gefunden.', 'error'); return; }
 
     const fy  = session.fiscal_year;
     const bld = session.building;
 
-    const [agendaRes, attRes, votesRes] = await Promise.all([
+    const agendaIds = (await _supabase.from('etv_agenda_items').select('id').eq('session_id', sessionId)).data?.map(i => i.id) || [];
+    const [agendaRes, attRes, votesRes, allAptsRes] = await Promise.all([
         _supabase.from('etv_agenda_items').select('*').eq('session_id', sessionId),
-        _supabase.from('etv_attendance').select('*, person:persons(first_name, last_name)').eq('session_id', sessionId),
-        _supabase.from('etv_votes').select('*').in('agenda_item_id', (await _supabase.from('etv_agenda_items').select('id').eq('session_id', sessionId)).data?.map(i => i.id) || [])
+        _supabase.from('etv_attendance').select('*, apartment:apartments(mea_numerator)').eq('session_id', sessionId),
+        agendaIds.length ? _supabase.from('etv_votes').select('*').in('agenda_item_id', agendaIds) : Promise.resolve({ data: [] }),
+        _supabase.from('apartments').select('id, mea_numerator').eq('building_id', bld.id),
     ]);
 
     const _sortOrder = (a, b) => { const pa = String(a.sort_order).split('.').map(Number), pb = String(b.sort_order).split('.').map(Number); for (let i = 0; i < Math.max(pa.length, pb.length); i++) { const va = pa[i] ?? -1, vb = pb[i] ?? -1; if (va !== vb) return va - vb; } return 0; };
-    const agenda  = (agendaRes.data || []).sort(_sortOrder);
-    const att     = attRes.data || [];
-    const votes   = votesRes.data || [];
+    const agenda   = (agendaRes.data || []).sort(_sortOrder);
+    const att      = attRes.data || [];
+    const votes    = votesRes.data || [];
+    const allApts  = allAptsRes.data || [];
 
-    // Load letterhead template
+    // Quorum-Berechnung
+    const totalUnits = allApts.length;
+    const totalMEA   = allApts.reduce((s, a) => s + (Number(a.mea_numerator) || 0), 0) || 1000;
+    const present    = att.filter(a => a.is_present);
+    const presentMEA = present.reduce((s, a) => s + (Number(a.apartment?.mea_numerator) || 0), 0);
+    const presentPct = totalMEA > 0 ? (presentMEA / totalMEA * 100) : 0;
+    const quorumPct  = session.quorum_percent ?? 50;
+    const isQuorate  = presentPct >= quorumPct;
+    const approvedCount = agenda.filter(a => a.result_status === 'approved').length;
+
     const { PDFDocument, rgb } = PDFLib;
-    let templateDoc;
+    let templateDoc = null;
     if (settings.letterhead_pdf_url) {
-        const { data: signedData } = await _supabase.storage.from('documents').createSignedUrl(settings.letterhead_pdf_url, 120);
-        if (signedData?.signedUrl) {
-            const lhResp = await fetch(signedData.signedUrl);
-            const templateBytes = await lhResp.arrayBuffer();
-            templateDoc = await PDFDocument.load(templateBytes);
-        }
+        try {
+            const { data: sd } = await _supabase.storage.from('documents').createSignedUrl(settings.letterhead_pdf_url, 120);
+            if (sd?.signedUrl) templateDoc = await PDFDocument.load(await (await fetch(sd.signedUrl)).arrayBuffer());
+        } catch(e) {}
     }
 
     const pdfDoc = await PDFDocument.create();
     pdfDoc.registerFontkit(fontkit);
-
-    // Embed Inter fonts
     const { reg: fReg, semi: fSemi, bold: fBold } = await _pdfLoadInterFonts(pdfDoc);
 
     // Colors & Layout
-    const olive = rgb(0.408, 0.455, 0.318);
+    const olive    = rgb(0.408, 0.455, 0.318);
     const offblack = rgb(0.216, 0.216, 0.216);
-    const orange = rgb(0.922, 0.463, 0.176);
-    const gray50 = rgb(0.5, 0.5, 0.5);
-    const gray40 = rgb(0.4, 0.4, 0.4);
-    const white  = rgb(1, 1, 1);
-    const mLeft = 56.7;
-    const mRight = 538.6;
+    const orange   = rgb(0.922, 0.463, 0.176);
+    const green    = rgb(0.290, 0.486, 0.349);
+    const gray50   = rgb(0.5, 0.5, 0.5);
+    const gray30   = rgb(0.3, 0.3, 0.3);
+    const white    = rgb(1, 1, 1);
+    const oliveLight = rgb(0.957, 0.961, 0.949);
+    const mLeft = 56.7, mRight = 538.6, mBottom = 80;
     const contentW = mRight - mLeft;
-    const mBottom = 100;
+    const pageH = 841.89;
+    const todayStr  = new Date().toLocaleDateString('de-DE');
+    const dateStr   = new Date(session.meeting_date).toLocaleDateString('de-DE');
+    const timeStr   = new Date(session.meeting_date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const bldName   = formatBuildingName(bld);
+    const bldAddr   = `${bld.street || ''} ${bld.house_number || ''}, ${bld.zip_code || ''} ${bld.city || ''}`.trim().replace(/^,\s*/, '');
+    const fmtMEA    = (v) => Number(v).toLocaleString('de-DE', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+    const fmtPct    = (v) => `${Number(v).toFixed(2).replace('.', ',')} %`;
 
-    const bldName = formatBuildingName(bld);
-    const dateStr = new Date(session.meeting_date).toLocaleDateString('de-DE');
-    const timeStr = new Date(session.meeting_date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    let pageNum = 0;
 
-    // Page Helper
-    async function addPage() {
-        if (!templateDoc) throw new Error('NO_LETTERHEAD');
-        const [copied] = await pdfDoc.copyPages(templateDoc, [0]);
-        const pg = pdfDoc.addPage(copied);
+    const addPage = async () => {
+        pageNum++;
+        if (templateDoc) {
+            const [copied] = await pdfDoc.copyPages(templateDoc, [0]);
+            return pdfDoc.addPage(copied);
+        }
+        const pg = pdfDoc.addPage([595.28, pageH]);
+        pg.drawText(settings.company_name || 'Hausverwaltung', { x: mLeft, y: pageH - 45, size: 11, font: fBold, color: olive });
         return pg;
-    }
+    };
 
+    // Running header für Protokoll-Seiten (ab Seite 2)
+    const drawRunningHeader = (pg, pNum) => {
+        const hY = pageH - 36;
+        pg.drawLine({ start: { x: mLeft, y: hY + 10 }, end: { x: mRight, y: hY + 10 }, thickness: 0.3, color: olive });
+        pg.drawText(`ETV ${fy} Protokoll  |  ${bldName}`, { x: mLeft, y: hY, size: 7, font: fReg, color: gray50 });
+        const pStr = `${dateStr}  |  Seite ${pNum}`;
+        pg.drawText(pStr, { x: mRight - fReg.widthOfTextAtSize(pStr, 7), y: hY, size: 7, font: fReg, color: gray50 });
+    };
+
+    // Seitenumbruch-Helfer: prüft ob y zu tief, gibt ggf. neue Seite + Reset-Y zurück
+    const checkBreak = async (pg, y, needed = 80) => {
+        if (y < mBottom + needed) {
+            const newPg = await addPage();
+            drawRunningHeader(newPg, pageNum);
+            return [newPg, pageH - 70];
+        }
+        return [pg, y];
+    };
+
+    // Text-Block zeichnen (mehrzeilig, optional eingerückt), gibt neues y zurück
+    const drawBlock = async (pg, y, text, font, size, color, indent = 0, lineH = null) => {
+        const lh = lineH || (size * 1.5);
+        const lines = _pdfSplitText(text || '', font, size, contentW - indent - 2);
+        for (const line of lines) {
+            [pg, y] = await checkBreak(pg, y, 30);
+            pg.drawText(line, { x: mLeft + indent, y, size, font, color });
+            y -= lh;
+        }
+        return [pg, y];
+    };
+
+    // ════════════════════════════════════════════════════════════
+    // SEITE 1 — ANSCHREIBEN
+    // ════════════════════════════════════════════════════════════
     let page = await addPage();
-    let y = 740; // Start below logo
+    let y = 740;
 
-    // ── TITEL & META ─────────────────────────────────────────
-    page.drawText('PROTOKOLL', { x: mLeft, y, size: 24, font: fBold, color: olive });
+    // DIN 5008: Adressfeld (generisch für alle Eigentümer)
+    const addrBlock = [
+        settings.company_name || 'Hausverwaltung',
+        `${bldName}`,
+        'An alle Wohnungseigentümer',
+    ];
+    addrBlock.forEach((line, i) => {
+        page.drawText(line, { x: mLeft, y: y - i * 14, size: 10, font: i === 0 ? fSemi : fReg, color: offblack });
+    });
+    y -= addrBlock.length * 14 + 28;
+
+    // Datum rechtsbündig
+    const dW = fReg.widthOfTextAtSize(todayStr, 10);
+    page.drawText(todayStr, { x: mRight - dW, y: y + 14, size: 10, font: fReg, color: gray50 });
+
+    // Betreff
+    page.drawText(`${bldName}  —  Übersendung Protokoll`, { x: mLeft, y, size: 12, font: fBold, color: offblack });
+    y -= 16;
+    page.drawText(`Eigentümerversammlung vom ${dateStr}  |  Wirtschaftsjahr ${fy}`, { x: mLeft, y, size: 9, font: fSemi, color: olive });
     y -= 28;
-    page.drawText('der Eigentümerversammlung', { x: mLeft, y, size: 14, font: fSemi, color: offblack });
+
+    // Brieftext
+    const anschreiben = `in der Anlage erhalten Sie das Protokoll der Eigentümerversammlung vom ${dateStr} zur Kenntnisnahme und für Ihre Unterlagen.\n\nDas unterschriebene Originalprotokoll ist bei der Verwaltung hinterlegt und kann dort auf Anfrage eingesehen werden (§ 24 Abs. 6 WEG).`;
+    page.drawText('Sehr geehrte Eigentümerinnen und Eigentümer,', { x: mLeft, y, size: 10, font: fReg, color: offblack });
+    y -= 16;
+    for (const para of anschreiben.split('\n\n')) {
+        const lines = _pdfSplitText(para, fReg, 10, contentW);
+        for (const line of lines) { page.drawText(line, { x: mLeft, y, size: 10, font: fReg, color: offblack }); y -= 14; }
+        y -= 6;
+    }
+    y -= 16;
+    page.drawText('Vielen Dank', { x: mLeft, y, size: 10, font: fReg, color: offblack }); y -= 20;
+    page.drawText('Mit freundlichen Grüßen', { x: mLeft, y, size: 10, font: fReg, color: offblack }); y -= 20;
+    page.drawText(settings.company_name || 'Hausverwaltung', { x: mLeft, y, size: 10, font: fBold, color: offblack });
     y -= 40;
 
-    // Info-Box (Objekt & Termin)
-    page.drawRectangle({ x: mLeft, y: y - 65, width: contentW, height: 65, color: rgb(0.98, 0.98, 0.96), borderColor: rgb(0.9, 0.9, 0.8), borderWidth: 0.5 });
-    page.drawText('Objekt:', { x: mLeft + 10, y: y - 18, size: 8, font: fBold, color: gray50 });
-    page.drawText(bldName, { x: mLeft + 10, y: y - 32, size: 10, font: fSemi, color: offblack });
-    
-    page.drawText('Termin:', { x: mLeft + 250, y: y - 18, size: 8, font: fBold, color: gray50 });
-    page.drawText(`${dateStr} um ${timeStr} Uhr`, { x: mLeft + 250, y: y - 32, size: 10, font: fSemi, color: offblack });
-    
-    page.drawText('Ort:', { x: mLeft + 250, y: y - 48, size: 8, font: fBold, color: gray50 });
-    page.drawText(session.location || 'Vor Ort / Online', { x: mLeft + 275, y: y - 48, size: 8, font: fReg, color: offblack });
-    y -= 85;
+    // Anlage
+    page.drawLine({ start: { x: mLeft, y: y + 8 }, end: { x: mLeft + 80, y: y + 8 }, thickness: 0.5, color: olive });
+    page.drawText('Anlage', { x: mLeft, y, size: 9, font: fBold, color: offblack }); y -= 14;
+    page.drawText(`•  Protokoll der Eigentümerversammlung vom ${dateStr}`, { x: mLeft + 8, y, size: 9, font: fReg, color: offblack });
 
-    // ── TEILNEHMER & QUORUM ──────────────────────────────────
-    page.drawText('1. Teilnehmer & Beschlussfähigkeit', { x: mLeft, y, size: 11, font: fBold, color: olive });
+    // ════════════════════════════════════════════════════════════
+    // SEITE 2 — PROTOKOLL-KOPF
+    // ════════════════════════════════════════════════════════════
+    page = await addPage();
+    drawRunningHeader(page, pageNum);
+    y = pageH - 70;
+
+    // Protokoll-Titel
+    page.drawText(`ETV ${fy} (ordentliche Eigentümerversammlung)`, { x: mLeft, y, size: 16, font: fBold, color: offblack });
+    y -= 18;
+    page.drawText('Protokoll Eigentümerversammlung', { x: mLeft, y, size: 11, font: fSemi, color: gray50 });
+    y -= 14;
+    page.drawText(`WEG ${bldAddr}`, { x: mLeft, y, size: 10, font: fReg, color: offblack });
+    y -= 22;
+
+    // ── Formalia-Box ──────────────────────────────────────────
+    const fmtTime = (t) => t ? t.slice(0, 5) : '—';
+    const formaliaRows = [
+        ['Versammlungsbeginn', s => s.actual_start_time ? `${dateStr}, ${fmtTime(s.actual_start_time)} Uhr` : dateStr],
+        ['Versammlungsort',    s => s.location || '—'],
+        ['Versammlungsende',   s => s.actual_end_time   ? `${dateStr}, ${fmtTime(s.actual_end_time)} Uhr`  : '—'],
+        ['Versammlungsleitung', s => s.chairman_name || signatories.vl || '—'],
+        ['Protokollführung',   s => s.secretary_name || signatories.pf || '—'],
+        ['Einladung fristgemäß', () => 'Ja, gemäß § 24 Abs. 4 Satz 2 WEG'],
+    ];
+    const fBoxH = formaliaRows.length * 18 + 16;
+    page.drawRectangle({ x: mLeft, y: y - fBoxH, width: contentW, height: fBoxH, borderColor: olive, borderWidth: 0.5, color: rgb(0.99, 0.99, 0.98) });
+    let fY = y - 12;
+    for (const [label, valFn] of formaliaRows) {
+        page.drawText(label + ':', { x: mLeft + 8, y: fY, size: 8.5, font: fBold, color: gray30 });
+        page.drawText(valFn(session), { x: mLeft + 170, y: fY, size: 8.5, font: fReg, color: offblack });
+        fY -= 18;
+    }
+    y -= fBoxH + 18;
+
+    // ── Beschlussfähigkeits-Tabelle ───────────────────────────
+    page.drawText('Feststellung der Beschlussfähigkeit bei Versammlungsbeginn', { x: mLeft, y, size: 9.5, font: fBold, color: offblack });
+    y -= 14;
+
+    const tCols = [mLeft, mLeft + 200, mLeft + 300, mLeft + 400];
+    const tW    = [200, 100, 100, 100];
+    const headers = ['', 'MEA', 'Einheiten', 'Anteil'];
+    // Header-Zeile
+    page.drawRectangle({ x: mLeft, y: y - 16, width: contentW, height: 16, color: olive });
+    headers.forEach((h, i) => {
+        if (h) page.drawText(h, { x: tCols[i] + 4, y: y - 12, size: 8, font: fBold, color: white });
+    });
+    y -= 16;
+
+    const tRows = [
+        ['Summe anwesend (u. vertreten)', fmtMEA(presentMEA), `${present.length}`, fmtPct(presentPct)],
+        ['von insgesamt',                 fmtMEA(totalMEA),   `${totalUnits}`,      ''],
+        ['Summe abwesend',                fmtMEA(totalMEA - presentMEA), `${totalUnits - present.length}`, ''],
+        ['Gesamtsumme',                   fmtMEA(totalMEA),   `${totalUnits}`,      '100,00 %'],
+    ];
+    tRows.forEach((row, ri) => {
+        const rowBg = ri % 2 === 0 ? rgb(0.99, 0.99, 0.98) : white;
+        page.drawRectangle({ x: mLeft, y: y - 14, width: contentW, height: 14, color: rowBg, borderColor: rgb(0.92, 0.93, 0.90), borderWidth: 0.3 });
+        row.forEach((cell, ci) => {
+            const isFirst = ci === 0;
+            page.drawText(cell, { x: tCols[ci] + 4, y: y - 10, size: 8, font: isFirst ? fSemi : fReg, color: offblack });
+        });
+        y -= 14;
+    });
+    y -= 8;
+
+    // Beschlussfähigkeit-Zeile
+    const quorText = `Die Eigentümerversammlung ist beschlussfähig:`;
+    page.drawText(quorText, { x: mLeft, y, size: 9, font: fBold, color: offblack });
+    const quorVal = isQuorate ? 'Ja' : 'Nein';
+    const quorColor = isQuorate ? green : orange;
+    page.drawText(quorVal, { x: mLeft + fBold.widthOfTextAtSize(quorText, 9) + 6, y, size: 9, font: fBold, color: quorColor });
+    y -= 13;
+    page.drawText('Die Teilnehmerliste liegt im Original beim Verwalter vor.', { x: mLeft, y, size: 8, font: fReg, color: gray50 });
     y -= 20;
 
-    const present = att.filter(a => a.is_present);
-    const { data: allApts } = await _supabase.from('apartments').select('mea_numerator').eq('building_id', bld.id);
-    const totalMEA = allApts?.reduce((sum, a) => sum + (Number(a.mea_numerator) || 0), 0) || 1000;
-    
-    const { data: presentApts } = await _supabase.from('apartments').select('mea_numerator').in('id', present.map(p => p.apartment_id));
-    const presentMEA = presentApts?.reduce((sum, a) => sum + (Number(a.mea_numerator) || 0), 0) || 0;
-    const percent = (presentMEA / totalMEA * 100).toFixed(2);
-
-    page.drawText(`Es sind ${present.length} stimmberechtigte Einheiten anwesend oder vertreten.`, { x: mLeft, y, size: 9, font: fReg, color: offblack });
-    y -= 14;
-    page.drawText(`Vertretene Miteigentumsanteile (MEA): ${presentMEA.toLocaleString('de-DE')} von ${totalMEA.toLocaleString('de-DE')} (${percent}%).`, { x: mLeft, y, size: 9, font: fReg, color: offblack });
-    y -= 14;
-    const quorumThreshold = session.quorum_percent ?? 50;
-    page.drawText(`Die Versammlung ist gemäß § 25 WEG ${percent >= quorumThreshold ? 'BESCHLUSSFÄHIG' : 'NICHT BESCHLUSSFÄHIG'}.`, { x: mLeft, y, size: 9, font: fBold, color: percent >= quorumThreshold ? olive : orange });
-    y -= 35;
-
-    // ── TAGESORDNUNG & BESCHLÜSSE ──────────────────────────
-    page.drawText('2. Ergebnisse der Tagesordnung', { x: mLeft, y, size: 11, font: fBold, color: olive });
+    // Tagesordnungs-Kurzübersicht
+    page.drawLine({ start: { x: mLeft, y: y + 4 }, end: { x: mRight, y: y + 4 }, thickness: 0.3, color: olive });
+    y -= 4;
+    page.drawText(`Tagesordnungspunkte  (${totalCount} gesamt  /  ${approvedCount} Beschlüsse gefasst)`, { x: mLeft, y, size: 9, font: fBold, color: offblack });
     y -= 20;
+
+    // ════════════════════════════════════════════════════════════
+    // SEITEN 2ff — TAGESORDNUNGSPUNKTE
+    // ════════════════════════════════════════════════════════════
+    const majorityLabels = { simple: 'Einfache Mehrheit', qualified: 'Qualifizierte Mehrheit', double_qualified: 'Doppelt qualifizierte Mehrheit', unanimous: 'Allstimmigkeit', none: '—' };
+    const votingLabels   = { mea: 'Wertprinzip (MEA)', heads: 'Kopfprinzip', object: 'Objektprinzip', none: '—' };
 
     for (const item of agenda) {
-        if (y < mBottom + 120) { page = await addPage(); y = 740; }
+        // Mindest-Höhe für TOP-Header schätzen (50pt Reserve)
+        [page, y] = await checkBreak(page, y, 90);
 
-        // TOP Header
-        page.drawRectangle({ x: mLeft, y: y - 22, width: contentW, height: 22, color: rgb(0.95, 0.96, 0.93) });
-        page.drawText(`TOP ${item.sort_order}: ${item.title}`, { x: mLeft + 8, y: y - 15, size: 10, font: fBold, color: olive });
-        y -= 30;
+        // TOP-Header (olive Balken)
+        const headerH = 20;
+        page.drawRectangle({ x: mLeft, y: y - headerH, width: contentW, height: headerH, color: olive });
+        const topTitle = `TOP ${item.sort_order}  —  ${item.title}`;
+        page.drawText(topTitle, { x: mLeft + 8, y: y - 14, size: 9.5, font: fBold, color: white });
+        y -= headerH + 8;
 
-        // Beschlussantrag
-        page.drawText('Beschlussantrag:', { x: mLeft + 10, y, size: 7.5, font: fBold, color: gray50 });
-        y -= 11;
-        const antrext = item.proposed_resolution || 'Kein Beschlussantrag hinterlegt.';
-        const antLines = _pdfSplitText(antrext, fReg, 9, contentW - 25);
-        for (const line of antLines) {
-            page.drawText(line, { x: mLeft + 10, y, size: 9, font: fReg, color: offblack });
-            y -= 13;
-            if (y < mBottom + 40) { page = await addPage(); y = 740; }
+        // Vorbemerkung
+        if (item.preliminary_remark) {
+            [page, y] = await checkBreak(page, y, 30);
+            page.drawText('Vorbemerkung', { x: mLeft + 8, y, size: 7.5, font: fBold, color: gray50 });
+            y -= 11;
+            [page, y] = await drawBlock(page, y, item.preliminary_remark, fReg, 9, offblack, 8);
+            y -= 6;
         }
-        y -= 8;
 
-        // Ergebnis
+        // Inhalt / Beschlussantrag
+        [page, y] = await checkBreak(page, y, 30);
         if (item.voting_type === 'none') {
-            page.drawText('Kein Beschluss — nicht abstimmungsrelevant', { x: mLeft + 10, y, size: 9, font: fSemi, color: gray50 });
-            y -= 30;
+            page.drawText('Inhalt', { x: mLeft + 8, y, size: 7.5, font: fBold, color: gray50 });
         } else {
-            const itemVotes = votes.filter(v => v.agenda_item_id === item.id);
-            const yes = itemVotes.filter(v => v.vote === 'yes').reduce((sum, v) => sum + (Number(v.weight_mea) || 0), 0);
-            const no  = itemVotes.filter(v => v.vote === 'no').reduce((sum, v) => sum + (Number(v.weight_mea) || 0), 0);
-            const abs = itemVotes.filter(v => v.vote === 'abstain').reduce((sum, v) => sum + (Number(v.weight_mea) || 0), 0);
-
-            const resLabel = item.result_status.toUpperCase();
-            const resColor = item.result_status === 'approved' ? olive : (item.result_status === 'rejected' ? orange : offblack);
-
-            page.drawText(`Abstimmung (MEA): JA: ${yes.toLocaleString('de-DE')} | NEIN: ${no.toLocaleString('de-DE')} | ENTH.: ${abs.toLocaleString('de-DE')}`, { x: mLeft + 10, y, size: 8, font: fSemi, color: gray50 });
-            y -= 14;
-            page.drawText(`Beschluss-Ergebnis: ${resLabel}`, { x: mLeft + 10, y, size: 9, font: fBold, color: resColor });
-            y -= 30;
+            page.drawText('Beschluss', { x: mLeft + 8, y, size: 7.5, font: fBold, color: gray50 });
         }
+        y -= 11;
+        [page, y] = await drawBlock(page, y, item.proposed_resolution || 'Kein Text hinterlegt.', fReg, 9, offblack, 8);
+        y -= 6;
+
+        // Abstimmungsergebnis (nur wenn Beschluss-TOP)
+        if (item.voting_type !== 'none') {
+            [page, y] = await checkBreak(page, y, 60);
+
+            const itemVotes = votes.filter(v => v.agenda_item_id === item.id);
+            const yesMEA  = itemVotes.filter(v => v.vote === 'yes').reduce((s,v) => s + (Number(v.weight_mea)||0), 0);
+            const noMEA   = itemVotes.filter(v => v.vote === 'no').reduce((s,v) => s + (Number(v.weight_mea)||0), 0);
+            const absMEA  = itemVotes.filter(v => v.vote === 'abstain').reduce((s,v) => s + (Number(v.weight_mea)||0), 0);
+            const yesObj  = itemVotes.filter(v => v.vote === 'yes').length;
+            const noObj   = itemVotes.filter(v => v.vote === 'no').length;
+            const absObj  = itemVotes.filter(v => v.vote === 'abstain').length;
+            const totMEA  = yesMEA + noMEA + absMEA;
+            const yesPct  = totMEA > 0 ? (yesMEA / totMEA * 100) : 0;
+
+            // Feststellung-Box
+            page.drawText('Feststellung und Verkündung', { x: mLeft + 8, y, size: 7.5, font: fBold, color: gray50 });
+            y -= 11;
+
+            const festRows = [
+                ['Beschlussregel', majorityLabels[item.majority_type] || item.majority_type || '—'],
+                ['Prinzip',        votingLabels[item.voting_type]     || item.voting_type   || '—'],
+                ['Abstimmung',     'Offen'],
+            ];
+            for (const [lbl, val] of festRows) {
+                page.drawText(lbl + ':', { x: mLeft + 16, y, size: 8.5, font: fBold, color: gray30 });
+                page.drawText(val,       { x: mLeft + 130, y, size: 8.5, font: fReg,  color: offblack });
+                y -= 13;
+            }
+            y -= 3;
+            page.drawText('Abstimmungsergebnis:', { x: mLeft + 16, y, size: 8.5, font: fBold, color: gray30 }); y -= 13;
+            const ergebnis = [
+                [`abgegebene MEA`, `= ${fmtMEA(totMEA)}`],
+                [`MEA ja`,         `= ${fmtMEA(yesMEA)}  (${yesObj} Obj.)`],
+                [`MEA nein`,       `= ${fmtMEA(noMEA)}   (${noObj} Obj.)`],
+                [`MEA enthalten`,  `= ${fmtMEA(absMEA)}  (${absObj} Obj.)`],
+            ];
+            for (const [lbl, val] of ergebnis) {
+                page.drawText(lbl,  { x: mLeft + 24, y, size: 8.5, font: fReg,  color: gray30   });
+                page.drawText(val,  { x: mLeft + 130, y, size: 8.5, font: fSemi, color: offblack });
+                y -= 12;
+            }
+            const pctText = `${fmtPct(yesPct)} der abgegebenen MEA stimmten ja.`;
+            page.drawText(pctText, { x: mLeft + 24, y, size: 8, font: fReg, color: gray50 });
+            y -= 14;
+
+            // Ergebnis-Banner
+            [page, y] = await checkBreak(page, y, 24);
+            const isApproved = item.result_status === 'approved';
+            const isRejected = item.result_status === 'rejected';
+            const bannerColor = isApproved ? rgb(0.882, 0.937, 0.898) : isRejected ? rgb(0.961, 0.882, 0.878) : rgb(0.95, 0.95, 0.95);
+            const bannerText  = isApproved ? 'Der Beschluss wurde angenommen.' : isRejected ? 'Der Beschluss wurde abgelehnt.' : 'Abstimmung ausstehend.';
+            const bannerTColor = isApproved ? green : isRejected ? rgb(0.769, 0.271, 0.239) : gray50;
+            page.drawRectangle({ x: mLeft + 8, y: y - 16, width: contentW - 8, height: 16, color: bannerColor });
+            page.drawText(bannerText, { x: mLeft + 16, y: y - 11, size: 8.5, font: fBold, color: bannerTColor });
+            y -= 20;
+        }
+
+        // Diskussionsnotiz
+        if (item.discussion_note) {
+            [page, y] = await checkBreak(page, y, 24);
+            page.drawText('Diskussionsnotiz', { x: mLeft + 8, y, size: 7.5, font: fBold, color: gray50 });
+            y -= 11;
+            [page, y] = await drawBlock(page, y, item.discussion_note, fReg, 8.5, gray50, 8);
+        }
+
+        y -= 14; // Abstand zwischen TOPs
     }
 
-    // ── UNTERSCHRIFTEN ───────────────────────────────────────
-    if (y < 220) { page = await addPage(); y = 740; }
-    y -= 30;
-    page.drawLine({ start: { x: mLeft, y: y + 10 }, end: { x: mRight, y: y + 10 }, thickness: 0.5, color: dividerColor });
-    
-    const signText = `Dieses Protokoll wurde maschinell am ${dateStr} erstellt. Die Richtigkeit der vorstehenden Feststellungen wird durch die Unterschriften der gemäß § 24 Abs. 6 WEG dazu verpflichteten Personen bestätigt.`;
-    const signLines = _pdfSplitText(signText, fReg, 9, contentW);
-    for (const line of signLines) {
-        page.drawText(line, { x: mLeft, y, size: 9, font: fReg, color: gray40 });
-        y -= 13;
-    }
+    // ════════════════════════════════════════════════════════════
+    // LETZTE SEITE — UNTERSCHRIFTEN-BLOCK
+    // ════════════════════════════════════════════════════════════
+    if (y < mBottom + 200) { page = await addPage(); drawRunningHeader(page, pageNum); y = pageH - 70; }
 
-    y -= 50;
-    const fieldW = 145;
-    const fY = y;
-    
-    page.drawLine({ start: { x: mLeft, y: fY }, end: { x: mLeft + fieldW, y: fY }, thickness: 0.5, color: offblack });
-    page.drawText('Versammlungsleiter', { x: mLeft, y: fY - 12, size: 7, font: fReg, color: gray50 });
+    y -= 20;
+    page.drawLine({ start: { x: mLeft, y: y + 10 }, end: { x: mRight, y: y + 10 }, thickness: 0.5, color: olive });
 
-    page.drawLine({ start: { x: mLeft + 165, y: fY }, end: { x: mLeft + 165 + fieldW, y: fY }, thickness: 0.5, color: offblack });
-    page.drawText('Beirat / Eigentümer', { x: mLeft + 165, y: fY - 12, size: 7, font: fReg, color: gray50 });
+    const signIntro = `Dieses Protokoll wurde am ${dateStr} in ${session.location || 'Versammlungsort'} aufgenommen. Die Richtigkeit der vorstehenden Feststellungen wird durch die nachstehenden Unterschriften gemäß § 24 Abs. 6 WEG bestätigt.`;
+    [page, y] = await drawBlock(page, y, signIntro, fReg, 9, gray30);
+    y -= 20;
 
-    page.drawLine({ start: { x: mLeft + 330, y: fY }, end: { x: mLeft + 330 + fieldW, y: fY }, thickness: 0.5, color: offblack });
-    page.drawText('Beirat / Eigentümer', { x: mLeft + 330, y: fY - 12, size: 7, font: fReg, color: gray50 });
+    // 2×2 Unterschriften-Felder
+    const placeholder = '______ (Hier Name in Druckbuchstaben einfügen)';
+    const signFields = [
+        { label: 'Versammlungsleiter',   name: signatories.vl || session.chairman_name  || null, x: mLeft,       },
+        { label: 'Protokollführer',       name: signatories.pf || session.secretary_name || null, x: mLeft + 248, },
+    ];
+    const signFields2 = [
+        { label: 'Beirat / Eigentümer',  name: signatories.b1 || session.beirat_signatory_1 || null, x: mLeft,       },
+        { label: 'Beirat / Eigentümer',  name: signatories.b2 || session.beirat_signatory_2 || null, x: mLeft + 248, },
+    ];
 
+    const drawSignRow = (pg, fy2, fields) => {
+        for (const f of fields) {
+            const lineW = 175;
+            pg.drawLine({ start: { x: f.x, y: fy2 }, end: { x: f.x + lineW, y: fy2 }, thickness: 0.5, color: offblack });
+            if (f.name) {
+                pg.drawText(f.name, { x: f.x, y: fy2 - 12, size: 8, font: fSemi, color: offblack });
+            } else {
+                pg.drawText(placeholder, { x: f.x, y: fy2 - 12, size: 7, font: fReg, color: gray50 });
+            }
+            pg.drawText(f.label, { x: f.x, y: fy2 - 24, size: 7, font: fBold, color: gray50 });
+            pg.drawText(`Datum: ____________________`, { x: f.x, y: fy2 - 36, size: 7, font: fReg, color: gray50 });
+        }
+    };
+
+    drawSignRow(page, y, signFields);
+    y -= 55;
+    drawSignRow(page, y, signFields2);
+    y -= 55;
+
+    // Hinweis Original beim Verwalter
+    [page, y] = await checkBreak(page, y, 60);
+    y -= 10;
+    page.drawRectangle({ x: mLeft, y: y - 52, width: contentW, height: 52, color: oliveLight, borderColor: olive, borderWidth: 0.5 });
+    page.drawText('Hinweis gemäß § 24 Abs. 6 WEG', { x: mLeft + 10, y: y - 14, size: 8, font: fBold, color: olive });
+    const hintText = 'Das Original dieses Protokolls mit den handschriftlichen Unterschriften verbleibt beim Verwalter und kann dort auf Anfrage eingesehen werden. Im Portal wird ausschließlich die elektronische Fassung veröffentlicht.';
+    const hintLines = _pdfSplitText(hintText, fReg, 8, contentW - 20);
+    hintLines.forEach((l, i) => page.drawText(l, { x: mLeft + 10, y: y - 26 - i * 11, size: 8, font: fReg, color: gray30 }));
+
+    // ════════════════════════════════════════════════════════════
+    // SPEICHERN / VERÖFFENTLICHEN / DOWNLOAD
+    // ════════════════════════════════════════════════════════════
     const pdfBytes = await pdfDoc.save();
-    const filename = `Protokoll_ETV_${fy}_${bldName.replace(/[^a-z0-9]/gi, '_')}.pdf`;
+    const safeName = bldName.replace(/[^a-z0-9äöüß]/gi, '_');
+    const filename = `Protokoll_ETV_${fy}_${safeName}.pdf`;
+
+    if (publishNow) {
+        try {
+            const storagePath = `${bld.id}/Protokoll_ETV_${fy}.pdf`;
+            await _supabase.storage.from('documents').upload(storagePath, pdfBytes, { contentType: 'application/pdf', upsert: true });
+            // Dokument-Eintrag (upsert über storage_path)
+            const { data: existing } = await _supabase.from('documents').select('id').eq('storage_path', storagePath).maybeSingle();
+            if (existing) {
+                await _supabase.from('documents').update({ status: 'released', updated_at: new Date().toISOString() }).eq('id', existing.id);
+            } else {
+                await _supabase.from('documents').insert({
+                    building_id: bld.id,
+                    file_name: filename,
+                    original_filename: filename,
+                    document_title: `Protokoll ETV ${fy}`,
+                    storage_path: storagePath,
+                    file_type: 'application/pdf',
+                    category: 'Protokoll',
+                    visibility_scope: 'building',
+                    status: 'released',
+                });
+            }
+            showToast(`Protokoll generiert & im Portal freigegeben.`, 'success');
+        } catch(e) {
+            showToast('PDF erstellt, aber Freigabe fehlgeschlagen. Bitte manuell freigeben.', 'error');
+        }
+    } else {
+        showToast('Protokoll erfolgreich generiert.');
+    }
+
     _pdfDownload(pdfBytes, filename);
-    showToast('Protokoll erfolgreich generiert.');
 }
 
 // ─── ETV Einladungs-PDF ───────────────────────────────────────
