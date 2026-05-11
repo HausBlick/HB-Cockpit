@@ -226,6 +226,7 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | PDF-Fix | migration_fix_umlageschluessel_format | JAB/WP-Templates: korrekte Blockfolge + EUR-Format auf Verteilung. |
 | Phase 7.2 | phase72_email_notifications | `notification_preferences` (User-Opt-In/Out pro Trigger), `email_log` (Audit-Trail), `global_settings` +3 Spalten (notifications_enabled, sender_email, sender_name). RLS, Indexes. Edge Function `send-notification` (Brevo HTTP API). |
 | Phase 5.8 | migration_etv_voting_protocol | `etv_votes.cast_by_person_id` UUID, `etv_attendance.proxy_name` TEXT, `etv_sessions` +5 Protokoll-Felder (chairman_name, secretary_name, actual_start_time, actual_end_time, general_notes), `etv_agenda_items.discussion_note`. |
+| Phase 5.8 | migration_etv_protokoll_signatories | `etv_sessions.beirat_signatory_1/2` TEXT — Beirat-Unterzeichner für Protokoll-PDF (wird in Nachbereitung-Tab eingetragen). |
 
 ---
 
@@ -553,13 +554,29 @@ Migration `phase81_special_roles_and_allocatable`: 6 Rollen (+landlord, +advisor
 ### Phase 5.8 ETV-Ausbau (Voting, Proxy, Protokoll-Formalia)
 Migration `migration_etv_voting_protocol.sql`: `etv_votes.cast_by_person_id` UUID, `etv_attendance.proxy_name` TEXT, `etv_sessions.{chairman_name, secretary_name, actual_start_time, actual_end_time, general_notes}`, `etv_agenda_items.discussion_note`.
 
-**Neu implementiert in `mod-etv.js` (v20260511e):**
+**Neu implementiert in `mod-etv.js` (v20260511f):**
 - **Quorum-Warnung pro TOP:** `topNeedsWarning()` prüft `unanimous` (alle WE müssen anwesend sein) und `double_qualified` (>50% aller MEA nötig). Badge "! Nicht erreichbar" in TOP-Liste und Detail-Panel.
 - **Abstimmungs-Korrektur:** Button-Zustand spiegelt gespeichertes Ergebnis (aktiver Button hervorgehoben). Enthaltung als eigener Status `abstained` (nicht mehr `pending`). `_etvCloseSession()` prüft offene TOPs (Enthaltung gilt als abgestimmt).
 - **Inline-Edit (Quick-Edit):** ✎-Button neben Interne Notiz, Vorbemerkung, Beschlussantrag, Abstimmungs-Notiz → `_etvQuickEditField()` / `_etvQuickEditSave()` via `showModal`.
 - **Vollmachten (Proxy-Check-in):** Dual-Button-Layout im Check-in-Modal (CHECK-IN | Vertreten). `_etvOpenProxyModal()` (z-[70]) mit Proxy-Name + optionalen Vorab-Weisungen per TOP (`instructions` JSONB). `_etvSaveProxy()` setzt `is_present=true` + `proxy_name`. `_etvClearProxy()` löscht Vollmacht. Vollmacht-Badge in Präsenzliste sichtbar.
 - **Einzelstimmen (`_etvOpenIndividualVoting`):** Modal (z-[70]) mit per-Einheit JA/NEIN/ENTH-Buttons. "Alle auf JA setzen"-Button. Proxy-Weisungen werden vorausgefüllt (Weisung-Badge). Live-Zusammenfassung. Speichert in `etv_votes` mit `cast_by_person_id`. Berechnet `result_status` nach Mehrheitstyp (unanimous/double_qualified/qualified/simple).
 - **Protokoll-Formalia:** Banner im Durchführungs-Tab mit "Formalia erfassen"-Button. `_etvProtocolModal()` erfasst Versammlungsleiter, Protokollführer, Beginn, Ende, Notizen. `_etvSaveProtocolData()` speichert in `etv_sessions`. "Versammlung beenden"-Button direkt im Banner.
+
+### Phase 5.8 ETV-Nachbereitung (Tab 3 — Protokoll)
+Migration `migration_etv_protokoll_signatories.sql`: `etv_sessions.beirat_signatory_1/2` TEXT.
+
+**Neu implementiert in `mod-etv.js` + `utils-pdf.js` (v20260511f):**
+- **`_etvRenderFollow()` komplett neu:** Protokoll-Vorschau mit allen TOPs als Accordion (ausklappbar). Pro TOP editierbare Felder: Vorbemerkung, Beschlussantrag, Diskussionsnotiz + Abstimmungs-Zusammenfassung (MEA ja/nein/enth. mit Objektanzahl und %). `_etvFollowSaveTop(id)` speichert per UPSERT in `etv_agenda_items`.
+- **Formalia-Sektion:** Read-only Zusammenfassung (Beginn, Ende, Ort, VL, Prot.) mit "Bearbeiten"-Link → `_etvProtocolModal()`.
+- **Unterzeichner-Eingabe:** 4 Felder (VL, PF, Beirat 1, Beirat 2) — vorbelegt aus Session, Beirat-Felder leer. Werden bei PDF-Generierung in `etv_sessions` gespeichert.
+- **Freigabe-Toggle:** "Im Portal freigeben" — Checkbox in UI. Wenn aktiv: PDF wird in Storage hochgeladen + `documents`-Eintrag mit `status='released'` angelegt.
+- **`generateETVProtokollPDF()` komplett neu geschrieben:**
+  - Seite 1: Anschreiben (DIN 5008, Briefbogen, Standard-Text mit Anlage-Zeile)
+  - Seite 2: Protokoll-Kopf (Formalia-Box, Beschlussfähigkeits-3-Spalten-Tabelle MEA/Einheiten/Anteil, TOP-Kurzübersicht)
+  - Seiten 2ff: TOPs — olive Header-Balken, Vorbemerkung, Beschluss/Inhalt, Feststellung+Verkündung-Box (Beschlussregel/Prinzip/Abstimmungsergebnis mit MEA-Zeilen), Ergebnis-Banner (grün/rot), Diskussionsnotiz
+  - Letzte Seite: 2×2 Unterschriften-Felder mit Name oder Platzhalter "___ (Hier Name in Druckbuchstaben einfügen)", Datum-Linie, olive Hinweis-Box §24 Abs. 6 WEG
+  - `publishNow=true`: Upload zu `{buildingId}/Protokoll_ETV_{fy}.pdf` in documents-Bucket + documents-DB-Eintrag `status='released'`
+- **`_etvSetTab()` jetzt async:** Lädt `etv_votes` beim ersten Wechsel zu Tab 3 (gecacht in `_etvState.votes`)
 
 ### Phase 7.7 — SSOT-Audit
 `getMonthlyHausgeld()` berechnet Hausgeld dynamisch aus WP + Verteilerschlüssel (3 Module umgestellt). Basiszins + Mahngebühren aus `global_settings`. Heizkosten-Split aus `distribution_keys.heiz_split_percent`. ETV-Quorum konfigurierbar (`etv_sessions.quorum_percent`, Migration `migration_etv_quorum_percent.sql`). 16 zentrale Enum-Konstanten in `config.js`, 10 Module umgestellt.

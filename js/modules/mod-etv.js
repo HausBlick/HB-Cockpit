@@ -25,6 +25,8 @@ const _etvState = {
     apartments: [],
     owners: [],
     agendaDocs: [],
+    votes: [],          // Abstimmungsergebnisse (wird beim Wechsel zu Nachbereitung geladen)
+    _votesLoaded: false,
     selectedTopId: null, // aktiver TOP im rechten Detail-Panel der Durchführung
     sidebarCollapsed: true, // Quorum/Anwesenheits-Sidebar in der Durchführung
     activeTab: 'prep', // prep (Vorbereitung), exec (Durchführung), follow (Nachbereitung)
@@ -731,66 +733,247 @@ window._etvSelectTop = (topId) => {
  * PHASE 3: Nachbereitung (Protokoll & Versiegelung)
  */
 function _etvRenderFollow() {
+    const s = _etvState.session;
+    if (!s) return '<div class="p-10 text-center text-gray-400">Keine Versammlung geladen.</div>';
+
+    const agenda = _etvState.agenda;
+    const approvedCount = agenda.filter(a => a.result_status === 'approved').length;
+    const totalCount = agenda.length;
+
+    // Formalia-Daten
+    const fmtTime = (t) => t ? t.slice(0, 5) : '—';
+    const meetingDate = s.meeting_date ? new Date(s.meeting_date).toLocaleDateString('de-DE') : '—';
+    const formaliaRows = [
+        ['Versammlungsbeginn', s.actual_start_time ? `${meetingDate}, ${fmtTime(s.actual_start_time)} Uhr` : meetingDate],
+        ['Versammlungsende',   s.actual_end_time   ? `${meetingDate}, ${fmtTime(s.actual_end_time)} Uhr`  : '—'],
+        ['Versammlungsort',    s.location || '—'],
+        ['Versammlungsleitung', s.chairman_name || '—'],
+        ['Protokollführung',   s.secretary_name || '—'],
+    ].map(([label, val]) => `
+        <div class="flex gap-4 py-2.5 border-b border-hb-olive/6 last:border-0">
+            <span class="text-[11px] font-black text-gray-400 uppercase tracking-wide w-44 shrink-0">${label}</span>
+            <span class="text-sm font-bold text-hb-offblack">${val}</span>
+        </div>`).join('');
+
+    // TOPs accordion
+    const topItems = agenda.map(top => {
+        const itemVotes = _etvState.votes.filter(v => v.agenda_item_id === top.id);
+        const yesMEA  = itemVotes.filter(v => v.vote === 'yes').reduce((s,v) => s + (Number(v.weight_mea)||0), 0);
+        const noMEA   = itemVotes.filter(v => v.vote === 'no').reduce((s,v) => s + (Number(v.weight_mea)||0), 0);
+        const absMEA  = itemVotes.filter(v => v.vote === 'abstain').reduce((s,v) => s + (Number(v.weight_mea)||0), 0);
+        const yesObj  = itemVotes.filter(v => v.vote === 'yes').length;
+        const noObj   = itemVotes.filter(v => v.vote === 'no').length;
+        const absObj  = itemVotes.filter(v => v.vote === 'abstain').length;
+        const totalMEA = yesMEA + noMEA + absMEA;
+
+        let statusBadge = '';
+        if (top.voting_type === 'none') {
+            statusBadge = '<span class="text-[10px] font-black text-gray-400 uppercase bg-gray-100 px-2 py-0.5 rounded-md">Kein Beschluss</span>';
+        } else if (top.result_status === 'approved') {
+            statusBadge = '<span class="text-[10px] font-black text-hb-success uppercase bg-hb-success/10 border border-hb-success/20 px-2 py-0.5 rounded-md">✓ Angenommen</span>';
+        } else if (top.result_status === 'rejected') {
+            statusBadge = '<span class="text-[10px] font-black text-hb-error uppercase bg-hb-error/10 border border-hb-error/20 px-2 py-0.5 rounded-md">✗ Abgelehnt</span>';
+        } else {
+            statusBadge = '<span class="text-[10px] font-black text-gray-400 uppercase bg-gray-100 px-2 py-0.5 rounded-md">Ausstehend</span>';
+        }
+
+        const votingBlock = top.voting_type !== 'none' ? `
+            <div class="mb-4">
+                <div class="text-[10px] font-black text-hb-olive uppercase tracking-widest mb-2">Abstimmungsergebnis</div>
+                <div class="bg-hb-ultralight rounded-xl p-4 border border-hb-olive/10">
+                    <div class="grid grid-cols-2 gap-x-8 gap-y-1 text-sm mb-3">
+                        <div class="flex justify-between">
+                            <span class="text-gray-500 text-xs">Beschlussregel</span>
+                            <span class="font-bold text-xs">${MAJORITY_TYPES[top.majority_type] || top.majority_type || '—'}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500 text-xs">Prinzip</span>
+                            <span class="font-bold text-xs">${VOTING_TYPES[top.voting_type] || top.voting_type || '—'}</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 text-center">
+                        <div class="bg-hb-success/10 border border-hb-success/20 rounded-xl p-2">
+                            <div class="text-[10px] text-hb-success font-black uppercase">JA</div>
+                            <div class="font-black text-hb-offblack text-sm">${yesMEA.toLocaleString('de-DE', {minimumFractionDigits:3})}</div>
+                            <div class="text-[10px] text-gray-400">${yesObj} Obj. · ${totalMEA > 0 ? (yesMEA/totalMEA*100).toFixed(1) : 0}%</div>
+                        </div>
+                        <div class="bg-hb-error/8 border border-hb-error/15 rounded-xl p-2">
+                            <div class="text-[10px] text-hb-error font-black uppercase">NEIN</div>
+                            <div class="font-black text-hb-offblack text-sm">${noMEA.toLocaleString('de-DE', {minimumFractionDigits:3})}</div>
+                            <div class="text-[10px] text-gray-400">${noObj} Obj.</div>
+                        </div>
+                        <div class="bg-gray-100 border border-gray-200 rounded-xl p-2">
+                            <div class="text-[10px] text-gray-500 font-black uppercase">ENTH.</div>
+                            <div class="font-black text-hb-offblack text-sm">${absMEA.toLocaleString('de-DE', {minimumFractionDigits:3})}</div>
+                            <div class="text-[10px] text-gray-400">${absObj} Obj.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>` : '';
+
+        return `
+        <div class="border border-hb-olive/10 rounded-2xl overflow-hidden mb-3">
+            <button onclick="_etvFollowToggleTop('${top.id}')" class="w-full flex items-center gap-4 px-5 py-4 bg-hb-ultralight hover:bg-hb-olive/8 transition-all text-left">
+                <span class="text-[10px] font-black text-hb-olive bg-hb-olive/10 px-2 py-1 rounded-lg tracking-widest shrink-0">TOP ${top.sort_order}</span>
+                <span class="font-black text-hb-offblack flex-1 text-sm">${top.title}</span>
+                ${statusBadge}
+                <svg id="etv-follow-chevron-${top.id}" class="w-4 h-4 text-gray-400 transition-transform shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div id="etv-follow-body-${top.id}" class="hidden px-5 pb-5 pt-4 space-y-4">
+                ${top.preliminary_remark ? `
+                <div>
+                    <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Vorbemerkung</label>
+                    <textarea id="etv-follow-remark-${top.id}" rows="3" class="w-full bg-hb-ultralight rounded-xl px-4 py-3 text-sm border border-hb-olive/10 focus:border-hb-olive focus:ring-1 focus:ring-hb-olive/20 resize-none">${top.preliminary_remark || ''}</textarea>
+                </div>` : ''}
+                <div>
+                    <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Beschlussantrag</label>
+                    <textarea id="etv-follow-resolution-${top.id}" rows="4" class="w-full bg-hb-ultralight rounded-xl px-4 py-3 text-sm border border-hb-olive/10 focus:border-hb-olive focus:ring-1 focus:ring-hb-olive/20 resize-none">${top.proposed_resolution || ''}</textarea>
+                </div>
+                ${votingBlock}
+                <div>
+                    <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Diskussionsnotiz <span class="text-gray-400 normal-case font-normal">(optional — erscheint im Protokoll)</span></label>
+                    <textarea id="etv-follow-discussion-${top.id}" rows="2" class="w-full bg-hb-ultralight rounded-xl px-4 py-3 text-sm border border-hb-olive/10 focus:border-hb-olive focus:ring-1 focus:ring-hb-olive/20 resize-none">${top.discussion_note || ''}</textarea>
+                </div>
+                <div class="flex justify-end">
+                    <button onclick="_etvFollowSaveTop('${top.id}')" class="bg-hb-olive text-white text-xs font-black px-5 py-2 rounded-xl hover:opacity-90 transition-all">Speichern</button>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+
+    const s1 = s.beirat_signatory_1 || '';
+    const s2 = s.beirat_signatory_2 || '';
+
     return `
-        <div class="max-w-4xl mx-auto space-y-8 pb-20">
-            <!-- Protokoll-Erstellung -->
-            <div class="bg-white p-10 rounded-3xl border border-hb-olive/12 shadow-xl overflow-hidden relative">
-                <div class="absolute top-0 right-0 p-8 opacity-5 scale-150 rotate-12">${icons.document || ''}</div>
-                
-                <h2 class="text-3xl font-black text-hb-offblack mb-4 tracking-tighter">Protokoll-Finale</h2>
-                <p class="text-[15px] text-gray-400 max-w-xl leading-relaxed font-bold mb-10">
-                    Die Versammlung ist abgeschlossen. Generieren Sie nun das rechtssichere Protokoll zur Unterschrift und Veröffentlichung.
-                </p>
+        <div class="max-w-4xl mx-auto space-y-6 pb-20">
 
-                <div class="bg-hb-ultralight p-8 rounded-2xl border border-hb-olive/10 mb-10 relative">
-                    <div class="absolute -top-3 left-8 bg-hb-olive text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest">Unterschriften-Status</div>
-                    <div class="text-[15px] text-gray-600 leading-relaxed italic">
-                        "Dieses Protokoll wurde am ${new Date().toLocaleDateString('de-DE')} von [Versammlungsleiter] und [Beirat] unterzeichnet. 
-                        Das Original mit den handschriftlichen Unterschriften kann gemäß § 24 Abs. 6 WEG beim Verwalter eingesehen werden."
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <button onclick="_etvGenProtokoll()" class="bg-hb-olive text-white py-5 rounded-2xl font-black shadow-lg hover:shadow-2xl hover:translate-y-[-4px] transition-all flex flex-col items-center gap-1">
-                        <span class="text-lg tracking-tight">Protokoll PDF generieren</span>
-                        <span class="text-[10px] opacity-60 font-bold uppercase tracking-widest">Inkl. Unterschriften-Layer</span>
-                    </button>
-                    <button onclick="_etvPublishProtokoll()" class="bg-hb-ultralight text-hb-olive py-5 rounded-2xl font-black border border-hb-olive/10 hover:bg-hb-olive hover:text-white transition-all flex flex-col items-center gap-1">
-                        <span class="text-lg tracking-tight">Im Portal freigeben</span>
-                        <span class="text-[10px] opacity-60 font-bold uppercase tracking-widest">Mitteilung an Eigentümer</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Beschlusssammlung §24 Abs 7 -->
-            <div class="bg-white p-10 rounded-3xl border border-hb-olive/10 shadow-sm">
-                <div class="flex justify-between items-center mb-6">
+            <!-- Protokoll-Vorschau -->
+            <div class="bg-white p-8 rounded-3xl border border-hb-olive/12 shadow-sm">
+                <div class="flex items-start justify-between mb-6">
                     <div>
-                        <h4 class="font-black text-hb-offblack text-xl tracking-tight">Transfer in Beschlusssammlung</h4>
-                        <p class="text-[10px] text-hb-olive font-black uppercase tracking-widest mt-1">Rechtssicherheit gemäß § 24 Abs. 7 WEG</p>
+                        <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">Protokoll-Vorschau</h2>
+                        <p class="text-[15px] text-gray-400 mt-1 leading-relaxed">Prüfen und bearbeiten Sie die Texte vor der PDF-Generierung. Interne Notizen erscheinen nicht im Protokoll.</p>
                     </div>
-                    <button onclick="_etvSyncCollection()" class="bg-hb-ultralight text-hb-olive px-6 py-3 rounded-2xl text-xs font-black border border-hb-olive/10 hover:bg-hb-olive hover:text-white transition-all">
-                        Jetzt synchronisieren
-                    </button>
+                    <span class="shrink-0 bg-hb-ultralight border border-hb-olive/12 text-hb-olive text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl">
+                        ${approvedCount} / ${totalCount} Beschlüsse
+                    </span>
                 </div>
-                <div class="bg-gray-50 rounded-2xl p-6 border border-gray-100 flex items-center gap-6">
-                    <div class="bg-white p-4 rounded-xl shadow-sm text-hb-olive font-black text-2xl">${_etvState.agenda.filter(a => a.result_status === 'approved').length}</div>
-                    <div class="text-xs text-gray-400 leading-relaxed">
-                        Beschlüsse wurden in dieser Versammlung gefasst und stehen für die Übernahme in die gesetzliche Beschlusssammlung bereit.
+                ${agenda.length === 0
+                    ? '<div class="bg-hb-ultralight rounded-2xl p-8 text-center text-[15px] text-gray-400">Keine Tagesordnungspunkte vorhanden.</div>'
+                    : topItems}
+            </div>
+
+            <!-- Formalia -->
+            <div class="bg-white p-8 rounded-3xl border border-hb-olive/12 shadow-sm">
+                <div class="flex items-start justify-between mb-5">
+                    <div>
+                        <h3 class="text-xl font-black text-hb-offblack tracking-tight">Formalia</h3>
+                        <p class="text-[10px] text-hb-olive font-black uppercase tracking-widest mt-0.5">Protokoll-Daten der Versammlung</p>
                     </div>
+                    <button onclick="_etvProtocolModal()" class="text-xs font-black text-hb-olive bg-hb-ultralight hover:bg-hb-olive hover:text-white px-4 py-2 rounded-xl transition-all border border-hb-olive/10">Bearbeiten</button>
+                </div>
+                <div>${formaliaRows}</div>
+                ${s.general_notes ? `<div class="mt-4 bg-hb-ultralight rounded-xl p-4 border border-hb-olive/10">
+                    <div class="text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1">Allgemeine Notizen</div>
+                    <p class="text-sm text-gray-600">${s.general_notes}</p>
+                </div>` : ''}
+            </div>
+
+            <!-- PDF generieren & Unterzeichner -->
+            <div class="bg-white p-8 rounded-3xl border border-hb-olive/12 shadow-sm">
+                <h3 class="text-xl font-black text-hb-offblack tracking-tight mb-1">Protokoll generieren</h3>
+                <p class="text-[15px] text-gray-400 mb-6 leading-relaxed">Geben Sie die Unterzeichner an. Leere Felder erscheinen als Platzhalter im PDF.</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Versammlungsleiter</label>
+                        <input type="text" id="etv-sign-vl" value="${s.chairman_name || ''}" placeholder="Name (bleibt leer = Platzhalter im PDF)" class="w-full">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Protokollführer</label>
+                        <input type="text" id="etv-sign-pf" value="${s.secretary_name || ''}" placeholder="Name (bleibt leer = Platzhalter im PDF)" class="w-full">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Unterzeichner Beirat 1 <span class="text-gray-400 normal-case font-normal">(optional)</span></label>
+                        <input type="text" id="etv-sign-b1" value="${s1}" placeholder="Name Beirat / Eigentümer" class="w-full">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Unterzeichner Beirat 2 <span class="text-gray-400 normal-case font-normal">(optional)</span></label>
+                        <input type="text" id="etv-sign-b2" value="${s2}" placeholder="Name Beirat / Eigentümer" class="w-full">
+                    </div>
+                </div>
+
+                <!-- Freigabe-Option -->
+                <div class="bg-hb-ultralight rounded-2xl p-5 border border-hb-olive/10 mb-6 flex items-center justify-between gap-4">
+                    <div>
+                        <div class="font-black text-hb-offblack text-sm">Im Portal freigeben</div>
+                        <div class="text-xs text-gray-400 mt-0.5">Protokoll wird nach Generierung sofort für Eigentümer sichtbar. Kann auch später manuell freigegeben werden.</div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" id="etv-publish-now" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-hb-olive/20 rounded-full peer peer-checked:bg-hb-olive after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                    </label>
+                </div>
+
+                <button id="etv-gen-protokoll-btn" onclick="_etvGenProtokoll()" class="w-full bg-hb-olive text-white py-4 rounded-2xl font-black text-base shadow-lg hover:shadow-xl hover:translate-y-[-2px] transition-all">
+                    Protokoll PDF generieren
+                </button>
+
+                <!-- Hinweis Original beim Verwalter -->
+                <div class="mt-5 bg-hb-ultralight border border-hb-olive/10 rounded-2xl p-5">
+                    <div class="text-[10px] font-black text-hb-olive uppercase tracking-widest mb-2">§ 24 Abs. 6 WEG — Hinweis zu Unterschriften</div>
+                    <p class="text-[15px] text-gray-500 leading-relaxed">Das generierte PDF enthält Unterschriften-Blöcke für die handschriftliche Unterzeichnung. Das Original mit den geleisteten Unterschriften verbleibt beim Verwalter und kann dort auf Anfrage eingesehen werden. Im Portal wird ausschließlich die elektronische Fassung veröffentlicht.</p>
                 </div>
             </div>
+
         </div>
     `;
 }
+
+window._etvFollowToggleTop = (id) => {
+    const body = document.getElementById(`etv-follow-body-${id}`);
+    const chev = document.getElementById(`etv-follow-chevron-${id}`);
+    if (!body) return;
+    body.classList.toggle('hidden');
+    chev?.classList.toggle('rotate-180');
+};
+
+window._etvFollowSaveTop = async (id) => {
+    const top = _etvState.agenda.find(a => a.id === id);
+    if (!top) return;
+    const resolution  = document.getElementById(`etv-follow-resolution-${id}`)?.value?.trim() ?? top.proposed_resolution;
+    const discussion  = document.getElementById(`etv-follow-discussion-${id}`)?.value?.trim() ?? top.discussion_note;
+    const remark      = document.getElementById(`etv-follow-remark-${id}`)?.value?.trim()     ?? top.preliminary_remark;
+
+    const { error } = await _supabase.from('etv_agenda_items').update({
+        proposed_resolution: resolution || null,
+        discussion_note:     discussion  || null,
+        preliminary_remark:  remark      || null,
+    }).eq('id', id);
+
+    if (error) { showToast('Fehler beim Speichern.', 'error'); return; }
+    top.proposed_resolution = resolution || null;
+    top.discussion_note     = discussion  || null;
+    top.preliminary_remark  = remark      || null;
+    showToast('TOP gespeichert.');
+};
 
 /**
  * Hilfsfunktionen für Navigation und Modals
  */
 
-window._etvSetTab = (tab) => {
+window._etvSetTab = async (tab) => {
     _etvState.activeTab = tab;
     _etvRenderMain();
+    if (tab === 'follow' && _etvState.sessionId && !_etvState._votesLoaded) {
+        const agendaIds = _etvState.agenda.map(a => a.id);
+        if (agendaIds.length) {
+            const { data } = await _supabase.from('etv_votes').select('*').in('agenda_item_id', agendaIds);
+            _etvState.votes = data || [];
+        }
+        _etvState._votesLoaded = true;
+        _etvRenderMain();
+    }
 };
 
 // ─── SESSIONS ────────────────────────────────────────────────
@@ -1387,7 +1570,34 @@ window._etvGenProtokoll = async () => {
     if (typeof generateETVProtokollPDF !== 'function') {
         showToast('PDF-Modul nicht bereit.', 'error'); return;
     }
-    await generateETVProtokollPDF(_etvState.sessionId);
+    const btn = document.getElementById('etv-gen-protokoll-btn');
+    const vl = document.getElementById('etv-sign-vl')?.value.trim() || null;
+    const pf = document.getElementById('etv-sign-pf')?.value.trim() || null;
+    const b1 = document.getElementById('etv-sign-b1')?.value.trim() || null;
+    const b2 = document.getElementById('etv-sign-b2')?.value.trim() || null;
+    const publishNow = document.getElementById('etv-publish-now')?.checked || false;
+
+    // Namen in DB speichern für spätere Re-Generierung
+    await _supabase.from('etv_sessions').update({
+        chairman_name:       vl,
+        secretary_name:      pf,
+        beirat_signatory_1:  b1,
+        beirat_signatory_2:  b2,
+    }).eq('id', _etvState.sessionId);
+    _etvState.session.chairman_name      = vl;
+    _etvState.session.secretary_name     = pf;
+    _etvState.session.beirat_signatory_1 = b1;
+    _etvState.session.beirat_signatory_2 = b2;
+
+    if (btn) { btn.disabled = true; btn.textContent = 'PDF wird erstellt…'; }
+    try {
+        await generateETVProtokollPDF(_etvState.sessionId, {
+            signatories: { vl, pf, b1, b2 },
+            publishNow,
+        });
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Protokoll PDF generieren'; }
+    }
 };
 
 window._etvEditSessionSettings = () => {
