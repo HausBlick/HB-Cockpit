@@ -3347,6 +3347,54 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData, save
     }
 }
 
+// ─── ETV PDF SHARED HELPERS ──────────────────────────────────
+// Gemeinsam genutzt von Einladungs- und Protokoll-PDF
+
+/**
+ * Zeichnet einen TOP-Header-Balken (olive, weiße Schrift, dynamische Höhe).
+ * Gibt das neue y zurück.
+ */
+function _pdfDrawTopHeader(page, y, item, { fBold, white, olive }, { mLeft, contentW }) {
+    const topLabel = `TOP ${item.sort_order}  `;
+    const labelW   = fBold.widthOfTextAtSize(topLabel, 9.5);
+    const titleLines = _pdfSplitText(item.title, fBold, 9.5, contentW - labelW - 16);
+    const barH = Math.max(24, 10 + titleLines.length * 14);
+    page.drawRectangle({ x: mLeft, y: y - barH, width: contentW, height: barH, color: olive });
+    const baseY = y - barH + (barH - 10) / 2;
+    page.drawText(topLabel, {
+        x: mLeft + 8,
+        y: baseY + (titleLines.length > 1 ? (titleLines.length - 1) * 7 : 0),
+        size: 9.5, font: fBold, color: white
+    });
+    titleLines.forEach((l, i) => {
+        page.drawText(l, {
+            x: mLeft + 8 + labelW,
+            y: baseY + (titleLines.length - 1 - i) * 14,
+            size: 9.5, font: fBold, color: white
+        });
+    });
+    return y - barH - 6;
+}
+
+/**
+ * Zeichnet ein Label + mehrzeiliges Textblock-Paar.
+ * Gibt [page, y] zurück (behandelt Seitenumbrüche via checkBreakFn).
+ */
+async function _pdfDrawSection(page, y, label, text, { fBold, fReg, olive, offblack }, { mLeft, mBottom }, checkBreakFn, textColor = null) {
+    if (!text) return [page, y];
+    [page, y] = await checkBreakFn(page, y, 30);
+    page.drawText(label + ':', { x: mLeft + 10, y, size: 11, font: fBold, color: olive });
+    y -= 16;
+    const lines = _pdfSplitText(text, fReg, 9, 450);
+    for (const line of lines) {
+        [page, y] = await checkBreakFn(page, y, 14);
+        page.drawText(line, { x: mLeft + 10, y, size: 9, font: fReg, color: textColor || offblack });
+        y -= 13;
+    }
+    y -= 4;
+    return [page, y];
+}
+
 // ─── ETV-PROTOKOLL GENERIERUNG ───────────────────────────────
 async function generateETVProtokollPDF(sessionId, options = {}) {
     if (typeof PDFLib === 'undefined') {
@@ -3598,108 +3646,96 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
     y -= 20;
 
     // ════════════════════════════════════════════════════════════
-    // SEITEN 2ff — TAGESORDNUNGSPUNKTE
+    // SEITEN 2ff — TAGESORDNUNGSPUNKTE (Design analog Einladungs-PDF)
     // ════════════════════════════════════════════════════════════
     const majorityLabels = { simple: 'Einfache Mehrheit', qualified: 'Qualifizierte Mehrheit', double_qualified: 'Doppelt qualifizierte Mehrheit', unanimous: 'Allstimmigkeit', none: '—' };
     const votingLabels   = { mea: 'Wertprinzip (MEA)', heads: 'Kopfprinzip', object: 'Objektprinzip', none: '—' };
+    const sharedFonts    = { fBold, fSemi, fReg, white, olive, offblack };
+    const sharedLayout   = { mLeft, mRight, mBottom, contentW };
+    const cbFn           = checkBreak; // alias für _pdfDrawSection
 
     for (const item of agenda) {
-        // Mindest-Höhe für TOP-Header schätzen (50pt Reserve)
-        [page, y] = await checkBreak(page, y, 90);
+        [page, y] = await checkBreak(page, y, 60);
 
-        // TOP-Header (olive Balken)
-        const headerH = 20;
-        page.drawRectangle({ x: mLeft, y: y - headerH, width: contentW, height: headerH, color: olive });
-        const topTitle = `TOP ${item.sort_order}  —  ${item.title}`;
-        page.drawText(topTitle, { x: mLeft + 8, y: y - 14, size: 9.5, font: fBold, color: white });
-        y -= headerH + 8;
+        // TOP-Header — olive Balken, dynamische Höhe (shared helper, identisch zur Einladung)
+        y = _pdfDrawTopHeader(page, y, item, sharedFonts, sharedLayout);
 
         // Vorbemerkung
-        if (item.preliminary_remark) {
-            [page, y] = await checkBreak(page, y, 30);
-            page.drawText('Vorbemerkung', { x: mLeft + 8, y, size: 7.5, font: fBold, color: gray50 });
-            y -= 11;
-            [page, y] = await drawBlock(page, y, item.preliminary_remark, fReg, 9, offblack, 8);
-            y -= 6;
-        }
+        [page, y] = await _pdfDrawSection(page, y, 'Vorbemerkung', item.preliminary_remark, sharedFonts, sharedLayout, cbFn, gray50);
 
         // Inhalt / Beschlussantrag
-        [page, y] = await checkBreak(page, y, 30);
-        if (item.voting_type === 'none') {
-            page.drawText('Inhalt', { x: mLeft + 8, y, size: 7.5, font: fBold, color: gray50 });
-        } else {
-            page.drawText('Beschluss', { x: mLeft + 8, y, size: 7.5, font: fBold, color: gray50 });
-        }
-        y -= 11;
-        [page, y] = await drawBlock(page, y, item.proposed_resolution || 'Kein Text hinterlegt.', fReg, 9, offblack, 8);
-        y -= 6;
+        const resLabel = item.voting_type === 'none' ? 'Inhalt' : 'Beschlussantrag';
+        [page, y] = await _pdfDrawSection(page, y, resLabel, item.proposed_resolution || 'Kein Text hinterlegt.', sharedFonts, sharedLayout, cbFn);
 
-        // Abstimmungsergebnis (nur wenn Beschluss-TOP)
+        // Feststellung und Verkündung (nur bei Beschluss-TOPs)
         if (item.voting_type !== 'none') {
             [page, y] = await checkBreak(page, y, 60);
 
             const itemVotes = votes.filter(v => v.agenda_item_id === item.id);
-            const yesMEA  = itemVotes.filter(v => v.vote === 'yes').reduce((s,v) => s + (Number(v.weight_mea)||0), 0);
-            const noMEA   = itemVotes.filter(v => v.vote === 'no').reduce((s,v) => s + (Number(v.weight_mea)||0), 0);
-            const absMEA  = itemVotes.filter(v => v.vote === 'abstain').reduce((s,v) => s + (Number(v.weight_mea)||0), 0);
-            const yesObj  = itemVotes.filter(v => v.vote === 'yes').length;
-            const noObj   = itemVotes.filter(v => v.vote === 'no').length;
-            const absObj  = itemVotes.filter(v => v.vote === 'abstain').length;
-            const totMEA  = yesMEA + noMEA + absMEA;
-            const yesPct  = totMEA > 0 ? (yesMEA / totMEA * 100) : 0;
+            const yesMEA = itemVotes.filter(v => v.vote === 'yes').reduce((s,v) => s + (Number(v.weight_mea)||0), 0);
+            const noMEA  = itemVotes.filter(v => v.vote === 'no').reduce((s,v) => s + (Number(v.weight_mea)||0), 0);
+            const absMEA = itemVotes.filter(v => v.vote === 'abstain').reduce((s,v) => s + (Number(v.weight_mea)||0), 0);
+            const yesObj = itemVotes.filter(v => v.vote === 'yes').length;
+            const noObj  = itemVotes.filter(v => v.vote === 'no').length;
+            const absObj = itemVotes.filter(v => v.vote === 'abstain').length;
+            const totMEA = yesMEA + noMEA + absMEA;
+            const yesPct = totMEA > 0 ? (yesMEA / totMEA * 100) : 0;
 
-            // Feststellung-Box
-            page.drawText('Feststellung und Verkündung', { x: mLeft + 8, y, size: 7.5, font: fBold, color: gray50 });
-            y -= 11;
+            // Label wie in der Einladung (olive, size 11)
+            page.drawText('Feststellung und Verkündung:', { x: mLeft + 10, y, size: 11, font: fBold, color: olive });
+            y -= 18;
 
-            const festRows = [
-                ['Beschlussregel', majorityLabels[item.majority_type] || item.majority_type || '—'],
-                ['Prinzip',        votingLabels[item.voting_type]     || item.voting_type   || '—'],
+            // Metadaten-Zeilen (Beschlussregel, Prinzip, Abstimmung)
+            const metaRows = [
+                ['Beschlussregel', majorityLabels[item.majority_type] || '—'],
+                ['Prinzip',        votingLabels[item.voting_type]     || '—'],
                 ['Abstimmung',     'Offen'],
             ];
-            for (const [lbl, val] of festRows) {
-                page.drawText(lbl + ':', { x: mLeft + 16, y, size: 8.5, font: fBold, color: gray30 });
-                page.drawText(val,       { x: mLeft + 130, y, size: 8.5, font: fReg,  color: offblack });
+            for (const [lbl, val] of metaRows) {
+                page.drawText(lbl + ':', { x: mLeft + 18, y, size: 9, font: fBold, color: gray50 });
+                page.drawText(val,        { x: mLeft + 130, y, size: 9, font: fReg, color: offblack });
                 y -= 13;
             }
-            y -= 3;
-            page.drawText('Abstimmungsergebnis:', { x: mLeft + 16, y, size: 8.5, font: fBold, color: gray30 }); y -= 13;
+            y -= 4;
+
+            // Abstimmungsergebnis-Zeilen
+            page.drawText('Abstimmungsergebnis:', { x: mLeft + 18, y, size: 9, font: fBold, color: gray50 });
+            y -= 13;
             const ergebnis = [
-                [`abgegebene MEA`, `= ${fmtMEA(totMEA)}`],
-                [`MEA ja`,         `= ${fmtMEA(yesMEA)}  (${yesObj} Obj.)`],
-                [`MEA nein`,       `= ${fmtMEA(noMEA)}   (${noObj} Obj.)`],
-                [`MEA enthalten`,  `= ${fmtMEA(absMEA)}  (${absObj} Obj.)`],
+                ['abgegebene MEA', fmtMEA(totMEA), ''],
+                ['MEA ja',         fmtMEA(yesMEA), `(${yesObj} Einheiten)`],
+                ['MEA nein',       fmtMEA(noMEA),  `(${noObj} Einheiten)`],
+                ['MEA enthalten',  fmtMEA(absMEA), `(${absObj} Einheiten)`],
             ];
-            for (const [lbl, val] of ergebnis) {
-                page.drawText(lbl,  { x: mLeft + 24, y, size: 8.5, font: fReg,  color: gray30   });
-                page.drawText(val,  { x: mLeft + 130, y, size: 8.5, font: fSemi, color: offblack });
+            for (const [lbl, val, note] of ergebnis) {
+                [page, y] = await checkBreak(page, y, 14);
+                page.drawText(lbl,  { x: mLeft + 26, y, size: 9, font: fReg,  color: gray50   });
+                page.drawText(`= ${val}`, { x: mLeft + 130, y, size: 9, font: fSemi, color: offblack });
+                if (note) page.drawText(note, { x: mLeft + 250, y, size: 8, font: fReg, color: gray50 });
                 y -= 12;
             }
-            const pctText = `${fmtPct(yesPct)} der abgegebenen MEA stimmten ja.`;
-            page.drawText(pctText, { x: mLeft + 24, y, size: 8, font: fReg, color: gray50 });
-            y -= 14;
+            page.drawText(`${fmtPct(yesPct)} der abgegebenen MEA stimmten ja.`, { x: mLeft + 26, y, size: 8.5, font: fReg, color: gray50 });
+            y -= 16;
 
-            // Ergebnis-Banner
-            [page, y] = await checkBreak(page, y, 24);
+            // Ergebnis-Banner (wie in Einladung — farbiger Balken)
+            [page, y] = await checkBreak(page, y, 22);
             const isApproved = item.result_status === 'approved';
             const isRejected = item.result_status === 'rejected';
-            const bannerColor = isApproved ? rgb(0.882, 0.937, 0.898) : isRejected ? rgb(0.961, 0.882, 0.878) : rgb(0.95, 0.95, 0.95);
+            const bannerBg    = isApproved ? rgb(0.882, 0.937, 0.898) : isRejected ? rgb(0.961, 0.882, 0.878) : rgb(0.94, 0.94, 0.94);
             const bannerText  = isApproved ? 'Der Beschluss wurde angenommen.' : isRejected ? 'Der Beschluss wurde abgelehnt.' : 'Abstimmung ausstehend.';
-            const bannerTColor = isApproved ? green : isRejected ? rgb(0.769, 0.271, 0.239) : gray50;
-            page.drawRectangle({ x: mLeft + 8, y: y - 16, width: contentW - 8, height: 16, color: bannerColor });
-            page.drawText(bannerText, { x: mLeft + 16, y: y - 11, size: 8.5, font: fBold, color: bannerTColor });
-            y -= 20;
+            const bannerColor = isApproved ? green : isRejected ? rgb(0.769, 0.271, 0.239) : gray50;
+            page.drawRectangle({ x: mLeft + 10, y: y - 18, width: contentW - 10, height: 18, color: bannerBg });
+            page.drawText(bannerText, { x: mLeft + 18, y: y - 12, size: 9, font: fBold, color: bannerColor });
+            y -= 24;
         }
 
         // Diskussionsnotiz (= result_note aus Tab 2)
-        if (item.result_note) {
-            [page, y] = await checkBreak(page, y, 24);
-            page.drawText('Diskussionsnotiz', { x: mLeft + 8, y, size: 7.5, font: fBold, color: gray50 });
-            y -= 11;
-            [page, y] = await drawBlock(page, y, item.result_note, fReg, 8.5, gray50, 8);
-        }
+        [page, y] = await _pdfDrawSection(page, y, 'Diskussionsnotiz', item.result_note, sharedFonts, sharedLayout, cbFn, gray50);
 
-        y -= 14; // Abstand zwischen TOPs
+        // Trennlinie zwischen TOPs
+        [page, y] = await checkBreak(page, y, 20);
+        page.drawLine({ start: { x: mLeft, y: y + 6 }, end: { x: mRight, y: y + 6 }, thickness: 0.3, color: rgb(0.9, 0.92, 0.88) });
+        y -= 10;
     }
 
     // ════════════════════════════════════════════════════════════

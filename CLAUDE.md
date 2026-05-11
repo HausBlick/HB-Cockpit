@@ -566,18 +566,20 @@ Migration `migration_etv_voting_protocol.sql`: `etv_votes.cast_by_person_id` UUI
 ### Phase 5.8 ETV-Nachbereitung (Tab 3 — Protokoll)
 Migration `migration_etv_protokoll_signatories.sql`: `etv_sessions.beirat_signatory_1/2` TEXT.
 
-**Neu implementiert in `mod-etv.js` + `utils-pdf.js` (v20260511f):**
-- **`_etvRenderFollow()` komplett neu:** Protokoll-Vorschau mit allen TOPs als Accordion (ausklappbar). Pro TOP editierbare Felder: Vorbemerkung, Beschlussantrag, Diskussionsnotiz + Abstimmungs-Zusammenfassung (MEA ja/nein/enth. mit Objektanzahl und %). `_etvFollowSaveTop(id)` speichert per UPSERT in `etv_agenda_items`.
+**Neu implementiert in `mod-etv.js` + `utils-pdf.js` (v20260511g):**
+- **`_etvRenderFollow()` komplett neu:** Protokoll-Vorschau mit allen TOPs als Accordion (ausklappbar). Pro TOP editierbare Felder: Vorbemerkung, Beschlussantrag, Diskussionsnotiz + Abstimmungs-Zusammenfassung (MEA ja/nein/enth. mit Objektanzahl und %). `_etvFollowSaveTop(id)` speichert per UPSERT in `etv_agenda_items` (liest `result_note`, nicht `discussion_note`).
 - **Formalia-Sektion:** Read-only Zusammenfassung (Beginn, Ende, Ort, VL, Prot.) mit "Bearbeiten"-Link → `_etvProtocolModal()`.
 - **Unterzeichner-Eingabe:** 4 Felder (VL, PF, Beirat 1, Beirat 2) — vorbelegt aus Session, Beirat-Felder leer. Werden bei PDF-Generierung in `etv_sessions` gespeichert.
 - **Freigabe-Toggle:** "Im Portal freigeben" — Checkbox in UI. Wenn aktiv: PDF wird in Storage hochgeladen + `documents`-Eintrag mit `status='released'` angelegt.
 - **`generateETVProtokollPDF()` komplett neu geschrieben:**
   - Seite 1: Anschreiben (DIN 5008, Briefbogen, Standard-Text mit Anlage-Zeile)
   - Seite 2: Protokoll-Kopf (Formalia-Box, Beschlussfähigkeits-3-Spalten-Tabelle MEA/Einheiten/Anteil, TOP-Kurzübersicht)
-  - Seiten 2ff: TOPs — olive Header-Balken, Vorbemerkung, Beschluss/Inhalt, Feststellung+Verkündung-Box (Beschlussregel/Prinzip/Abstimmungsergebnis mit MEA-Zeilen), Ergebnis-Banner (grün/rot), Diskussionsnotiz
-  - Letzte Seite: 2×2 Unterschriften-Felder mit Name oder Platzhalter "___ (Hier Name in Druckbuchstaben einfügen)", Datum-Linie, olive Hinweis-Box §24 Abs. 6 WEG
+  - Seiten 2ff: TOPs — Design analog Einladungs-PDF (shared helpers `_pdfDrawTopHeader` + `_pdfDrawSection`), olive Labels size 11, Feststellung+Verkündung mit Metadaten-Zeilen + MEA-Ergebnis-Zeilen + Einheiten-Spalte, Ergebnis-Banner (grün/rot), Diskussionsnotiz, Trennlinie zwischen TOPs
+  - Letzte Seite: 2×2 Unterschriften-Felder mit Name oder Platzhalter `______ (Hier Name in Druckbuchstaben einfügen)`, Datum-Linie, olive Hinweis-Box §24 Abs. 6 WEG
   - `publishNow=true`: Upload zu `{buildingId}/Protokoll_ETV_{fy}.pdf` in documents-Bucket + documents-DB-Eintrag `status='released'`
-- **`_etvSetTab()` jetzt async:** Lädt `etv_votes` beim ersten Wechsel zu Tab 3 (gecacht in `_etvState.votes`)
+- **`_etvSetTab()` jetzt async:** Lädt `etv_votes` beim ersten Wechsel zu Tab 3 (gecacht in `_etvState.votes`, Reset bei `_etvOpenSession`).
+- **`_etvCloseSession()` gefixt:** Schließt Session und wechselt direkt zu Tab 3 (kein Redirect auf Startseite mehr).
+- **Shared PDF-Helpers in `utils-pdf.js`:** `_pdfDrawTopHeader()` (olive Balken, dynamische Höhe, weiße Schrift) + `_pdfDrawSection()` (olive Label size 11 + mehrzeiliger Text mit Seitenumbruch-Handling) — gemeinsam genutzt von Einladungs- und Protokoll-PDF.
 
 ### Phase 7.7 — SSOT-Audit
 `getMonthlyHausgeld()` berechnet Hausgeld dynamisch aus WP + Verteilerschlüssel (3 Module umgestellt). Basiszins + Mahngebühren aus `global_settings`. Heizkosten-Split aus `distribution_keys.heiz_split_percent`. ETV-Quorum konfigurierbar (`etv_sessions.quorum_percent`, Migration `migration_etv_quorum_percent.sql`). 16 zentrale Enum-Konstanten in `config.js`, 10 Module umgestellt.
