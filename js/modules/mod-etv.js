@@ -27,7 +27,9 @@ const _etvState = {
     agendaDocs: [],
     selectedTopId: null, // aktiver TOP im rechten Detail-Panel der Durchführung
     sidebarCollapsed: true, // Quorum/Anwesenheits-Sidebar in der Durchführung
-    activeTab: 'prep' // prep (Vorbereitung), exec (Durchführung), follow (Nachbereitung)
+    activeTab: 'prep', // prep (Vorbereitung), exec (Durchführung), follow (Nachbereitung)
+    votingDraft: {},   // { [aptId]: 'yes'|'no'|'abstain' } für Einzelstimmen-Modal
+    votingTopId: null  // aktiver TOP im Einzelstimmen-Modal
 };
 
 /**
@@ -204,6 +206,7 @@ function _etvGroupedAttendance() {
         g.totalMEA = g.apartments.reduce((s, apt) => s + (apt.mea_numerator || 0), 0);
         g.allPresent = g.attendances.length > 0 && g.attendances.every(a => a.is_present);
         g.anyPresent = g.attendances.some(a => a.is_present);
+        g.proxyName = g.attendances.find(a => a.proxy_name)?.proxy_name || null;
     }
     return Array.from(groups.values());
 }
@@ -388,6 +391,7 @@ function _etvRenderPrep() {
  * PHASE 2: Durchführung (Check-in & Live-Voten)
  */
 function _etvRenderExec() {
+    const s = _etvState.session;
     // Live-Quorum Berechnung
     const totalMEA = _etvState.apartments.reduce((sum, a) => sum + (a.mea_numerator || 0), 0);
     const presentUnits = _etvState.attendance.filter(a => a.is_present);
@@ -432,8 +436,24 @@ function _etvRenderExec() {
     const middleSpan = sidebarOpen ? 'xl:col-span-4' : 'xl:col-span-5';
     const detailSpan = sidebarOpen ? 'xl:col-span-5' : 'xl:col-span-7';
 
+    const hasProtoData = !!(s?.chairman_name || s?.actual_start_time);
+    const protoBits = hasProtoData ? [
+        s.actual_start_time ? `<span class="text-xs font-bold text-hb-offblack">Beginn: ${s.actual_start_time}</span>` : '',
+        s.actual_end_time   ? `<span class="text-xs font-bold text-hb-offblack">Ende: ${s.actual_end_time}</span>` : '',
+        s.chairman_name     ? `<span class="text-xs font-bold text-hb-offblack">VL: ${s.chairman_name}</span>` : '',
+        s.secretary_name    ? `<span class="text-xs font-bold text-hb-offblack">Prot.: ${s.secretary_name}</span>` : '',
+    ].filter(Boolean).join('') : '<span class="text-xs text-gray-400 italic">Protokoll-Formalia noch nicht erfasst</span>';
     return `
-        <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 h-full overflow-hidden">
+        <div class="flex flex-col h-full gap-3">
+        <div class="flex-shrink-0 bg-white rounded-2xl border border-hb-olive/12 shadow-sm px-5 py-3 flex items-center gap-4">
+            <div class="bg-hb-olive/10 p-2 rounded-xl text-hb-olive">📋</div>
+            <div class="flex-grow flex flex-wrap items-center gap-x-5 gap-y-1">${protoBits}</div>
+            <div class="flex items-center gap-2 shrink-0">
+                <button onclick="_etvProtocolModal()" class="text-xs font-black text-hb-olive bg-hb-ultralight hover:bg-hb-olive hover:text-white px-4 py-2 rounded-xl transition-all border border-hb-olive/10">${hasProtoData ? 'Bearbeiten' : 'Formalia erfassen'}</button>
+                <button onclick="_etvCloseSession()" class="text-xs font-black text-hb-orange bg-hb-orange/10 hover:bg-hb-orange hover:text-white px-4 py-2 rounded-xl transition-all border border-hb-orange/20">Versammlung beenden</button>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 min-h-0 flex-grow overflow-hidden">
             ${sidebarOpen ? `
             <!-- Sidebar: Quorum & Check-in (eingeklappt-Default, hier ausgeklappt) -->
             <div class="xl:col-span-3 space-y-4 flex flex-col overflow-y-auto min-w-0">
@@ -554,6 +574,7 @@ function _etvRenderExec() {
                     </div>
                 `}
             </div>
+        </div>
         </div>
     `;
 }
@@ -689,6 +710,11 @@ function _etvRenderTopDetailPanel(top, resultLabelFn) {
                         <span class="text-[10px] font-bold text-gray-500">Ergebnis gespeichert — erneut klicken zum Ändern</span>
                     </div>
                     ` : ''}
+                    <div class="mt-3 pt-3 border-t border-hb-olive/10">
+                        <button onclick="_etvOpenIndividualVoting('${top.id}')" class="w-full text-xs font-black text-hb-olive hover:bg-hb-olive/5 py-2 rounded-xl transition-all border border-hb-olive/15">
+                            Einzelstimmen erfassen →
+                        </button>
+                    </div>
                 </div>
             `}
         </div>
@@ -1166,26 +1192,42 @@ window._etvOpenCheckinModal = () => {
                             `<span class="bg-hb-ultralight text-hb-olive rounded-md px-2 py-0.5 text-[10px] font-bold border border-hb-olive/10">WE ${apt.apartment_number}</span>`
                         ).join(' ');
                         const isMulti = g.apartments.length > 1;
-                        const btnLabel = g.allPresent ? '✓ EINGECHECKT' : (g.anyPresent ? 'TEILWEISE' : 'CHECK-IN');
-                        const btnClass = g.allPresent
-                            ? 'bg-hb-olive text-white shadow-md'
-                            : (g.anyPresent ? 'bg-hb-orange/10 text-hb-orange border border-hb-orange/30' : 'bg-hb-ultralight text-gray-400 group-hover:bg-hb-olive/10 group-hover:text-hb-olive');
+                        let actionHtml;
+                        if (g.proxyName) {
+                            actionHtml = `
+                                <div class="flex items-center gap-2 shrink-0">
+                                    <div class="text-right">
+                                        <div class="text-[9px] font-black text-hb-olive uppercase tracking-widest">Vertreten durch</div>
+                                        <div class="text-xs font-black text-hb-offblack max-w-[120px] truncate">${g.proxyName}</div>
+                                    </div>
+                                    <button onclick="_etvClearProxy('${g.person_id}')" class="text-hb-orange text-lg font-black p-1.5 rounded-xl hover:bg-hb-orange/5 transition-all" title="Vollmacht entfernen">×</button>
+                                </div>`;
+                        } else if (g.allPresent) {
+                            actionHtml = `<button onclick="_etvTogglePersonPresent('${g.person_id}', false)" class="px-6 py-2 rounded-xl text-xs font-black transition-all shrink-0 bg-hb-olive text-white shadow-md">✓ EINGECHECKT</button>`;
+                        } else if (g.anyPresent) {
+                            actionHtml = `<button onclick="_etvTogglePersonPresent('${g.person_id}', false)" class="px-6 py-2 rounded-xl text-xs font-black transition-all shrink-0 bg-hb-orange/10 text-hb-orange border border-hb-orange/30">TEILWEISE</button>`;
+                        } else {
+                            actionHtml = `
+                                <div class="flex items-center gap-2 shrink-0">
+                                    <button onclick="_etvTogglePersonPresent('${g.person_id}', true)" class="px-4 py-2 rounded-xl text-xs font-black bg-hb-ultralight text-hb-olive hover:bg-hb-olive hover:text-white transition-all">CHECK-IN</button>
+                                    <button onclick="_etvOpenProxyModal('${g.person_id}')" class="px-4 py-2 rounded-xl text-xs font-black bg-hb-ultralight text-gray-400 hover:bg-hb-olive/10 hover:text-hb-olive transition-all border border-hb-olive/10">Vertreten</button>
+                                </div>`;
+                        }
                         return `
                         <div class="flex items-center justify-between p-4 rounded-2xl hover:bg-hb-ultralight/50 transition-all border border-transparent hover:border-hb-olive/10 group">
                             <div class="flex items-center gap-4 min-w-0">
                                 <div class="bg-hb-ultralight text-hb-olive h-10 w-10 rounded-xl flex items-center justify-center font-black text-xs border border-hb-olive/5 shrink-0">${g.apartments.length}×WE</div>
                                 <div class="min-w-0">
-                                    <div class="font-black text-hb-offblack flex items-center gap-2">
+                                    <div class="font-black text-hb-offblack flex items-center gap-2 flex-wrap">
                                         ${personName}
                                         ${isMulti ? `<span class="bg-hb-orange/10 text-hb-orange px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tight">Multi-WE</span>` : ''}
+                                        ${g.proxyName ? `<span class="bg-hb-olive/10 text-hb-olive px-1.5 py-0.5 rounded text-[9px] font-black uppercase">Vollmacht</span>` : ''}
                                     </div>
                                     <div class="flex flex-wrap gap-1 mt-1">${weBadges}</div>
                                     <div class="text-[10px] text-gray-400 font-bold uppercase tracking-tight mt-1">${g.totalMEA} / ${denomDefault} MEA${isMulti ? ' gesamt' : ''}</div>
                                 </div>
                             </div>
-                            <button onclick="_etvTogglePersonPresent('${g.person_id}', ${!g.allPresent})" class="px-6 py-2 rounded-xl text-xs font-black transition-all shrink-0 ${btnClass}">
-                                ${btnLabel}
-                            </button>
+                            ${actionHtml}
                         </div>
                         `;
                     }).join('')}
@@ -1539,5 +1581,384 @@ window._etvOpenStaging = async () => {
     // Responsive tables
     const stagingModal = document.getElementById('etv-staging-modal');
     if (stagingModal) makeTableResponsive(stagingModal);
+};
+
+// ─── PROTOKOLL-FORMALIA ──────────────────────────────────────
+
+window._etvProtocolModal = () => {
+    const s = _etvState.session;
+    const nowTime = new Date().toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' });
+    const html = `
+        <div id="etv-protocol-modal" class="fixed inset-0 bg-hb-offblack/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden">
+                <div class="bg-hb-olive p-6 text-white">
+                    <h3 class="text-xl font-black">Protokoll-Formalia</h3>
+                    <p class="text-[10px] uppercase font-bold opacity-70 tracking-widest mt-1">Erscheinen im Protokoll-PDF</p>
+                </div>
+                <div class="p-8 space-y-5">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Tatsächlicher Beginn</label>
+                            <input type="time" id="prot-start" value="${s.actual_start_time || nowTime}" class="w-full">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Tatsächliches Ende</label>
+                            <input type="time" id="prot-end" value="${s.actual_end_time || ''}" class="w-full" placeholder="--:--">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Versammlungsleiter</label>
+                        <input type="text" id="prot-chairman" value="${s.chairman_name || ''}" placeholder="Name des Versammlungsleiters" class="w-full">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Protokollführer</label>
+                        <input type="text" id="prot-secretary" value="${s.secretary_name || ''}" placeholder="Name des Protokollführers" class="w-full">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Allgemeine Notizen</label>
+                        <textarea id="prot-notes" rows="3" class="w-full" placeholder="Besondere Vorkommnisse, Hinweise zum Ablauf...">${s.general_notes || ''}</textarea>
+                    </div>
+                </div>
+                <div class="p-6 bg-hb-ultralight flex gap-3 border-t border-hb-olive/5">
+                    <button onclick="document.getElementById('etv-protocol-modal').remove()" class="flex-1 py-3 text-sm font-bold text-gray-400 hover:text-hb-offblack transition-colors">Abbrechen</button>
+                    <button onclick="_etvSaveProtocolData()" class="flex-[2] bg-hb-olive text-white py-3 rounded-xl font-black shadow-lg hover:scale-105 transition-all">Speichern</button>
+                </div>
+            </div>
+        </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+};
+
+window._etvSaveProtocolData = async () => {
+    const startTime = document.getElementById('prot-start').value || null;
+    const endTime   = document.getElementById('prot-end').value || null;
+    const chairman  = document.getElementById('prot-chairman').value.trim() || null;
+    const secretary = document.getElementById('prot-secretary').value.trim() || null;
+    const notes     = document.getElementById('prot-notes').value.trim() || null;
+
+    const { error } = await _supabase.from('etv_sessions').update({
+        actual_start_time: startTime,
+        actual_end_time: endTime,
+        chairman_name: chairman,
+        secretary_name: secretary,
+        general_notes: notes
+    }).eq('id', _etvState.sessionId);
+
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+
+    _etvState.session.actual_start_time = startTime;
+    _etvState.session.actual_end_time   = endTime;
+    _etvState.session.chairman_name     = chairman;
+    _etvState.session.secretary_name    = secretary;
+    _etvState.session.general_notes     = notes;
+
+    document.getElementById('etv-protocol-modal').remove();
+    showToast('Protokoll-Daten gespeichert.', 'success');
+    const ca = document.getElementById('etv-content');
+    if (ca) ca.innerHTML = _etvRenderTabContent();
+};
+
+// ─── VOLLMACHTEN (PROXY) ────────────────────────────────────
+
+window._etvOpenProxyModal = (personId) => {
+    const group = _etvGroupedAttendance().find(g => g.person_id === personId);
+    if (!group) return;
+    const personName = group.person ? `${group.person.first_name} ${group.person.last_name}` : 'Unbekannt';
+    const currentProxy = group.proxyName || '';
+    const votingTops = _etvState.agenda.filter(t => t.voting_type !== 'none');
+    const currentInstructions = group.attendances[0]?.instructions || {};
+    window._etvProxyInstructions = { ...currentInstructions };
+
+    const mkPI = (topId, val, label) => {
+        const active = currentInstructions[topId] === val;
+        const cls = active
+            ? (val === 'yes' ? 'bg-hb-success text-white border-hb-success' : val === 'no' ? 'bg-hb-orange text-white border-hb-orange' : 'bg-gray-500 text-white border-gray-500')
+            : 'bg-white text-gray-400 border-gray-200 hover:border-hb-olive/30';
+        return `<button onclick="_etvSetProxyInstruction('${topId}','${val}')" class="px-2.5 py-1 rounded-lg text-[10px] font-black transition-all border ${cls}" id="pi-${topId}-${val}">${label}</button>`;
+    };
+
+    const topRows = votingTops.map(top => `
+        <div class="flex items-center justify-between py-2.5 border-b border-hb-olive/8 last:border-0">
+            <span class="text-xs font-bold text-hb-offblack flex-grow pr-4 leading-snug">TOP ${top.sort_order}: ${top.title}</span>
+            <div class="flex gap-1.5 shrink-0">
+                ${mkPI(top.id,'yes','JA')}
+                ${mkPI(top.id,'no','NEIN')}
+                ${mkPI(top.id,'abstain','ENTH.')}
+            </div>
+        </div>`).join('');
+
+    const html = `
+        <div id="etv-proxy-modal" class="fixed inset-0 bg-hb-offblack/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+            <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
+                <div class="bg-hb-olive p-6 text-white">
+                    <h3 class="text-xl font-black">Vollmacht erfassen</h3>
+                    <p class="text-[10px] uppercase font-bold opacity-70 tracking-widest mt-1">${personName}</p>
+                </div>
+                <div class="p-6 space-y-5 flex-grow overflow-y-auto">
+                    <div>
+                        <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Vertreten durch</label>
+                        <input type="text" id="etv-proxy-name" value="${currentProxy}" placeholder="z.B. Hausverwaltung GmbH oder Max Mustermann" class="w-full">
+                    </div>
+                    ${votingTops.length ? `
+                    <div>
+                        <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Vorab-Weisungen (optional)</label>
+                        <p class="text-[11px] text-gray-400 mb-3 leading-relaxed">Gemäß schriftlicher Vollmacht vorausgefüllt — können bei Abstimmung noch angepasst werden.</p>
+                        <div>${topRows}</div>
+                    </div>` : ''}
+                </div>
+                <div class="p-6 bg-hb-ultralight border-t border-hb-olive/5 flex gap-3">
+                    <button onclick="document.getElementById('etv-proxy-modal').remove()" class="flex-1 py-3 text-sm font-bold text-gray-400 hover:text-hb-offblack transition-colors">Abbrechen</button>
+                    <button onclick="_etvSaveProxy('${personId}')" class="flex-[2] bg-hb-olive text-white py-3 rounded-xl font-black shadow-lg hover:scale-105 transition-all">Vollmacht speichern</button>
+                </div>
+            </div>
+        </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+};
+
+window._etvSetProxyInstruction = (topId, vote) => {
+    if (!window._etvProxyInstructions) window._etvProxyInstructions = {};
+    if (window._etvProxyInstructions[topId] === vote) {
+        delete window._etvProxyInstructions[topId];
+    } else {
+        window._etvProxyInstructions[topId] = vote;
+    }
+    for (const v of ['yes','no','abstain']) {
+        const btn = document.getElementById(`pi-${topId}-${v}`);
+        if (!btn) continue;
+        const active = window._etvProxyInstructions[topId] === v;
+        btn.className = `px-2.5 py-1 rounded-lg text-[10px] font-black transition-all border ${active
+            ? (v === 'yes' ? 'bg-hb-success text-white border-hb-success' : v === 'no' ? 'bg-hb-orange text-white border-hb-orange' : 'bg-gray-500 text-white border-gray-500')
+            : 'bg-white text-gray-400 border-gray-200 hover:border-hb-olive/30'}`;
+    }
+};
+
+window._etvSaveProxy = async (personId) => {
+    const proxyName = document.getElementById('etv-proxy-name')?.value?.trim();
+    if (!proxyName) { showToast('Bitte Namen des Vertreters eingeben.', 'error'); return; }
+    const attIds = _etvState.attendance.filter(a => a.person_id === personId).map(a => a.id);
+    if (attIds.length === 0) return;
+    const instructions = window._etvProxyInstructions || {};
+    const { error } = await _supabase.from('etv_attendance')
+        .update({ proxy_name: proxyName, instructions, is_present: true })
+        .in('id', attIds);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    for (const att of _etvState.attendance) {
+        if (att.person_id === personId) {
+            att.proxy_name = proxyName;
+            att.instructions = instructions;
+            att.is_present = true;
+        }
+    }
+    document.getElementById('etv-proxy-modal').remove();
+    showToast('Vollmacht gespeichert.', 'success');
+    const modal = document.getElementById('etv-checkin-modal');
+    if (modal) { modal.remove(); _etvOpenCheckinModal(); }
+    _etvRenderMain();
+};
+
+window._etvClearProxy = async (personId) => {
+    const attIds = _etvState.attendance.filter(a => a.person_id === personId).map(a => a.id);
+    if (attIds.length === 0) return;
+    const { error } = await _supabase.from('etv_attendance')
+        .update({ proxy_name: null, instructions: null, is_present: false })
+        .in('id', attIds);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    for (const att of _etvState.attendance) {
+        if (att.person_id === personId) {
+            att.proxy_name = null;
+            att.instructions = null;
+            att.is_present = false;
+        }
+    }
+    showToast('Vollmacht entfernt.');
+    const modal = document.getElementById('etv-checkin-modal');
+    if (modal) { modal.remove(); _etvOpenCheckinModal(); }
+    _etvRenderMain();
+};
+
+// ─── EINZELSTIMMEN ──────────────────────────────────────────
+
+window._etvOpenIndividualVoting = (topId) => {
+    _etvState.votingTopId = topId;
+    const top = _etvState.agenda.find(t => t.id === topId);
+    if (!top) return;
+    _etvLoadVotesAndOpenModal(topId, top);
+};
+
+async function _etvLoadVotesAndOpenModal(topId, top) {
+    const { data: existing } = await _supabase
+        .from('etv_votes').select('apartment_id, vote').eq('agenda_item_id', topId);
+    const voteMap = {};
+    for (const v of (existing || [])) voteMap[v.apartment_id] = v.vote;
+
+    const presentAtt = _etvState.attendance.filter(a => a.is_present);
+    const draft = {};
+    for (const att of presentAtt) {
+        if (voteMap[att.apartment_id]) {
+            draft[att.apartment_id] = voteMap[att.apartment_id];
+        } else if (att.instructions?.[topId]) {
+            draft[att.apartment_id] = att.instructions[topId];
+        }
+    }
+    _etvState.votingDraft = draft;
+    _etvShowVotingModal(topId, top, presentAtt);
+}
+
+function _etvShowVotingModal(topId, top, presentAtt) {
+    const mkVBtn = (aptId, val, label) => {
+        const active = _etvState.votingDraft[aptId] === val;
+        const cls = active
+            ? (val === 'yes' ? 'bg-hb-success text-white border-hb-success shadow' : val === 'no' ? 'bg-hb-orange text-white border-hb-orange shadow' : 'bg-gray-500 text-white border-gray-500 shadow')
+            : 'bg-white text-gray-400 border-gray-200 hover:border-hb-olive/30';
+        return `<button onclick="_etvSetDraftVote('${aptId}','${val}')" class="px-3 py-1.5 rounded-lg text-[11px] font-black transition-all active:scale-95 border ${cls}" id="dv-${aptId}-${val}">${label}</button>`;
+    };
+
+    const unitRows = presentAtt.map(att => {
+        const apt = _etvState.apartments.find(a => a.id === att.apartment_id);
+        const owner = _etvState.owners.find(o => o.apartment_id === att.apartment_id);
+        const ownerName = owner?.person ? `${owner.person.first_name} ${owner.person.last_name}` : '';
+        return `
+            <div class="flex items-center justify-between py-3 border-b border-hb-olive/8 last:border-0">
+                <div class="min-w-0 flex-grow pr-4">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="bg-hb-ultralight text-hb-olive rounded px-2 py-0.5 text-[10px] font-bold border border-hb-olive/10">WE ${apt?.apartment_number || '?'}</span>
+                        <span class="text-xs font-bold text-hb-offblack">${ownerName}</span>
+                        ${att.proxy_name ? `<span class="text-[9px] bg-hb-olive/10 text-hb-olive px-1.5 py-0.5 rounded font-black uppercase">Vollmacht</span>` : ''}
+                        ${att.instructions?.[topId] ? `<span class="text-[9px] bg-hb-gold-bold/10 text-hb-gold-bold px-1.5 py-0.5 rounded font-black">Weisung</span>` : ''}
+                    </div>
+                    ${att.proxy_name ? `<div class="text-[10px] text-hb-olive font-bold mt-0.5">↳ ${att.proxy_name}</div>` : ''}
+                </div>
+                <div class="flex gap-1.5 shrink-0">
+                    ${mkVBtn(att.apartment_id,'yes','JA')}
+                    ${mkVBtn(att.apartment_id,'no','NEIN')}
+                    ${mkVBtn(att.apartment_id,'abstain','ENTH.')}
+                </div>
+            </div>`;
+    }).join('');
+
+    const summary = _etvCalcResultStatus(presentAtt);
+    const html = `
+        <div id="etv-ivoting-modal" class="fixed inset-0 bg-hb-offblack/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+            <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]">
+                <div class="bg-hb-olive p-6 text-white">
+                    <h3 class="text-xl font-black">Einzelstimmen — TOP ${top.sort_order}</h3>
+                    <p class="text-[10px] uppercase font-bold opacity-70 tracking-widest mt-1">${top.title}</p>
+                </div>
+                <div class="px-6 pt-4 pb-3 border-b border-hb-olive/10 flex items-center justify-between gap-4 flex-shrink-0">
+                    <button onclick="_etvSetAllDraftVotes('yes')" class="px-4 py-2 bg-hb-success/10 text-hb-success border border-hb-success/20 rounded-xl text-xs font-black hover:bg-hb-success hover:text-white transition-all">Alle auf JA setzen</button>
+                    <div id="etv-vote-summary" class="text-[10px] font-bold text-gray-500 text-right">${summary.text}</div>
+                </div>
+                <div class="flex-grow overflow-y-auto px-6 py-2">
+                    ${presentAtt.length === 0
+                        ? '<p class="py-8 text-center text-sm text-gray-400 italic">Keine eingecheckten Einheiten.</p>'
+                        : unitRows}
+                </div>
+                <div class="p-6 bg-hb-ultralight border-t border-hb-olive/5 flex gap-3">
+                    <button onclick="document.getElementById('etv-ivoting-modal').remove()" class="flex-1 py-3 text-sm font-bold text-gray-400 hover:text-hb-offblack transition-colors">Abbrechen</button>
+                    <button onclick="_etvSaveIndividualVotes('${topId}')" class="flex-[2] bg-hb-olive text-white py-3 rounded-xl font-black shadow-lg hover:scale-105 transition-all">Abstimmung speichern</button>
+                </div>
+            </div>
+        </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+}
+
+window._etvSetDraftVote = (aptId, vote) => {
+    if (_etvState.votingDraft[aptId] === vote) {
+        delete _etvState.votingDraft[aptId];
+    } else {
+        _etvState.votingDraft[aptId] = vote;
+    }
+    for (const v of ['yes','no','abstain']) {
+        const btn = document.getElementById(`dv-${aptId}-${v}`);
+        if (!btn) continue;
+        const active = _etvState.votingDraft[aptId] === v;
+        btn.className = `px-3 py-1.5 rounded-lg text-[11px] font-black transition-all active:scale-95 border ${active
+            ? (v === 'yes' ? 'bg-hb-success text-white border-hb-success shadow' : v === 'no' ? 'bg-hb-orange text-white border-hb-orange shadow' : 'bg-gray-500 text-white border-gray-500 shadow')
+            : 'bg-white text-gray-400 border-gray-200 hover:border-hb-olive/30'}`;
+    }
+    const presentAtt = _etvState.attendance.filter(a => a.is_present);
+    const el = document.getElementById('etv-vote-summary');
+    if (el) el.textContent = _etvCalcResultStatus(presentAtt).text;
+};
+
+window._etvSetAllDraftVotes = (vote) => {
+    const presentAtt = _etvState.attendance.filter(a => a.is_present);
+    for (const att of presentAtt) {
+        _etvState.votingDraft[att.apartment_id] = vote;
+        for (const v of ['yes','no','abstain']) {
+            const btn = document.getElementById(`dv-${att.apartment_id}-${v}`);
+            if (!btn) continue;
+            const active = v === vote;
+            btn.className = `px-3 py-1.5 rounded-lg text-[11px] font-black transition-all active:scale-95 border ${active
+                ? (v === 'yes' ? 'bg-hb-success text-white border-hb-success shadow' : v === 'no' ? 'bg-hb-orange text-white border-hb-orange shadow' : 'bg-gray-500 text-white border-gray-500 shadow')
+                : 'bg-white text-gray-400 border-gray-200 hover:border-hb-olive/30'}`;
+        }
+    }
+    const el = document.getElementById('etv-vote-summary');
+    if (el) el.textContent = _etvCalcResultStatus(presentAtt).text;
+};
+
+function _etvCalcResultStatus(presentAtt) {
+    const draft = _etvState.votingDraft;
+    let yesCount = 0, noCount = 0, abstainCount = 0, emptyCount = 0;
+    let yesMEA = 0, noMEA = 0;
+    for (const att of presentAtt) {
+        const apt = _etvState.apartments.find(a => a.id === att.apartment_id);
+        const mea = apt?.mea_numerator || 0;
+        const v = draft[att.apartment_id];
+        if (v === 'yes')         { yesCount++;     yesMEA += mea; }
+        else if (v === 'no')     { noCount++;      noMEA  += mea; }
+        else if (v === 'abstain') abstainCount++;
+        else                      emptyCount++;
+    }
+    let text = `JA: ${yesCount} · NEIN: ${noCount} · ENTH: ${abstainCount}`;
+    if (emptyCount > 0) text += ` · Offen: ${emptyCount}`;
+    return { text, yesCount, noCount, abstainCount, emptyCount, yesMEA, noMEA };
+}
+
+window._etvSaveIndividualVotes = async (topId) => {
+    const top = _etvState.agenda.find(t => t.id === topId);
+    if (!top) return;
+    const presentAtt = _etvState.attendance.filter(a => a.is_present);
+    const draft = _etvState.votingDraft;
+    const unvoted = presentAtt.filter(a => !draft[a.apartment_id]);
+    if (unvoted.length > 0) {
+        if (!confirm(`${unvoted.length} Einheit(en) ohne Stimme. Trotzdem speichern?`)) return;
+    }
+
+    await _supabase.from('etv_votes').delete().eq('agenda_item_id', topId);
+
+    const inserts = presentAtt.filter(a => draft[a.apartment_id]).map(a => {
+        const apt = _etvState.apartments.find(ap => ap.id === a.apartment_id);
+        return {
+            agenda_item_id:    topId,
+            apartment_id:      a.apartment_id,
+            vote:              draft[a.apartment_id],
+            weight_mea:        apt?.mea_numerator || 0,
+            cast_by_person_id: a.person_id || null
+        };
+    });
+    if (inserts.length > 0) {
+        const { error: vErr } = await _supabase.from('etv_votes').insert(inserts);
+        if (vErr) { showToast('Fehler: ' + vErr.message, 'error'); return; }
+    }
+
+    const calc     = _etvCalcResultStatus(presentAtt);
+    const totalMEA = _etvState.apartments.reduce((s, a) => s + (a.mea_numerator || 0), 0);
+    let resultStatus;
+    if (top.majority_type === 'unanimous') {
+        resultStatus = (calc.yesCount === presentAtt.length && calc.emptyCount === 0) ? 'approved' : 'rejected';
+    } else if (top.majority_type === 'double_qualified') {
+        resultStatus = (calc.yesMEA > totalMEA / 2) ? 'approved' : 'rejected';
+    } else if (top.majority_type === 'qualified') {
+        const voted = calc.yesCount + calc.noCount + calc.abstainCount;
+        resultStatus = voted > 0 && (calc.yesCount / voted > 0.75) ? 'approved' : 'rejected';
+    } else {
+        resultStatus = calc.yesCount > calc.noCount ? 'approved' : (calc.yesCount === calc.noCount && calc.abstainCount > 0 ? 'abstained' : 'rejected');
+    }
+
+    await _supabase.from('etv_agenda_items').update({ result_status: resultStatus }).eq('id', topId);
+    document.getElementById('etv-ivoting-modal').remove();
+    showToast('Abstimmung gespeichert.', 'success');
+    _etvOpenSession(_etvState.sessionId);
 };
 
