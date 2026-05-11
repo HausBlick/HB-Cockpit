@@ -225,7 +225,8 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | RPC | migration_get_beirat_access | `get_beirat_access()` — Alle aktiven Beirat-Freigabezeiträume des Users (SECURITY DEFINER). |
 | PDF-Fix | migration_fix_umlageschluessel_format | JAB/WP-Templates: korrekte Blockfolge + EUR-Format auf Verteilung. |
 | Phase 7.2 | phase72_email_notifications | `notification_preferences` (User-Opt-In/Out pro Trigger), `email_log` (Audit-Trail), `global_settings` +3 Spalten (notifications_enabled, sender_email, sender_name). RLS, Indexes. Edge Function `send-notification` (Brevo HTTP API). |
-| Phase 5.8 | migration_etv_voting_protocol | `etv_votes.cast_by_person_id` UUID, `etv_attendance.proxy_name` TEXT, `etv_sessions` +5 Protokoll-Felder (chairman_name, secretary_name, actual_start_time, actual_end_time, general_notes), `etv_agenda_items.discussion_note`. |
+| Phase 5.8 | migration_etv_voting_protocol | `etv_votes.cast_by_person_id` UUID, `etv_attendance.proxy_name` TEXT, `etv_sessions` +5 Protokoll-Felder (chairman_name, secretary_name, actual_start_time, actual_end_time, general_notes). |
+| Cleanup | etv_drop_discussion_note | `etv_agenda_items.discussion_note` entfernt — redundant zu `result_note` (Abstimmungs-Notiz aus Tab 2). |
 | Phase 5.8 | migration_etv_protokoll_signatories | `etv_sessions.beirat_signatory_1/2` TEXT — Beirat-Unterzeichner für Protokoll-PDF (wird in Nachbereitung-Tab eingetragen). |
 
 ---
@@ -552,7 +553,7 @@ Migration `phase81_special_roles_and_allocatable`: 6 Rollen (+landlord, +advisor
 `mod-etv.js`: Planung (Sessions, TOPs, Vorbemerkung, interne Notiz), Check-in (Präsenz/Vollmachten), Abstimmung (MEA/Kopf/Objekt), Protokoll-PDF. Migration `migration_etv.sql` (4 Tabellen), `etv_agenda_items` um `preliminary_remark`/`internal_note` erweitert. ETV-Staging: WP/JAB pro Einheit splitten + in Storage uploaden. Einladungs-PDF mit automatischem Anhang.
 
 ### Phase 5.8 ETV-Ausbau (Voting, Proxy, Protokoll-Formalia)
-Migration `migration_etv_voting_protocol.sql`: `etv_votes.cast_by_person_id` UUID, `etv_attendance.proxy_name` TEXT, `etv_sessions.{chairman_name, secretary_name, actual_start_time, actual_end_time, general_notes}`, `etv_agenda_items.discussion_note`.
+Migration `migration_etv_voting_protocol.sql`: `etv_votes.cast_by_person_id` UUID, `etv_attendance.proxy_name` TEXT, `etv_sessions.{chairman_name, secretary_name, actual_start_time, actual_end_time, general_notes}`. `discussion_note` aus `etv_agenda_items` später entfernt (redundant zu `result_note`).
 
 **Neu implementiert in `mod-etv.js` (v20260511f):**
 - **Quorum-Warnung pro TOP:** `topNeedsWarning()` prüft `unanimous` (alle WE müssen anwesend sein) und `double_qualified` (>50% aller MEA nötig). Badge "! Nicht erreichbar" in TOP-Liste und Detail-Panel.
