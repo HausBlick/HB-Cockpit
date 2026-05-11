@@ -3838,27 +3838,36 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
     if (publishNow) {
         try {
             const storagePath = `${bld.id}/Protokoll_ETV_${fy}.pdf`;
-            await _supabase.storage.from('documents').upload(storagePath, pdfBytes, { contentType: 'application/pdf', upsert: true });
-            // Dokument-Eintrag (upsert über storage_path)
-            const { data: existing } = await _supabase.from('documents').select('id').eq('storage_path', storagePath).maybeSingle();
+            const { error: upErr } = await _supabase.storage.from('documents').upload(storagePath, pdfBytes, { contentType: 'application/pdf', upsert: true });
+            if (upErr) throw upErr;
+
+            // Upsert über file_path (korrekte Spaltenname — nicht storage_path)
+            const { data: existing } = await _supabase.from('documents').select('id').eq('file_path', storagePath).maybeSingle();
             if (existing) {
-                await _supabase.from('documents').update({ status: 'released', updated_at: new Date().toISOString() }).eq('id', existing.id);
+                await _supabase.from('documents').update({
+                    status: 'released',
+                    updated_at: new Date().toISOString(),
+                }).eq('id', existing.id);
             } else {
                 await _supabase.from('documents').insert({
-                    building_id: bld.id,
-                    file_name: filename,
+                    building_id:       bld.id,
+                    title:             `Protokoll ETV ${fy}`,
+                    document_title:    `Protokoll ETV ${fy}`,
                     original_filename: filename,
-                    document_title: `Protokoll ETV ${fy}`,
-                    storage_path: storagePath,
-                    file_type: 'application/pdf',
-                    category: 'Protokoll',
-                    visibility_scope: 'building',
-                    status: 'released',
+                    file_path:         storagePath,
+                    file_type:         'application/pdf',
+                    category:          'Protokoll',
+                    year:              fy,
+                    visibility_scope:  'building',
+                    status:            'released',
+                    updated_at:        new Date().toISOString(),
+                    uploaded_by:       (typeof currentUser !== 'undefined' && currentUser?.id) || null,
                 });
             }
-            showToast(`Protokoll generiert & im Portal freigegeben.`, 'success');
+            showToast('Protokoll generiert & im Portal freigegeben.', 'success');
         } catch(e) {
-            showToast('PDF erstellt, aber Freigabe fehlgeschlagen. Bitte manuell freigeben.', 'error');
+            console.error('Protokoll-Publish-Fehler:', e);
+            showToast('PDF erstellt, aber Freigabe fehlgeschlagen. Bitte manuell hochladen.', 'error');
         }
     } else {
         showToast('Protokoll erfolgreich generiert.');
