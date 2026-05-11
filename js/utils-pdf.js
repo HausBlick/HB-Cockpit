@@ -782,6 +782,17 @@ const PDF_PREVIEW_DUMMY_DATA = {
             ],
         },
     },
+    etv_protokoll: {
+        placeholders: {
+            gebaeude_name:     'WEG Musterstraße 12',
+            gebaeude_adresse:  'Musterstraße 12, 12345 Berlin',
+            datum_versammlung: '15.03.2025',
+            datum_heute:       '11.05.2026',
+            wirtschaftsjahr:   '2025',
+            firma:             'HausBlick Verwaltungs GmbH',
+        },
+        tables: {},
+    },
     etv_einladung: {
         placeholders: {
             anrede: 'geehrter Herr',
@@ -880,6 +891,14 @@ const PDF_TEMPLATE_VARIABLES = {
         { key: 'saldo_info', label: 'Saldo-Info-Satz (ergibt sich ein...)' },
         { key: 'bgh_hinweis', label: 'BGH-Hinweis (rechtlicher Hinweis)' },
     ],
+    etv_protokoll: [
+        { key: 'gebaeude_name',     label: 'Gebäude-Name' },
+        { key: 'gebaeude_adresse',  label: 'Gebäude-Adresse' },
+        { key: 'datum_versammlung', label: 'Datum der Versammlung' },
+        { key: 'datum_heute',       label: 'Heutiges Datum' },
+        { key: 'wirtschaftsjahr',   label: 'Wirtschaftsjahr' },
+        { key: 'firma',             label: 'Firmenname' },
+    ],
     etv_einladung: [
         { key: 'anrede', label: 'Anrede (geehrter Herr / geehrte Frau)' },
         { key: 'nachname', label: 'Nachname' },
@@ -917,6 +936,7 @@ const PDF_TEMPLATE_TABLES = {
         { key: 'vermoegen_konten', label: 'Vermögensbericht: Kontensalden (Bank & Rücklage)', columns: ['konto', 'bezeichnung', 'saldo', 'status'] },
         { key: 'vermoegen_forderungen', label: 'Vermögensbericht: Offene Forderungen', columns: ['einheit', 'eigentuemer', 'betrag', 'typ'] },
     ],
+    etv_protokoll: [],
     etv_einladung: [
         { key: 'tagesordnung', label: 'Tagesordnung (TOP-Nr. + Titel)', columns: ['nr', 'titel'] },
         { key: 'anlagen', label: 'Anlagen (Dateinamen)', columns: ['name'] },
@@ -3448,6 +3468,10 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
         } catch(e) {}
     }
 
+    // Template für Anschreiben laden (analog Einladungs-PDF)
+    let protokollTemplate = null;
+    try { protokollTemplate = await _pdfLoadTemplate('etv_protokoll'); } catch(e) {}
+
     const pdfDoc = await PDFDocument.create();
     pdfDoc.registerFontkit(fontkit);
     const { reg: fReg, semi: fSemi, bold: fBold } = await _pdfLoadInterFonts(pdfDoc);
@@ -3545,25 +3569,38 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
     page.drawText(`Eigentümerversammlung vom ${dateStr}  |  Wirtschaftsjahr ${fy}`, { x: mLeft, y, size: 9, font: fSemi, color: olive });
     y -= 28;
 
-    // Brieftext
-    const anschreiben = `in der Anlage erhalten Sie das Protokoll der Eigentümerversammlung vom ${dateStr} zur Kenntnisnahme und für Ihre Unterlagen.\n\nDas unterschriebene Originalprotokoll ist bei der Verwaltung hinterlegt und kann dort auf Anfrage eingesehen werden (§ 24 Abs. 6 WEG).`;
-    page.drawText('Sehr geehrte Eigentümerinnen und Eigentümer,', { x: mLeft, y, size: 10, font: fReg, color: offblack });
-    y -= 16;
-    for (const para of anschreiben.split('\n\n')) {
-        const lines = _pdfSplitText(para, fReg, 10, contentW);
-        for (const line of lines) { page.drawText(line, { x: mLeft, y, size: 10, font: fReg, color: offblack }); y -= 14; }
-        y -= 6;
+    // Brieftext — Template-First (editierbar im Dokumentendesigner), Legacy-Fallback
+    const tplData = {
+        gebaeude_name:     bldName,
+        gebaeude_adresse:  bldAddr,
+        datum_versammlung: dateStr,
+        datum_heute:       todayStr,
+        wirtschaftsjahr:   String(fy),
+        firma:             settings.company_name || 'Hausverwaltung',
+    };
+    if (protokollTemplate) {
+        await generateFromTemplate(protokollTemplate.content, tplData, {}, {
+            pdfDoc, page, fonts: { reg: fReg, semi: fSemi, bold: fBold }, settings, templateDoc, startY: y,
+        });
+    } else {
+        // Legacy-Fallback
+        const anschreiben = `in der Anlage erhalten Sie das Protokoll der Eigentümerversammlung vom ${dateStr} zur Kenntnisnahme und für Ihre Unterlagen.\n\nDas unterschriebene Originalprotokoll ist bei der Verwaltung hinterlegt und kann dort auf Anfrage eingesehen werden (§ 24 Abs. 6 WEG).`;
+        page.drawText('Sehr geehrte Eigentümerinnen und Eigentümer,', { x: mLeft, y, size: 10, font: fReg, color: offblack });
+        y -= 16;
+        for (const para of anschreiben.split('\n\n')) {
+            const lines = _pdfSplitText(para, fReg, 10, contentW);
+            for (const line of lines) { page.drawText(line, { x: mLeft, y, size: 10, font: fReg, color: offblack }); y -= 14; }
+            y -= 6;
+        }
+        y -= 16;
+        page.drawText('Vielen Dank', { x: mLeft, y, size: 10, font: fReg, color: offblack }); y -= 20;
+        page.drawText('Mit freundlichen Grüßen', { x: mLeft, y, size: 10, font: fReg, color: offblack }); y -= 20;
+        page.drawText(settings.company_name || 'Hausverwaltung', { x: mLeft, y, size: 10, font: fBold, color: offblack });
+        y -= 40;
+        page.drawLine({ start: { x: mLeft, y: y + 8 }, end: { x: mLeft + 80, y: y + 8 }, thickness: 0.5, color: olive });
+        page.drawText('Anlage', { x: mLeft, y, size: 9, font: fBold, color: offblack }); y -= 14;
+        page.drawText(`•  Protokoll der Eigentümerversammlung vom ${dateStr}`, { x: mLeft + 8, y, size: 9, font: fReg, color: offblack });
     }
-    y -= 16;
-    page.drawText('Vielen Dank', { x: mLeft, y, size: 10, font: fReg, color: offblack }); y -= 20;
-    page.drawText('Mit freundlichen Grüßen', { x: mLeft, y, size: 10, font: fReg, color: offblack }); y -= 20;
-    page.drawText(settings.company_name || 'Hausverwaltung', { x: mLeft, y, size: 10, font: fBold, color: offblack });
-    y -= 40;
-
-    // Anlage
-    page.drawLine({ start: { x: mLeft, y: y + 8 }, end: { x: mLeft + 80, y: y + 8 }, thickness: 0.5, color: olive });
-    page.drawText('Anlage', { x: mLeft, y, size: 9, font: fBold, color: offblack }); y -= 14;
-    page.drawText(`•  Protokoll der Eigentümerversammlung vom ${dateStr}`, { x: mLeft + 8, y, size: 9, font: fReg, color: offblack });
 
     // ════════════════════════════════════════════════════════════
     // SEITE 2 — PROTOKOLL-KOPF
