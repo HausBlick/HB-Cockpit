@@ -3373,7 +3373,7 @@ function _pdfDrawTopHeader(page, y, item, { fBold, white, olive }, { mLeft, cont
             size: 9.5, font: fBold, color: white
         });
     });
-    return y - barH - 14;
+    return y - barH - 12;
 }
 
 /**
@@ -3384,14 +3384,14 @@ async function _pdfDrawSection(page, y, label, text, { fBold, fReg, olive, offbl
     if (!text) return [page, y];
     [page, y] = await checkBreakFn(page, y, 30);
     page.drawText(label + ':', { x: mLeft + 10, y, size: 11, font: fBold, color: olive });
-    y -= 16;
+    y -= 14;
     const lines = _pdfSplitText(text, fReg, 9, 450);
     for (const line of lines) {
-        [page, y] = await checkBreakFn(page, y, 14);
+        [page, y] = await checkBreakFn(page, y, 13);
         page.drawText(line, { x: mLeft + 10, y, size: 9, font: fReg, color: textColor || offblack });
-        y -= 13;
+        y -= 12;
     }
-    y -= 10; // Abstand nach jeder Sektion (war 4 — zu gering)
+    y -= 9;
     return [page, y];
 }
 
@@ -3685,7 +3685,7 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
 
             // Label wie in der Einladung (olive, size 11)
             page.drawText('Feststellung und Verkündung:', { x: mLeft + 10, y, size: 11, font: fBold, color: olive });
-            y -= 18;
+            y -= 16;
 
             // Metadaten-Zeilen (Beschlussregel, Prinzip, Abstimmung)
             const metaRows = [
@@ -3696,13 +3696,13 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
             for (const [lbl, val] of metaRows) {
                 page.drawText(lbl + ':', { x: mLeft + 18, y, size: 9, font: fBold, color: gray50 });
                 page.drawText(val,        { x: mLeft + 130, y, size: 9, font: fReg, color: offblack });
-                y -= 13;
+                y -= 12;
             }
-            y -= 10; // Abstand vor Abstimmungsergebnis (war 4)
+            y -= 9;
 
             // Abstimmungsergebnis-Zeilen
             page.drawText('Abstimmungsergebnis:', { x: mLeft + 18, y, size: 9, font: fBold, color: gray50 });
-            y -= 13;
+            y -= 12;
             const ergebnis = [
                 ['abgegebene MEA', fmtMEA(totMEA), ''],
                 ['MEA ja',         fmtMEA(yesMEA), `(${yesObj} Einheiten)`],
@@ -3710,14 +3710,14 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
                 ['MEA enthalten',  fmtMEA(absMEA), `(${absObj} Einheiten)`],
             ];
             for (const [lbl, val, note] of ergebnis) {
-                [page, y] = await checkBreak(page, y, 14);
+                [page, y] = await checkBreak(page, y, 13);
                 page.drawText(lbl,  { x: mLeft + 26, y, size: 9, font: fReg,  color: gray50   });
                 page.drawText(`= ${val}`, { x: mLeft + 130, y, size: 9, font: fSemi, color: offblack });
                 if (note) page.drawText(note, { x: mLeft + 250, y, size: 8, font: fReg, color: gray50 });
-                y -= 12;
+                y -= 11;
             }
             page.drawText(`${fmtPct(yesPct)} der abgegebenen MEA stimmten ja.`, { x: mLeft + 26, y, size: 8.5, font: fReg, color: gray50 });
-            y -= 16;
+            y -= 14;
 
             // Ergebnis-Banner (wie in Einladung — farbiger Balken)
             [page, y] = await checkBreak(page, y, 22);
@@ -3728,16 +3728,16 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
             const bannerColor = isApproved ? green : isRejected ? rgb(0.769, 0.271, 0.239) : gray50;
             page.drawRectangle({ x: mLeft + 10, y: y - 18, width: contentW - 10, height: 18, color: bannerBg });
             page.drawText(bannerText, { x: mLeft + 18, y: y - 12, size: 9, font: fBold, color: bannerColor });
-            y -= 34; // Banner-Unterkante + 16pt Abstand zum nächsten Label (war 24 → Überlappung)
+            y -= 30;
         }
 
         // Diskussionsnotiz (= result_note aus Tab 2)
         [page, y] = await _pdfDrawSection(page, y, 'Diskussionsnotiz', item.result_note, sharedFonts, sharedLayout, cbFn, gray50);
 
         // Trennlinie zwischen TOPs
-        [page, y] = await checkBreak(page, y, 20);
-        page.drawLine({ start: { x: mLeft, y: y + 6 }, end: { x: mRight, y: y + 6 }, thickness: 0.3, color: rgb(0.9, 0.92, 0.88) });
-        y -= 10;
+        [page, y] = await checkBreak(page, y, 18);
+        page.drawLine({ start: { x: mLeft, y: y + 5 }, end: { x: mRight, y: y + 5 }, thickness: 0.3, color: rgb(0.9, 0.92, 0.88) });
+        y -= 9;
     }
 
     // ════════════════════════════════════════════════════════════
