@@ -549,6 +549,17 @@ Migration `phase81_special_roles_and_allocatable`: 6 Rollen (+landlord, +advisor
 ### ETV-Modul & Staging-Workflow
 `mod-etv.js`: Planung (Sessions, TOPs, Vorbemerkung, interne Notiz), Check-in (Präsenz/Vollmachten), Abstimmung (MEA/Kopf/Objekt), Protokoll-PDF. Migration `migration_etv.sql` (4 Tabellen), `etv_agenda_items` um `preliminary_remark`/`internal_note` erweitert. ETV-Staging: WP/JAB pro Einheit splitten + in Storage uploaden. Einladungs-PDF mit automatischem Anhang.
 
+### Phase 5.8 ETV-Ausbau (Voting, Proxy, Protokoll-Formalia)
+Migration `migration_etv_voting_protocol.sql`: `etv_votes.cast_by_person_id` UUID, `etv_attendance.proxy_name` TEXT, `etv_sessions.{chairman_name, secretary_name, actual_start_time, actual_end_time, general_notes}`, `etv_agenda_items.discussion_note`.
+
+**Neu implementiert in `mod-etv.js` (v20260511e):**
+- **Quorum-Warnung pro TOP:** `topNeedsWarning()` prüft `unanimous` (alle WE müssen anwesend sein) und `double_qualified` (>50% aller MEA nötig). Badge "! Nicht erreichbar" in TOP-Liste und Detail-Panel.
+- **Abstimmungs-Korrektur:** Button-Zustand spiegelt gespeichertes Ergebnis (aktiver Button hervorgehoben). Enthaltung als eigener Status `abstained` (nicht mehr `pending`). `_etvCloseSession()` prüft offene TOPs (Enthaltung gilt als abgestimmt).
+- **Inline-Edit (Quick-Edit):** ✎-Button neben Interne Notiz, Vorbemerkung, Beschlussantrag, Abstimmungs-Notiz → `_etvQuickEditField()` / `_etvQuickEditSave()` via `showModal`.
+- **Vollmachten (Proxy-Check-in):** Dual-Button-Layout im Check-in-Modal (CHECK-IN | Vertreten). `_etvOpenProxyModal()` (z-[70]) mit Proxy-Name + optionalen Vorab-Weisungen per TOP (`instructions` JSONB). `_etvSaveProxy()` setzt `is_present=true` + `proxy_name`. `_etvClearProxy()` löscht Vollmacht. Vollmacht-Badge in Präsenzliste sichtbar.
+- **Einzelstimmen (`_etvOpenIndividualVoting`):** Modal (z-[70]) mit per-Einheit JA/NEIN/ENTH-Buttons. "Alle auf JA setzen"-Button. Proxy-Weisungen werden vorausgefüllt (Weisung-Badge). Live-Zusammenfassung. Speichert in `etv_votes` mit `cast_by_person_id`. Berechnet `result_status` nach Mehrheitstyp (unanimous/double_qualified/qualified/simple).
+- **Protokoll-Formalia:** Banner im Durchführungs-Tab mit "Formalia erfassen"-Button. `_etvProtocolModal()` erfasst Versammlungsleiter, Protokollführer, Beginn, Ende, Notizen. `_etvSaveProtocolData()` speichert in `etv_sessions`. "Versammlung beenden"-Button direkt im Banner.
+
 ### Phase 7.7 — SSOT-Audit
 `getMonthlyHausgeld()` berechnet Hausgeld dynamisch aus WP + Verteilerschlüssel (3 Module umgestellt). Basiszins + Mahngebühren aus `global_settings`. Heizkosten-Split aus `distribution_keys.heiz_split_percent`. ETV-Quorum konfigurierbar (`etv_sessions.quorum_percent`, Migration `migration_etv_quorum_percent.sql`). 16 zentrale Enum-Konstanten in `config.js`, 10 Module umgestellt.
 
