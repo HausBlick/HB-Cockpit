@@ -187,7 +187,10 @@ function _populateBuildingFilter() {
     const sel = document.getElementById('docs-building-filter');
     if (!sel) return;
     while (sel.options.length > 1) sel.remove(1);
-    _docsState.buildings.forEach(b => {
+    const isAdmin = userProfile?.role === 'admin' || userProfile?.role === 'manager';
+    const visibleBldIds = isAdmin ? null : new Set(_docsState.data.map(d => d.building_id).filter(Boolean));
+    const buildings = isAdmin ? _docsState.buildings : _docsState.buildings.filter(b => visibleBldIds.has(b.id));
+    buildings.forEach(b => {
         const opt = document.createElement('option');
         opt.value = b.id;
         opt.textContent = formatBuildingName(b);
