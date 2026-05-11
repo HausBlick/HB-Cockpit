@@ -3690,12 +3690,12 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
             y -= 20;
         }
 
-        // Diskussionsnotiz
-        if (item.discussion_note) {
+        // Diskussionsnotiz (= result_note aus Tab 2)
+        if (item.result_note) {
             [page, y] = await checkBreak(page, y, 24);
             page.drawText('Diskussionsnotiz', { x: mLeft + 8, y, size: 7.5, font: fBold, color: gray50 });
             y -= 11;
-            [page, y] = await drawBlock(page, y, item.discussion_note, fReg, 8.5, gray50, 8);
+            [page, y] = await drawBlock(page, y, item.result_note, fReg, 8.5, gray50, 8);
         }
 
         y -= 14; // Abstand zwischen TOPs

@@ -832,7 +832,7 @@ function _etvRenderFollow() {
                 ${votingBlock}
                 <div>
                     <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Diskussionsnotiz <span class="text-gray-400 normal-case font-normal">(optional — erscheint im Protokoll)</span></label>
-                    <textarea id="etv-follow-discussion-${top.id}" rows="2" class="w-full bg-hb-ultralight rounded-xl px-4 py-3 text-sm border border-hb-olive/10 focus:border-hb-olive focus:ring-1 focus:ring-hb-olive/20 resize-none">${top.discussion_note || ''}</textarea>
+                    <textarea id="etv-follow-discussion-${top.id}" rows="2" class="w-full bg-hb-ultralight rounded-xl px-4 py-3 text-sm border border-hb-olive/10 focus:border-hb-olive focus:ring-1 focus:ring-hb-olive/20 resize-none">${top.result_note || ''}</textarea>
                 </div>
                 <div class="flex justify-end">
                     <button onclick="_etvFollowSaveTop('${top.id}')" class="bg-hb-olive text-white text-xs font-black px-5 py-2 rounded-xl hover:opacity-90 transition-all">Speichern</button>
@@ -942,18 +942,18 @@ window._etvFollowSaveTop = async (id) => {
     const top = _etvState.agenda.find(a => a.id === id);
     if (!top) return;
     const resolution  = document.getElementById(`etv-follow-resolution-${id}`)?.value?.trim() ?? top.proposed_resolution;
-    const discussion  = document.getElementById(`etv-follow-discussion-${id}`)?.value?.trim() ?? top.discussion_note;
+    const discussion  = document.getElementById(`etv-follow-discussion-${id}`)?.value?.trim() ?? top.result_note;
     const remark      = document.getElementById(`etv-follow-remark-${id}`)?.value?.trim()     ?? top.preliminary_remark;
 
     const { error } = await _supabase.from('etv_agenda_items').update({
         proposed_resolution: resolution || null,
-        discussion_note:     discussion  || null,
+        result_note:         discussion  || null,
         preliminary_remark:  remark      || null,
     }).eq('id', id);
 
     if (error) { showToast('Fehler beim Speichern.', 'error'); return; }
     top.proposed_resolution = resolution || null;
-    top.discussion_note     = discussion  || null;
+    top.result_note         = discussion  || null;
     top.preliminary_remark  = remark      || null;
     showToast('TOP gespeichert.');
 };
