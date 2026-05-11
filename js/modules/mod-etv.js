@@ -398,6 +398,14 @@ function _etvRenderExec() {
     const percent = totalMEA > 0 ? (presentMEA / totalMEA * 100).toFixed(2) : 0;
     const quorumThreshold = _etvState.session?.quorum_percent ?? 50;
     const isQuorum = percent >= quorumThreshold;
+    const totalUnits  = _etvState.apartments.length;
+    const presentCount = presentUnits.length;
+    const topNeedsWarning = (t) => {
+        if (t.voting_type === 'none') return false;
+        if (t.majority_type === 'unanimous') return presentCount < totalUnits;
+        if (t.majority_type === 'double_qualified') return totalMEA > 0 && presentMEA * 2 <= totalMEA;
+        return false;
+    };
 
     // Personen-gruppierte Sicht (ein Eigentümer = ein Eintrag, auch bei mehreren WE)
     const groups = _etvGroupedAttendance();
@@ -523,8 +531,11 @@ function _etvRenderExec() {
                                     </span>
                                     ${top.voting_type !== 'none' && top.majority_type ? `
                                     <span class="text-[10px] ${isActive ? 'text-white/70' : 'text-gray-500'} font-bold uppercase tracking-tight">
-                                        ${top.majority_type.replace('_', ' ')} Mehrheit
+                                        ${MAJORITY_TYPES[top.majority_type] || top.majority_type.replace('_', ' ')}
                                     </span>` : ''}
+                                    ${topNeedsWarning(top) ? `
+                                    <span class="text-[10px] font-black px-2 py-0.5 rounded-md border ${isActive ? 'text-white/90 bg-white/20 border-white/30' : 'text-hb-error bg-hb-error/8 border-hb-error/20'}">! Nicht erreichbar</span>
+                                    ` : ''}
                                 </div>
                             </div>
                             <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border shrink-0 ${isActive ? 'bg-white/20 text-white border-white/30' : result.cls}">${result.text}</span>
