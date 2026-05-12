@@ -59,14 +59,15 @@
     <div class="fixed top-[-10%] right-[-5%] w-[40vw] h-[40vw] bg-hb-olive/5 rounded-full blur-3xl pointer-events-none"></div>
     <div class="fixed bottom-[-10%] left-[-5%] w-[40vw] h-[40vw] bg-hb-orange/5 rounded-full blur-3xl pointer-events-none"></div>
 
-    <!-- Login Container -->
+    <!-- Container -->
     <div class="w-full max-w-md bg-white p-8 md:p-10 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 relative z-10">
         <div class="text-center mb-8">
             <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-16 w-auto mx-auto mb-4">
             <h1 class="text-[28px] font-bold tracking-tight text-hb-offblack">Mieterportal</h1>
-            <p class="text-[15px] text-gray-500 font-medium mt-1">Bitte loggen Sie sich ein</p>
+            <p id="page-subtitle" class="text-[15px] text-gray-500 font-medium mt-1">Bitte loggen Sie sich ein</p>
         </div>
 
+        <!-- Login-Formular -->
         <form id="login-form" class="space-y-5">
             <div>
                 <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">E-Mail Adresse</label>
@@ -76,28 +77,110 @@
                 <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Passwort</label>
                 <input type="password" id="password" class="w-full p-4 text-sm" placeholder="••••••••" required>
             </div>
-            
+
             <div id="error-msg" class="hidden bg-hb-error/12 text-hb-error text-xs font-bold p-3 rounded-2xl border border-hb-error/20 text-center"></div>
 
             <button type="submit" id="login-btn" class="w-full btn-primary py-4 text-sm mt-2">Einloggen</button>
+
+            <div class="text-center pt-1">
+                <button type="button" onclick="showForgotForm()" class="text-xs text-hb-olive font-medium hover:underline">Passwort vergessen?</button>
+            </div>
         </form>
-        
-        <div class="mt-8 text-center border-t border-gray-100 pt-6">
-            <p class="text-xs text-gray-400 font-medium">Noch kein Passwort? Oder Passwort vergessen? Bitte kontaktieren Sie die Hausverwaltung oder Ihren Vermieter.</p>
+
+        <!-- Passwort-vergessen-Formular -->
+        <form id="forgot-form" class="space-y-5 hidden">
+            <div>
+                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">E-Mail Adresse</label>
+                <input type="email" id="forgot-email" class="w-full p-4 text-sm" placeholder="name@beispiel.de" required>
+            </div>
+
+            <div id="forgot-success" class="hidden bg-hb-success/12 text-hb-success text-xs font-bold p-3 rounded-2xl border border-hb-success/20 text-center"></div>
+            <div id="forgot-error" class="hidden bg-hb-error/12 text-hb-error text-xs font-bold p-3 rounded-2xl border border-hb-error/20 text-center"></div>
+
+            <button type="submit" id="forgot-btn" class="w-full btn-primary py-4 text-sm">Reset-Link senden</button>
+
+            <div class="text-center pt-1">
+                <button type="button" onclick="showLoginForm()" class="text-xs text-hb-olive font-medium hover:underline">Zurück zum Login</button>
+            </div>
+        </form>
+
+        <!-- Passwort-setzen-Formular (nach Einladung oder Reset) -->
+        <form id="set-password-form" class="space-y-5 hidden">
+            <div>
+                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Neues Passwort</label>
+                <input type="password" id="new-password" class="w-full p-4 text-sm" placeholder="Mindestens 8 Zeichen" required>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold uppercase text-gray-500 tracking-widest mb-1">Passwort bestätigen</label>
+                <input type="password" id="new-password-confirm" class="w-full p-4 text-sm" placeholder="Passwort wiederholen" required>
+            </div>
+
+            <div id="set-pw-error" class="hidden bg-hb-error/12 text-hb-error text-xs font-bold p-3 rounded-2xl border border-hb-error/20 text-center"></div>
+
+            <button type="submit" id="set-pw-btn" class="w-full btn-primary py-4 text-sm">Passwort festlegen</button>
+        </form>
+
+        <div id="hint-text" class="mt-8 text-center border-t border-gray-100 pt-6">
+            <p class="text-xs text-gray-400 font-medium">Noch kein Zugang? Bitte kontaktieren Sie die Hausverwaltung oder Ihren Vermieter.</p>
         </div>
     </div>
 
     <script>
         const supabaseUrl = 'https://unprrlbvylmzxxhpfisr.supabase.co';
         const supabaseKey = 'sb_publishable_nWYozmRQq8E17z_ljZ2SHA_LUulwUV1';
+
+        // Hash BEFORE Supabase client consumes it
+        const rawHash = window.location.hash;
+        const hashParams = new URLSearchParams(rawHash.slice(1));
+        const urlType = hashParams.get('type'); // 'invite', 'recovery', 'magiclink'
+
         const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
+        // --- Form switching ---
+        function showLoginForm() {
+            document.getElementById('login-form').classList.remove('hidden');
+            document.getElementById('forgot-form').classList.add('hidden');
+            document.getElementById('set-password-form').classList.add('hidden');
+            document.getElementById('hint-text').classList.remove('hidden');
+            document.getElementById('page-subtitle').textContent = 'Bitte loggen Sie sich ein';
+        }
+
+        function showForgotForm() {
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('forgot-form').classList.remove('hidden');
+            document.getElementById('set-password-form').classList.add('hidden');
+            document.getElementById('hint-text').classList.add('hidden');
+            document.getElementById('page-subtitle').textContent = 'Passwort zurücksetzen';
+        }
+
+        function showSetPasswordForm(isInvite) {
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('forgot-form').classList.add('hidden');
+            document.getElementById('set-password-form').classList.remove('hidden');
+            document.getElementById('hint-text').classList.add('hidden');
+            document.getElementById('page-subtitle').textContent = isInvite
+                ? 'Willkommen! Bitte legen Sie Ihr Passwort fest.'
+                : 'Neues Passwort festlegen';
+        }
+
+        // --- Auth state: detect invite / recovery ---
+        _supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'PASSWORD_RECOVERY') {
+                showSetPasswordForm(false);
+            } else if (event === 'SIGNED_IN' && urlType === 'invite') {
+                showSetPasswordForm(true);
+            }
+        });
+
+        // --- Auto-redirect if already logged in (but NOT for invite/recovery flows) ---
         async function checkLogin() {
+            if (urlType === 'invite' || urlType === 'recovery') return;
             const { data: { user } } = await _supabase.auth.getUser();
             if (user) window.location.href = 'dashboard.html';
         }
         checkLogin();
 
+        // --- Login ---
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('login-btn');
@@ -109,15 +192,81 @@
             btn.textContent = 'Lädt...';
             errBox.classList.add('hidden');
 
-            const { data, error } = await _supabase.auth.signInWithPassword({ email, password });
+            const { error } = await _supabase.auth.signInWithPassword({ email, password });
 
             if (error) {
-                errBox.textContent = (error.message === 'Invalid login credentials') 
-                    ? 'Falsche E-Mail-Adresse oder Passwort.' 
+                errBox.textContent = (error.message === 'Invalid login credentials')
+                    ? 'Falsche E-Mail-Adresse oder Passwort.'
                     : 'Fehler: ' + error.message;
                 errBox.classList.remove('hidden');
                 btn.disabled = false;
                 btn.textContent = 'Einloggen';
+            } else {
+                window.location.href = 'dashboard.html';
+            }
+        });
+
+        // --- Passwort vergessen ---
+        document.getElementById('forgot-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('forgot-btn');
+            const errBox = document.getElementById('forgot-error');
+            const successBox = document.getElementById('forgot-success');
+            const email = document.getElementById('forgot-email').value;
+
+            btn.disabled = true;
+            btn.textContent = 'Senden...';
+            errBox.classList.add('hidden');
+            successBox.classList.add('hidden');
+
+            const { error } = await _supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: 'https://portal.hausblick-fn.de/'
+            });
+
+            if (error) {
+                errBox.textContent = 'Fehler: ' + error.message;
+                errBox.classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = 'Reset-Link senden';
+            } else {
+                successBox.textContent = 'Reset-Link wurde gesendet. Bitte prüfen Sie Ihr Postfach.';
+                successBox.classList.remove('hidden');
+                btn.disabled = true;
+                btn.textContent = 'Gesendet';
+            }
+        });
+
+        // --- Passwort setzen (nach Einladung oder Reset) ---
+        document.getElementById('set-password-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('set-pw-btn');
+            const errBox = document.getElementById('set-pw-error');
+            const pw1 = document.getElementById('new-password').value;
+            const pw2 = document.getElementById('new-password-confirm').value;
+
+            errBox.classList.add('hidden');
+
+            if (pw1 !== pw2) {
+                errBox.textContent = 'Passwörter stimmen nicht überein.';
+                errBox.classList.remove('hidden');
+                return;
+            }
+            if (pw1.length < 8) {
+                errBox.textContent = 'Passwort muss mindestens 8 Zeichen haben.';
+                errBox.classList.remove('hidden');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Speichern...';
+
+            const { error } = await _supabase.auth.updateUser({ password: pw1 });
+
+            if (error) {
+                errBox.textContent = 'Fehler: ' + error.message;
+                errBox.classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = 'Passwort festlegen';
             } else {
                 window.location.href = 'dashboard.html';
             }
