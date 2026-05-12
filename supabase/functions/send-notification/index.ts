@@ -12,6 +12,8 @@ interface NotificationRequest {
     document_id?: number;
     news_id?: number;
     building_id?: number;
+    unit_id?: number;
+    visibility_scope?: string;
     new_status?: string;
     old_status?: string;
     title?: string;
@@ -177,14 +179,28 @@ async function resolveRecipients(
     }
 
     case "document_released": {
-      const buildingId = payload.building_id;
-      if (!buildingId) break;
-      const users = await getBuildingUsers(supabase, buildingId);
-      for (const u of users) { if (u.user_id !== callerId) recipients.push(u); }
+      // Dokumente gehen NIE automatisch an Mieter.
+      // Mieter bekommen Dokumente nur, wenn der Vermieter sie explizit weiterreicht (Phase 5.7-B).
+      const scope = payload.visibility_scope || "building";
+
+      if (scope === "unit" && payload.unit_id) {
+        // Nur der aktuelle Eigentümer dieser Einheit
+        const owner = await getUnitOwner(supabase, payload.unit_id);
+        if (owner && owner.user_id !== callerId) recipients.push(owner);
+      } else if (scope === "person" && payload.document_id) {
+        // Nur die explizit verknüpfte Person aus document_links
+        const person = await getDocumentLinkPerson(supabase, payload.document_id);
+        if (person && person.user_id !== callerId) recipients.push(person);
+      } else if (payload.building_id) {
+        // Building-Scope: nur Eigentümer, keine Mieter
+        const owners = await getBuildingOwners(supabase, payload.building_id);
+        for (const u of owners) { if (u.user_id !== callerId) recipients.push(u); }
+      }
       break;
     }
 
     case "news_new": {
+      // Schwarzes Brett: alle Bewohner (Eigentümer + Mieter)
       const buildingId = payload.building_id;
       if (buildingId) {
         const users = await getBuildingUsers(supabase, buildingId);
@@ -203,21 +219,62 @@ async function resolveRecipients(
   return recipients;
 }
 
-// ─── E-Mail-Adresse auflösen ─────────────────────────────────
-async function resolveEmail(supabase: any, userId: string): Promise<Recipient | null> {
-  const { data: person } = await supabase
-    .from("persons").select("email, full_name").eq("auth_user_id", userId).limit(1).single();
-  if (person?.email) return { user_id: userId, email: person.email, full_name: person.full_name || "" };
+// ─── Nur der aktuelle Eigentümer einer Einheit ───────────────
+async function getUnitOwner(supabase: any, unitId: number): Promise<Recipient | null> {
+  const today = new Date().toISOString().split("T")[0];
+  const { data: ownership } = await supabase
+    .from("ownerships").select("owner_id").eq("apartment_id", unitId)
+    .or(`end_date.is.null,end_date.gte.${today}`).limit(1).single();
+  if (!ownership) return null;
 
-  const { data: { user } } = await supabase.auth.admin.getUserById(userId);
-  if (user?.email) {
-    const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", userId).single();
-    return { user_id: userId, email: user.email, full_name: profile?.full_name || "" };
-  }
-  return null;
+  const { data: person } = await supabase
+    .from("persons").select("auth_user_id, email, full_name")
+    .eq("id", ownership.owner_id).not("auth_user_id", "is", null).single();
+  if (!person?.auth_user_id || !person.email) return null;
+
+  return { user_id: person.auth_user_id, email: person.email, full_name: person.full_name || "" };
 }
 
-// ─── Alle User eines Gebäudes ────────────────────────────────
+// ─── Person aus document_links (person-scope) ────────────────
+async function getDocumentLinkPerson(supabase: any, documentId: number): Promise<Recipient | null> {
+  const { data: link } = await supabase
+    .from("document_links").select("person_id").eq("document_id", documentId).limit(1).single();
+  if (!link) return null;
+
+  const { data: person } = await supabase
+    .from("persons").select("auth_user_id, email, full_name")
+    .eq("id", link.person_id).not("auth_user_id", "is", null).single();
+  if (!person?.auth_user_id || !person.email) return null;
+
+  return { user_id: person.auth_user_id, email: person.email, full_name: person.full_name || "" };
+}
+
+// ─── Nur Eigentümer eines Gebäudes (keine Mieter) ────────────
+async function getBuildingOwners(supabase: any, buildingId: number): Promise<Recipient[]> {
+  const recipients: Recipient[] = [];
+  const seen = new Set<string>();
+
+  const { data: apts } = await supabase.from("apartments").select("id").eq("building_id", buildingId);
+  if (!apts?.length) return recipients;
+  const aptIds = apts.map((a: any) => a.id);
+
+  const today = new Date().toISOString().split("T")[0];
+  const { data: ownerships } = await supabase.from("ownerships").select("owner_id")
+    .in("apartment_id", aptIds).or(`end_date.is.null,end_date.gte.${today}`);
+
+  for (const o of ownerships || []) {
+    const { data: person } = await supabase.from("persons")
+      .select("auth_user_id, email, full_name").eq("id", o.owner_id)
+      .not("auth_user_id", "is", null).single();
+    if (person?.auth_user_id && person.email && !seen.has(person.auth_user_id)) {
+      seen.add(person.auth_user_id);
+      recipients.push({ user_id: person.auth_user_id, email: person.email, full_name: person.full_name || "" });
+    }
+  }
+  return recipients;
+}
+
+// ─── Alle Bewohner eines Gebäudes (Eigentümer + Mieter) ──────
 async function getBuildingUsers(supabase: any, buildingId: number): Promise<Recipient[]> {
   const recipients: Recipient[] = [];
   const seen = new Set<string>();
@@ -249,8 +306,21 @@ async function getBuildingUsers(supabase: any, buildingId: number): Promise<Reci
       recipients.push({ user_id: person.auth_user_id, email: person.email, full_name: person.full_name || "" });
     }
   }
-
   return recipients;
+}
+
+// ─── E-Mail-Adresse auflösen ─────────────────────────────────
+async function resolveEmail(supabase: any, userId: string): Promise<Recipient | null> {
+  const { data: person } = await supabase
+    .from("persons").select("email, full_name").eq("auth_user_id", userId).limit(1).single();
+  if (person?.email) return { user_id: userId, email: person.email, full_name: person.full_name || "" };
+
+  const { data: { user } } = await supabase.auth.admin.getUserById(userId);
+  if (user?.email) {
+    const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", userId).single();
+    return { user_id: userId, email: user.email, full_name: profile?.full_name || "" };
+  }
+  return null;
 }
 
 // ─── E-Mail-Inhalt zusammenbauen ─────────────────────────────
