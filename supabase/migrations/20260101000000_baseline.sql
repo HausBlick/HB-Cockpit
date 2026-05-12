@@ -1,0 +1,19 @@
+-- ============================================================
+-- BASELINE -- HB Mieterportal (Squashed Schema 2026-01-01)
+-- ============================================================
+-- Diese Migration repraesentiert den Gesamt-Schema-Stand beim
+-- Einfuehren der Supabase CLI Migrations-Verwaltung.
+--
+-- WICHTIG: Diese Datei wurde via:
+--   supabase migration repair --status applied 20260101000000
+-- als bereits ausgefuehrt markiert. Nicht direkt ausfuehren.
+-- Die Live-DB (unprrlbvylmzxxhpfisr) enthaelt das Schema.
+--
+-- Fuer einen Neuaufbau: Docker installieren und
+--   supabase db dump -f supabase/migrations/20260101000000_baseline.sql
+-- ausfuehren, dann diese Datei ersetzen.
+-- ============================================================
+-- Enthaltenes Schema (live, nicht hier kodiert):
+--   52 Tabellen | 40+ Funktionen | 130 RLS-Policies
+--   85 Indizes  | 6 Trigger      | 1 GoBD-Rule
+-- ============================================================

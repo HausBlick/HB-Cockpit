@@ -407,6 +407,30 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 
 ---
 
+### Supabase CLI Infrastruktur + Nutzer-Anlegen + ETV Two-Panel (2026-05-12)
+
+**Supabase CLI Migrations-Verwaltung:**
+- `supabase/config.toml` mit project_id `unprrlbvylmzxxhpfisr` via `supabase init`.
+- Baseline-Migration `supabase/migrations/20260101000000_baseline.sql` als Placeholder erstellt + via `supabase migration repair --status applied` markiert (Live-DB enthält das vollständige Schema, kein Docker verfügbar für `db dump`).
+- Alle 39 `scripts/migration_*.sql`, `scripts/fix_*.sql`, `scripts/etv_*.sql`, `scripts/phase*.sql` gelöscht. Verbleiben: `create_test_users.sql`, `debug_beirat_access.sql`, `delete-testdata.sql`, `seed-testdata.sql`, `seed_zeppelinstr8_reset.sql`.
+- Zukünftige Schema-Änderungen: `supabase/migrations/YYYYMMDDHHMMSS_name.sql` anlegen + remote mit `supabase db push` deployen.
+
+**Edge Function `create-user` (deployed):**
+- `supabase/functions/create-user/index.ts` — Admin-Only User-Anlage.
+- Zwei Modi: `password` → `createUser()` mit `email_confirm=true`; ohne Password → `inviteUserByEmail()`.
+- Batch-Support: Body kann Array oder Einzelobjekt sein. Felder: `email`, `full_name`, `role`, `password?`, `building_ids?` (für Manager).
+- Erstellt `profiles`-Eintrag (upsert) + `management_assignments` für Manager.
+
+**Einstellungen → Nutzer-Tab (`mod-settings.js` v20260512b):**
+- Neuer Tab "Nutzer" für Admin: Batch-Anlage-Tabelle (Email/Name/Rolle/Passwort), CSV-Import, Einzelanlage-Formular.
+- Ruft Edge Function `create-user` auf.
+
+**ETV Two-Panel-Layout (`mod-etv.js` v20260512a):**
+- Startseite: Links Gebäude-Liste (klickbar), rechts ETV-Sessions des gewählten Gebäudes.
+- Ersetzt altes Dropdown. `_etvRenderBuildingList()`, `_etvSelectBuilding()`, `_etvMarkActiveBuilding()`.
+
+---
+
 ### Design-Migration KOMPLETT ABGESCHLOSSEN (Blöcke 1–4)
 DESIGN.md ist Single Source of Truth. Tailwind-Config, CSS, Radien, Schatten, Borders, Farb-Palette, Tap-Feedback, Toast-Varianten, Typografie-Hierarchie und Fließtext-Feinschliff — alles migriert.
 
