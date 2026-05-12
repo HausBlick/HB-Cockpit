@@ -35,20 +35,19 @@ const _etvState = {
 };
 
 /**
- * Haupt-Einstiegspunkt: Lädt die ETV-Übersicht
+ * Haupt-Einstiegspunkt: Lädt die ETV-Übersicht (Two-Panel-Layout)
  */
 async function loadETV() {
     const ca = document.getElementById('content-area');
     ca.innerHTML = `<div class="flex justify-center py-16"><div class="w-8 h-8 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div></div>`;
 
-    const { data: buildings } = await _supabase.from('buildings').select('id, name, file_number, street, house_number').order('name');
+    const { data: buildings } = await _supabase.from('buildings').select('id, name, file_number, street, house_number, city').order('name');
     _etvState.buildings = buildings || [];
     if (_etvState.buildings.length === 0) {
         ca.innerHTML = `<div class="p-10 card text-center max-w-sm mx-auto mt-10"><p class="text-[15px] text-gray-500">Keine Gebäude gefunden.</p></div>`;
         return;
     }
     if (!_etvState.buildingId || !_etvState.buildings.find(b => b.id === _etvState.buildingId)) {
-        // Building-Kontext: URL-Param > sessionStorage > erster in Liste
         const urlBuilding = new URLSearchParams(window.location.search).get('building');
         const sessionBuilding = sessionStorage.getItem('hb_active_building');
         const targetId = urlBuilding || sessionBuilding;
@@ -58,13 +57,55 @@ async function loadETV() {
             _etvState.buildingId = _etvState.buildings[0].id;
         }
     }
-    await _etvInitOverview();
+
+    ca.innerHTML = `
+        <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)] text-left">
+            <!-- Linke Sidebar: Gebäude-Liste -->
+            <div class="w-full lg:w-56 xl:w-64 flex-shrink-0 flex flex-col gap-3 h-full">
+                <div class="card flex flex-col h-full overflow-hidden">
+                    <div class="px-4 py-3 bg-hb-olive">
+                        <h2 class="text-sm font-bold text-white">Objekte</h2>
+                    </div>
+                    <div id="etv-buildings-list" class="flex-grow overflow-y-auto p-2 space-y-0.5"></div>
+                </div>
+            </div>
+            <!-- Rechter Bereich: Sessions -->
+            <div class="flex-1 flex flex-col h-full min-w-0" id="etv-sessions-area">
+                <div class="flex justify-center py-10"><div class="w-6 h-6 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div></div>
+            </div>
+        </div>
+    `;
+
+    _etvRenderBuildingList();
+    await _etvSelectBuilding(_etvState.buildingId);
 }
 
-/**
- * Lädt alle Versammlungen eines Gebäudes
- */
-async function _etvInitOverview() {
+function _etvRenderBuildingList() {
+    const list = document.getElementById('etv-buildings-list');
+    if (!list) return;
+    list.innerHTML = _etvState.buildings.map(b => `
+        <div onclick="_etvSelectBuilding(${b.id})" id="etv-b-item-${b.id}"
+            class="px-3 py-3 rounded-lg cursor-pointer hover:bg-gray-100 transition-all text-left group">
+            <p class="font-bold text-xs text-hb-offblack truncate group-hover:text-hb-olive">${formatBuildingName(b)}</p>
+            <p class="text-[10px] text-gray-400 truncate">${b.street ? `${b.street} ${b.house_number || ''}` : (b.city || '')}</p>
+        </div>`).join('') || '<p class="text-xs text-gray-400 p-3">Keine Gebäude.</p>';
+    _etvMarkActiveBuilding(_etvState.buildingId);
+}
+
+function _etvMarkActiveBuilding(id) {
+    document.querySelectorAll('[id^="etv-b-item-"]').forEach(el => el.classList.remove('bg-hb-ultralight', 'bg-gray-100'));
+    const sel = document.getElementById(`etv-b-item-${id}`);
+    if (sel) sel.classList.add('bg-hb-ultralight');
+}
+
+window._etvSelectBuilding = async (id) => {
+    _etvState.buildingId = Number(id);
+    sessionStorage.setItem('hb_active_building', String(id));
+    _etvMarkActiveBuilding(_etvState.buildingId);
+
+    const area = document.getElementById('etv-sessions-area');
+    if (area) area.innerHTML = `<div class="flex justify-center py-10"><div class="w-6 h-6 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div></div>`;
+
     const bid = _etvState.buildingId;
     const { data: sessions, error } = await _supabase
         .from('etv_sessions')
@@ -74,66 +115,56 @@ async function _etvInitOverview() {
 
     if (error) { showToast('Fehler beim Laden der ETVs: ' + error.message, 'error'); return; }
 
-    const buildingOpts = _etvState.buildings.map(b =>
-        `<option value="${b.id}" ${b.id == bid ? 'selected' : ''}>${formatBuildingName(b)}</option>`
-    ).join('');
+    const building = _etvState.buildings.find(b => b.id === bid);
+    const buildingLabel = building ? formatBuildingName(building) : '';
 
-    let html = `
-        <div class="p-6 max-w-6xl mx-auto h-full flex flex-col">
-            <div class="flex justify-between items-center mb-8">
+    const sessionCards = sessions?.length ? sessions.map(s => {
+        const date = new Date(s.meeting_date);
+        const statusLabel = ETV_STATUS_LABELS?.[s.status] || s.status;
+        return `
+        <div class="bg-white rounded-2xl border border-hb-olive/12 overflow-hidden shadow-sm hover:shadow-lg transition-all group">
+            <div class="${s.status === 'active' ? 'bg-hb-orange' : 'bg-hb-olive'} p-4 flex justify-between items-center">
+                <span class="text-white font-black text-xs tracking-tighter uppercase opacity-80">${s.fiscal_year}</span>
+                <span class="px-2.5 py-1 rounded-full text-[10px] uppercase font-bold ${s.status === 'active' ? 'bg-white text-hb-orange animate-pulse' : 'bg-white/20 text-white'}">
+                    ${s.status === 'active' ? '● LIVE' : statusLabel}
+                </span>
+            </div>
+            <div class="p-6">
+                <div class="text-2xl font-black text-hb-offblack mb-1">${date.toLocaleDateString('de-DE')}</div>
+                <div class="text-xs text-gray-400 mb-6 flex items-center gap-2">
+                    <span class="bg-hb-ultralight p-1.5 rounded-lg text-hb-olive">${icons.clock || ''}</span>
+                    ${date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr • ${s.location || '—'}
+                </div>
+                <button onclick="_etvOpenSession('${s.id}')" class="w-full bg-hb-ultralight text-hb-olive py-3 rounded-xl text-sm font-black hover:bg-hb-olive hover:text-white transition-all">
+                    Versammlung öffnen
+                </button>
+            </div>
+        </div>`;
+    }).join('') : `
+        <div class="col-span-full py-20 bg-white rounded-2xl border-2 border-dashed border-hb-olive/12 flex flex-col items-center justify-center text-gray-400">
+            <p class="font-bold">Keine Versammlungen gefunden.</p>
+            <p class="text-[15px] mt-1">Starten Sie mit der Planung Ihrer ersten ETV.</p>
+        </div>`;
+
+    if (area) area.innerHTML = `
+        <div class="flex flex-col h-full">
+            <div class="flex justify-between items-center mb-6 flex-shrink-0">
                 <div>
                     <h1 class="text-[28px] font-bold text-hb-offblack">Eigentümerversammlungen</h1>
-                    <p class="text-xs text-gray-500 mt-1 uppercase tracking-widest font-bold">Planung & Durchführung</p>
+                    <p class="text-xs text-gray-400 mt-0.5 font-bold uppercase tracking-widest">${buildingLabel}</p>
                 </div>
-                <div class="flex items-center gap-3">
-                    <select onchange="_etvOnBuildingChange(this.value)" class="w-60 text-sm">${buildingOpts}</select>
-                    <button onclick="_etvNewSessionModal()" class="bg-hb-olive text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all">
-                        + Neue Versammlung planen
-                    </button>
-                </div>
+                <button onclick="_etvNewSessionModal()" class="bg-hb-olive text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all flex-shrink-0">
+                    + Neue Versammlung planen
+                </button>
             </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto pr-2 pb-10">
-                ${sessions?.map(s => {
-                    const date = new Date(s.meeting_date);
-                    const isToday = date.toDateString() === new Date().toDateString();
-                    return `
-                    <div class="bg-white rounded-2xl border border-hb-olive/12 overflow-hidden shadow-sm hover:shadow-lg transition-all group">
-                        <div class="${s.status === 'active' ? 'bg-hb-orange' : 'bg-hb-olive'} p-4 flex justify-between items-center">
-                            <span class="text-white font-black text-xs tracking-tighter uppercase opacity-80">${s.fiscal_year}</span>
-                            <span class="px-2.5 py-1 rounded-full text-[10px] uppercase font-bold ${s.status === 'active' ? 'bg-white text-hb-orange animate-pulse' : 'bg-white/20 text-white'}">
-                                ${s.status === 'active' ? '● LIVE' : s.status}
-                            </span>
-                        </div>
-                        <div class="p-6">
-                            <div class="text-2xl font-black text-hb-offblack mb-1">${date.toLocaleDateString('de-DE')}</div>
-                            <div class="text-xs text-gray-400 mb-6 flex items-center gap-2">
-                                <span class="bg-hb-ultralight p-1.5 rounded-lg text-hb-olive">${icons.clock || ''}</span>
-                                ${date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr • ${s.location}
-                            </div>
-                            <button onclick="_etvOpenSession('${s.id}')" class="w-full bg-hb-ultralight text-hb-olive py-3 rounded-xl text-sm font-black hover:bg-hb-olive hover:text-white transition-all">
-                                Versammlung öffnen
-                            </button>
-                        </div>
-                    </div>
-                    `;
-                }).join('') || `
-                    <div class="col-span-full py-20 bg-white rounded-2xl border-2 border-dashed border-hb-olive/12 flex flex-col items-center justify-center text-gray-400">
-                        <p class="font-bold">Keine Versammlungen gefunden.</p>
-                        <p class="text-xs">Starten Sie mit der Planung Ihrer ersten ETV.</p>
-                    </div>
-                `}
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 overflow-y-auto pr-1 pb-10">
+                ${sessionCards}
             </div>
-        </div>
-    `;
-    document.getElementById('content-area').innerHTML = html;
-}
-
-window._etvOnBuildingChange = async (val) => {
-    _etvState.buildingId = Number(val);
-    sessionStorage.setItem('hb_active_building', String(val));
-    await _etvInitOverview();
+        </div>`;
 };
+
+// Legacy-Alias für bestehende Aufrufe
+window._etvOnBuildingChange = (val) => _etvSelectBuilding(val);
 
 /**
  * Öffnet eine spezifische Versammlung und lädt alle Daten
