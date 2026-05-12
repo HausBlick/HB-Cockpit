@@ -49,6 +49,8 @@ function _settingsRender(s) {
                     class="px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all">E-Mail</button>
                 <button id="stab-designer" onclick="_settingsTab('designer')"
                     class="px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all">Dokumenten-Designer</button>
+                <button id="stab-nutzer" onclick="_settingsTab('nutzer')"
+                    class="px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all">Nutzer</button>
             </div>
 
             <div id="settings-tab-content"></div>
@@ -76,6 +78,8 @@ function _settingsTab(tab) {
         _settingsRenderEmail(window._settingsData || {});
     } else if (tab === 'designer') {
         _settingsRenderDesigner();
+    } else if (tab === 'nutzer') {
+        _settingsRenderNutzer();
     }
 }
 
@@ -1135,3 +1139,360 @@ function _escAttr(s) {
 function _escHtml(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
+
+// ─── Tab: Nutzer anlegen ──────────────────────────────────────
+const _nutzerState = { buildings: [], batchRows: [] };
+
+async function _settingsRenderNutzer() {
+    const container = document.getElementById('settings-tab-content');
+    container.innerHTML = `<div class="flex justify-center py-10"><div class="w-6 h-6 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div></div>`;
+
+    if (!_nutzerState.buildings.length) {
+        const { data } = await _supabase.from('buildings').select('id, name, file_number, street, house_number').order('name');
+        _nutzerState.buildings = data || [];
+    }
+    if (!_nutzerState.batchRows.length) {
+        _nutzerState.batchRows = [_nutzerEmptyRow()];
+    }
+
+    const buildingOpts = _nutzerState.buildings.map(b =>
+        `<option value="${b.id}">${formatBuildingName(b)}</option>`
+    ).join('');
+
+    container.innerHTML = `
+        <div class="space-y-6 pb-16">
+
+            <!-- Einzelanlage -->
+            <div class="card p-6">
+                <h2 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-5">Einzelne Account anlegen</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">E-Mail *</label>
+                        <input type="email" id="nu-email" class="w-full mt-1" placeholder="max@example.com">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Voller Name *</label>
+                        <input type="text" id="nu-name" class="w-full mt-1" placeholder="Max Mustermann">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Rolle *</label>
+                        <select id="nu-role" onchange="_nutzerRoleChange()" class="w-full mt-1">
+                            <option value="admin">Admin</option>
+                            <option value="manager">Objektbetreuer (Manager)</option>
+                            <option value="owner" selected>Eigentümer</option>
+                            <option value="tenant">Mieter</option>
+                        </select>
+                    </div>
+                    <div id="nu-buildings-wrap" class="hidden">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Gebäude-Zuweisung (Manager)</label>
+                        <select id="nu-buildings" multiple class="w-full mt-1 h-28">${buildingOpts}</select>
+                        <p class="text-[10px] text-gray-400 mt-1">Strg/Cmd gedrückt halten für Mehrfachauswahl</p>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-4 border-t border-hb-olive/10">
+                    <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Anmeldung</label>
+                    <div class="flex flex-wrap gap-5 mt-2">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="nu-method" value="invite" checked onchange="_nutzerMethodChange()">
+                            <span class="text-sm font-semibold">Einladungs-E-Mail senden</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="nu-method" value="password" onchange="_nutzerMethodChange()">
+                            <span class="text-sm font-semibold">Passwort direkt setzen</span>
+                        </label>
+                    </div>
+                    <div id="nu-password-wrap" class="hidden mt-3">
+                        <input type="password" id="nu-password" class="w-full md:w-80" placeholder="Passwort (min. 8 Zeichen)">
+                    </div>
+                </div>
+
+                <div class="mt-5 flex items-center gap-3">
+                    <button onclick="_nutzerCreateSingle()" class="bg-hb-olive text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:shadow-md transition-all">
+                        Account anlegen
+                    </button>
+                    <div id="nu-result" class="text-sm"></div>
+                </div>
+            </div>
+
+            <!-- Batch-Anlage -->
+            <div class="card p-6">
+                <div class="flex flex-wrap justify-between items-center gap-3 mb-5">
+                    <h2 class="text-sm font-black uppercase tracking-widest text-hb-olive">Batch-Anlage (mehrere Accounts)</h2>
+                    <div class="flex gap-2">
+                        <button onclick="_nutzerDownloadTemplate()" class="text-hb-olive border border-hb-olive/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-hb-olive/5 transition-all">
+                            ↓ CSV-Vorlage
+                        </button>
+                        <label class="text-hb-olive border border-hb-olive/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-hb-olive/5 transition-all cursor-pointer">
+                            ↑ CSV importieren
+                            <input type="file" accept=".csv,.txt" class="hidden" onchange="_nutzerImportCSV(this)">
+                        </label>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto mb-4">
+                    <table class="w-full text-sm min-w-[700px]">
+                        <thead>
+                            <tr class="border-b border-hb-olive/10">
+                                <th class="text-left py-2 px-2 text-[10px] uppercase text-gray-400 font-bold w-56">E-Mail</th>
+                                <th class="text-left py-2 px-2 text-[10px] uppercase text-gray-400 font-bold w-44">Name</th>
+                                <th class="text-left py-2 px-2 text-[10px] uppercase text-gray-400 font-bold w-36">Rolle</th>
+                                <th class="text-left py-2 px-2 text-[10px] uppercase text-gray-400 font-bold w-44">Gebäude (Manager)</th>
+                                <th class="text-center py-2 px-2 text-[10px] uppercase text-gray-400 font-bold w-24">Einladung</th>
+                                <th class="w-8"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="nutzer-batch-tbody">
+                            ${_nutzerBatchTableRows(buildingOpts)}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="flex items-center gap-3 flex-wrap">
+                    <button onclick="_nutzerAddBatchRow()" class="text-hb-olive border border-hb-olive/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-hb-olive/5 transition-all">
+                        + Zeile hinzufügen
+                    </button>
+                    <button onclick="_nutzerBatchCreate()" class="bg-hb-olive text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:shadow-md transition-all">
+                        Alle anlegen
+                    </button>
+                </div>
+                <div id="nu-batch-result" class="mt-4"></div>
+            </div>
+
+        </div>
+    `;
+}
+
+function _nutzerEmptyRow() {
+    return { email: '', name: '', role: 'owner', building_id: '', send_invite: true };
+}
+
+function _nutzerBatchTableRows(buildingOpts) {
+    if (!buildingOpts) {
+        buildingOpts = _nutzerState.buildings.map(b =>
+            `<option value="${b.id}">${formatBuildingName(b)}</option>`
+        ).join('');
+    }
+    return _nutzerState.batchRows.map((r, i) => `
+        <tr class="border-b border-gray-50">
+            <td class="py-1.5 px-2">
+                <input type="email" value="${_escAttr(r.email)}" onblur="_nutzerState.batchRows[${i}].email=this.value" class="w-full text-xs h-9" placeholder="email@example.com">
+            </td>
+            <td class="py-1.5 px-2">
+                <input type="text" value="${_escAttr(r.name)}" onblur="_nutzerState.batchRows[${i}].name=this.value" class="w-full text-xs h-9" placeholder="Max Mustermann">
+            </td>
+            <td class="py-1.5 px-2">
+                <select onchange="_nutzerBatchRoleChange(${i},this.value)" class="w-full text-xs h-9">
+                    <option value="admin" ${r.role==='admin'?'selected':''}>Admin</option>
+                    <option value="manager" ${r.role==='manager'?'selected':''}>Manager</option>
+                    <option value="owner" ${r.role==='owner'?'selected':''}>Eigentümer</option>
+                    <option value="tenant" ${r.role==='tenant'?'selected':''}>Mieter</option>
+                </select>
+            </td>
+            <td class="py-1.5 px-2">
+                <select id="nutzer-bldg-${i}" onchange="_nutzerState.batchRows[${i}].building_id=this.value"
+                    ${r.role !== 'manager' ? 'disabled' : ''}
+                    class="w-full text-xs h-9 ${r.role !== 'manager' ? 'opacity-40' : ''}">
+                    <option value="">—</option>
+                    ${buildingOpts}
+                </select>
+            </td>
+            <td class="py-1.5 px-2 text-center">
+                <input type="checkbox" ${r.send_invite ? 'checked' : ''} onchange="_nutzerState.batchRows[${i}].send_invite=this.checked" class="w-4 h-4 accent-hb-olive">
+            </td>
+            <td class="py-1.5 px-2">
+                <button onclick="_nutzerDeleteBatchRow(${i})" class="text-hb-error text-sm font-bold hover:opacity-70 transition-opacity">✕</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function _nutzerRefreshBatchTable() {
+    const tbody = document.getElementById('nutzer-batch-tbody');
+    if (tbody) tbody.innerHTML = _nutzerBatchTableRows();
+}
+
+window._nutzerRoleChange = () => {
+    const role = document.getElementById('nu-role').value;
+    document.getElementById('nu-buildings-wrap').classList.toggle('hidden', role !== 'manager');
+};
+
+window._nutzerMethodChange = () => {
+    const method = document.querySelector('input[name="nu-method"]:checked')?.value;
+    document.getElementById('nu-password-wrap').classList.toggle('hidden', method !== 'password');
+};
+
+window._nutzerBatchRoleChange = (idx, value) => {
+    _nutzerState.batchRows[idx].role = value;
+    const sel = document.getElementById(`nutzer-bldg-${idx}`);
+    if (sel) {
+        sel.disabled = value !== 'manager';
+        sel.classList.toggle('opacity-40', value !== 'manager');
+    }
+};
+
+window._nutzerAddBatchRow = () => {
+    _nutzerState.batchRows.push(_nutzerEmptyRow());
+    _nutzerRefreshBatchTable();
+};
+
+window._nutzerDeleteBatchRow = (idx) => {
+    _nutzerState.batchRows.splice(idx, 1);
+    if (!_nutzerState.batchRows.length) _nutzerState.batchRows.push(_nutzerEmptyRow());
+    _nutzerRefreshBatchTable();
+};
+
+window._nutzerCreateSingle = async () => {
+    const email    = document.getElementById('nu-email').value.trim();
+    const name     = document.getElementById('nu-name').value.trim();
+    const role     = document.getElementById('nu-role').value;
+    const method   = document.querySelector('input[name="nu-method"]:checked')?.value || 'invite';
+    const password = method === 'password' ? document.getElementById('nu-password').value : undefined;
+    const buildingSel = document.getElementById('nu-buildings');
+    const buildingIds = role === 'manager'
+        ? Array.from(buildingSel?.selectedOptions || []).map(o => Number(o.value))
+        : [];
+
+    if (!email || !name) { showToast('E-Mail und Name sind Pflicht.', 'error'); return; }
+    if (method === 'password' && (!password || password.length < 8)) {
+        showToast('Passwort muss mindestens 8 Zeichen haben.', 'error'); return;
+    }
+
+    const resultEl = document.getElementById('nu-result');
+    resultEl.innerHTML = '<span class="text-gray-400">Wird angelegt…</span>';
+
+    try {
+        const { data, error } = await _supabase.functions.invoke('create-user', {
+            body: { email, full_name: name, role, password, send_invite: !password, building_ids: buildingIds }
+        });
+        if (error) throw new Error(error.message);
+
+        const r = Array.isArray(data) ? data[0] : data;
+        if (r?.success) {
+            resultEl.innerHTML = `<span class="text-hb-success font-bold">✓ Account angelegt${!password ? ' — Einladung gesendet' : ''}</span>`;
+            document.getElementById('nu-email').value = '';
+            document.getElementById('nu-name').value = '';
+        } else {
+            resultEl.innerHTML = `<span class="text-hb-error font-bold">✗ Fehler: ${r?.error || 'Unbekannt'}</span>`;
+        }
+    } catch (err) {
+        resultEl.innerHTML = `<span class="text-hb-error font-bold">✗ ${err.message}</span>`;
+    }
+};
+
+window._nutzerBatchCreate = async () => {
+    // Read current values from DOM (inputs may not have fired onblur yet)
+    const rows = [];
+    document.querySelectorAll('#nutzer-batch-tbody tr').forEach((tr, i) => {
+        const email   = tr.querySelector('input[type="email"]')?.value?.trim();
+        const name    = tr.querySelector('input[type="text"]')?.value?.trim();
+        const selects = tr.querySelectorAll('select');
+        const role    = selects[0]?.value || 'owner';
+        const bid     = selects[1]?.disabled ? '' : selects[1]?.value;
+        const invite  = tr.querySelector('input[type="checkbox"]')?.checked !== false;
+        if (email) rows.push({ email, full_name: name || email, role,
+            building_ids: bid ? [Number(bid)] : [], send_invite: invite });
+    });
+
+    if (!rows.length) { showToast('Keine Zeilen zum Anlegen.', 'error'); return; }
+
+    const resultEl = document.getElementById('nu-batch-result');
+    resultEl.innerHTML = `<div class="text-gray-400 text-sm">Lege ${rows.length} Account(s) an…</div>`;
+
+    try {
+        const { data, error } = await _supabase.functions.invoke('create-user', { body: rows });
+        if (error) throw new Error(error.message);
+
+        const results = Array.isArray(data) ? data : [data];
+        const ok   = results.filter(r => r.success).length;
+        const fail = results.filter(r => !r.success).length;
+
+        resultEl.innerHTML = `
+            <div class="mt-2 border border-hb-olive/12 rounded-xl overflow-hidden">
+                <div class="px-4 py-2.5 bg-hb-olive/5 flex gap-4 text-sm font-bold">
+                    <span class="text-hb-success">${ok} erfolgreich</span>
+                    ${fail ? `<span class="text-hb-error">${fail} Fehler</span>` : ''}
+                </div>
+                ${results.map(r => `
+                    <div class="flex items-start gap-2 text-xs py-2 px-4 border-t border-hb-olive/8">
+                        <span class="mt-0.5 ${r.success ? 'text-hb-success' : 'text-hb-error'} font-bold">${r.success ? '✓' : '✗'}</span>
+                        <span class="font-medium">${r.email}</span>
+                        ${!r.success ? `<span class="text-gray-400 ml-1">${r.error}</span>` : ''}
+                    </div>`).join('')}
+            </div>`;
+    } catch (err) {
+        resultEl.innerHTML = `<div class="text-hb-error text-sm mt-2">Fehler: ${err.message}</div>`;
+    }
+};
+
+window._nutzerDownloadTemplate = () => {
+    const buildingInfo = _nutzerState.buildings.length
+        ? _nutzerState.buildings.map(b => `# Gebäude-ID ${b.id} = ${formatBuildingName(b)}`).join('\n') + '\n#\n'
+        : '';
+    const csv = [
+        buildingInfo + '# Rollen: admin, manager, owner, tenant',
+        '# Einladung: ja = Einladungs-E-Mail, nein = Passwort wird separat gesetzt',
+        'email,vorname,nachname,rolle,gebaeude_id,einladung',
+        'max.mustermann@example.com,Max,Mustermann,owner,,ja',
+        'anna.admin@firma.de,Anna,Admin,admin,,nein',
+    ].join('\n');
+
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'nutzer-vorlage.csv'; a.click();
+    URL.revokeObjectURL(url);
+};
+
+window._nutzerImportCSV = (input) => {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const lines = e.target.result
+            .replace(/\r/g, '')
+            .split('\n')
+            .map(l => l.trim())
+            .filter(l => l && !l.startsWith('#'));
+
+        if (!lines.length) { showToast('Keine Daten in CSV.', 'error'); return; }
+
+        const headerIdx = lines.findIndex(l => l.toLowerCase().includes('email'));
+        if (headerIdx < 0) { showToast('Keine Header-Zeile gefunden.', 'error'); return; }
+
+        const headers = lines[headerIdx].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z_]/g, ''));
+        const col = (name) => headers.indexOf(name);
+        const iEmail    = col('email');
+        const iVorname  = col('vorname');
+        const iNachname = col('nachname');
+        const iRolle    = col('rolle');
+        const iBuilding = col('gebaeude_id');
+        const iInvite   = col('einladung');
+
+        if (iEmail < 0) { showToast('Spalte "email" nicht gefunden.', 'error'); return; }
+
+        const rows = [];
+        for (let i = headerIdx + 1; i < lines.length; i++) {
+            const c = lines[i].split(',').map(s => s.trim());
+            if (!c[iEmail]) continue;
+            const vorname  = iVorname  >= 0 ? c[iVorname]  : '';
+            const nachname = iNachname >= 0 ? c[iNachname] : '';
+            rows.push({
+                email:       c[iEmail],
+                name:        [vorname, nachname].filter(Boolean).join(' ') || c[iEmail],
+                role:        iRolle   >= 0 ? c[iRolle]   : 'owner',
+                building_id: iBuilding >= 0 ? c[iBuilding] : '',
+                send_invite: iInvite   >= 0 ? c[iInvite].toLowerCase() !== 'nein' : true,
+            });
+        }
+
+        if (!rows.length) { showToast('Keine Daten-Zeilen gefunden.', 'error'); return; }
+
+        _nutzerState.batchRows = rows;
+        _nutzerRefreshBatchTable();
+        showToast(`${rows.length} Zeile(n) importiert.`, 'success');
+    };
+    reader.readAsText(file, 'UTF-8');
+    input.value = '';
+};
