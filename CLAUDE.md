@@ -586,6 +586,31 @@ Migration `migration_etv_protokoll_signatories.sql`: `etv_sessions.beirat_signat
 - **Shared PDF-Helpers in `utils-pdf.js`:** `_pdfDrawTopHeader()` (olive Balken, dynamische Höhe, weiße Schrift) + `_pdfDrawSection()` (olive Label size 11 + mehrzeiliger Text mit Seitenumbruch-Handling) — gemeinsam genutzt von Einladungs- und Protokoll-PDF.
 - **Protokoll-Anschreiben (Seite 1) im Dokumentendesigner editierbar:** Template-Typ `etv_protokoll`. Migration `migration_etv_protokoll_template.sql`. DIN-5008-Kopf (Adressfeld, Datum, Betreff) bleibt fest; der Brieftext darunter nutzt `generateFromTemplate()` mit Legacy-Fallback. Platzhalter: `{{datum_versammlung}}`, `{{gebaeude_name}}`, `{{gebaeude_adresse}}`, `{{wirtschaftsjahr}}`, `{{firma}}`, `{{datum_heute}}`.
 
+### Phase 5.8 Protokoll-Upload Bugfixes (2026-05-12)
+
+Kette von Folgefehlern beim erstmaligen Testen des "Im Portal veröffentlichen"-Toggles in `generateETVProtokollPDF`. Alle 4 Fehler behoben:
+
+**1. publishNow-Block (`utils-pdf.js` v20260511o):**
+- Fehlende INSERT-Felder `file_size` + `generated_filename` ergänzt.
+- Falscher Spaltenname `storage_path` → `file_path` korrigiert.
+- Upload- und DB-Fehler getrennt behandelt (eigene `console.error`-Logs).
+
+**2. `documents.status` CHECK-Constraint (`fix_documents_status_check_add_released`):**
+- Constraint kannte nur `draft/active/archived`, nicht `released`.
+- Alle INSERTs mit `status='released'` schlugen still fehl (betrifft auch `_pdfSplitAndUpload` für WP/JAB).
+
+**3. Storage UPDATE-Policy (`fix_storage_documents_update_policy`):**
+- Beim zweiten Generieren versuchte `upsert:true` ein UPDATE auf `storage.objects` — Policy fehlte komplett.
+
+**4. RLS SELECT-Policies (`fix_rls_documents_released_visibility`):**
+- `docs_select_owner`, `docs_select_tenant`, `landlord_read_own_documents` hatten `status='active'` hardcoded.
+- Protokoll-PDFs und JABs mit `status='released'` waren für Eigentümer/Mieter unsichtbar.
+- Fix: `status IN ('active', 'released')` in allen drei Policies.
+
+**5. Gebäude-Filter in Dokumenten-Cloud (`mod-dokumente.js` v20260511p):**
+- `_populateBuildingFilter()`: Nicht-Admins sahen alle Gebäude im Filter, nicht nur eigene.
+- Fix: Filter auf Gebäude beschränkt, die tatsächlich in den (RLS-gefilterten) Dokumenten vorkommen.
+
 ### Phase 7.7 — SSOT-Audit
 `getMonthlyHausgeld()` berechnet Hausgeld dynamisch aus WP + Verteilerschlüssel (3 Module umgestellt). Basiszins + Mahngebühren aus `global_settings`. Heizkosten-Split aus `distribution_keys.heiz_split_percent`. ETV-Quorum konfigurierbar (`etv_sessions.quorum_percent`, Migration `migration_etv_quorum_percent.sql`). 16 zentrale Enum-Konstanten in `config.js`, 10 Module umgestellt.
 
