@@ -4418,172 +4418,308 @@ async function generateBeschlussPDF(building, beschluesse) {
     // A4 Querformat: 841.89 × 595.28 pt
     const W = 841.89;
     const H = 595.28;
-    const ML = 36; // margin left
-    const MR = 36; // margin right
-    const MT = 36; // margin top
-    const contentW = W - ML - MR;
+    const ML = 32;
+    const MR = 32;
+    const contentW = W - ML - MR;   // ≈ 778 pt
 
     const doc = await PDFDocument.create();
 
-    // Fonts
-    let reg, bold;
+    let reg, bold, italic;
     try {
         const fonts = await _pdfLoadInterFonts(doc);
-        reg  = fonts.reg;
-        bold = fonts.bold;
+        reg    = fonts.reg;
+        bold   = fonts.bold;
+        italic = fonts.italic || fonts.reg;
     } catch {
-        reg  = await doc.embedFont(StandardFonts.Helvetica);
-        bold = await doc.embedFont(StandardFonts.HelveticaBold);
+        reg    = await doc.embedFont(StandardFonts.Helvetica);
+        bold   = await doc.embedFont(StandardFonts.HelveticaBold);
+        italic = await doc.embedFont(StandardFonts.HelveticaOblique);
     }
 
-    const colOlive  = rgb(0.408, 0.455, 0.318); // #687451
-    const colBlack  = rgb(0.216, 0.216, 0.216); // #373737
-    const colGray   = rgb(0.6,   0.6,   0.6);
-    const colLGray  = rgb(0.96,  0.96,  0.96);
-    const colOrange = rgb(0.922, 0.463, 0.176); // #EB762D
-    const colRed    = rgb(0.769, 0.271, 0.243); // #C4453E
-    const colWhite  = rgb(1, 1, 1);
+    const colOlive   = rgb(0.408, 0.455, 0.318);  // #687451
+    const colBlack   = rgb(0.216, 0.216, 0.216);  // #373737
+    const colGray    = rgb(0.55,  0.55,  0.55);
+    const colLGray   = rgb(0.91,  0.91,  0.91);
+    const colRowAlt  = rgb(0.974, 0.976, 0.971);
+    const colSep     = rgb(0.85,  0.85,  0.85);
+    const colOrange  = rgb(0.769, 0.376, 0.110);
+    const colRed     = rgb(0.769, 0.271, 0.243);
+    const colWhite   = rgb(1, 1, 1);
+    const colSuccess = rgb(0.290, 0.486, 0.349);  // #4A7C59
 
-    // Column widths (total = contentW ≈ 770pt)
-    const cols = {
-        nr:     50,
-        datum:  72,
-        art:    62,
-        text:   0,  // fills remaining space
-        ergebnis: 95,
-        status: 85,
-    };
-    cols.text = contentW - cols.nr - cols.datum - cols.art - cols.ergebnis - cols.status;
+    // ─── Spaltenbreiten (6 Spalten nach Muster §24 Abs.7 WEG) ──────────────────
+    // Lfd. Nr. | Beschlusswortlaut | Versammlung | Gerichtsentscheidung | Vermerke | Eintragungsvermerk
+    const cols = { nr: 46, wortlaut: 0, versammlung: 120, gericht: 95, vermerke: 148, eintrag: 115 };
+    cols.wortlaut = contentW - cols.nr - cols.versammlung - cols.gericht - cols.vermerke - cols.eintrag;
 
-    const artLabel     = { etv: 'ETV', umlauf: 'Umlauf', sonstig: 'Sonstig' };
-    const statusLabel  = { aktiv: 'Aktiv', angefochten: 'Angefochten', nichtig: 'Nichtig', aufgehoben: 'Aufgehoben' };
-    const ergebnisLabel = { angenommen: 'Angenommen', abgelehnt: 'Abgelehnt', einstimmig: 'Einstimmig' };
+    const xNr          = ML;
+    const xWortlaut    = xNr          + cols.nr;
+    const xVersammlung = xWortlaut    + cols.wortlaut;
+    const xGericht     = xVersammlung + cols.versammlung;
+    const xVermerke    = xGericht     + cols.gericht;
+    const xEintrag     = xVermerke    + cols.vermerke;
+    const sepXs        = [xWortlaut, xVersammlung, xGericht, xVermerke, xEintrag];
 
-    const FONT_SIZE    = 8.5;
-    const HEADER_FS    = 7;
-    const ROW_PAD      = 5;   // vertical padding per row
-    const LINE_H       = FONT_SIZE * 1.35;
-    const HEADER_ROW_H = 20;
-    const FOOTER_H     = 22;
+    // ─── Typografie ────────────────────────────────────────────────────────────
+    const FS      = 8.5;    // Body
+    const FS_S    = 7.5;    // Sekundär (Abstimmung, Notiz-Label)
+    const FS_XS   = 7.0;    // Klein (Notiz-Text, Unterschrift-Label)
+    const LH      = FS   * 1.45;
+    const LH_S    = FS_S * 1.35;
+    const LH_XS   = FS_XS* 1.35;
+    const PAD_V   = 8;
+    const PAD_H   = 6;
+    const BANNER_H = 52;
+    const HEAD_H   = 30;  // zweizeliger Header
+    const FOOTER_H = 24;
 
-    // ─── Seite erzeugen ───────────────────────────────────────
-    let page = doc.addPage([W, H]);
-    let y    = H - MT;
-    let pageNum = 1;
+    // ─── Hilfsfunktionen ───────────────────────────────────────────────────────
+    let page, y, pageNum = 0;
 
-    function addPage() {
+    const fmtDate = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+
+    function _newPage() {
         page = doc.addPage([W, H]);
         pageNum++;
-        y = H - MT;
-        _drawPageHeader();
+        y = H;
+        _drawBanner();
         _drawTableHeader();
     }
 
-    function _drawPageHeader() {
-        // Olive-Header-Banner
-        page.drawRectangle({ x: 0, y: H - 48, width: W, height: 48, color: colOlive });
-        const bName = building.name || (building.street ? `${building.street} ${building.house_number || ''}` : `Objekt ${building.id}`);
-        page.drawText('Beschlusssammlung', { x: ML, y: H - 18, size: 14, font: bold, color: colWhite });
-        page.drawText(bName, { x: ML, y: H - 33, size: 9, font: reg, color: rgb(1, 1, 1, 0.8) });
-        const dateStr = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        page.drawText(`§ 24 Abs. 7 WEG  ·  Erstellt: ${dateStr}  ·  ${beschluesse.length} Beschlüsse`, {
-            x: W - MR - bold.widthOfTextAtSize(`§ 24 Abs. 7 WEG  ·  Erstellt: ${dateStr}  ·  ${beschluesse.length} Beschlüsse`, 8),
-            y: H - 29, size: 8, font: reg, color: rgb(1, 1, 1, 0.7)
+    function _drawBanner() {
+        page.drawRectangle({ x: 0, y: H - BANNER_H, width: W, height: BANNER_H, color: colOlive });
+        const bName = building.name || (building.street ? `${building.street} ${building.house_number || ''}`.trim() : `Objekt ${building.id}`);
+        page.drawText('Beschlusssammlung', { x: ML, y: H - 20, size: 15, font: bold, color: colWhite });
+        page.drawText(bName,               { x: ML, y: H - 36, size: 9,  font: reg,  color: rgb(1, 1, 1, 0.75) });
+        const infoTxt = `§ 24 Abs. 7 WEG  ·  Erstellt: ${fmtDate(new Date().toISOString().split('T')[0])}  ·  ${beschluesse.length} Beschlüsse`;
+        page.drawText(infoTxt, {
+            x: W - MR - reg.widthOfTextAtSize(infoTxt, 8),
+            y: H - 30, size: 8, font: reg, color: rgb(1, 1, 1, 0.65)
         });
-        y = H - 48 - 4;
+        y = H - BANNER_H - 10;
     }
 
     function _drawTableHeader() {
-        page.drawRectangle({ x: ML, y: y - HEADER_ROW_H, width: contentW, height: HEADER_ROW_H, color: colLGray });
+        // Hintergrund
+        page.drawRectangle({ x: ML, y: y - HEAD_H, width: contentW, height: HEAD_H, color: colOlive });
+
         const headers = [
-            ['Nr.',      ML,                              cols.nr],
-            ['Datum',    ML + cols.nr,                   cols.datum],
-            ['Art',      ML + cols.nr + cols.datum,      cols.art],
-            ['Beschlusstext', ML + cols.nr + cols.datum + cols.art, cols.text],
-            ['Ergebnis', ML + cols.nr + cols.datum + cols.art + cols.text, cols.ergebnis],
-            ['Status',   ML + cols.nr + cols.datum + cols.art + cols.text + cols.ergebnis, cols.status],
+            ['Lfd.\nNr.',                         xNr,          cols.nr],
+            ['Beschlusswortlaut',                  xWortlaut,    cols.wortlaut],
+            ['Versammlung\n(Art/Ort/Datum/TOP) bzw.\nUmlaufbeschluss', xVersammlung, cols.versammlung],
+            ['Gerichts-\nentscheidung\n(Tenor/Gericht/Datum)', xGericht,    cols.gericht],
+            ['Vermerke\n(angenommen/abgelehnt,\nbestandskräftig, Anfecht.)', xVermerke,  cols.vermerke],
+            ['Eintragungsvermerk\n(Name des Verwalters\nbzw. Datum, Unterschrift)', xEintrag,   cols.eintrag],
         ];
+
         headers.forEach(([label, x]) => {
-            page.drawText(label.toUpperCase(), { x: x + 4, y: y - HEADER_ROW_H + 6, size: HEADER_FS, font: bold, color: colGray });
+            const lines = label.split('\n');
+            // Erste Zeile fett, Rest kleiner/normal
+            page.drawText(lines[0], { x: x + PAD_H, y: y - 11, size: 7, font: bold, color: colWhite });
+            lines.slice(1).forEach((l, i) => {
+                page.drawText(l, { x: x + PAD_H, y: y - 11 - (i + 1) * 8.5, size: 6, font: reg, color: rgb(1, 1, 1, 0.75) });
+            });
         });
-        y -= HEADER_ROW_H;
+
+        // Vertikale Trennlinien im Header
+        sepXs.forEach(sx => {
+            page.drawLine({ start: { x: sx, y }, end: { x: sx, y: y - HEAD_H }, thickness: 0.5, color: rgb(1, 1, 1, 0.2) });
+        });
+
+        y -= HEAD_H;
+    }
+
+    function _drawColSeps(rowY, rowH) {
+        sepXs.forEach(sx => {
+            page.drawLine({ start: { x: sx, y: rowY }, end: { x: sx, y: rowY - rowH }, thickness: 0.5, color: colSep });
+        });
     }
 
     function _drawFooter(p, num, total) {
-        p.drawLine({ start: { x: ML, y: FOOTER_H }, end: { x: W - MR, y: FOOTER_H }, thickness: 0.5, color: colLGray });
-        p.drawText(`Seite ${num} von ${total}`, { x: W / 2 - 20, y: 8, size: 7, font: reg, color: colGray });
-        p.drawText('Beschlusssammlung nach §24 Abs. 7 WEG — unveränderliches Dokument', { x: ML, y: 8, size: 7, font: reg, color: colGray });
+        p.drawLine({ start: { x: ML, y: FOOTER_H }, end: { x: W - MR, y: FOOTER_H }, thickness: 0.4, color: colLGray });
+        p.drawText('Beschlusssammlung gemäß § 24 Abs. 7 WEG — unveränderliches Dokument', { x: ML, y: 9, size: 6.5, font: reg, color: colGray });
+        const pg = `Seite ${num} von ${total}`;
+        p.drawText(pg, { x: W - MR - reg.widthOfTextAtSize(pg, 6.5), y: 9, size: 6.5, font: reg, color: colGray });
     }
 
-    // Seite 1 aufbauen
-    _drawPageHeader();
-    _drawTableHeader();
+    // ─── Spalten-Inhalte vorbereiten ───────────────────────────────────────────
 
-    // ─── Zeilen ───────────────────────────────────────────────
+    function _buildVersammlungLines(b) {
+        const lines = [];
+        if (b.art === 'umlauf') {
+            lines.push('Umlaufbeschluss');
+            lines.push('(§ 23 Abs. 3 WEG)');
+        } else if (b.art === 'etv') {
+            lines.push('Eigentümerversammlung');
+            const top = b.etv_agenda_items;
+            if (top?.sort_order) lines.push(`TOP ${top.sort_order}`);
+        } else {
+            lines.push('Sonstige');
+        }
+        lines.push(fmtDate(b.beschluss_datum));
+        return lines;
+    }
+
+    function _buildVermerkeBlocks(b) {
+        // Block 1: Ergebnis
+        const ergebnisMap = { angenommen: 'angenommen', abgelehnt: 'abgelehnt', einstimmig: 'einstimmig angenommen' };
+        const ergebnisTxt = ergebnisMap[b.ergebnis] || (b.ergebnis || '—');
+        const ergebnisColor = b.ergebnis === 'einstimmig' ? colSuccess
+            : b.ergebnis === 'abgelehnt' ? colRed : colBlack;
+
+        // Block 2: Abstimmungszahlen (falls vorhanden)
+        let abstimmungLines = [];
+        if (b.abstimmung_ja != null || b.abstimmung_nein != null) {
+            const ja   = b.abstimmung_ja   ?? 0;
+            const nein = b.abstimmung_nein ?? 0;
+            const enth = b.abstimmung_enthaltung ?? 0;
+            abstimmungLines = [`Ja: ${ja}  Nein: ${nein}  Enth.: ${enth}`];
+        }
+
+        // Block 3: Status (nur wenn nicht aktiv)
+        let statusLines = [];
+        let statusColor = colGray;
+        if (b.status !== 'aktiv') {
+            const statusMap = { angefochten: 'angefochten', nichtig: 'nichtig', aufgehoben: 'aufgehoben' };
+            statusLines = [statusMap[b.status] || b.status];
+            statusColor = b.status === 'angefochten' ? colOrange : b.status === 'aufgehoben' ? colRed : colGray;
+        }
+
+        // Block 4: Notiz (falls vorhanden)
+        const notizLines = b.status_notiz
+            ? _pdfSplitText(b.status_notiz, reg, FS_XS, cols.vermerke - PAD_H * 2)
+            : [];
+
+        return { ergebnisTxt, ergebnisColor, abstimmungLines, statusLines, statusColor, notizLines };
+    }
+
+    function _buildEintragLines(b) {
+        const lines = [];
+        const name = b.profiles?.full_name;
+        if (name) lines.push(name);
+        lines.push(fmtDate(b.created_at?.split('T')[0]));
+        return lines;
+    }
+
+    // ─── Seite 1 ───────────────────────────────────────────────────────────────
+    _newPage();
+
+    if (beschluesse.length === 0) {
+        page.drawText('Keine Beschlüsse vorhanden.', { x: ML + PAD_H, y: y - 20, size: 10, font: reg, color: colGray });
+    }
+
     let altRow = false;
-    for (const b of beschluesse) {
-        const textLines = _pdfSplitText(b.beschluss_text || '', reg, FONT_SIZE, cols.text - 8);
-        const rowH = Math.max(ROW_PAD * 2 + LINE_H, ROW_PAD * 2 + textLines.length * LINE_H);
 
-        // Neue Seite wenn kein Platz
-        if (y - rowH < FOOTER_H + 4) {
-            addPage();
+    for (const b of beschluesse) {
+        // Zeileninhalte berechnen
+        const wortlautLines   = _pdfSplitText(b.beschluss_text || '', reg, FS, cols.wortlaut - PAD_H * 2);
+        const versammlungLines= _buildVersammlungLines(b);
+        const { ergebnisTxt, ergebnisColor, abstimmungLines, statusLines, statusColor, notizLines } = _buildVermerkeBlocks(b);
+        const eintragLines    = _buildEintragLines(b);
+
+        // Höhe Vermerke-Spalte
+        const vermerkeH = LH                                   // ergebnis
+            + (abstimmungLines.length  > 0 ? 3 + LH_S  : 0)  // abstimmung
+            + (statusLines.length      > 0 ? 4 + LH_S  : 0)  // status
+            + (notizLines.length       > 0 ? 2 + notizLines.length * LH_XS : 0);
+
+        // Höhe pro Spalte
+        const heights = [
+            wortlautLines.length    * LH,
+            versammlungLines.length * LH_S,
+            LH,                          // Gericht: immer mindestens eine Zeile
+            vermerkeH,
+            eintragLines.length     * LH_S,
+        ];
+        const innerH = Math.max(...heights, LH);
+        const rowH   = innerH + PAD_V * 2;
+
+        // Neue Seite?
+        if (y - rowH < FOOTER_H + 6) {
+            _newPage();
             altRow = false;
         }
 
+        const rowTop = y;
+
         // Zeilenhintergrund
-        if (altRow) page.drawRectangle({ x: ML, y: y - rowH, width: contentW, height: rowH, color: rgb(0.98, 0.98, 0.97) });
+        if (altRow) page.drawRectangle({ x: ML, y: rowTop - rowH, width: contentW, height: rowH, color: colRowAlt });
         altRow = !altRow;
 
-        // Trennlinie
-        page.drawLine({ start: { x: ML, y: y }, end: { x: ML + contentW, y: y }, thickness: 0.3, color: colLGray });
+        // Obere Trennlinie
+        page.drawLine({ start: { x: ML, y: rowTop }, end: { x: ML + contentW, y: rowTop }, thickness: 0.4, color: colLGray });
 
-        const textY = y - ROW_PAD - FONT_SIZE;
-        let xCur = ML;
+        // Vertikale Spaltentrenner
+        _drawColSeps(rowTop, rowH);
 
-        // Nr.
-        page.drawText(String(b.beschluss_nr || ''), { x: xCur + 4, y: textY, size: FONT_SIZE, font: bold, color: colOlive });
-        xCur += cols.nr;
+        const base = rowTop - PAD_V - FS;
 
-        // Datum
-        const datumStr = b.beschluss_datum ? new Date(b.beschluss_datum).toLocaleDateString('de-DE') : '—';
-        page.drawText(datumStr, { x: xCur + 4, y: textY, size: FONT_SIZE, font: reg, color: colBlack });
-        xCur += cols.datum;
+        // ── Lfd. Nr. ──
+        page.drawText(String(b.beschluss_nr || ''), { x: xNr + PAD_H, y: base, size: FS, font: bold, color: colOlive });
 
-        // Art
-        page.drawText(artLabel[b.art] || String(b.art || ''), { x: xCur + 4, y: textY, size: FONT_SIZE, font: reg, color: colGray });
-        xCur += cols.art;
-
-        // Beschlusstext (mehrzeilig)
-        textLines.forEach((line, li) => {
-            page.drawText(line, { x: xCur + 4, y: textY - li * LINE_H, size: FONT_SIZE, font: reg, color: colBlack });
+        // ── Beschlusswortlaut ──
+        wortlautLines.forEach((l, i) => {
+            page.drawText(l, { x: xWortlaut + PAD_H, y: base - i * LH, size: FS, font: reg, color: colBlack });
         });
-        xCur += cols.text;
 
+        // ── Versammlung ──
+        const vsBase = rowTop - PAD_V - FS_S;
+        versammlungLines.forEach((l, i) => {
+            const isDate = /^\d{2}\.\d{2}\.\d{4}$/.test(l);
+            page.drawText(l, {
+                x: xVersammlung + PAD_H, y: vsBase - i * LH_S,
+                size: isDate ? FS_S : FS_XS,
+                font: isDate ? bold : reg,
+                color: isDate ? colBlack : colGray
+            });
+        });
+
+        // ── Gerichtsentscheidung ──
+        page.drawText('—', { x: xGericht + PAD_H, y: base, size: FS, font: reg, color: colLGray });
+
+        // ── Vermerke ──
+        let vy = rowTop - PAD_V - FS;
         // Ergebnis
-        page.drawText(ergebnisLabel[b.ergebnis] || String(b.ergebnis || '—'), { x: xCur + 4, y: textY, size: FONT_SIZE, font: reg, color: colBlack });
-        xCur += cols.ergebnis;
-
-        // Status mit Farbe
-        const statusColor = b.status === 'angefochten' ? colOrange : b.status === 'nichtig' ? colGray : b.status === 'aufgehoben' ? colRed : colOlive;
-        page.drawText(statusLabel[b.status] || String(b.status || ''), { x: xCur + 4, y: textY, size: FONT_SIZE, font: bold, color: statusColor });
-
-        // Status-Notiz (wenn vorhanden, kleine Zeile)
-        if (b.status_notiz && b.status !== 'aktiv') {
-            const notizY = textY - LINE_H;
-            const noteText = `Notiz: ${b.status_notiz}`.substring(0, 80);
-            page.drawText(noteText, { x: xCur + 4, y: notizY, size: 7, font: reg, color: colOrange });
+        page.drawText(ergebnisTxt, { x: xVermerke + PAD_H, y: vy, size: FS, font: bold, color: ergebnisColor });
+        vy -= LH;
+        // Abstimmung
+        if (abstimmungLines.length > 0) {
+            vy -= 3;
+            page.drawText(abstimmungLines[0], { x: xVermerke + PAD_H, y: vy, size: FS_S, font: reg, color: colGray });
+            vy -= LH_S;
         }
+        // Status (wenn nicht aktiv)
+        if (statusLines.length > 0) {
+            vy -= 4;
+            page.drawLine({ start: { x: xVermerke + PAD_H, y: vy + LH_S - 1 }, end: { x: xVermerke + cols.vermerke - PAD_H, y: vy + LH_S - 1 }, thickness: 0.4, color: colLGray });
+            page.drawText(statusLines[0], { x: xVermerke + PAD_H, y: vy, size: FS_S, font: bold, color: statusColor });
+            vy -= LH_S;
+        }
+        // Notiz
+        if (notizLines.length > 0) {
+            vy -= 2;
+            notizLines.forEach((l) => {
+                page.drawText(l, { x: xVermerke + PAD_H, y: vy, size: FS_XS, font: italic, color: colOrange });
+                vy -= LH_XS;
+            });
+        }
+
+        // ── Eintragungsvermerk ──
+        const ev = rowTop - PAD_V - FS_S;
+        eintragLines.forEach((l, i) => {
+            const isName = i === 0 && eintragLines.length > 1;
+            page.drawText(l, { x: xEintrag + PAD_H, y: ev - i * LH_S, size: isName ? FS_S : FS, font: isName ? reg : bold, color: colBlack });
+        });
 
         y -= rowH;
     }
 
-    // Leerstate
-    if (beschluesse.length === 0) {
-        page.drawText('Keine Beschlüsse vorhanden.', { x: ML + 4, y: y - 20, size: 10, font: reg, color: colGray });
+    // Abschlusslinie
+    if (beschluesse.length > 0) {
+        page.drawLine({ start: { x: ML, y }, end: { x: ML + contentW, y }, thickness: 0.5, color: colOlive });
     }
 
-    // Footer auf allen Seiten nachträglich eintragen
+    // Footer auf allen Seiten
     const pages = doc.getPages();
     const total = pages.length;
     pages.forEach((p, i) => _drawFooter(p, i + 1, total));

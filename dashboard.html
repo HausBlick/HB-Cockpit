@@ -60,6 +60,8 @@
         .btn-primary { background-color: #687451; color: white; border-radius: 12px; transition: all 0.2s; font-weight: 600; padding: 12px 24px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
         .btn-primary:hover { background-color: #555f42; transform: translateY(-1px); }
         .btn-secondary { background-color: #e5e7eb; color: #374151; border-radius: 12px; transition: all 0.2s; font-weight: 600; padding: 12px 24px; cursor: pointer; }
+        .btn-outline { background-color: white; color: #687451; border: 1.5px solid #687451; border-radius: 12px; transition: all 0.2s; font-weight: 600; padding: 10px 20px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+        .btn-outline:hover { background-color: #687451; color: white; transform: translateY(-1px); }
         .badge-eigentuemer  { background-color: #eef0eb; color: #687451; border-color: #c4ccb8; }
         .badge-mieter       { background-color: #fdf1e8; color: #c4601e; border-color: #f5c9a0; }
         .badge-dienstleister{ background-color: #f3f3f3; color: #555555; border-color: #d4d4d4; }
@@ -113,7 +115,7 @@
         .ds-block[draggable="true"]:active { cursor: grabbing; }
         .ds-block.ring-2 { box-shadow: 0 0 0 2px rgba(104,116,81,0.3); }
         /* Tap-Feedback (Mobile) — physisches Druckgefühl auf primären Aktionen */
-        .btn-primary:active, .btn-secondary:active, .tap-feedback:active {
+        .btn-primary:active, .btn-secondary:active, .btn-outline:active, .tap-feedback:active {
             transform: scale(0.97);
             opacity: 0.7;
             transition: transform 100ms ease-out, opacity 100ms ease-out;
@@ -192,7 +194,7 @@
     <script src="js/config.js?v=20260511a"></script>
     <script src="js/utils.js?v=20260425h"></script>
     <script src="js/modules/mod-dashboard.js?v=20260425k"></script>
-    <script src="js/modules/mod-objekte.js?v=20260425k"></script>
+    <script src="js/modules/mod-objekte.js?v=20260513a"></script>
     <script src="js/modules/mod-personen.js?v=20260425k"></script>
     <script src="js/modules/mod-persons-edit.js?v=20260425k"></script>
     <script src="js/modules/mod-news.js?v=20260425k"></script>

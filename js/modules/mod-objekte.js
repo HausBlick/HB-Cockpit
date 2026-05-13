@@ -65,7 +65,7 @@ async function loadTenants() {
                     <div class="px-4 py-3 flex justify-between items-center bg-hb-olive">
                         <h2 class="text-sm font-bold text-white">Objekte</h2>
                         <button onclick="showBuildingForm()"
-                            class="bg-white text-hb-olive w-7 h-7 rounded-full flex items-center justify-center hover:bg-hb-ultralight text-lg leading-none transition-colors">+</button>
+                            class="bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors">+ Neues Objekt</button>
                     </div>
                     <!-- Suche -->
                     <div class="px-3 py-2 border-b border-gray-50">
@@ -164,7 +164,7 @@ async function showBuildingInfo(b) {
                     <p class="text-xs text-gray-500">${addr}</p>
                 </div>
                 <button onclick="showBuildingForm(${b.id})"
-                    class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0">Bearbeiten</button>
+                    class="btn-outline text-xs px-3 py-1.5 flex-shrink-0">Bearbeiten</button>
             </div>
 
             <!-- Tabs -->
@@ -234,7 +234,7 @@ async function showBuildingInfo(b) {
                         <div class="flex justify-between items-center mb-2">
                             <h4 class="text-sm font-bold text-hb-offblack">Verwaltungsbeirat</h4>
                             <button onclick="_showAddBoardMemberModal(${b.id})"
-                                class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100">+ Beirat hinzufügen</button>
+                                class="btn-outline text-xs px-3 py-1.5">+ Beirat hinzufügen</button>
                         </div>
                         <div id="board-members-list">
                             ${boardMembers.length ? boardMembers.map(bm => {
@@ -283,7 +283,7 @@ async function showBuildingInfo(b) {
             <div class="border-t border-hb-olive/12 flex-grow flex flex-col min-h-0">
                 <div class="px-4 py-2.5 bg-hb-olive/80 flex justify-between items-center flex-shrink-0">
                     <h3 class="text-sm font-bold text-white">Einheiten</h3>
-                    <button onclick="showApartmentForm()" class="bg-white text-hb-olive text-xs px-3 py-1 rounded-lg hover:bg-hb-ultralight transition-colors font-semibold">+ Einheit</button>
+                    <button onclick="showApartmentForm()" class="bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">+ Einheit</button>
                 </div>
                 <div id="apartments-list" class="flex-grow overflow-y-auto"></div>
             </div>
@@ -370,7 +370,7 @@ async function showApartmentInfo(id) {
                     <p class="text-sm text-gray-500">${apt.type || 'Wohnen'} · ${apt.sq_meters || 0} m² · ${apt.rooms || 0} Zimmer</p>
                 </div>
                 <button onclick="showApartmentForm(${apt.id})"
-                    class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0">Bearbeiten</button>
+                    class="btn-outline text-xs px-3 py-1.5 flex-shrink-0">Bearbeiten</button>
             </div>
 
             <!-- Tabs -->
@@ -522,7 +522,7 @@ async function showBuildingForm(id = null) {
                         <div class="flex justify-between items-center mb-3">
                             <h3 class="text-sm font-black uppercase tracking-widest text-hb-olive">Bankkonten</h3>
                             ${isEdit ? `<button type="button" onclick="addBankAccountRow()"
-                                class="text-xs font-bold text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100">+ Konto</button>`
+                                class="btn-outline text-xs px-3 py-1.5">+ Konto</button>`
                                 : '<span class="text-xs text-gray-400">Nach erstem Speichern verfügbar.</span>'}
                         </div>
                         <div id="bank-accounts-list" class="space-y-3">
@@ -783,7 +783,7 @@ async function showApartmentForm(id = null) {
                         <div class="flex justify-between items-center mb-3">
                             <h3 class="text-sm font-black uppercase tracking-widest text-hb-olive">Verteilerschlüssel</h3>
                             <button type="button" onclick="addCostKeyRow()"
-                                class="text-xs font-bold text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100">+ Schlüssel</button>
+                                class="btn-outline text-xs px-3 py-1.5">+ Schlüssel</button>
                         </div>
                         <div id="cost-keys-list" class="space-y-2">
                             ${Object.entries(costKeys).map(([k, v]) => costKeyRowHtml(k, v)).join('')
