@@ -232,6 +232,7 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 | DB-Fix | fix_documents_status_check_add_released | `documents.status` CHECK-Constraint um `released` erweitert (war nur draft/active/archived) — behebt Fehler beim Protokoll-/Dokument-Insert mit status='released'. |
 | Storage-Fix | fix_storage_documents_update_policy | UPDATE-Policy für `storage.objects` (bucket=documents) hinzugefügt — fehlte komplett, blockierte upsert-Uploads (z.B. Protokoll-PDF bei Neugeneration). |
 | RLS-Fix | fix_rls_documents_released_visibility | `docs_select_owner` + `docs_select_tenant` + `landlord_read_own_documents`: `status='active'` → `status IN ('active','released')` — Eigentümer/Mieter sahen Dokumente mit status='released' (Protokoll, JAB) nicht. |
+| Phase 5.8-F | 20260513000001_beschluesse | `beschluesse`-Tabelle (building_id, beschluss_nr, beschluss_datum, art ENUM, beschluss_text, abstimmung_ja/nein/enthaltung, ergebnis ENUM, etv_session_id FK nullable, top_id FK nullable UNIQUE, status ENUM, status_notiz, status_datum, created_by). RLS: admin/manager SELECT+INSERT+UPDATE, kein DELETE (absichtlich keine DELETE-Policy). 3 Indexes. |
 
 ---
 
@@ -300,7 +301,7 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 - 5.8-C **Dynamische Platzhalter in TOPs** (Text-Platzhalter z.B. `[BEAUFTRAGTE_FIRMA]` mit Auswahlmöglichkeiten) 📋
 - 5.8-D **Vollmachten-System** (Formular + TOP-bezogene Weisungen Ja/Nein/Enthaltung + Verwalter-Vollmacht) ✅
 - 5.8-E **Kontextsensitive Abstimmungs-Engine** (variable Abfrage-Reihenfolge 📋, Effizienz-Logik "Einstimmiges JA" ✅, Platzhalter-Finale 📋)
-- 5.8-F **Unterschriften-Workflow + Beschlusssammlung §24 Abs. 7 WEG** (Verwalter-Eintrag wer/wann unterschrieben, automatischer Transfer in gebäudespezifische Beschlusssammlung) 📋
+- 5.8-F ✅ **Beschlusssammlung §24 Abs. 7 WEG** — `beschluesse`-Tabelle (keine Löschung, nur Status-Änderung), Nav-Eintrag unterhalb ETV (admin/manager), manueller Eintrag + ETV-Transfer (angenommene TOPs einer Session), Neu-Nummerierung (YYYY/NNN), Status-Workflow (angefochten/nichtig/aufgehoben), Anfragen-Tab + Badge, PDF A4 Querformat (`generateBeschlussPDF`), Owner-Button "Kopie anfordern" in Dokumenten-Cloud → Ticket an Admin/Manager
 - 5.8-G **Kommunikation & Termine** (Auto-News "ETV-Planung gestartet", Antragsfrist, Kalendereintrag, digitale Einladung im Portal) 📋
 - 5.8-H **Person-Grouping in Präsenzliste** (Eigentümer mit mehreren WE wird einmal angezeigt mit Badges WE01+WE04, ein Klick checkt alle WE ein/aus. MEA + Kopfprinzip aggregieren Stimmen, Objektprinzip bleibt pro WE.) 📋
 - 5.8-I **Mehrere Eigentümer pro WE (Miteigentümer)** (Schema-Erweiterung: `UNIQUE(session_id, apartment_id, person_id)` statt aktuell `UNIQUE(session_id, apartment_id)`. Eheleute/Erbengemeinschaft als getrennte Personen, aber pro Einheit nur **eine** Stimme. Voting-Logik + Vollmachten-Zuordnung + PDF-Protokoll müssen mitziehen.) 📋
@@ -404,6 +405,44 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 
 > Komprimierte Dokumentation aller durchgeführten Änderungen.
 > Migrationen, Architektur-Entscheidungen und DB-Schema-Änderungen bleiben erhalten.
+
+---
+
+### Phase 5.8-F — Beschlusssammlung §24 Abs. 7 WEG (2026-05-13)
+
+Migration `20260513000001_beschluesse.sql`: Neue Tabelle `beschluesse` (building_id, beschluss_nr YYYY/NNN, beschluss_datum, art etv/umlauf/sonstig, beschluss_text, abstimmung_ja/nein/enthaltung, ergebnis angenommen/abgelehnt/einstimmig, etv_session_id FK nullable, top_id FK UNIQUE nullable, status aktiv/angefochten/nichtig/aufgehoben, status_notiz, created_by). Kein DELETE erlaubt (absichtlich keine DELETE-Policy).
+
+**`loadBeschluesse()` in `mod-etv.js`:**
+- Two-Panel-Layout (analog loadETV): linke Gebäude-Sidebar, rechts Tab-Ansicht
+- **Tab "Beschlüsse":** Chronologische Liste (Datum ASC), "Neuer Beschluss"-Modal (Nr auto-vorgeschlagen, Backdating möglich), Detail-Modal + Status-Änderung, "Neu durchnummerieren"-Button (YYYY/NNN nach beschluss_datum)
+- **Tab "Anfragen":** Offene Tickets mit `category='Beschlusssammlung-Anfrage'`, "PDF freigeben"-Button → `generateBeschlussPDF()` + Storage-Upload + `documents`-Eintrag `visibility_scope='person'` + `document_links` für anfragenden Owner + Ticket schließen
+
+**ETV-Integration (`mod-etv.js`):**
+- Button "Übertragen" in Nachbereitung-Tab (nach Protokoll-Generator): öffnet Transfer-Modal mit allen angenommenen TOPs (Duplikat-Check via top_id)
+- `_beschTransferFromSession()`: Abstimmungsergebnis aus `_etvState.votes` vorbelegt, beschluss_nr auto-vorgeschlagen, Checkbox pro TOP
+- `_beschRequestCopy()`: von Owner aufrufbar, erstellt Ticket + sendNotification
+
+**`nav.js`:**
+- Neuer Nav-Eintrag "Beschlusssammlung" (admin/manager) unterhalb ETV: auf etv.html per onclick, von anderen Seiten per `href="etv.html?tab=beschluesse"`
+- `PAGE_INIT.etv` prüft `?tab=beschluesse` und ruft `loadBeschluesse()` statt `loadETV()`
+- Badge `nav-badge-beschluesse`: Anzahl offener Beschlusssammlung-Anfragen
+- Ticket-Badge für admin/manager exkludiert `category='Beschlusssammlung-Anfrage'` (werden separat gezählt)
+
+**`mod-dokumente.js` (Owner/Advisory):**
+- Card "Beschlusssammlung" in linker Sidebar unterhalb Kategorien (nur `role='owner'`)
+- Button "Kopie anfordern" → `_docsRequestBeschlusssammlung()`: bei 1 Gebäude direkt, bei mehreren Auswahl-Modal
+- Ruft `_beschRequestCopy(buildingId)` auf (Cross-Module-Aufruf)
+
+**`utils-pdf.js` — `generateBeschlussPDF(building, beschluesse)`:**
+- A4 Querformat (841×595pt), kein Briefbogen
+- Olive-Header-Banner: Titel + Gebäudename + Erstellungsdatum + §24-Hinweis
+- Tabellen-Header: Nr. | Datum | Art | Beschlusstext | Ergebnis | Status
+- Text-Wrapping in Beschlusstext-Spalte via `_pdfSplitText()`, dynamische Zeilenhöhe
+- Status-Farben: aktiv=olive, angefochten=orange, nichtig=grau, aufgehoben=rot
+- Automatischer Seitenumbruch + Tabellen-Header-Wiederholung
+- Footer: Seitenzahl + §24-Hinweis
+
+**Cache-Buster:** mod-etv.js, nav.js, mod-dokumente.js, utils-pdf.js → `v=20260513a`. Alle 4 HTML-Shells aktualisiert.
 
 ---
 

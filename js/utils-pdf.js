@@ -4403,3 +4403,190 @@ async function generateETVEinladungPDF(sessionId, options = {}) {
         showToast(`${zipFiles.length} Einladungen generiert. Dokument-Freigabe fehlgeschlagen.`, 'warning');
     }
 }
+
+// ════════════════════════════════════════════════════════════════
+// BESCHLUSSSAMMLUNG PDF — A4 Querformat
+// §24 Abs. 7 WEG — Chronologische Beschlussübersicht
+// ════════════════════════════════════════════════════════════════
+
+async function generateBeschlussPDF(building, beschluesse) {
+    if (typeof PDFLib === 'undefined') {
+        showToast('PDF-Bibliothek nicht geladen.', 'error'); return;
+    }
+    const { PDFDocument, rgb, StandardFonts } = PDFLib;
+
+    // A4 Querformat: 841.89 × 595.28 pt
+    const W = 841.89;
+    const H = 595.28;
+    const ML = 36; // margin left
+    const MR = 36; // margin right
+    const MT = 36; // margin top
+    const contentW = W - ML - MR;
+
+    const doc = await PDFDocument.create();
+
+    // Fonts
+    let reg, bold;
+    try {
+        const fonts = await _pdfLoadInterFonts(doc);
+        reg  = fonts.reg;
+        bold = fonts.bold;
+    } catch {
+        reg  = await doc.embedFont(StandardFonts.Helvetica);
+        bold = await doc.embedFont(StandardFonts.HelveticaBold);
+    }
+
+    const colOlive  = rgb(0.408, 0.455, 0.318); // #687451
+    const colBlack  = rgb(0.216, 0.216, 0.216); // #373737
+    const colGray   = rgb(0.6,   0.6,   0.6);
+    const colLGray  = rgb(0.96,  0.96,  0.96);
+    const colOrange = rgb(0.922, 0.463, 0.176); // #EB762D
+    const colRed    = rgb(0.769, 0.271, 0.243); // #C4453E
+    const colWhite  = rgb(1, 1, 1);
+
+    // Column widths (total = contentW ≈ 770pt)
+    const cols = {
+        nr:     50,
+        datum:  72,
+        art:    62,
+        text:   0,  // fills remaining space
+        ergebnis: 95,
+        status: 85,
+    };
+    cols.text = contentW - cols.nr - cols.datum - cols.art - cols.ergebnis - cols.status;
+
+    const artLabel     = { etv: 'ETV', umlauf: 'Umlauf', sonstig: 'Sonstig' };
+    const statusLabel  = { aktiv: 'Aktiv', angefochten: 'Angefochten', nichtig: 'Nichtig', aufgehoben: 'Aufgehoben' };
+    const ergebnisLabel = { angenommen: 'Angenommen', abgelehnt: 'Abgelehnt', einstimmig: 'Einstimmig' };
+
+    const FONT_SIZE    = 8.5;
+    const HEADER_FS    = 7;
+    const ROW_PAD      = 5;   // vertical padding per row
+    const LINE_H       = FONT_SIZE * 1.35;
+    const HEADER_ROW_H = 20;
+    const FOOTER_H     = 22;
+
+    // ─── Seite erzeugen ───────────────────────────────────────
+    let page = doc.addPage([W, H]);
+    let y    = H - MT;
+    let pageNum = 1;
+
+    function addPage() {
+        page = doc.addPage([W, H]);
+        pageNum++;
+        y = H - MT;
+        _drawPageHeader();
+        _drawTableHeader();
+    }
+
+    function _drawPageHeader() {
+        // Olive-Header-Banner
+        page.drawRectangle({ x: 0, y: H - 48, width: W, height: 48, color: colOlive });
+        const bName = building.name || (building.street ? `${building.street} ${building.house_number || ''}` : `Objekt ${building.id}`);
+        page.drawText('Beschlusssammlung', { x: ML, y: H - 18, size: 14, font: bold, color: colWhite });
+        page.drawText(bName, { x: ML, y: H - 33, size: 9, font: reg, color: rgb(1, 1, 1, 0.8) });
+        const dateStr = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        page.drawText(`§ 24 Abs. 7 WEG  ·  Erstellt: ${dateStr}  ·  ${beschluesse.length} Beschlüsse`, {
+            x: W - MR - bold.widthOfTextAtSize(`§ 24 Abs. 7 WEG  ·  Erstellt: ${dateStr}  ·  ${beschluesse.length} Beschlüsse`, 8),
+            y: H - 29, size: 8, font: reg, color: rgb(1, 1, 1, 0.7)
+        });
+        y = H - 48 - 4;
+    }
+
+    function _drawTableHeader() {
+        page.drawRectangle({ x: ML, y: y - HEADER_ROW_H, width: contentW, height: HEADER_ROW_H, color: colLGray });
+        const headers = [
+            ['Nr.',      ML,                              cols.nr],
+            ['Datum',    ML + cols.nr,                   cols.datum],
+            ['Art',      ML + cols.nr + cols.datum,      cols.art],
+            ['Beschlusstext', ML + cols.nr + cols.datum + cols.art, cols.text],
+            ['Ergebnis', ML + cols.nr + cols.datum + cols.art + cols.text, cols.ergebnis],
+            ['Status',   ML + cols.nr + cols.datum + cols.art + cols.text + cols.ergebnis, cols.status],
+        ];
+        headers.forEach(([label, x]) => {
+            page.drawText(label.toUpperCase(), { x: x + 4, y: y - HEADER_ROW_H + 6, size: HEADER_FS, font: bold, color: colGray });
+        });
+        y -= HEADER_ROW_H;
+    }
+
+    function _drawFooter(p, num, total) {
+        p.drawLine({ start: { x: ML, y: FOOTER_H }, end: { x: W - MR, y: FOOTER_H }, thickness: 0.5, color: colLGray });
+        p.drawText(`Seite ${num} von ${total}`, { x: W / 2 - 20, y: 8, size: 7, font: reg, color: colGray });
+        p.drawText('Beschlusssammlung nach §24 Abs. 7 WEG — unveränderliches Dokument', { x: ML, y: 8, size: 7, font: reg, color: colGray });
+    }
+
+    // Seite 1 aufbauen
+    _drawPageHeader();
+    _drawTableHeader();
+
+    // ─── Zeilen ───────────────────────────────────────────────
+    let altRow = false;
+    for (const b of beschluesse) {
+        const textLines = _pdfSplitText(b.beschluss_text || '', reg, FONT_SIZE, cols.text - 8);
+        const rowH = Math.max(ROW_PAD * 2 + LINE_H, ROW_PAD * 2 + textLines.length * LINE_H);
+
+        // Neue Seite wenn kein Platz
+        if (y - rowH < FOOTER_H + 4) {
+            addPage();
+            altRow = false;
+        }
+
+        // Zeilenhintergrund
+        if (altRow) page.drawRectangle({ x: ML, y: y - rowH, width: contentW, height: rowH, color: rgb(0.98, 0.98, 0.97) });
+        altRow = !altRow;
+
+        // Trennlinie
+        page.drawLine({ start: { x: ML, y: y }, end: { x: ML + contentW, y: y }, thickness: 0.3, color: colLGray });
+
+        const textY = y - ROW_PAD - FONT_SIZE;
+        let xCur = ML;
+
+        // Nr.
+        page.drawText(String(b.beschluss_nr || ''), { x: xCur + 4, y: textY, size: FONT_SIZE, font: bold, color: colOlive });
+        xCur += cols.nr;
+
+        // Datum
+        const datumStr = b.beschluss_datum ? new Date(b.beschluss_datum).toLocaleDateString('de-DE') : '—';
+        page.drawText(datumStr, { x: xCur + 4, y: textY, size: FONT_SIZE, font: reg, color: colBlack });
+        xCur += cols.datum;
+
+        // Art
+        page.drawText(artLabel[b.art] || String(b.art || ''), { x: xCur + 4, y: textY, size: FONT_SIZE, font: reg, color: colGray });
+        xCur += cols.art;
+
+        // Beschlusstext (mehrzeilig)
+        textLines.forEach((line, li) => {
+            page.drawText(line, { x: xCur + 4, y: textY - li * LINE_H, size: FONT_SIZE, font: reg, color: colBlack });
+        });
+        xCur += cols.text;
+
+        // Ergebnis
+        page.drawText(ergebnisLabel[b.ergebnis] || String(b.ergebnis || '—'), { x: xCur + 4, y: textY, size: FONT_SIZE, font: reg, color: colBlack });
+        xCur += cols.ergebnis;
+
+        // Status mit Farbe
+        const statusColor = b.status === 'angefochten' ? colOrange : b.status === 'nichtig' ? colGray : b.status === 'aufgehoben' ? colRed : colOlive;
+        page.drawText(statusLabel[b.status] || String(b.status || ''), { x: xCur + 4, y: textY, size: FONT_SIZE, font: bold, color: statusColor });
+
+        // Status-Notiz (wenn vorhanden, kleine Zeile)
+        if (b.status_notiz && b.status !== 'aktiv') {
+            const notizY = textY - LINE_H;
+            const noteText = `Notiz: ${b.status_notiz}`.substring(0, 80);
+            page.drawText(noteText, { x: xCur + 4, y: notizY, size: 7, font: reg, color: colOrange });
+        }
+
+        y -= rowH;
+    }
+
+    // Leerstate
+    if (beschluesse.length === 0) {
+        page.drawText('Keine Beschlüsse vorhanden.', { x: ML + 4, y: y - 20, size: 10, font: reg, color: colGray });
+    }
+
+    // Footer auf allen Seiten nachträglich eintragen
+    const pages = doc.getPages();
+    const total = pages.length;
+    pages.forEach((p, i) => _drawFooter(p, i + 1, total));
+
+    return doc.save();
+}

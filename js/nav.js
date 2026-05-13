@@ -94,7 +94,14 @@ async function init() {
             // Externe Seite — Modul direkt initialisieren
             const PAGE_INIT = {
                 'zeiterfassung': typeof loadZeiterfassung === 'function' ? loadZeiterfassung : null,
-                'etv':           typeof loadETV           === 'function' ? loadETV           : null,
+                'etv': () => {
+                    const tabParam = new URLSearchParams(window.location.search).get('tab');
+                    if (tabParam === 'beschluesse' && typeof loadBeschluesse === 'function') {
+                        loadBeschluesse();
+                    } else if (typeof loadETV === 'function') {
+                        loadETV();
+                    }
+                },
                 'finanzen':      typeof loadFinance       === 'function' ? loadFinance       : null,
             };
             if (PAGE_INIT[page]) PAGE_INIT[page]();
@@ -135,6 +142,12 @@ function renderNav(role) {
         html += _navItem('loadDocuments',      icons.docs,      'Dokumenten Cloud', 'nav-badge-docs');
         html += _navItem('loadCalendar',       icons.calendar,  'Kalender');
         html += _navItem('loadETV',            icons.users,     'Eigentümerversammlung');
+        // Beschlusssammlung: auf etv.html per onclick, sonst href mit tab-Param
+        const _bPage = _getCurrentPage();
+        html += `<li><a ${_bPage === 'etv' ? `onclick="loadBeschluesse(); setActiveNav(this)"` : `href="etv.html?tab=beschluesse"`} class="nav-link">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+            Beschlusssammlung <span id="nav-badge-beschluesse" class="nav-badge"></span>
+        </a></li>`;
         html += _navItem('loadSettings',       icons.settings,  'Einstellungen');
 
     } else if (role === 'owner') {
@@ -308,15 +321,19 @@ async function loadNavBadges() {
     const uid  = currentUser?.id;
     if (!uid) return;
 
-    const [newsRes, readsRes, ticketRes, docsRes, docReadsRes] = await Promise.all([
+    const isAdminOrManager = role === 'admin' || role === 'manager';
+    const [newsRes, readsRes, ticketRes, docsRes, docReadsRes, beschAnfragenRes] = await Promise.all([
         _supabase.from('news').select('id, created_at, updated_at'),
         _supabase.from('news_reads').select('news_id, read_at').eq('user_id', uid),
-        role === 'admin' || role === 'manager'
-            ? _supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('status', 'Offen')
+        isAdminOrManager
+            ? _supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('status', 'Offen').neq('category', 'Beschlusssammlung-Anfrage')
             : _supabase.from('tickets').select('id', { count: 'exact', head: true })
                 .or(`creator_id.eq.${uid},assigned_to.eq.${uid}`).eq('status', 'Offen'),
         _supabase.from('documents').select('id').eq('status', 'active').eq('is_deleted', false),
         _supabase.from('document_reads').select('document_id').eq('user_id', uid),
+        isAdminOrManager
+            ? _supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('status', 'Offen').eq('category', 'Beschlusssammlung-Anfrage')
+            : Promise.resolve({ count: 0 }),
     ]);
 
     // News-Badge: ungelesen + seit letztem Lesen aktualisiert
@@ -333,9 +350,12 @@ async function loadNavBadges() {
     const docReadSet = new Set((docReadsRes.data || []).map(r => r.document_id));
     const docsCount  = (docsRes.data || []).filter(d => !docReadSet.has(d.id)).length;
 
-    _setNavBadge('nav-badge-news',    newsCount);
-    _setNavBadge('nav-badge-tickets', ticketCount);
-    _setNavBadge('nav-badge-docs',    docsCount);
+    const beschAnfragenCount = beschAnfragenRes?.count || 0;
+
+    _setNavBadge('nav-badge-news',        newsCount);
+    _setNavBadge('nav-badge-tickets',     ticketCount);
+    _setNavBadge('nav-badge-docs',        docsCount);
+    _setNavBadge('nav-badge-beschluesse', beschAnfragenCount);
 
     // Bottom-Nav Badges
     _setBnavBadge('bnav-badge-news',    newsCount);
