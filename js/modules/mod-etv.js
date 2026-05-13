@@ -153,9 +153,14 @@ window._etvSelectBuilding = async (id) => {
                     <h1 class="text-[28px] font-bold text-hb-offblack">Eigentümerversammlungen</h1>
                     <p class="text-xs text-gray-400 mt-0.5 font-bold uppercase tracking-widest">${buildingLabel}</p>
                 </div>
-                <button onclick="_etvNewSessionModal()" class="bg-hb-olive text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all flex-shrink-0">
-                    + Neue Versammlung planen
-                </button>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <button onclick="_etvDownloadAnwesenheitsliste()" class="btn-outline text-sm font-bold flex items-center gap-2 px-4 py-2.5">
+                        ↓ Anwesenheitsliste
+                    </button>
+                    <button onclick="_etvNewSessionModal()" class="bg-hb-olive text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all">
+                        + Neue Versammlung planen
+                    </button>
+                </div>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 overflow-y-auto pr-1 pb-10">
                 ${sessionCards}
@@ -165,6 +170,54 @@ window._etvSelectBuilding = async (id) => {
 
 // Legacy-Alias für bestehende Aufrufe
 window._etvOnBuildingChange = (val) => _etvSelectBuilding(val);
+
+window._etvDownloadAnwesenheitsliste = async () => {
+    const bid = _etvState.buildingId;
+    const building = _etvState.buildings.find(b => b.id === bid);
+    if (!bid || !building) { showToast('Kein Gebäude ausgewählt.', 'error'); return; }
+
+    const { data: apts, error: aptErr } = await _supabase
+        .from('apartments')
+        .select('id, apartment_number, mea_numerator, mea_denominator, sq_meters')
+        .eq('building_id', bid)
+        .order('apartment_number');
+    if (aptErr) { showToast('Fehler beim Laden der Einheiten.', 'error'); return; }
+
+    const aptIds = apts.map(a => a.id);
+    const { data: ownerships, error: ownErr } = await _supabase
+        .from('ownerships')
+        .select('apartment_id, person:persons!ownerships_owner_id_fkey(first_name, last_name)')
+        .in('apartment_id', aptIds)
+        .eq('is_active', true);
+    if (ownErr) { showToast('Fehler beim Laden der Eigentümer.', 'error'); return; }
+
+    const rows = apts.map((apt, idx) => {
+        const own = ownerships.find(o => o.apartment_id === apt.id);
+        const name = own?.person ? `${own.person.last_name}, ${own.person.first_name}` : '—';
+        return {
+            lfd: idx + 1,
+            weNr: apt.apartment_number || idx + 1,
+            meaNumerator: apt.mea_numerator || 0,
+            meaDenominator: apt.mea_denominator || 1000,
+            sqMeters: apt.sq_meters ? Number(apt.sq_meters).toLocaleString('de-DE') : null,
+            eigentuemerName: name
+        };
+    });
+
+    // 5 Leerzeilen für Nachmeldungen
+    for (let i = 1; i <= 5; i++) rows.push({ lfd: rows.length + 1, isBlank: true });
+
+    const bytes = await generateAnwesenheitslistePDF(building, rows);
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const dateStr = new Date().toISOString().split('T')[0];
+    a.download = `Anwesenheitsliste_${(building.name || building.id).replace(/\s+/g, '_')}_${dateStr}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Anwesenheitsliste generiert.', 'success');
+};
 
 /**
  * Öffnet eine spezifische Versammlung und lädt alle Daten
