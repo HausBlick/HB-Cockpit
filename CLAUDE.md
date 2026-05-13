@@ -44,7 +44,7 @@ Dieses Projekt nutzt zwei KI-gesteuerte Dokumente mit strikter Aufgabenteilung:
 
 ## 2. Tech-Stack
 
-- **Backend / DB / Auth:** Supabase (PostgreSQL 17, RLS). Auth: Supabase Auth aktiv — E-Mail/Passwort, Magic Link, Passwort-Reset. Registrierung aktuell nur durch Admin, Self-Service geplant (→ 7.8 Einladungscode)
+- **Backend / DB / Auth:** Supabase (PostgreSQL 17, RLS). Auth: Supabase Auth aktiv — E-Mail/Passwort, Magic Link, Passwort-Reset. Registrierung durch Admin via Edge Function `create-user` (Einladungsmail über Brevo SMTP).
 - **Frontend:** HTML5, Vanilla JavaScript, Tailwind CSS (via CDN)
 - **Hosting:** GitHub Pages (Push auf `main` → live)
 
@@ -334,12 +334,12 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 *Querschnitts-Modul: Konfiguration, E-Mail-Push, User-Profile, Audit, PWA.*
 - 7.1 **Admin-Einstellungen** (Firmenstammdaten, Briefkopf-Upload, Mahngebühr, Basiszins) ✅
 - 7.2 **E-Mail-Benachrichtigungen** (Brevo SMTP API, 4 Trigger, Edge Function, User-Opt-Out) ✅
-- 7.3 **Nutzer-Einstellungen** (Passwort ändern, Notification Opt-Ins je Trigger-Typ) 📋
+- 7.3 ✅ **Nutzer-Einstellungen** — Name, Passwort, E-Mail ändern in "Mein Profil" + Benachrichtigungs-Toggles
 - 7.4 **System-Logs / Audit Trail** (revisionssichere Aktions-Historie für Admin: Wer hat wann was geändert?) 📋
 - 7.5 **In-App Hilfe & Onboarding** (Fragezeichen-Symbol je Modul → kontextbezogene Doku / Guided Tour) 📋
 - 7.6 **PWA-Implementierung** (`manifest.json`, Service Worker, Icons, Offline-Fallback — installierbar auf iOS/Android-Homescreen) 📋
 - 7.7 **SSOT-Audit** (Hausgeld dynamisch aus WP, Basiszins + Mahngebühren aus `global_settings`, Heizkosten-Split aus `distribution_keys`, ETV-Quorum konfigurierbar, Enums zentralisiert in `config.js`) ✅
-- 7.8 🟡 **Einladungscode & Nutzer-Onboarding** (Admin generiert Registrierungscode → `persons.invite_code` → Registrierungsseite. MVP reicht) 📋
+- 7.8 ✅ **Einladungscode & Nutzer-Onboarding** — `inviteUserByEmail()` via Edge Function `create-user`. Einladungslink → Passwort-setzen-Flow in `index.html`. Kein separater Registrierungscode nötig.
 - 7.9 **Beirat-Auftragsfreigabe** (Advisory-Rolle kann Aufträge/Ausgaben ab Schwellwert freigeben, Freigabe-Status wird bei Buchung geprüft) 📋
 - 7.10 **PDF-Vorlagen-System (Template-Engine)** ✅
   > `pdf_templates`-Tabelle (type, name, content JSONB, use_letterhead). Blocktypen: heading, text, table, spacer, page_break, hint_box.
@@ -404,6 +404,38 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 
 > Komprimierte Dokumentation aller durchgeführten Änderungen.
 > Migrationen, Architektur-Entscheidungen und DB-Schema-Änderungen bleiben erhalten.
+
+---
+
+### Auth-Flow, Profil-Bearbeitung, E-Mail-System (2026-05-13)
+
+**Brevo SMTP + Auth-E-Mail-Templates:**
+- Supabase Auth auf Brevo SMTP umgestellt (alle Auth-Mails: Einladung, Reset, E-Mail-Änderung).
+- `mail-templates/invite-user.html`, `reset-password.html`, `change-email.html` — Branded HTML-Templates im HB-Olive-Design. In Supabase Dashboard → Authentication → Email Templates eingetragen.
+
+**Auth-Flow `index.html` (Phase 7.8 ✅):**
+- Hash `type=invite` erkennen → "Passwort festlegen"-Formular statt sofortiger Dashboard-Redirect.
+- `PASSWORD_RECOVERY`-Event → ebenfalls Passwort-setzen-Formular (für Passwort-vergessen-Flow).
+- "Passwort vergessen?"-Link → `resetPasswordForEmail()` → Reset-Mail via Brevo.
+- Drei Formulare (Login / Forgot / Set-Password) per Toggle ein-/ausgeblendet.
+
+**Profil-Bearbeitung `mod-placeholder.js` (Phase 7.3 ✅):**
+- Name: inline bearbeiten → `profiles.full_name` UPDATE.
+- E-Mail: `supabase.auth.updateUser({ email })` → Bestätigungslink an neue Adresse (nutzt `change-email.html`).
+- Passwort: `supabase.auth.updateUser({ password })` mit Mindestlänge + Bestätigung.
+- Inline-Toggle: nur eine Sektion gleichzeitig offen.
+
+**Edge Function `send-notification` lokal gespeichert + refactored:**
+- `supabase/functions/send-notification/index.ts` — vollständige Funktion jetzt versioniert.
+- `supabase/functions/send-notification/email-content.ts` — alle E-Mail-Texte (Betreff, Body, Button, Footer) in separater editierbarer Datei. E-Mail-Design auf HB-Olive-Standard (identisch zu Auth-Mails).
+
+**Scope-aware Dokument-Benachrichtigungen (Bugfix):**
+- Dokumente gehen **nie automatisch an Mieter** — Weiterleitung bleibt dem Vermieter überlassen (Phase 5.7-B).
+- `visibility_scope='building'` → nur Eigentümer des Gebäudes (`getBuildingOwners`).
+- `visibility_scope='unit'` → nur der aktuelle Eigentümer der Einheit (`getUnitOwner`).
+- `visibility_scope='person'` → nur die verknüpfte Person aus `document_links` (`getDocumentLinkPerson`).
+- `news_new` bleibt unverändert (alle Bewohner inkl. Mieter — Schwarzes Brett).
+- `mod-dokumente.js`: `unit_id` + `visibility_scope` im `sendNotification`-Payload ergänzt.
 
 ---
 
