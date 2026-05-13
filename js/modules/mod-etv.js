@@ -2645,7 +2645,7 @@ window._beschTransferFromSession = async (sessionId) => {
             <p class="text-xs opacity-70 mt-1">${toTransfer.length} TOPs zur Übertragung bereit</p>
         </div>
         <div class="p-5 space-y-4">
-            <div class="overflow-x-auto">
+            <div class="overflow-auto" style="max-height:60vh">
                 <table class="w-full text-left text-sm">
                     <thead><tr class="text-[10px] font-black text-gray-400 uppercase border-b border-gray-100">
                         <th class="p-2">Nr.</th><th class="p-2">TOP</th><th class="p-2">Ja/Nein/Enth.</th><th class="p-2">Ergebnis</th><th class="p-2">✓</th>
@@ -2653,12 +2653,12 @@ window._beschTransferFromSession = async (sessionId) => {
                     <tbody>${tableRows}</tbody>
                 </table>
             </div>
-            <div class="flex gap-3 pt-2">
+            <div class="flex gap-3 pt-2 sticky bottom-0 bg-white pb-1">
                 <button onclick="hideModal('besch-transfer-modal')" class="btn-secondary flex-1">Abbrechen</button>
                 <button onclick="_beschDoTransfer()" class="btn-primary flex-1">Übertragen</button>
             </div>
         </div>
-    `);
+    `, { maxWidth: 'max-w-3xl' });
 
     // Attach rows data to window for the confirm button
     window._beschTransferRows = rows;
