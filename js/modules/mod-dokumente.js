@@ -156,6 +156,16 @@ function _buildListHtml() {
                         </label>
                     </div>
                 </div>
+                ${(userProfile?.role === 'owner') ? `
+                <div class="card">
+                    <div class="p-3 bg-hb-olive"><p class="text-xs font-bold text-white">Beschlusssammlung</p></div>
+                    <div class="p-3">
+                        <p class="text-[13px] text-gray-500 mb-3 leading-snug">Als Eigentümer haben Sie das Recht, eine Kopie der Beschlusssammlung zu erhalten (§ 24 Abs. 7 WEG).</p>
+                        <button onclick="_docsRequestBeschlusssammlung()" class="w-full bg-hb-olive/10 text-hb-olive py-2.5 rounded-xl text-xs font-black hover:bg-hb-olive hover:text-white transition-all">
+                            Kopie anfordern
+                        </button>
+                    </div>
+                </div>` : ''}
             </div>
             <div class="flex-grow min-w-0 card">
                 <div class="p-4 bg-hb-olive flex justify-between items-center">
@@ -989,3 +999,55 @@ function _formatFileSize(bytes) {
     if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / 1048576).toFixed(1) + ' MB';
 }
+
+// ─── Beschlusssammlung anfordern (Owner / Beirat) ─────────────
+window._docsRequestBeschlusssammlung = async () => {
+    const buildingFilter = document.getElementById('docs-building-filter')?.value;
+
+    // Wenn kein Gebäude gewählt und Owner mehrere Gebäude hat: Auswahl anbieten
+    const { data: buildings } = await _supabase
+        .from('buildings')
+        .select('id, name, street, house_number')
+        .order('name');
+
+    const ownerBuildings = (buildings || []);
+
+    if (ownerBuildings.length === 0) {
+        showToast('Kein Gebäude gefunden.', 'error');
+        return;
+    }
+
+    if (ownerBuildings.length === 1 || buildingFilter) {
+        const bid = buildingFilter ? Number(buildingFilter) : ownerBuildings[0].id;
+        if (typeof _beschRequestCopy === 'function') {
+            await _beschRequestCopy(bid);
+        } else {
+            showToast('Funktion nicht verfügbar.', 'error');
+        }
+        return;
+    }
+
+    // Mehrere Gebäude → Auswahl-Modal
+    const opts = ownerBuildings.map(b => `<option value="${b.id}">${b.name || b.street || `Objekt ${b.id}`}</option>`).join('');
+    showModal('besch-request-modal', `
+        <div class="p-5 bg-hb-olive text-white">
+            <h3 class="text-lg font-black">Beschlusssammlung anfordern</h3>
+        </div>
+        <div class="p-5 space-y-4">
+            <p class="text-[15px] text-gray-500 leading-relaxed">Für welches Objekt möchten Sie eine Kopie der Beschlusssammlung anfordern?</p>
+            <select id="besch-request-building" class="w-full">${opts}</select>
+            <div class="flex gap-3 pt-2">
+                <button onclick="hideModal('besch-request-modal')" class="btn-secondary flex-1">Abbrechen</button>
+                <button onclick="_docsConfirmBeschlussRequest()" class="btn-primary flex-1">Anfrage senden</button>
+            </div>
+        </div>
+    `);
+};
+
+window._docsConfirmBeschlussRequest = async () => {
+    const bid = document.getElementById('besch-request-building')?.value;
+    hideModal('besch-request-modal');
+    if (typeof _beschRequestCopy === 'function') {
+        await _beschRequestCopy(Number(bid));
+    }
+};

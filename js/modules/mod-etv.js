@@ -952,6 +952,17 @@ function _etvRenderFollow() {
                     Protokoll PDF generieren
                 </button>
 
+                <!-- Beschlusssammlung Transfer -->
+                <div class="mt-4 bg-hb-ultralight border border-hb-olive/10 rounded-2xl p-5 flex items-center justify-between gap-4">
+                    <div>
+                        <div class="font-black text-hb-offblack text-sm">Beschlusssammlung</div>
+                        <div class="text-xs text-gray-400 mt-0.5">Angenommene Beschlüsse dieser Versammlung in die Beschlusssammlung übertragen.</div>
+                    </div>
+                    <button onclick="_beschTransferFromSession(${JSON.stringify(_etvState.sessionId)})" class="shrink-0 bg-hb-olive/10 text-hb-olive px-4 py-2 rounded-xl text-xs font-black hover:bg-hb-olive hover:text-white transition-all">
+                        Übertragen
+                    </button>
+                </div>
+
                 <!-- Hinweis Original beim Verwalter -->
                 <div class="mt-5 bg-hb-ultralight border border-hb-olive/10 rounded-2xl p-5">
                     <div class="text-[10px] font-black text-hb-olive uppercase tracking-widest mb-2">§ 24 Abs. 6 WEG — Hinweis zu Unterschriften</div>
@@ -2204,5 +2215,565 @@ window._etvSaveIndividualVotes = async (topId) => {
     document.getElementById('etv-ivoting-modal').remove();
     showToast('Abstimmung gespeichert.', 'success');
     _etvOpenSession(_etvState.sessionId);
+};
+
+// ════════════════════════════════════════════════════════════════
+// BESCHLUSSSAMMLUNG §24 Abs. 7 WEG
+// ════════════════════════════════════════════════════════════════
+
+const _beschState = {
+    buildingId: null,
+    data:       [],
+    anfragen:   [],
+    activeTab:  'list'
+};
+
+async function loadBeschluesse() {
+    const ca = document.getElementById('content-area');
+    ca.innerHTML = `<div class="flex justify-center py-16"><div class="w-8 h-8 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div></div>`;
+
+    if (!_etvState.buildings.length) {
+        const { data } = await _supabase.from('buildings').select('id, name, street, house_number, city').order('name');
+        _etvState.buildings = data || [];
+    }
+    if (!_etvState.buildings.length) {
+        ca.innerHTML = `<div class="p-10 card text-center max-w-sm mx-auto mt-10"><p class="text-[15px] text-gray-500">Keine Gebäude gefunden.</p></div>`;
+        return;
+    }
+    if (!_beschState.buildingId || !_etvState.buildings.find(b => b.id === _beschState.buildingId)) {
+        const urlBuilding = new URLSearchParams(window.location.search).get('building');
+        const sessionBuilding = sessionStorage.getItem('hb_active_building');
+        const targetId = urlBuilding || sessionBuilding;
+        _beschState.buildingId = (targetId && _etvState.buildings.find(b => b.id == targetId))
+            ? Number(targetId)
+            : _etvState.buildings[0].id;
+    }
+
+    ca.innerHTML = `
+        <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)] text-left">
+            <div class="w-full lg:w-56 xl:w-64 flex-shrink-0 flex flex-col h-full">
+                <div class="card flex flex-col h-full overflow-hidden">
+                    <div class="px-4 py-3 bg-hb-olive"><h2 class="text-sm font-bold text-white">Objekte</h2></div>
+                    <div id="besch-buildings-list" class="flex-grow overflow-y-auto p-2 space-y-0.5"></div>
+                </div>
+            </div>
+            <div class="flex-1 flex flex-col h-full min-w-0" id="besch-main-area">
+                <div class="flex justify-center py-10"><div class="w-6 h-6 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div></div>
+            </div>
+        </div>`;
+
+    _beschRenderBuildingList();
+    await _beschSelectBuilding(_beschState.buildingId);
+}
+
+function _beschRenderBuildingList() {
+    const list = document.getElementById('besch-buildings-list');
+    if (!list) return;
+    list.innerHTML = _etvState.buildings.map(b => `
+        <div onclick="_beschSelectBuilding(${b.id})" id="besch-b-item-${b.id}"
+            class="px-3 py-3 rounded-lg cursor-pointer hover:bg-gray-100 transition-all text-left group">
+            <p class="font-bold text-xs text-hb-offblack truncate group-hover:text-hb-olive">${formatBuildingName(b)}</p>
+            <p class="text-[10px] text-gray-400 truncate">${b.street ? `${b.street} ${b.house_number || ''}` : (b.city || '')}</p>
+        </div>`).join('') || '<p class="text-xs text-gray-400 p-3">Keine Gebäude.</p>';
+    document.querySelectorAll('[id^="besch-b-item-"]').forEach(el => el.classList.remove('bg-hb-ultralight'));
+    const sel = document.getElementById(`besch-b-item-${_beschState.buildingId}`);
+    if (sel) sel.classList.add('bg-hb-ultralight');
+}
+
+window._beschSelectBuilding = async (id) => {
+    _beschState.buildingId = Number(id);
+    sessionStorage.setItem('hb_active_building', String(id));
+    document.querySelectorAll('[id^="besch-b-item-"]').forEach(el => el.classList.remove('bg-hb-ultralight'));
+    const sel = document.getElementById(`besch-b-item-${id}`);
+    if (sel) sel.classList.add('bg-hb-ultralight');
+    await _beschLoadAndRender();
+};
+
+async function _beschLoadAndRender() {
+    const area = document.getElementById('besch-main-area');
+    if (!area) return;
+    area.innerHTML = `<div class="flex justify-center py-10"><div class="w-6 h-6 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div></div>`;
+
+    const bid = _beschState.buildingId;
+    const building = _etvState.buildings.find(b => b.id === bid);
+
+    const [beschRes, anfragenRes] = await Promise.all([
+        _supabase.from('beschluesse').select('*').eq('building_id', bid).order('beschluss_datum', { ascending: true }).order('beschluss_nr', { ascending: true }),
+        _supabase.from('tickets').select('id, title, created_at, creator_id, profiles!creator_id(full_name)').eq('building_id', bid).eq('category', 'Beschlusssammlung-Anfrage').eq('status', 'Offen')
+    ]);
+    _beschState.data     = beschRes.data || [];
+    _beschState.anfragen = anfragenRes.data || [];
+
+    const openCount = _beschState.anfragen.length;
+    area.innerHTML = `
+        <div class="flex flex-col h-full gap-4">
+            <div class="flex gap-1 bg-white rounded-2xl p-1 shadow-soft border border-hb-olive/12 w-fit shrink-0">
+                <button onclick="_beschSetTab('list')" id="besch-tab-list"
+                    class="px-5 py-2 rounded-xl text-xs font-black transition-all ${_beschState.activeTab === 'list' ? 'bg-hb-olive text-white' : 'text-gray-500 hover:bg-gray-50'}">
+                    Beschlüsse (${_beschState.data.length})
+                </button>
+                <button onclick="_beschSetTab('anfragen')" id="besch-tab-anfragen"
+                    class="px-5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${_beschState.activeTab === 'anfragen' ? 'bg-hb-olive text-white' : 'text-gray-500 hover:bg-gray-50'}">
+                    Anfragen${openCount > 0 ? ` <span class="bg-hb-orange text-white text-[9px] font-black rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">${openCount}</span>` : ''}
+                </button>
+            </div>
+            <div id="besch-content" class="flex-1 min-h-0 overflow-y-auto card">
+                ${_beschState.activeTab === 'list' ? _beschRenderListHtml(building) : _beschRenderAnfragenHtml()}
+            </div>
+        </div>`;
+}
+
+window._beschSetTab = (tab) => {
+    _beschState.activeTab = tab;
+    const building = _etvState.buildings.find(b => b.id === _beschState.buildingId);
+    document.getElementById('besch-content').innerHTML = tab === 'list' ? _beschRenderListHtml(building) : _beschRenderAnfragenHtml();
+    const tabs = { list: 'besch-tab-list', anfragen: 'besch-tab-anfragen' };
+    Object.entries(tabs).forEach(([t, elId]) => {
+        const el = document.getElementById(elId);
+        if (!el) return;
+        el.className = `px-5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${t === tab ? 'bg-hb-olive text-white' : 'text-gray-500 hover:bg-gray-50'}`;
+    });
+};
+
+function _beschRenderListHtml(building) {
+    const artLabel = { etv: 'ETV', umlauf: 'Umlauf', sonstig: 'Sonstig' };
+    const statusBadge = (s) => {
+        if (s === 'angefochten') return `<span class="px-2 py-0.5 text-[9px] font-black uppercase bg-hb-orange/10 text-hb-orange rounded-md border border-hb-orange/20">Angefochten</span>`;
+        if (s === 'nichtig')     return `<span class="px-2 py-0.5 text-[9px] font-black uppercase bg-gray-100 text-gray-400 rounded-md border border-gray-200">Nichtig</span>`;
+        if (s === 'aufgehoben') return `<span class="px-2 py-0.5 text-[9px] font-black uppercase bg-hb-error/10 text-hb-error rounded-md border border-hb-error/20">Aufgehoben</span>`;
+        return `<span class="px-2 py-0.5 text-[9px] font-black uppercase bg-hb-success/10 text-hb-success rounded-md border border-hb-success/20">Aktiv</span>`;
+    };
+    const ergebnisLabel = { angenommen: 'Angenommen', abgelehnt: 'Abgelehnt', einstimmig: 'Einstimmig' };
+
+    const rows = _beschState.data.length
+        ? _beschState.data.map(b => `
+            <tr class="border-b border-hb-olive/8 hover:bg-hb-ultralight/60 transition-colors">
+                <td class="p-3 text-xs font-black text-hb-olive whitespace-nowrap" data-label="Nr.">${b.beschluss_nr}</td>
+                <td class="p-3 text-xs text-gray-600 whitespace-nowrap" data-label="Datum">${new Date(b.beschluss_datum).toLocaleDateString('de-DE')}</td>
+                <td class="p-3" data-label="Art"><span class="px-2 py-0.5 text-[9px] font-black uppercase bg-hb-olive/10 text-hb-olive rounded-md">${artLabel[b.art] || b.art}</span></td>
+                <td class="p-3 text-sm text-hb-offblack" data-label="Beschluss"><div class="line-clamp-2">${b.beschluss_text}</div></td>
+                <td class="p-3 text-xs text-gray-500 whitespace-nowrap" data-label="Ergebnis">${ergebnisLabel[b.ergebnis] || b.ergebnis || '—'}</td>
+                <td class="p-3" data-label="Status">${statusBadge(b.status)}</td>
+                <td class="p-3 td-action">
+                    <button onclick="_beschDetailModal(${b.id})" class="text-hb-olive text-[11px] font-black hover:underline">Details</button>
+                </td>
+            </tr>`).join('')
+        : `<tr><td colspan="7" class="p-10 text-center text-[15px] text-gray-400">Noch keine Beschlüsse eingetragen.</td></tr>`;
+
+    return `
+        <div class="p-4 bg-hb-olive flex justify-between items-center gap-3">
+            <p class="text-sm font-bold text-white">${building ? formatBuildingName(building) : 'Beschlüsse'}</p>
+            <div class="flex gap-2">
+                <button onclick="_beschRenumber()" title="Neu durchnummerieren" class="bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all">↕ Neu nummerieren</button>
+                <button onclick="_beschNewModal()" class="bg-white text-hb-olive px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-hb-ultralight transition-all">+ Neuer Beschluss</button>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead><tr class="bg-gray-50 border-b border-gray-100 text-[10px] font-black text-gray-400 uppercase tracking-wide">
+                    <th class="p-3">Nr.</th><th class="p-3">Datum</th><th class="p-3">Art</th>
+                    <th class="p-3">Beschlusstext</th><th class="p-3">Ergebnis</th>
+                    <th class="p-3">Status</th><th class="p-3"></th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
+}
+
+function _beschRenderAnfragenHtml() {
+    if (!_beschState.anfragen.length) {
+        return `<div class="p-4 bg-hb-olive"><p class="text-sm font-bold text-white">Offene Anfragen</p></div>
+                <div class="p-10 text-center text-[15px] text-gray-400">Keine offenen Anfragen.</div>`;
+    }
+    const rows = _beschState.anfragen.map(t => `
+        <tr class="border-b border-hb-olive/8 hover:bg-hb-ultralight/60">
+            <td class="p-3 text-sm font-bold text-hb-offblack" data-label="Anfragender">${t.profiles?.full_name || '—'}</td>
+            <td class="p-3 text-xs text-gray-500" data-label="Datum">${new Date(t.created_at).toLocaleDateString('de-DE')}</td>
+            <td class="p-3 td-action">
+                <button onclick="_beschGenAndRelease(${t.id}, '${t.creator_id}')" class="bg-hb-olive text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-hb-olive/80 transition-all">
+                    PDF freigeben
+                </button>
+            </td>
+        </tr>`).join('');
+    return `
+        <div class="p-4 bg-hb-olive"><p class="text-sm font-bold text-white">Offene Anfragen</p></div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead><tr class="bg-gray-50 border-b border-gray-100 text-[10px] font-black text-gray-400 uppercase tracking-wide">
+                    <th class="p-3">Anfragender</th><th class="p-3">Datum</th><th class="p-3"></th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
+}
+
+// ─── Neuer Beschluss Modal ─────────────────────────────────────
+
+window._beschNewModal = () => {
+    const year = new Date().getFullYear();
+    const countThisYear = _beschState.data.filter(b => b.beschluss_datum?.startsWith(String(year))).length;
+    const suggestedNr = `${year}/${String(countThisYear + 1).padStart(3, '0')}`;
+
+    showModal('besch-new-modal', `
+        <div class="p-5 bg-hb-olive text-white">
+            <h3 class="text-lg font-black">Neuer Beschluss</h3>
+        </div>
+        <div class="p-5 space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1">Beschluss-Nr.</label>
+                    <input type="text" id="besch-new-nr" value="${suggestedNr}" class="w-full">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1">Datum</label>
+                    <input type="date" id="besch-new-datum" value="${new Date().toISOString().split('T')[0]}" class="w-full">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1">Art</label>
+                    <select id="besch-new-art" class="w-full">
+                        <option value="etv">ETV-Beschluss</option>
+                        <option value="umlauf">Umlaufbeschluss</option>
+                        <option value="sonstig">Sonstiger Beschluss</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1">Ergebnis</label>
+                    <select id="besch-new-ergebnis" class="w-full">
+                        <option value="angenommen">Angenommen</option>
+                        <option value="einstimmig">Einstimmig angenommen</option>
+                        <option value="abgelehnt">Abgelehnt</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1">Beschlusstext *</label>
+                <textarea id="besch-new-text" rows="4" placeholder="Vollständiger Wortlaut des Beschlusses..." class="w-full" style="height:auto"></textarea>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Ja-Stimmen</label>
+                    <input type="number" id="besch-new-ja" min="0" class="w-full" placeholder="—">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Nein-Stimmen</label>
+                    <input type="number" id="besch-new-nein" min="0" class="w-full" placeholder="—">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Enthaltungen</label>
+                    <input type="number" id="besch-new-enthaltung" min="0" class="w-full" placeholder="—">
+                </div>
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button onclick="hideModal('besch-new-modal')" class="btn-secondary flex-1">Abbrechen</button>
+                <button onclick="_beschSaveNew()" class="btn-primary flex-1">Speichern</button>
+            </div>
+        </div>
+    `);
+};
+
+window._beschSaveNew = async () => {
+    const text = document.getElementById('besch-new-text')?.value?.trim();
+    const datum = document.getElementById('besch-new-datum')?.value;
+    const nr    = document.getElementById('besch-new-nr')?.value?.trim();
+    if (!text || !datum || !nr) { showToast('Beschlusstext, Datum und Nr. sind Pflichtfelder.', 'error'); return; }
+
+    const { error } = await _supabase.from('beschluesse').insert({
+        building_id:           _beschState.buildingId,
+        beschluss_nr:          nr,
+        beschluss_datum:       datum,
+        art:                   document.getElementById('besch-new-art')?.value || 'etv',
+        beschluss_text:        text,
+        ergebnis:              document.getElementById('besch-new-ergebnis')?.value || 'angenommen',
+        abstimmung_ja:         Number(document.getElementById('besch-new-ja')?.value) || null,
+        abstimmung_nein:       Number(document.getElementById('besch-new-nein')?.value) || null,
+        abstimmung_enthaltung: Number(document.getElementById('besch-new-enthaltung')?.value) || null,
+        created_by:            currentUser.id,
+    });
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    hideModal('besch-new-modal');
+    showToast('Beschluss eingetragen.', 'success');
+    await _beschLoadAndRender();
+};
+
+// ─── Detail / Status-Änderung Modal ───────────────────────────
+
+window._beschDetailModal = (id) => {
+    const b = _beschState.data.find(x => x.id === id);
+    if (!b) return;
+    const artLabel = { etv: 'ETV-Beschluss', umlauf: 'Umlaufbeschluss', sonstig: 'Sonstiger Beschluss' };
+    const ergebnisLabel = { angenommen: 'Angenommen', abgelehnt: 'Abgelehnt', einstimmig: 'Einstimmig angenommen' };
+    const abstimmung = [b.abstimmung_ja != null ? `${b.abstimmung_ja} Ja` : null, b.abstimmung_nein != null ? `${b.abstimmung_nein} Nein` : null, b.abstimmung_enthaltung != null ? `${b.abstimmung_enthaltung} Enth.` : null].filter(Boolean).join(' / ') || '—';
+
+    showModal('besch-detail-modal', `
+        <div class="p-5 bg-hb-olive text-white flex justify-between items-center">
+            <div>
+                <h3 class="text-lg font-black">Beschluss ${b.beschluss_nr}</h3>
+                <p class="text-xs opacity-70">${new Date(b.beschluss_datum).toLocaleDateString('de-DE')} · ${artLabel[b.art] || b.art}</p>
+            </div>
+        </div>
+        <div class="p-5 space-y-4">
+            <div class="bg-hb-ultralight rounded-2xl p-4">
+                <p class="text-[10px] font-black text-hb-olive uppercase tracking-widest mb-2">Beschlusstext</p>
+                <p class="text-sm text-hb-offblack leading-relaxed">${b.beschluss_text}</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+                <div><span class="text-[10px] font-black text-gray-400 uppercase block mb-1">Ergebnis</span>${ergebnisLabel[b.ergebnis] || b.ergebnis || '—'}</div>
+                <div><span class="text-[10px] font-black text-gray-400 uppercase block mb-1">Abstimmung</span>${abstimmung}</div>
+                <div><span class="text-[10px] font-black text-gray-400 uppercase block mb-1">Status</span>${b.status}</div>
+                ${b.status_notiz ? `<div class="col-span-2"><span class="text-[10px] font-black text-gray-400 uppercase block mb-1">Statusnotiz</span>${b.status_notiz}</div>` : ''}
+            </div>
+            ${b.status === 'aktiv' ? `
+            <div class="border-t border-gray-100 pt-4">
+                <p class="text-[10px] font-black text-hb-olive uppercase tracking-widest mb-3">Status ändern</p>
+                <div class="space-y-3">
+                    <select id="besch-new-status-val" class="w-full">
+                        <option value="angefochten">Angefochten</option>
+                        <option value="nichtig">Nichtig</option>
+                        <option value="aufgehoben">Gerichtlich aufgehoben</option>
+                    </select>
+                    <textarea id="besch-new-status-notiz" rows="2" placeholder="Begründung / Aktenzeichen..." class="w-full" style="height:auto"></textarea>
+                    <button onclick="_beschSaveStatus(${id})" class="btn-primary w-full">Status speichern</button>
+                </div>
+            </div>` : ''}
+            <button onclick="hideModal('besch-detail-modal')" class="btn-secondary w-full">Schließen</button>
+        </div>
+    `);
+};
+
+window._beschSaveStatus = async (id) => {
+    const status = document.getElementById('besch-new-status-val')?.value;
+    const notiz  = document.getElementById('besch-new-status-notiz')?.value?.trim();
+    if (!notiz) { showToast('Bitte Begründung angeben.', 'error'); return; }
+
+    const { error } = await _supabase.from('beschluesse').update({
+        status, status_notiz: notiz, status_datum: new Date().toISOString().split('T')[0]
+    }).eq('id', id);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    hideModal('besch-detail-modal');
+    showToast('Status aktualisiert.', 'success');
+    await _beschLoadAndRender();
+};
+
+// ─── Neu durchnummerieren ──────────────────────────────────────
+
+window._beschRenumber = async () => {
+    if (_beschState.data.length === 0) { showToast('Keine Beschlüsse vorhanden.', 'info'); return; }
+    if (!confirm('Alle Beschlüsse chronologisch neu nummerieren (JJJJ/NNN)? Die bestehenden Nummern werden überschrieben.')) return;
+
+    // Gruppieren nach Jahr des Beschlussdatums, dann nummerieren
+    const grouped = {};
+    [..._beschState.data]
+        .sort((a, b) => a.beschluss_datum.localeCompare(b.beschluss_datum))
+        .forEach(b => {
+            const year = b.beschluss_datum.split('-')[0];
+            if (!grouped[year]) grouped[year] = [];
+            grouped[year].push(b);
+        });
+
+    const updates = [];
+    Object.entries(grouped).forEach(([year, items]) => {
+        items.forEach((item, i) => {
+            updates.push({ id: item.id, nr: `${year}/${String(i + 1).padStart(3, '0')}` });
+        });
+    });
+
+    let hadError = false;
+    for (const upd of updates) {
+        const { error } = await _supabase.from('beschluesse').update({ beschluss_nr: upd.nr }).eq('id', upd.id);
+        if (error) { hadError = true; }
+    }
+    showToast(hadError ? 'Teilweise Fehler beim Nummerieren.' : `${updates.length} Beschlüsse neu nummeriert.`, hadError ? 'error' : 'success');
+    await _beschLoadAndRender();
+};
+
+// ─── Transfer aus ETV-Session ─────────────────────────────────
+
+window._beschTransferFromSession = async (sessionId) => {
+    if (!sessionId) return;
+    const session = _etvState.session;
+    const agenda  = _etvState.agenda || [];
+    const approved = agenda.filter(a => a.result_status === 'approved');
+
+    if (!approved.length) {
+        showToast('Keine angenommenen Beschlüsse in dieser Versammlung.', 'info');
+        return;
+    }
+
+    // Prüfen welche TOPs bereits übertragen wurden
+    const { data: existing } = await _supabase.from('beschluesse').select('top_id').eq('building_id', _etvState.buildingId).not('top_id', 'is', null);
+    const existingTopIds = new Set((existing || []).map(e => e.top_id));
+    const toTransfer = approved.filter(a => !existingTopIds.has(a.id));
+
+    if (!toTransfer.length) {
+        showToast('Alle angenommenen Beschlüsse wurden bereits übertragen.', 'info');
+        return;
+    }
+
+    const meetingDate = session?.meeting_date ? new Date(session.meeting_date) : new Date();
+    const year = meetingDate.getFullYear();
+    const existingCount = _beschState.data.filter(b => b.beschluss_datum?.startsWith(String(year))).length;
+
+    const rows = toTransfer.map((top, i) => {
+        const votes = (_etvState.votes || []).filter(v => v.agenda_item_id === top.id);
+        const ja = votes.filter(v => v.vote === 'yes').length;
+        const nein = votes.filter(v => v.vote === 'no').length;
+        const enth = votes.filter(v => v.vote === 'abstain').length;
+        const einstimmig = nein === 0 && enth === 0 && ja > 0;
+        return { top, ja, nein, enth, einstimmig, suggestedNr: `${year}/${String(existingCount + i + 1).padStart(3, '0')}` };
+    });
+
+    const tableRows = rows.map((r, i) => `
+        <tr class="border-b border-gray-100">
+            <td class="p-2"><input type="text" id="besch-tr-nr-${i}" value="${r.suggestedNr}" class="w-24 text-xs px-2 py-1" style="height:32px"></td>
+            <td class="p-2 text-xs font-bold text-hb-offblack max-w-xs"><div class="line-clamp-2">${r.top.sort_order} ${r.top.title}</div></td>
+            <td class="p-2 text-xs text-gray-500 whitespace-nowrap">${r.ja}/${r.nein}/${r.enth}</td>
+            <td class="p-2"><input type="checkbox" id="besch-tr-check-${i}" checked class="w-4 h-4" style="height:16px;width:16px"></td>
+        </tr>`).join('');
+
+    showModal('besch-transfer-modal', `
+        <div class="p-5 bg-hb-olive text-white">
+            <h3 class="text-lg font-black">Beschlüsse übertragen</h3>
+            <p class="text-xs opacity-70 mt-1">${toTransfer.length} angenommene Beschlüsse bereit</p>
+        </div>
+        <div class="p-5 space-y-4">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead><tr class="text-[10px] font-black text-gray-400 uppercase border-b border-gray-100">
+                        <th class="p-2">Nr.</th><th class="p-2">TOP</th><th class="p-2">Ja/Nein/Enth.</th><th class="p-2">✓</th>
+                    </tr></thead>
+                    <tbody>${tableRows}</tbody>
+                </table>
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button onclick="hideModal('besch-transfer-modal')" class="btn-secondary flex-1">Abbrechen</button>
+                <button onclick="_beschDoTransfer(${JSON.stringify(rows.map(r => ({ topId: r.top.id, top: r.top, ja: r.ja, nein: r.nein, enth: r.enth, einstimmig: r.einstimmig })))})" class="btn-primary flex-1">Übertragen</button>
+            </div>
+        </div>
+    `);
+
+    // Attach rows data to window for the confirm button
+    window._beschTransferRows = rows;
+};
+
+window._beschDoTransfer = async (rowsMeta) => {
+    const inserts = [];
+    rowsMeta.forEach((r, i) => {
+        const checked = document.getElementById(`besch-tr-check-${i}`)?.checked;
+        if (!checked) return;
+        const nr = document.getElementById(`besch-tr-nr-${i}`)?.value?.trim() || r.suggestedNr;
+        const session = _etvState.session;
+        const datum = session?.meeting_date ? session.meeting_date.split('T')[0] : new Date().toISOString().split('T')[0];
+        inserts.push({
+            building_id:           _etvState.buildingId,
+            beschluss_nr:          nr,
+            beschluss_datum:       datum,
+            art:                   'etv',
+            beschluss_text:        r.top.proposed_resolution || r.top.title,
+            ergebnis:              r.einstimmig ? 'einstimmig' : 'angenommen',
+            abstimmung_ja:         r.ja || null,
+            abstimmung_nein:       r.nein || null,
+            abstimmung_enthaltung: r.enth || null,
+            etv_session_id:        _etvState.sessionId,
+            top_id:                r.topId,
+            created_by:            currentUser.id,
+        });
+    });
+
+    if (!inserts.length) { hideModal('besch-transfer-modal'); return; }
+
+    const { error } = await _supabase.from('beschluesse').insert(inserts);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    hideModal('besch-transfer-modal');
+    showToast(`${inserts.length} Beschluss/Beschlüsse übertragen.`, 'success');
+};
+
+// ─── PDF freigeben für Anfrage ─────────────────────────────────
+
+window._beschGenAndRelease = async (ticketId, creatorId) => {
+    const building = _etvState.buildings.find(b => b.id === _beschState.buildingId);
+    if (!building) return;
+
+    if (_beschState.data.length === 0) {
+        showToast('Keine Beschlüsse vorhanden — bitte zuerst Einträge vornehmen.', 'error');
+        return;
+    }
+
+    const btn = event?.target;
+    if (btn) { btn.disabled = true; btn.textContent = 'Wird generiert…'; }
+
+    try {
+        // PDF generieren
+        const pdfBytes = await generateBeschlussPDF(building, _beschState.data);
+
+        // Storage Upload
+        const dateStr = new Date().toISOString().split('T')[0];
+        const filePath = `${_beschState.buildingId}/Beschlusssammlung_${dateStr}_${Date.now()}.pdf`;
+        const { error: upErr } = await _supabase.storage.from('documents').upload(filePath, pdfBytes, {
+            contentType: 'application/pdf', upsert: false
+        });
+        if (upErr) throw upErr;
+
+        // Dokument-Eintrag
+        const { data: doc, error: docErr } = await _supabase.from('documents').insert({
+            title:             `Beschlusssammlung ${building.name || building.file_number} (${dateStr})`,
+            document_title:    `Beschlusssammlung ${dateStr}`,
+            original_filename: `Beschlusssammlung_${dateStr}.pdf`,
+            category:          'Beschlusssammlung',
+            file_path:         filePath,
+            file_type:         'application/pdf',
+            file_size:         pdfBytes.byteLength,
+            year:              new Date().getFullYear(),
+            visibility_scope:  'person',
+            building_id:       _beschState.buildingId,
+            uploaded_by:       currentUser.id,
+            status:            'active',
+            is_deleted:        false,
+        }).select('id').single();
+        if (docErr) throw docErr;
+
+        // document_link für anfragenden Eigentümer
+        await _supabase.from('document_links').insert({ document_id: doc.id, profile_id: creatorId });
+
+        // Ticket schließen
+        await _supabase.from('tickets').update({ status: 'Erledigt' }).eq('id', ticketId);
+
+        showToast('PDF erstellt und freigegeben.', 'success');
+        await _beschLoadAndRender();
+    } catch (err) {
+        console.error(err);
+        showToast('Fehler beim Generieren: ' + (err.message || err), 'error');
+        if (btn) { btn.disabled = false; btn.textContent = 'PDF freigeben'; }
+    }
+};
+
+// ─── Owner: Kopie anfordern (wird von mod-dokumente.js aufgerufen) ─
+
+window._beschRequestCopy = async (buildingId) => {
+    if (!buildingId) { showToast('Bitte zuerst ein Gebäude auswählen.', 'error'); return; }
+
+    const bid = Number(buildingId);
+    const building = (_etvState.buildings || []).find(b => b.id === bid);
+    const buildingName = building ? formatBuildingName(building) : `Objekt ${bid}`;
+
+    const { data: ticket, error } = await _supabase.from('tickets').insert({
+        title:       `Beschlusssammlung angefordert — ${buildingName}`,
+        description: `Eine Kopie der Beschlusssammlung für ${buildingName} wurde angefordert.`,
+        category:    'Beschlusssammlung-Anfrage',
+        status:      'Offen',
+        building_id: bid,
+        creator_id:  currentUser.id,
+        tenant_id:   currentUser.id,
+    }).select('id').single();
+
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+
+    // Standard-Benachrichtigung an Admin/Manager
+    if (ticket?.id) {
+        sendNotification('ticket_new', { ticket_id: ticket.id, building_id: bid, title: `Beschlusssammlung angefordert — ${buildingName}` });
+    }
+
+    showToast('Anfrage gesendet. Der Verwalter stellt Ihnen die Beschlusssammlung zeitnah bereit.', 'success');
 };
 
