@@ -408,6 +408,26 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 
 ---
 
+### ETV — Anwesenheits- und Vollmachtsliste PDF (2026-05-13)
+
+Neues Feature in `mod-etv.js`: Button **"↓ Anwesenheitsliste"** (btn-outline) in der Gebäude-Toolbar neben "+ Neue Versammlung planen". Abrufbar ohne angelegte Session — gebäudebezogen.
+
+**`_etvDownloadAnwesenheitsliste()` (`mod-etv.js` v20260513h):**
+- Lädt `apartments` (apartment_number, mea_numerator, mea_denominator, sq_meters) + aktive `ownerships` mit Personen-Join für das gewählte Gebäude
+- Sortiert nach Wohnungsnummer, Name im Format "Nachname, Vorname"
+- Fügt 5 Leerzeilen für Nachmeldungen an
+- Ruft `generateAnwesenheitslistePDF()` auf, Download als `Anwesenheitsliste_{Gebäude}_{Datum}.pdf`
+
+**`generateAnwesenheitslistePDF(building, rows)` (`utils-pdf.js` v20260513h):**
+- A4 Querformat (841×595 pt), 6 Spalten: Nr. | WE/MEA/m² | Eigentümer | Unterschrift Eigentümer | Vertreten durch (Name in Druckbuchstaben) | Unterschrift Vertreter
+- Olive Header-Banner (nur Seite 1), Spaltenheader wiederholt auf allen Seiten
+- Alle drei Schreiblinien (Unterschrift Eigentümer, Name in Druckbuchstaben, Unterschrift Vertreter) auf gleicher Höhe im unteren Zeilendrittel
+- Olive Tabellenrahmen: Abschlusslinie + linke/rechte Bordüre — pro Seite abgeschlossen (auch vor Seitenumbruch)
+- Alternierende Zeilen, vertikale Trennlinien, Footer mit Seitenzahl + §24-Hinweis
+- Zeilenhöhe 52pt (ca. 10 Zeilen pro Folgeseite)
+
+---
+
 ### Design-System — `btn-outline` + mod-objekte.js Button-Audit (2026-05-13)
 
 Neue CSS-Klasse `btn-outline` (weiß mit olive Rahmen, hover füllt sich olive) in allen 4 HTML-Shells (`dashboard.html`, `etv.html`, `finanzen.html`, `zeiterfassung.html`) definiert. Tap-Feedback-Regel um `.btn-outline:active` erweitert.

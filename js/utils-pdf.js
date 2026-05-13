@@ -4726,3 +4726,189 @@ async function generateBeschlussPDF(building, beschluesse) {
 
     return doc.save();
 }
+
+// ANWESENHEITSLISTE PDF — A4 Querformat
+// Anwesenheits- und Vollmachtsliste für Eigentümerversammlungen (§ 24 WEG)
+// ════════════════════════════════════════════════════════════════════════
+
+async function generateAnwesenheitslistePDF(building, rows) {
+    if (typeof PDFLib === 'undefined') {
+        showToast('PDF-Bibliothek nicht geladen.', 'error'); return;
+    }
+    const { PDFDocument, rgb, StandardFonts } = PDFLib;
+
+    const W = 841.89, H = 595.28;
+    const ML = 32, MR = 32;
+    const contentW = W - ML - MR; // 777.89
+
+    const doc = await PDFDocument.create();
+
+    let reg, bold;
+    try {
+        const fonts = await _pdfLoadInterFonts(doc);
+        reg = fonts.reg; bold = fonts.bold;
+    } catch {
+        reg  = await doc.embedFont(StandardFonts.Helvetica);
+        bold = await doc.embedFont(StandardFonts.HelveticaBold);
+    }
+
+    const colOlive  = rgb(0.408, 0.455, 0.318);
+    const colBlack  = rgb(0.216, 0.216, 0.216);
+    const colGray   = rgb(0.55,  0.55,  0.55);
+    const colLGray  = rgb(0.91,  0.91,  0.91);
+    const colRowAlt = rgb(0.974, 0.976, 0.971);
+    const colWhite  = rgb(1, 1, 1);
+    const colSep    = rgb(0.80,  0.80,  0.80);
+
+    // Spaltenbreiten (Summe = 778 ≈ contentW)
+    const C = { lfd: 28, we: 108, eig: 144, sigEig: 166, vtr: 166, sigVtr: 166 };
+
+    const xLfd    = ML;
+    const xWe     = xLfd    + C.lfd;
+    const xEig    = xWe     + C.we;
+    const xSigEig = xEig    + C.eig;
+    const xVtr    = xSigEig + C.sigEig;
+    const xSigVtr = xVtr    + C.vtr;
+    const sepXs   = [xWe, xEig, xSigEig, xVtr, xSigVtr];
+
+    const BANNER_H = 52, HEAD_H = 28, FOOTER_H = 22, ROW_H = 52;
+    const PAD_H = 6, PAD_V = 8;
+    const FS = 8.5, FS_S = 7.5, FS_XS = 6.5;
+
+    let page, y, pageNum = 0, _firstPageDone = false, _pageTableTop = null;
+    const today = new Date().toLocaleDateString('de-DE');
+    const ownerCount = rows.filter(r => !r.isBlank).length;
+    const bName = building.name
+        || `${building.street || ''} ${building.house_number || ''}`.trim()
+        || `Objekt ${building.id}`;
+
+    function _newPage() {
+        page = doc.addPage([W, H]);
+        pageNum++;
+        y = H;
+        if (!_firstPageDone) {
+            _drawBanner();        // großer Banner nur auf Seite 1
+            _firstPageDone = true;
+            y -= 8;               // Abstand zwischen Banner und Spaltenheader
+        }
+        _pageTableTop = y;        // Tabellenanfang merken (für linken/rechten Rahmen)
+        _drawTableHeader();
+    }
+
+    function _closePageFrame() {
+        // Olive Abschlusslinie unten
+        page.drawLine({ start: { x: ML, y }, end: { x: ML + contentW, y }, thickness: 0.5, color: colOlive });
+        // Linker Rahmen
+        page.drawLine({ start: { x: ML, y: _pageTableTop }, end: { x: ML, y }, thickness: 0.5, color: colOlive });
+        // Rechter Rahmen
+        page.drawLine({ start: { x: ML + contentW, y: _pageTableTop }, end: { x: ML + contentW, y }, thickness: 0.5, color: colOlive });
+    }
+
+    function _drawBanner() {
+        page.drawRectangle({ x: 0, y: H - BANNER_H, width: W, height: BANNER_H, color: colOlive });
+        page.drawText('Anwesenheits- und Vollmachtsliste', { x: ML, y: H - 20, size: 14, font: bold, color: colWhite });
+        page.drawText(bName, { x: ML, y: H - 36, size: 9, font: reg, color: rgb(1, 1, 1, 0.75) });
+        const infoTxt = `Eigentümerversammlung  ·  Erstellt: ${today}  ·  ${ownerCount} Eigentümer`;
+        page.drawText(infoTxt, {
+            x: W - MR - reg.widthOfTextAtSize(infoTxt, 8),
+            y: H - 28, size: 8, font: reg, color: rgb(1, 1, 1, 0.65)
+        });
+        y = H - BANNER_H;
+    }
+
+    function _drawTableHeader() {
+        page.drawRectangle({ x: ML, y: y - HEAD_H, width: contentW, height: HEAD_H, color: colOlive });
+        const hdrs = [
+            ['Nr.',                              xLfd,    C.lfd],
+            ['WE / MEA / m²',                   xWe,     C.we],
+            ['Eigentümer',                       xEig,    C.eig],
+            ['Unterschrift Eigentümer',          xSigEig, C.sigEig],
+            ['Vertreten durch',                  xVtr,    C.vtr],
+            ['Unterschrift Vertreter',           xSigVtr, C.sigVtr],
+        ];
+        hdrs.forEach(([txt, x]) => {
+            page.drawText(txt, { x: x + PAD_H, y: y - HEAD_H / 2 - FS_XS / 2 + 1, size: FS_XS, font: bold, color: colWhite });
+        });
+        sepXs.forEach(sx => {
+            page.drawLine({ start: { x: sx, y }, end: { x: sx, y: y - HEAD_H }, thickness: 0.4, color: rgb(1, 1, 1, 0.25) });
+        });
+        y -= HEAD_H + 10;  // sichtbarer Abstand zwischen Spaltenheader und erster Zeile
+    }
+
+    function _drawFooter(pg, num, total) {
+        pg.drawLine({ start: { x: ML, y: FOOTER_H }, end: { x: W - MR, y: FOOTER_H }, thickness: 0.4, color: colLGray });
+        const ctr = `Seite ${num} von ${total}`;
+        pg.drawText(ctr, {
+            x: W / 2 - reg.widthOfTextAtSize(ctr, FS_XS) / 2,
+            y: FOOTER_H / 2, size: FS_XS, font: reg, color: colGray
+        });
+        pg.drawText('Anwesenheitsliste  ·  § 24 WEG', { x: ML, y: FOOTER_H / 2, size: FS_XS, font: reg, color: colGray });
+    }
+
+    _newPage();
+
+    rows.forEach((row, idx) => {
+        if (y - ROW_H < FOOTER_H + 10) { _closePageFrame(); _newPage(); }
+
+        const rowTop = y;
+        const isAlt  = idx % 2 === 1;
+
+        page.drawRectangle({ x: ML, y: rowTop - ROW_H, width: contentW, height: ROW_H, color: isAlt ? colRowAlt : colWhite });
+
+        if (!row.isBlank) {
+            // Lfd. Nr.
+            page.drawText(String(row.lfd), { x: xLfd + PAD_H, y: rowTop - PAD_V - FS, size: FS, font: bold, color: colBlack });
+
+            // WE / MEA / m²
+            let wy = rowTop - PAD_V - FS;
+            page.drawText(String(row.weNr), { x: xWe + PAD_H, y: wy, size: FS, font: bold, color: colBlack });
+            wy -= FS * 1.5;
+            page.drawText(`${row.meaNumerator}/${row.meaDenominator} MEA`, { x: xWe + PAD_H, y: wy, size: FS_S, font: reg, color: colGray });
+            if (row.sqMeters) {
+                wy -= FS_S * 1.5;
+                page.drawText(`${row.sqMeters} m²`, { x: xWe + PAD_H, y: wy, size: FS_S, font: reg, color: colGray });
+            }
+
+            // Eigentümer Name
+            const nameLines = _pdfSplitText(row.eigentuemerName, bold, FS, C.eig - PAD_H * 2);
+            nameLines.slice(0, 2).forEach((line, i) => {
+                page.drawText(line, { x: xEig + PAD_H, y: rowTop - PAD_V - FS - i * FS * 1.4, size: FS, font: bold, color: colBlack });
+            });
+        } else {
+            // Leere Zeile: Nummer in Grau
+            page.drawText(String(row.lfd), { x: xLfd + PAD_H, y: rowTop - PAD_V - FS, size: FS, font: reg, color: colLGray });
+        }
+
+        // Alle Schreiblinien auf gleicher Höhe (unteres Zeilendrittel)
+        const sigY = rowTop - ROW_H + 22;
+
+        // Unterschrift Eigentümer
+        page.drawLine({ start: { x: xSigEig + PAD_H, y: sigY }, end: { x: xSigEig + C.sigEig - PAD_H, y: sigY }, thickness: 0.5, color: colSep });
+        page.drawText('Unterschrift', { x: xSigEig + PAD_H, y: sigY - 9, size: FS_XS, font: reg, color: colGray });
+
+        // Vertreten durch — Namenslinie auf gleicher Höhe wie Unterschriften
+        page.drawLine({ start: { x: xVtr + PAD_H, y: sigY }, end: { x: xVtr + C.vtr - PAD_H, y: sigY }, thickness: 0.5, color: colSep });
+        page.drawText('Name in Druckbuchstaben', { x: xVtr + PAD_H, y: sigY - 9, size: FS_XS, font: reg, color: colGray });
+
+        // Unterschrift Vertreter
+        page.drawLine({ start: { x: xSigVtr + PAD_H, y: sigY }, end: { x: xSigVtr + C.sigVtr - PAD_H, y: sigY }, thickness: 0.5, color: colSep });
+        page.drawText('Unterschrift', { x: xSigVtr + PAD_H, y: sigY - 9, size: FS_XS, font: reg, color: colGray });
+
+        // Vertikale Trennlinien
+        sepXs.forEach(sx => {
+            page.drawLine({ start: { x: sx, y: rowTop }, end: { x: sx, y: rowTop - ROW_H }, thickness: 0.3, color: colSep });
+        });
+        // Untere Zeilenlinie
+        page.drawLine({ start: { x: ML, y: rowTop - ROW_H }, end: { x: ML + contentW, y: rowTop - ROW_H }, thickness: 0.3, color: colLGray });
+
+        y -= ROW_H;
+    });
+
+    // Rahmen letzte Seite abschließen (Abschlusslinie + linke/rechte Bordüre)
+    _closePageFrame();
+
+    const allPages = doc.getPages();
+    allPages.forEach((p, i) => _drawFooter(p, i + 1, allPages.length));
+
+    return doc.save();
+}
