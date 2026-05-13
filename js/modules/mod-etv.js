@@ -2594,20 +2594,21 @@ window._beschTransferFromSession = async (sessionId) => {
     if (!sessionId) return;
     const session = _etvState.session;
     const agenda  = _etvState.agenda || [];
-    const approved = agenda.filter(a => a.result_status === 'approved');
+    // Alle TOPs mit Abstimmung — "Kein Beschluss notwendig" ausschließen
+    const votingTops = agenda.filter(a => a.voting_type !== 'none');
 
-    if (!approved.length) {
-        showToast('Keine angenommenen Beschlüsse in dieser Versammlung.', 'info');
+    if (!votingTops.length) {
+        showToast('Keine abstimmungsfähigen TOPs in dieser Versammlung.', 'info');
         return;
     }
 
     // Prüfen welche TOPs bereits übertragen wurden
     const { data: existing } = await _supabase.from('beschluesse').select('top_id').eq('building_id', _etvState.buildingId).not('top_id', 'is', null);
     const existingTopIds = new Set((existing || []).map(e => e.top_id));
-    const toTransfer = approved.filter(a => !existingTopIds.has(a.id));
+    const toTransfer = votingTops.filter(a => !existingTopIds.has(a.id));
 
     if (!toTransfer.length) {
-        showToast('Alle angenommenen Beschlüsse wurden bereits übertragen.', 'info');
+        showToast('Alle TOPs wurden bereits übertragen.', 'info');
         return;
     }
 
@@ -2615,33 +2616,39 @@ window._beschTransferFromSession = async (sessionId) => {
     const year = meetingDate.getFullYear();
     const existingCount = _beschState.data.filter(b => b.beschluss_datum?.startsWith(String(year))).length;
 
+    const resultLabel = { approved: 'Angenommen', rejected: 'Abgelehnt', abstained: 'Enthaltung', pending: 'Ausstehend' };
     const rows = toTransfer.map((top, i) => {
         const votes = (_etvState.votes || []).filter(v => v.agenda_item_id === top.id);
         const ja = votes.filter(v => v.vote === 'yes').length;
         const nein = votes.filter(v => v.vote === 'no').length;
         const enth = votes.filter(v => v.vote === 'abstain').length;
         const einstimmig = nein === 0 && enth === 0 && ja > 0;
-        return { top, ja, nein, enth, einstimmig, suggestedNr: `${year}/${String(existingCount + i + 1).padStart(3, '0')}` };
+        const ergebnis = top.result_status === 'approved' ? (einstimmig ? 'einstimmig' : 'angenommen') : top.result_status === 'rejected' ? 'abgelehnt' : 'angenommen';
+        return { top, ja, nein, enth, einstimmig, ergebnis, suggestedNr: `${year}/${String(existingCount + i + 1).padStart(3, '0')}` };
     });
 
-    const tableRows = rows.map((r, i) => `
+    const tableRows = rows.map((r, i) => {
+        const statusColor = r.top.result_status === 'approved' ? 'text-hb-success' : r.top.result_status === 'rejected' ? 'text-hb-error' : 'text-hb-gold-bold';
+        return `
         <tr class="border-b border-gray-100">
             <td class="p-2"><input type="text" id="besch-tr-nr-${i}" value="${r.suggestedNr}" class="w-24 text-xs px-2 py-1" style="height:32px"></td>
             <td class="p-2 text-xs font-bold text-hb-offblack max-w-xs"><div class="line-clamp-2">${r.top.sort_order} ${r.top.title}</div></td>
             <td class="p-2 text-xs text-gray-500 whitespace-nowrap">${r.ja}/${r.nein}/${r.enth}</td>
+            <td class="p-2 text-xs font-bold ${statusColor}">${resultLabel[r.top.result_status] || '—'}</td>
             <td class="p-2"><input type="checkbox" id="besch-tr-check-${i}" checked class="w-4 h-4" style="height:16px;width:16px"></td>
-        </tr>`).join('');
+        </tr>`;
+    }).join('');
 
     showModal('besch-transfer-modal', `
         <div class="p-5 bg-hb-olive text-white">
             <h3 class="text-lg font-black">Beschlüsse übertragen</h3>
-            <p class="text-xs opacity-70 mt-1">${toTransfer.length} angenommene Beschlüsse bereit</p>
+            <p class="text-xs opacity-70 mt-1">${toTransfer.length} TOPs zur Übertragung bereit</p>
         </div>
         <div class="p-5 space-y-4">
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-sm">
                     <thead><tr class="text-[10px] font-black text-gray-400 uppercase border-b border-gray-100">
-                        <th class="p-2">Nr.</th><th class="p-2">TOP</th><th class="p-2">Ja/Nein/Enth.</th><th class="p-2">✓</th>
+                        <th class="p-2">Nr.</th><th class="p-2">TOP</th><th class="p-2">Ja/Nein/Enth.</th><th class="p-2">Ergebnis</th><th class="p-2">✓</th>
                     </tr></thead>
                     <tbody>${tableRows}</tbody>
                 </table>
@@ -2672,7 +2679,7 @@ window._beschDoTransfer = async () => {
             beschluss_datum:       datum,
             art:                   'etv',
             beschluss_text:        r.top.proposed_resolution || r.top.title,
-            ergebnis:              r.einstimmig ? 'einstimmig' : 'angenommen',
+            ergebnis:              r.ergebnis || (r.einstimmig ? 'einstimmig' : 'angenommen'),
             abstimmung_ja:         r.ja || null,
             abstimmung_nein:       r.nein || null,
             abstimmung_enthaltung: r.enth || null,
