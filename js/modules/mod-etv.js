@@ -958,7 +958,7 @@ function _etvRenderFollow() {
                         <div class="font-black text-hb-offblack text-sm">Beschlusssammlung</div>
                         <div class="text-xs text-gray-400 mt-0.5">Angenommene Beschlüsse dieser Versammlung in die Beschlusssammlung übertragen.</div>
                     </div>
-                    <button onclick="_beschTransferFromSession(${JSON.stringify(_etvState.sessionId)})" class="shrink-0 bg-hb-olive/10 text-hb-olive px-4 py-2 rounded-xl text-xs font-black hover:bg-hb-olive hover:text-white transition-all">
+                    <button onclick="_beschTransferFromSession('${_etvState.sessionId}')" class="shrink-0 bg-hb-olive/10 text-hb-olive px-4 py-2 rounded-xl text-xs font-black hover:bg-hb-olive hover:text-white transition-all">
                         Übertragen
                     </button>
                 </div>
@@ -2648,7 +2648,7 @@ window._beschTransferFromSession = async (sessionId) => {
             </div>
             <div class="flex gap-3 pt-2">
                 <button onclick="hideModal('besch-transfer-modal')" class="btn-secondary flex-1">Abbrechen</button>
-                <button onclick="_beschDoTransfer(${JSON.stringify(rows.map(r => ({ topId: r.top.id, top: r.top, ja: r.ja, nein: r.nein, enth: r.enth, einstimmig: r.einstimmig })))})" class="btn-primary flex-1">Übertragen</button>
+                <button onclick="_beschDoTransfer()" class="btn-primary flex-1">Übertragen</button>
             </div>
         </div>
     `);
@@ -2657,7 +2657,8 @@ window._beschTransferFromSession = async (sessionId) => {
     window._beschTransferRows = rows;
 };
 
-window._beschDoTransfer = async (rowsMeta) => {
+window._beschDoTransfer = async () => {
+    const rowsMeta = window._beschTransferRows || [];
     const inserts = [];
     rowsMeta.forEach((r, i) => {
         const checked = document.getElementById(`besch-tr-check-${i}`)?.checked;
