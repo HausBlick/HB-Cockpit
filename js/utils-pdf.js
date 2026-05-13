@@ -3367,6 +3367,18 @@ async function generateJahresabrechnungPDF(buildingId, fiscalYear, jabData, save
     }
 }
 
+// ─── ETV PLATZHALTER-RESOLVER (5.8-C) ────────────────────────
+// Löst [PLACEHOLDER]-Syntax in proposed_resolution auf (plain text für PDF)
+function _pdfResolveEtvPlaceholders(item) {
+    const text = item.proposed_resolution || '';
+    if (!text) return '';
+    const vals = item.placeholder_values || {};
+    return text.replace(/\[([A-Z][A-Z0-9_]*)\]/g, (match, key) => {
+        const val = (vals[key] || '').trim();
+        return val || match;
+    });
+}
+
 // ─── ETV PDF SHARED HELPERS ──────────────────────────────────
 // Gemeinsam genutzt von Einladungs- und Protokoll-PDF
 
@@ -3702,9 +3714,9 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
         // Vorbemerkung
         [page, y] = await _pdfDrawSection(page, y, 'Vorbemerkung', item.preliminary_remark, sharedFonts, sharedLayout, cbFn, gray50);
 
-        // Inhalt / Beschlussantrag
+        // Inhalt / Beschlussantrag (Platzhalter werden durch aufgelöste Werte ersetzt)
         const resLabel = item.voting_type === 'none' ? 'Inhalt' : 'Beschlussantrag';
-        [page, y] = await _pdfDrawSection(page, y, resLabel, item.proposed_resolution || 'Kein Text hinterlegt.', sharedFonts, sharedLayout, cbFn);
+        [page, y] = await _pdfDrawSection(page, y, resLabel, _pdfResolveEtvPlaceholders(item) || 'Kein Text hinterlegt.', sharedFonts, sharedLayout, cbFn);
 
         // Feststellung und Verkündung (nur bei Beschluss-TOPs)
         if (item.voting_type !== 'none') {
@@ -4120,7 +4132,8 @@ async function generateETVEinladungPDF(sessionId, options = {}) {
 
             // Platz berechnen: TOP-Bar + Vorbemerkung + Beschlussantrag + Anlagen + Abstand
             const premLines = item.preliminary_remark ? _pdfSplitText(item.preliminary_remark, fReg, 9, contentW - 24) : [];
-            const resLines  = item.proposed_resolution ? _pdfSplitText(item.proposed_resolution, fReg, 9, contentW - 24) : [];
+            const resText   = _pdfResolveEtvPlaceholders(item);
+            const resLines  = resText ? _pdfSplitText(resText, fReg, 9, contentW - 24) : [];
             const topItemDocs = agendaDocs.filter(d =>
                 d.agenda_item_id === item.id &&
                 (d.scope === 'building' || (d.scope === 'owner' && d.owner_person_id === ownerPersonId))

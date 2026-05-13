@@ -298,13 +298,13 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 *Komplettmodul: Planung, Check-in, Abstimmung, Protokoll, Beschlusssammlung. Wird jetzt komplett fertiggestellt vor Phase 6.15ff.*
 - 5.8-A Planung: Sessions, TOPs, Check-in, Abstimmung (MEA/Kopf/Objekt), Protokoll-PDF ✅
 - 5.8-B Einladungs-PDF mit ETV-Staging-Workflow ✅
-- 5.8-C **Dynamische Platzhalter in TOPs** (Text-Platzhalter z.B. `[BEAUFTRAGTE_FIRMA]` mit Auswahlmöglichkeiten) 📋
+- 5.8-C ✅ **Dynamische Platzhalter in TOPs** — `[GROSSBUCHSTABEN]`-Syntax in `proposed_resolution`. Vordefinierte Optionen pro Platzhalter (Felder mit + Hinzufügen im TOP-Modal). Resolver-UI in Durchführungs-Tab (Dropdown wenn Optionen, sonst Freitext). JA-Abstimmung blockiert bei offenen Platzhaltern (NEIN/ENTHALTUNG immer möglich). Orange Badge in Prep- und Exec-TOP-Listen. Platzhalter-Highlighting im Detail-Panel (gelöst=olive, offen=orange). Protokoll-PDF + Einladungs-PDF + Beschlusssammlung nutzen aufgelöste Werte. DB: `etv_agenda_items.placeholder_options JSONB` + `placeholder_values JSONB`.
 - 5.8-D **Vollmachten-System** (Formular + TOP-bezogene Weisungen Ja/Nein/Enthaltung + Verwalter-Vollmacht) ✅
 - 5.8-E **Kontextsensitive Abstimmungs-Engine** (variable Abfrage-Reihenfolge 📋, Effizienz-Logik "Einstimmiges JA" ✅, Platzhalter-Finale 📋)
 - 5.8-F ✅ **Beschlusssammlung §24 Abs. 7 WEG** — `beschluesse`-Tabelle (keine Löschung, nur Status-Änderung), Nav-Eintrag unterhalb ETV (admin/manager), manueller Eintrag + ETV-Transfer (angenommene TOPs einer Session), Neu-Nummerierung (YYYY/NNN), Status-Workflow (angefochten/nichtig/aufgehoben), Anfragen-Tab + Badge, PDF A4 Querformat (`generateBeschlussPDF`), Owner-Button "Kopie anfordern" in Dokumenten-Cloud → Ticket an Admin/Manager
 - 5.8-G **Kommunikation & Termine** (Auto-News "ETV-Planung gestartet", Antragsfrist, Kalendereintrag, digitale Einladung im Portal) 📋
-- 5.8-H **Person-Grouping in Präsenzliste** (Eigentümer mit mehreren WE wird einmal angezeigt mit Badges WE01+WE04, ein Klick checkt alle WE ein/aus. MEA + Kopfprinzip aggregieren Stimmen, Objektprinzip bleibt pro WE.) 📋
-- 5.8-I **Mehrere Eigentümer pro WE (Miteigentümer)** (Schema-Erweiterung: `UNIQUE(session_id, apartment_id, person_id)` statt aktuell `UNIQUE(session_id, apartment_id)`. Eheleute/Erbengemeinschaft als getrennte Personen, aber pro Einheit nur **eine** Stimme. Voting-Logik + Vollmachten-Zuordnung + PDF-Protokoll müssen mitziehen.) 📋
+- 5.8-H ✅ **Person-Grouping in Präsenzliste** — `_etvGroupedAttendance()` gruppiert nach `person_id`. Check-in-Modal zeigt WE-Badges, Multi-WE-Badge, TEILWEISE-Status. `_etvTogglePersonPresent()` checkt alle WE einer Person per Bulk-Update ein/aus. Quorum-Sidebar aggregiert Kopf- und MEA-Zählung.
+- 5.8-I **Miteigentümer (bewusst zurückgestellt)** — Ein Account pro Einheit reicht für den aktuellen Scope. Eheleute/Erbengemeinschaften klären intern, wer den Account nutzt. Schema-Erweiterung (`UNIQUE session_id/apartment_id/person_id`) und getrennte Abstimmungslogik werden erst angegangen wenn konkret benötigt.
 
 ### 🔄 Phase 6 — Finanzen & Abrechnung
 *Kernmodul: Wirtschaftsplan, Hausgeldabrechnung, Erhaltungsrücklage.*
@@ -425,6 +425,38 @@ Neues Feature in `mod-etv.js`: Button **"↓ Anwesenheitsliste"** (btn-outline) 
 - Olive Tabellenrahmen: Abschlusslinie + linke/rechte Bordüre — pro Seite abgeschlossen (auch vor Seitenumbruch)
 - Alternierende Zeilen, vertikale Trennlinien, Footer mit Seitenzahl + §24-Hinweis
 - Zeilenhöhe 52pt (ca. 10 Zeilen pro Folgeseite)
+
+---
+
+### Phase 5.8-C — Dynamische Platzhalter in ETV-TOPs (2026-05-13)
+
+Migration `20260513000002_etv_placeholders.sql`: `etv_agenda_items.placeholder_options JSONB DEFAULT '{}'` + `placeholder_values JSONB DEFAULT '{}'`.
+
+**Syntax:** `[GROSSBUCHSTABEN]` im Beschlussantrag (z.B. `[BEAUFTRAGTE_FIRMA]`, `[BETRAG]`, `[DATUM]`).
+
+**TOP anlegen / bearbeiten (`mod-etv.js`):**
+- Textarea erkennt Platzhalter per `oninput` → Optionen-Editor erscheint automatisch darunter.
+- Pro Platzhalter: Eingabefelder für vordef. Auswahlmöglichkeiten (+ Option-Button, × Entfernen).
+- `_etvSaveTOP()` / `_etvUpdateTOP()`: speichert `placeholder_options`; `placeholder_values` bleibt beim Bearbeiten erhalten.
+- Editier-Modal: `data-existing` Attribut füllt vorhandene Optionen vor; `setTimeout` triggert initialen Scan.
+
+**Durchführungs-Tab (Resolver-UI):**
+- Detailpanel zeigt Beschlussantrag mit farbigen Inline-Badges: gelöst=olive, offen=orange.
+- Resolver-Sektion über Abstimmungs-Buttons: Select (wenn Optionen def.) oder Freitext-Input.
+- "Platzhalter speichern" → `_etvSavePlaceholders(topId)` → UPSERT in `placeholder_values`.
+- JA-Button: ausgegraut + `cursor-not-allowed` wenn ungelöste Platzhalter vorhanden. NEIN + ENTHALTUNG immer klickbar.
+- Orange Warnhinweis über den Buttons erklärt Einschränkung.
+
+**TOP-Listen:**
+- Prep-Tab: Badge `⬡ Platzhalter` (orange) wenn Platzhalter im Beschlussantrag.
+- Exec-Tab: Badge `⬡ Platzhalter` (orange) wenn `_etvHasUnresolved(top)`.
+
+**PDF-Generierung (`utils-pdf.js`):**
+- `_pdfResolveEtvPlaceholders(item)` ersetzt `[KEY]` durch `placeholder_values[KEY]` (plain text für PDF).
+- Protokoll-PDF + Einladungs-PDF: nutzen aufgelöste Werte statt rohen Platzhaltertext.
+- Beschlusssammlung-Transfer (`_beschDoTransfer`): `beschluss_text` verwendet aufgelösten Text.
+
+**Cache-Buster:** `mod-etv.js?v=20260513i`, `utils-pdf.js?v=20260513i`.
 
 ---
 

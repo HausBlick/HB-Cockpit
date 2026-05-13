@@ -34,6 +34,96 @@ const _etvState = {
     votingTopId: null  // aktiver TOP im Einzelstimmen-Modal
 };
 
+// ─── PLATZHALTER-HELPERS (5.8-C) ────────────────────────────────────────────
+
+function _etvGetPlaceholders(text) {
+    if (!text) return [];
+    const matches = [...text.matchAll(/\[([A-Z][A-Z0-9_]*)\]/g)];
+    return [...new Set(matches.map(m => m[1]))];
+}
+
+function _etvHasUnresolved(top) {
+    const keys = _etvGetPlaceholders(top.proposed_resolution);
+    if (!keys.length) return false;
+    const vals = top.placeholder_values || {};
+    return keys.some(k => !vals[k]?.trim());
+}
+
+function _etvRenderResolution(top) {
+    const text = top.proposed_resolution || '';
+    if (!text) return '';
+    const vals = top.placeholder_values || {};
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    return esc(text).replace(/\[([A-Z][A-Z0-9_]*)\]/g, (match, key) => {
+        const val = (vals[key] || '').trim();
+        if (val) return `<span class="bg-hb-olive/10 text-hb-olive font-bold px-1 rounded">${esc(val)}</span>`;
+        return `<span class="bg-hb-orange/10 text-hb-orange font-bold px-1 rounded border border-hb-orange/20">[${key}]</span>`;
+    });
+}
+
+function _etvPhGetCurrentOptions(editorId) {
+    const editor = document.getElementById(editorId);
+    if (!editor) return {};
+    const result = {};
+    editor.querySelectorAll('[data-phkey]').forEach(block => {
+        const key = block.dataset.phkey;
+        const opts = [...block.querySelectorAll('input[type="text"]')].map(inp => inp.value).filter(v => v.trim());
+        result[key] = opts;
+    });
+    return result;
+}
+
+window._etvPhEditorUpdate = (textareaId, editorId) => {
+    const editor = document.getElementById(editorId);
+    if (!editor) return;
+    const text = document.getElementById(textareaId)?.value || '';
+    const keys = _etvGetPlaceholders(text);
+    if (keys.length === 0) { editor.classList.add('hidden'); return; }
+    editor.classList.remove('hidden');
+    const existingOptions = JSON.parse(editor.dataset.existing || '{}');
+    const currentOpts = _etvPhGetCurrentOptions(editorId);
+    const list = editor.querySelector('.ph-list');
+    if (!list) return;
+    list.innerHTML = keys.map(key => {
+        const opts = currentOpts[key] !== undefined ? currentOpts[key] : (existingOptions[key] || []);
+        const optFields = opts.length > 0 ? opts : [''];
+        const safeId = editorId.replace(/[^a-zA-Z0-9_-]/g, '_');
+        return `
+            <div class="bg-hb-orange/5 rounded-xl p-3 border border-hb-orange/15" data-phkey="${key}">
+                <div class="text-[10px] font-black text-hb-orange mb-2 uppercase tracking-widest">[${key}]</div>
+                <div id="ph-opts-${safeId}-${key}" class="space-y-1.5">
+                    ${optFields.map((opt, i) => `
+                        <div class="flex gap-2 items-center">
+                            <input type="text" value="${(opt||'').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}"
+                                   placeholder="Option ${i+1}..."
+                                   class="flex-grow bg-white text-sm rounded-lg px-3 py-2 border border-hb-orange/20 focus:border-hb-olive focus:outline-none" style="height:36px">
+                            <button type="button" onclick="_etvPhRemoveOption(this)"
+                                    class="text-gray-400 hover:text-hb-error text-sm px-2 py-1 rounded-lg hover:bg-hb-error/5 transition-colors font-bold flex-shrink-0">×</button>
+                        </div>
+                    `).join('')}
+                </div>
+                <button type="button" onclick="_etvPhAddOption('${editorId}','${key}')"
+                        class="mt-2 text-[11px] text-hb-olive font-black hover:bg-hb-olive/5 px-2 py-1 rounded-lg transition-colors border border-hb-olive/20">+ Option</button>
+            </div>
+        `;
+    }).join('');
+};
+
+window._etvPhAddOption = (editorId, key) => {
+    const safeId = editorId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const container = document.getElementById(`ph-opts-${safeId}-${key}`);
+    if (!container) return;
+    const i = container.children.length;
+    const div = document.createElement('div');
+    div.className = 'flex gap-2 items-center';
+    div.innerHTML = `<input type="text" placeholder="Option ${i+1}..." class="flex-grow bg-white text-sm rounded-lg px-3 py-2 border border-hb-orange/20 focus:border-hb-olive focus:outline-none" style="height:36px"><button type="button" onclick="_etvPhRemoveOption(this)" class="text-gray-400 hover:text-hb-error text-sm px-2 py-1 rounded-lg hover:bg-hb-error/5 transition-colors font-bold flex-shrink-0">×</button>`;
+    container.appendChild(div);
+};
+
+window._etvPhRemoveOption = (btn) => { btn.closest('[class^="flex gap-2"]') ? btn.closest('[class^="flex gap-2"]').remove() : btn.parentElement.remove(); };
+
+// ────────────────────────────────────────────────────────────────────────────
+
 /**
  * Haupt-Einstiegspunkt: Lädt die ETV-Übersicht (Two-Panel-Layout)
  */
@@ -409,11 +499,12 @@ function _etvRenderPrep() {
                                 <div class="flex gap-6">
                                     <div class="bg-hb-ultralight text-hb-olive h-12 w-12 min-w-[48px] rounded-2xl flex items-center justify-center font-black text-xl shadow-inner">${top.sort_order}</div>
                                     <div class="flex-grow">
-                                        <div class="flex items-center gap-3">
+                                        <div class="flex items-center gap-3 flex-wrap">
                                             <h4 class="font-black text-hb-offblack text-lg">${top.title}</h4>
                                             <span class="px-2 py-0.5 bg-gray-100 text-[9px] font-black text-gray-500 rounded-md border border-gray-200 uppercase tracking-tighter italic">
                                                 ${top.voting_type === 'none' ? 'Kein Beschluss' : top.voting_type + ' • ' + top.majority_type.replace('_', ' ')}
                                             </span>
+                                            ${_etvGetPlaceholders(top.proposed_resolution).length ? `<span class="px-2 py-0.5 bg-hb-orange/10 text-hb-orange text-[9px] font-black rounded-md border border-hb-orange/20 uppercase">⬡ Platzhalter</span>` : ''}
                                         </div>
                                         <p class="text-xs text-gray-400 mt-1 line-clamp-1 italic">${top.proposed_resolution || 'Kein Beschlussantrag hinterlegt.'}</p>
                                     </div>
@@ -645,6 +736,9 @@ function _etvRenderExec() {
                                     ${topNeedsWarning(top) ? `
                                     <span class="text-[10px] font-black px-2 py-0.5 rounded-md border ${isActive ? 'text-white/90 bg-white/20 border-white/30' : 'text-hb-error bg-hb-error/8 border-hb-error/20'}">! Nicht erreichbar</span>
                                     ` : ''}
+                                    ${_etvHasUnresolved(top) ? `
+                                    <span class="text-[10px] font-black px-2 py-0.5 rounded-md border ${isActive ? 'text-white/90 bg-white/20 border-white/30' : 'text-hb-orange bg-hb-orange/8 border-hb-orange/20'}">⬡ Platzhalter</span>
+                                    ` : ''}
                                 </div>
                             </div>
                             <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border shrink-0 ${isActive ? 'bg-white/20 text-white border-white/30' : result.cls}">${result.text}</span>
@@ -703,12 +797,13 @@ function _etvRenderTopDetailPanel(top, resultLabelFn) {
     }
 
     // Aktiver Button-Zustand basierend auf gespeichertem Ergebnis
-    const isApproved = top.result_status === 'approved';
-    const isRejected = top.result_status === 'rejected';
-    const isAbstain  = top.result_status === 'abstained';
-    const hasVote    = isApproved || isRejected || isAbstain;
+    const isApproved    = top.result_status === 'approved';
+    const isRejected    = top.result_status === 'rejected';
+    const isAbstain     = top.result_status === 'abstained';
+    const hasVote       = isApproved || isRejected || isAbstain;
+    const hasUnresolved = _etvHasUnresolved(top);
     const btnBase    = 'px-4 py-3 rounded-xl font-black text-sm transition-all active:scale-95 border-2';
-    const btnJa      = `${btnBase} ${isApproved ? 'bg-hb-success text-white border-hb-success shadow-md' : 'bg-white border-hb-success/20 text-hb-success hover:bg-hb-success hover:text-white hover:border-hb-success'}`;
+    const btnJa      = `${btnBase} ${isApproved ? 'bg-hb-success text-white border-hb-success shadow-md' : hasUnresolved ? 'bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed' : 'bg-white border-hb-success/20 text-hb-success hover:bg-hb-success hover:text-white hover:border-hb-success'}`;
     const btnNein    = `${btnBase} ${isRejected ? 'bg-hb-orange text-white border-hb-orange shadow-md'  : 'bg-white border-hb-orange/20 text-hb-orange hover:bg-hb-orange hover:text-white hover:border-hb-orange'}`;
     const btnEnth    = `${btnBase} ${isAbstain  ? 'bg-gray-500 text-white border-gray-500 shadow-md'    : 'bg-white border-gray-200 text-gray-400 hover:bg-gray-500 hover:text-white hover:border-gray-500'}`;
     const bldDocs = docs.filter(d => d.scope === 'building');
@@ -748,7 +843,7 @@ function _etvRenderTopDetailPanel(top, resultLabelFn) {
             <div class="p-5 space-y-5">
                 ${section('Interne Notiz (nur Verwalter)', top.internal_note, { box: true, field: 'internal_note' })}
                 ${section('Vorbemerkung', top.preliminary_remark, { field: 'preliminary_remark' })}
-                ${section('Beschlussantrag', top.proposed_resolution, { field: 'proposed_resolution' })}
+                ${section('Beschlussantrag', _etvRenderResolution(top) || null, { field: 'proposed_resolution' })}
                 ${section('Abstimmungs-Notiz', top.result_note, { field: 'result_note' })}
 
                 ${docs.length ? `
@@ -779,6 +874,42 @@ function _etvRenderTopDetailPanel(top, resultLabelFn) {
                     <span class="text-xs text-gray-400 italic">Nicht abstimmungsrelevant</span>
                 </div>
             ` : `
+                ${(() => {
+                    const allKeys = _etvGetPlaceholders(top.proposed_resolution);
+                    if (!allKeys.length) return '';
+                    const vals = top.placeholder_values || {};
+                    const opts = top.placeholder_options || {};
+                    return `
+                        <div class="px-5 py-4 border-t border-hb-orange/15 bg-hb-orange/3">
+                            <div class="text-[10px] font-black text-hb-orange uppercase tracking-widest mb-3">Platzhalter ausfüllen</div>
+                            <div id="ph-resolver-${top.id}" class="space-y-2 mb-3">
+                                ${allKeys.map(key => {
+                                    const options = opts[key] || [];
+                                    const curVal  = (vals[key] || '').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                                    if (options.length > 0) {
+                                        return `
+                                            <div class="flex gap-2 items-center">
+                                                <span class="text-[11px] font-black text-hb-orange flex-shrink-0 w-28 truncate">[${key}]</span>
+                                                <select data-phval="${key}" class="flex-grow text-sm bg-white border border-hb-orange/20 rounded-lg px-3 focus:border-hb-olive focus:outline-none" style="height:36px">
+                                                    <option value="">— bitte wählen —</option>
+                                                    ${options.map(opt => `<option value="${opt.replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}" ${vals[key]===opt?'selected':''}>${opt.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</option>`).join('')}
+                                                </select>
+                                            </div>
+                                        `;
+                                    }
+                                    return `
+                                        <div class="flex gap-2 items-center">
+                                            <span class="text-[11px] font-black text-hb-orange flex-shrink-0 w-28 truncate">[${key}]</span>
+                                            <input type="text" data-phval="${key}" value="${curVal}" placeholder="Wert eingeben…"
+                                                   class="flex-grow bg-white text-sm rounded-lg px-3 border border-hb-orange/20 focus:border-hb-olive focus:outline-none" style="height:36px">
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                            <button onclick="_etvSavePlaceholders('${top.id}')" class="btn-primary text-xs py-2 px-4">Platzhalter speichern</button>
+                        </div>
+                    `;
+                })()}
                 <div class="bg-hb-ultralight/60 px-5 py-5 border-t border-hb-olive/10">
                     ${topWarning ? `
                     <div class="flex items-start gap-2 bg-hb-error/8 border border-hb-error/20 rounded-xl px-4 py-3 mb-4">
@@ -786,9 +917,15 @@ function _etvRenderTopDetailPanel(top, resultLabelFn) {
                         <span class="text-[11px] font-bold text-hb-error leading-snug">${topWarning}</span>
                     </div>
                     ` : ''}
+                    ${hasUnresolved ? `
+                    <div class="flex items-start gap-2 bg-hb-orange/8 border border-hb-orange/20 rounded-xl px-4 py-3 mb-4">
+                        <span class="text-hb-orange font-black text-base leading-none mt-0.5">!</span>
+                        <span class="text-[11px] font-bold text-hb-orange leading-snug">Platzhalter noch nicht ausgefüllt — JA-Abstimmung nicht möglich. NEIN und ENTHALTUNG sind weiterhin möglich.</span>
+                    </div>
+                    ` : ''}
                     <div class="text-[10px] font-black text-hb-olive uppercase tracking-widest mb-3">Abstimmung</div>
                     <div class="grid grid-cols-3 gap-2">
-                        <button onclick="_etvCastVote('${top.id}', 'yes')" class="${btnJa}">JA</button>
+                        <button onclick="_etvVoteJa('${top.id}')" class="${btnJa}" ${hasUnresolved ? 'title="Platzhalter ausfüllen"' : ''}>JA</button>
                         <button onclick="_etvCastVote('${top.id}', 'no')" class="${btnNein}">NEIN</button>
                         <button onclick="_etvCastVote('${top.id}', 'abstain')" class="${btnEnth}">ENTH.</button>
                     </div>
@@ -1164,8 +1301,12 @@ window._etvAddTOPModal = () => {
                         <textarea id="top-prem" rows="2" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm" placeholder="Sachverhaltsdarstellung, Hintergrundinformation..."></textarea>
                     </div>
                     <div>
-                        <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Beschlussantrag (Wortlaut)</label>
-                        <textarea id="top-res" rows="3" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm" placeholder="Die Eigentümerversammlung beschließt..."></textarea>
+                        <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Beschlussantrag (Wortlaut) <span class="text-gray-400 normal-case font-normal text-[11px]">— Platzhalter: [GROSSBUCHSTABEN]</span></label>
+                        <textarea id="top-res" rows="3" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm" placeholder="Die Eigentümerversammlung beschließt..." oninput="_etvPhEditorUpdate('top-res','ph-editor-new')"></textarea>
+                    </div>
+                    <div id="ph-editor-new" class="hidden" data-existing="{}">
+                        <div class="text-[10px] font-black text-hb-orange uppercase mb-2 tracking-widest">Platzhalter-Optionen <span class="text-gray-400 normal-case font-normal text-[11px]">(Auswahlmöglichkeiten bei der Abstimmung)</span></div>
+                        <div class="ph-list space-y-2"></div>
                     </div>
                     <div>
                         <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Interne Notiz <span class="text-gray-400 normal-case font-normal">(nur intern, nicht in Einladung/Protokoll)</span></label>
@@ -1204,6 +1345,7 @@ window._etvSaveTOP = async () => {
     const note  = document.getElementById('top-note').value;
     const vType = document.getElementById('top-vote-type').value;
     const mType = document.getElementById('top-maj-type').value;
+    const opts  = _etvPhGetCurrentOptions('ph-editor-new');
 
     if (!title) { showToast('Titel erforderlich', 'error'); return; }
 
@@ -1215,7 +1357,8 @@ window._etvSaveTOP = async () => {
         proposed_resolution: res,
         internal_note: note || null,
         voting_type: vType,
-        majority_type: mType
+        majority_type: mType,
+        placeholder_options: opts
     });
 
     if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
@@ -1256,8 +1399,12 @@ window._etvEditTOP = (id) => {
                         <textarea id="top-edit-prem" rows="2" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm" placeholder="Sachverhaltsdarstellung...">${top.preliminary_remark || ''}</textarea>
                     </div>
                     <div>
-                        <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Beschlussantrag (Wortlaut)</label>
-                        <textarea id="top-edit-res" rows="3" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm" placeholder="Die Eigentümerversammlung beschließt...">${top.proposed_resolution || ''}</textarea>
+                        <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Beschlussantrag (Wortlaut) <span class="text-gray-400 normal-case font-normal text-[11px]">— Platzhalter: [GROSSBUCHSTABEN]</span></label>
+                        <textarea id="top-edit-res" rows="3" class="w-full bg-hb-ultralight border-hb-olive/10 rounded-xl px-4 py-3 text-sm" placeholder="Die Eigentümerversammlung beschließt..." oninput="_etvPhEditorUpdate('top-edit-res','ph-editor-edit')">${top.proposed_resolution || ''}</textarea>
+                    </div>
+                    <div id="ph-editor-edit" class="hidden" data-existing="${JSON.stringify(top.placeholder_options || {}).replace(/"/g,'&quot;')}">
+                        <div class="text-[10px] font-black text-hb-orange uppercase mb-2 tracking-widest">Platzhalter-Optionen <span class="text-gray-400 normal-case font-normal text-[11px]">(Auswahlmöglichkeiten bei der Abstimmung)</span></div>
+                        <div class="ph-list space-y-2"></div>
                     </div>
                     <div>
                         <label class="block text-[10px] font-black text-hb-olive uppercase mb-1.5">Interne Notiz <span class="text-gray-400 normal-case font-normal">(nur intern, nicht in Einladung/Protokoll)</span></label>
@@ -1281,6 +1428,8 @@ window._etvEditTOP = (id) => {
             </div>
         </div>`;
     document.body.insertAdjacentHTML('beforeend', html);
+    // Initiale Platzhalter-Erkennung falls Beschlussantrag bereits vorhanden
+    setTimeout(() => _etvPhEditorUpdate('top-edit-res', 'ph-editor-edit'), 0);
 };
 
 window._etvUpdateTOP = async (id) => {
@@ -1291,6 +1440,7 @@ window._etvUpdateTOP = async (id) => {
     const note  = document.getElementById('top-edit-note').value;
     const vType = document.getElementById('top-edit-vote-type').value;
     const mType = document.getElementById('top-edit-maj-type').value;
+    const opts  = _etvPhGetCurrentOptions('ph-editor-edit');
     if (!title) { showToast('Titel erforderlich', 'error'); return; }
     const { error } = await _supabase.from('etv_agenda_items').update({
         sort_order: sort.trim(),
@@ -1299,7 +1449,8 @@ window._etvUpdateTOP = async (id) => {
         proposed_resolution: res,
         internal_note: note || null,
         voting_type: vType,
-        majority_type: mType
+        majority_type: mType,
+        placeholder_options: opts
     }).eq('id', id);
     if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
     document.getElementById('etv-top-edit-modal').remove();
@@ -1596,6 +1747,31 @@ window._etvCastVote = async (topId, vote) => {
     await _supabase.from('etv_agenda_items').update({ result_status: status }).eq('id', topId);
 
     showToast('Abstimmung abgeschlossen.', 'success');
+    _etvOpenSession(_etvState.sessionId);
+};
+
+window._etvVoteJa = (topId) => {
+    const top = _etvState.agenda.find(t => t.id === topId);
+    if (!top) return;
+    if (_etvHasUnresolved(top)) {
+        showToast('Bitte zuerst alle Platzhalter ausfüllen (oben im Panel).', 'error');
+        return;
+    }
+    _etvCastVote(topId, 'yes');
+};
+
+window._etvSavePlaceholders = async (topId) => {
+    const resolver = document.getElementById(`ph-resolver-${topId}`);
+    if (!resolver) return;
+    const values = {};
+    resolver.querySelectorAll('[data-phval]').forEach(el => {
+        values[el.dataset.phval] = el.value.trim();
+    });
+    const { error } = await _supabase.from('etv_agenda_items')
+        .update({ placeholder_values: values })
+        .eq('id', topId);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    showToast('Platzhalter gespeichert.', 'success');
     _etvOpenSession(_etvState.sessionId);
 };
 
@@ -2759,7 +2935,7 @@ window._beschDoTransfer = async () => {
             beschluss_nr:          nr,
             beschluss_datum:       datum,
             art:                   'etv',
-            beschluss_text:        r.top.proposed_resolution || r.top.title,
+            beschluss_text:        (r.top.proposed_resolution || '').replace(/\[([A-Z][A-Z0-9_]*)\]/g, (m,k) => (r.top.placeholder_values||{})[k] || m) || r.top.title,
             ergebnis:              r.ergebnis || (r.einstimmig ? 'einstimmig' : 'angenommen'),
             abstimmung_ja:         r.ja || null,
             abstimmung_nein:       r.nein || null,
