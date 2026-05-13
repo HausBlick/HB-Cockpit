@@ -408,6 +408,53 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 
 ---
 
+### Design-System — `btn-outline` + mod-objekte.js Button-Audit (2026-05-13)
+
+Neue CSS-Klasse `btn-outline` (weiß mit olive Rahmen, hover füllt sich olive) in allen 4 HTML-Shells (`dashboard.html`, `etv.html`, `finanzen.html`, `zeiterfassung.html`) definiert. Tap-Feedback-Regel um `.btn-outline:active` erweitert.
+
+**3 Button-Varianten im Design-System:**
+- `btn-primary` — Olive ausgefüllt, weiße Schrift (Haupt-CTA)
+- `btn-outline` — Weiß/olive Rahmen (Sekundär-Aktionen auf hellem Hintergrund: "Bearbeiten", "+ Hinzufügen")
+- `btn-secondary` — Grau (Abbrechen/Zurück in Modals)
+- **Toolbar-Stil (kein eigener CSS-Name):** `bg-white/20 hover:bg-white/30 text-white` — für Buttons auf olive Hintergründen (Sidebar-Header, Einheiten-Header)
+
+**`mod-objekte.js` (v20260513a) — 7 Buttons migriert:**
+- Runder "+" Sidebar-Button → `bg-white/20` Toolbar-Stil, Text "+ Neues Objekt"
+- "Bearbeiten" Gebäude-Detail → `btn-outline text-xs`
+- "+ Beirat hinzufügen" → `btn-outline text-xs`
+- "+ Einheit" (Olive-Header) → `bg-white/20` Toolbar-Stil
+- "Bearbeiten" Einheiten-Detail → `btn-outline text-xs`
+- "+ Konto" → `btn-outline text-xs`
+- "+ Schlüssel" → `btn-outline text-xs`
+
+**Offen (weitere Module — wird laufend ergänzt):** mod-finanzen.js, mod-etv.js, mod-zeiterfassung.js, mod-settings.js, mod-personen.js, mod-tickets.js, mod-dokumente.js, mod-kontakte.js
+
+---
+
+### Beschlusssammlung PDF-Redesign & Bugfixes (2026-05-13)
+
+**`generateBeschlussPDF()` komplett neu (`utils-pdf.js` v20260513e/f):**
+- 6-Spalten-Layout nach §24 Abs. 7 WEG Muster: Lfd. Nr. | Beschlusswortlaut | Versammlung | Gerichtsentscheidung | Vermerke | Eintragungsvermerk
+- Versammlung-Spalte: Art ("Eigentümerversammlung" / "Umlaufbeschluss §23 Abs. 3 WEG") + TOP-Nummer + Datum
+- Vermerke-Spalte: Ergebnis (farbig) + Abstimmungszahlen + Status (mit Trennlinie) + Notiz (kursiv, umgebrochen)
+- Eintragungsvermerk: Verwalter-Name (via `profiles!created_by`-Join) + Datum
+- Vertikale Spaltentrenner, alternierende Zeilen, abschließende Olive-Linie
+- Status-Notiz umbricht korrekt innerhalb der Spaltenbreite
+
+**Bugfix `_beschDoTransfer()` — `topId` fehlte in rows-Objekt:**
+- `top_id` wurde als `undefined` inseriert → TOP-Nummer im PDF nicht sichtbar
+- Fix: `topId: top.id` dem rows-Objekt beim Aufbau hinzugefügt
+- Betrifft nur neue Übertragungen — bestehende DB-Einträge ohne top_id müssen manuell nachgetragen werden
+
+**Query-Erweiterung `_beschLoadAndRender()`:**
+- `select('*, profiles!created_by(full_name), etv_agenda_items!top_id(sort_order, title)')` — Verwalter-Name + TOP-Details in einer Abfrage
+
+**`_beschDownloadPDF()` (`mod-etv.js` v20260513g):**
+- Admin/Manager können Beschlusssammlung direkt als PDF herunterladen (ohne Eigentümer-Anfrage)
+- Button "↓ PDF" in der Toolbar neben "Neu nummerieren" und "+ Neuer Beschluss"
+
+---
+
 ### Phase 5.8-F — Beschlusssammlung §24 Abs. 7 WEG (2026-05-13)
 
 Migration `20260513000001_beschluesse.sql`: Neue Tabelle `beschluesse` (building_id, beschluss_nr YYYY/NNN, beschluss_datum, art etv/umlauf/sonstig, beschluss_text, abstimmung_ja/nein/enthaltung, ergebnis angenommen/abgelehnt/einstimmig, etv_session_id FK nullable, top_id FK UNIQUE nullable, status aktiv/angefochten/nichtig/aufgehoben, status_notiz, created_by). Kein DELETE erlaubt (absichtlich keine DELETE-Policy).

@@ -2298,7 +2298,7 @@ async function _beschLoadAndRender() {
     const building = _etvState.buildings.find(b => b.id === bid);
 
     const [beschRes, anfragenRes] = await Promise.all([
-        _supabase.from('beschluesse').select('*').eq('building_id', bid).order('beschluss_datum', { ascending: true }).order('beschluss_nr', { ascending: true }),
+        _supabase.from('beschluesse').select('*, profiles!created_by(full_name), etv_agenda_items!top_id(sort_order, title)').eq('building_id', bid).order('beschluss_datum', { ascending: true }).order('beschluss_nr', { ascending: true }),
         _supabase.from('tickets').select('id, title, created_at, creator_id, profiles!creator_id(full_name)').eq('building_id', bid).eq('category', 'Beschlusssammlung-Anfrage').eq('status', 'Offen')
     ]);
     _beschState.data     = beschRes.data || [];
@@ -2365,6 +2365,7 @@ function _beschRenderListHtml(building) {
             <p class="text-sm font-bold text-white">${building ? formatBuildingName(building) : 'Beschlüsse'}</p>
             <div class="flex gap-2">
                 <button onclick="_beschRenumber()" title="Neu durchnummerieren" class="bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all">↕ Neu nummerieren</button>
+                <button onclick="_beschDownloadPDF()" class="bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all">↓ PDF</button>
                 <button onclick="_beschNewModal()" class="bg-white text-hb-olive px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-hb-ultralight transition-all">+ Neuer Beschluss</button>
             </div>
         </div>
@@ -2588,6 +2589,33 @@ window._beschRenumber = async () => {
     await _beschLoadAndRender();
 };
 
+// ─── PDF-Download (Admin/Manager direkt) ─────────────────────
+window._beschDownloadPDF = async () => {
+    if (!_beschState.data || _beschState.data.length === 0) {
+        showToast('Keine Beschlüsse vorhanden.', 'info');
+        return;
+    }
+    const building = (_etvState.buildings || []).find(b => b.id === _beschState.buildingId);
+    if (!building) {
+        showToast('Gebäude nicht gefunden.', 'error');
+        return;
+    }
+    try {
+        showToast('PDF wird erstellt…', 'info');
+        const pdfBytes = await generateBeschlussPDF(building, _beschState.data);
+        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Beschlusssammlung_${building.name || building.id}.pdf`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (e) {
+        console.error('Beschluss-PDF Fehler:', e);
+        showToast('Fehler beim Erstellen des PDFs.', 'error');
+    }
+};
+
 // ─── Transfer aus ETV-Session ─────────────────────────────────
 
 window._beschTransferFromSession = async (sessionId) => {
@@ -2624,7 +2652,7 @@ window._beschTransferFromSession = async (sessionId) => {
         const enth = votes.filter(v => v.vote === 'abstain').length;
         const einstimmig = nein === 0 && enth === 0 && ja > 0;
         const ergebnis = top.result_status === 'approved' ? (einstimmig ? 'einstimmig' : 'angenommen') : top.result_status === 'rejected' ? 'abgelehnt' : 'angenommen';
-        return { top, ja, nein, enth, einstimmig, ergebnis, suggestedNr: `${year}/${String(existingCount + i + 1).padStart(3, '0')}` };
+        return { top, topId: top.id, ja, nein, enth, einstimmig, ergebnis, suggestedNr: `${year}/${String(existingCount + i + 1).padStart(3, '0')}` };
     });
 
     const tableRows = rows.map((r, i) => {
