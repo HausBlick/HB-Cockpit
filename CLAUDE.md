@@ -136,7 +136,7 @@ Architektur-Konventionen, die NICHT zum Design-System gehören (verbleiben hier)
 
 ---
 
-## 6. Datenbankschema (33 Tabellen, alle RLS)
+## 6. Datenbankschema (49 Tabellen, alle RLS)
 
 `profiles`, `buildings`, `apartments`, `persons`, `tenancies`, `ownerships`, `management_assignments`, `tickets`, `ticket_messages`, `news`, `news_likes`, `documents`, `document_reads`, `document_links`, `contacts`, `meters`, `meter_readings`, `invitations`, `building_bank_accounts`, `building_insurances`, `board_members`, `service_providers`, `person_bank_accounts`
 
@@ -148,10 +148,17 @@ Architektur-Konventionen, die NICHT zum Design-System gehören (verbleiben hier)
 `distribution_key_units` (distribution_key_id FK, apartment_id FK, value. UNIQUE(key_id, apartment_id). RLS: lesen=alle, schreiben=admin/manager)
 `accounts`-Erweiterung: `primary_key_id` (FK→distribution_keys), `secondary_key_id` (FK→distribution_keys), `secondary_key_percentage` (numeric 5,2)
 
-**Phase 8.1 Sonderrollen & Finanz-Klassifizierung:**
-`profiles.role` CHECK erweitert um `landlord`, `advisory` (6 Rollen total)
+**Finanz-Klassifizierung (nach Rollen-Refactoring):**
 `accounts.is_allocatable` (BOOLEAN DEFAULT false — umlagefähig auf Mieter für Betriebskostenabrechnung)
-RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships), 3 Policies für `advisory` (journal_entries, accounts, journal_attachments via board_members + valid_to)
+`profiles.is_landlord` (BOOLEAN — additives Feature auf Basis-Rolle `owner`)
+→ `profiles.role` hat 4 Werte: admin/manager/owner/tenant (Refactoring via `migration_role_refactor` — landlord/advisory waren zwischenzeitlich eigene Rollen, jetzt Flags)
+
+**Phase 5.8 ETV-Tabellen:**
+`etv_sessions` (building_id FK, title, planned_date, status, quorum_percent, chairman_name, secretary_name, actual_start/end_time, general_notes, beirat_signatory_1/2)
+`etv_agenda_items` (session_id FK, sort_order, title, top_type, vote_type, proposed_resolution, result_status, result_note, preliminary_remark, internal_note, `placeholder_options JSONB`, `placeholder_values JSONB`)
+`etv_attendance` (session_id FK, apartment_id FK, person_id FK, is_present, proxy_name, proxy_instructions JSONB)
+`etv_votes` (session_id FK, agenda_item_id FK, apartment_id FK, vote, cast_by_person_id UUID)
+`beschluesse` (building_id FK, beschluss_nr TEXT YYYY/NNN, beschluss_datum DATE, art ENUM(etv/umlauf/sonstig), beschluss_text, abstimmung_ja/nein/enthaltung INT, ergebnis ENUM(angenommen/abgelehnt/einstimmig), etv_session_id FK nullable, top_id FK UNIQUE nullable, status ENUM(aktiv/angefochten/nichtig/aufgehoben), status_notiz, status_datum, created_by. Kein DELETE erlaubt.)
 
 **Zeiterfassung (mod-zeiterfassung.js):**
 `time_projects` (building_id FK, title, description, hourly_rate, billing_increment_min, status ENUM(active/closed), created_by FK→auth.users)
@@ -249,7 +256,7 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
   > Dokumente bleiben bewusst im Dashboard (nahtloser Zugriff für Mieter/Eigentümer).
   > Geteilte Basis: `config.js`, `utils.js`, `nav.js`. Deep-Linking mit Query-Parametern (z.B. `finanzen.html?building=17&tab=buchungen`). Mieter/Eigentümer-Dashboard bleibt SPA.
   > `pdf-lib` + `fontkit` + `utils-pdf.js` aus Dashboard entfernt (nur noch in externen Seiten geladen).
-- 1C 🔄 **Mobile-Audit & Responsive Patterns** (Phase A abgeschlossen)
+- 1C ✅ **Mobile-Audit & Responsive Patterns** (ABGESCHLOSSEN)
   > **Phase A (Fundament) ✅:** Scroll-Containment (Body h-screen, Main flex-1 min-h-0, Content overflow-y-auto). Bottom-Navigation (5 Items rollenbasiert, Badge-Sync, Active-State-Sync mit Sidebar). Mobile-Header (Logo + Role-Label, Hamburger durch Bottom-Nav ersetzt). Skeleton-Loading CSS-Pattern. Safe-Area-Inset für Notch-Geräte. Toast-Position über Bottom-Nav.
   > **Phase B (Modals & Loading) ✅:** `showModal()`/`hideModal()` Utility (Desktop zentriert, Mobile Bottom Sheet). 8 Modals migriert (Tickets, Dokumente, Kontakte). Swipe-to-Dismiss. Skeleton-Loader im Dashboard.
   > **Phase C (Modul-Migration) ✅:** Responsive-Table CSS-Pattern (`.rtable`, auto data-labels). 26 `makeTableResponsive()`-Aufrufe in 8 Modulen. Ticket-Chat-Fix (dvh-Höhe + Overlay-Sidebar). Touch-Target 44px Audit (13 Korrekturen in mod-tickets).
@@ -289,18 +296,18 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 - 5.3 Kontaktbuch — `mod-kontakte.js` ✅
 - 5.4 Dashboard KPIs (rollenbasiert, Kennzahlen, Fristen-Widget) ✅
 - 5.5 **Bulk-Release** (Massen-Freigabe von Dokumenten, z.B. 150 Jahresabrechnungen gleichzeitig) 📋
-- 5.6 **ETV-Dokumente & Beschlusssammlung** (Einladungen/Protokolle generieren, gesetzliche Beschlusssammlung §24 Abs. 7 WEG) 📋
+- 5.6 ✅ **ETV-Dokumente & Beschlusssammlung** — Einladungs-PDF (5.8-B), Protokoll-PDF (5.8-A), Beschlusssammlung §24 Abs. 7 WEG (5.8-F) vollständig umgesetzt.
 - 5.7 **Landlord-Funktionen** 📋
   - 5.7-A **Widget "Meine Mieter"** (Dashboard-Widget: Mieter-Liste, Mietverträge, deren offene Tickets) 📋
   - 5.7-B **Dokument-Durchreichen** (Landlord kann WEG-Dokumente für eigene Mieter freigeben → Mieter-Silo: Mieter sieht nur aktiv durchgereichte Dokumente) 📋
 
-### 🔴 Phase 5.8 — ETV-Begleiter (Eigentümerversammlung) — AKTUELLE PRIORITÄT
-*Komplettmodul: Planung, Check-in, Abstimmung, Protokoll, Beschlusssammlung. Wird jetzt komplett fertiggestellt vor Phase 6.15ff.*
+### 🔄 Phase 5.8 — ETV-Begleiter (Eigentümerversammlung)
+*Komplettmodul: Planung, Check-in, Abstimmung, Protokoll, Beschlusssammlung. Weitgehend abgeschlossen — nur 5.8-G noch offen.*
 - 5.8-A Planung: Sessions, TOPs, Check-in, Abstimmung (MEA/Kopf/Objekt), Protokoll-PDF ✅
 - 5.8-B Einladungs-PDF mit ETV-Staging-Workflow ✅
 - 5.8-C ✅ **Dynamische Platzhalter in TOPs** — `[GROSSBUCHSTABEN]`-Syntax in `proposed_resolution`. Vordefinierte Optionen pro Platzhalter (Felder mit + Hinzufügen im TOP-Modal). Resolver-UI in Durchführungs-Tab (Dropdown wenn Optionen, sonst Freitext). JA-Abstimmung blockiert bei offenen Platzhaltern (NEIN/ENTHALTUNG immer möglich). Orange Badge in Prep- und Exec-TOP-Listen. Platzhalter-Highlighting im Detail-Panel (gelöst=olive, offen=orange). Protokoll-PDF + Einladungs-PDF + Beschlusssammlung nutzen aufgelöste Werte. DB: `etv_agenda_items.placeholder_options JSONB` + `placeholder_values JSONB`.
 - 5.8-D **Vollmachten-System** (Formular + TOP-bezogene Weisungen Ja/Nein/Enthaltung + Verwalter-Vollmacht) ✅
-- 5.8-E **Kontextsensitive Abstimmungs-Engine** (variable Abfrage-Reihenfolge 📋, Effizienz-Logik "Einstimmiges JA" ✅, Platzhalter-Finale 📋)
+- 5.8-E ✅ **Kontextsensitive Abstimmungs-Engine** — TOP-Reihenfolge wird in der Vorbereitung durch Nummerierung festgelegt (kein Automatismus nötig). Effizienz-Logik "Einstimmiges JA" implementiert. Platzhalter-Blockierung durch 5.8-C gelöst (JA gesperrt bei offenen Platzhaltern, NEIN/ENTHALTUNG immer möglich).
 - 5.8-F ✅ **Beschlusssammlung §24 Abs. 7 WEG** — `beschluesse`-Tabelle (keine Löschung, nur Status-Änderung), Nav-Eintrag unterhalb ETV (admin/manager), manueller Eintrag + ETV-Transfer (angenommene TOPs einer Session), Neu-Nummerierung (YYYY/NNN), Status-Workflow (angefochten/nichtig/aufgehoben), Anfragen-Tab + Badge, PDF A4 Querformat (`generateBeschlussPDF`), Owner-Button "Kopie anfordern" in Dokumenten-Cloud → Ticket an Admin/Manager
 - 5.8-G **Kommunikation & Termine** (Auto-News "ETV-Planung gestartet", Antragsfrist, Kalendereintrag, digitale Einladung im Portal) 📋
 - 5.8-H ✅ **Person-Grouping in Präsenzliste** — `_etvGroupedAttendance()` gruppiert nach `person_id`. Check-in-Modal zeigt WE-Badges, Multi-WE-Badge, TEILWEISE-Status. `_etvTogglePersonPresent()` checkt alle WE einer Person per Bulk-Update ein/aus. Quorum-Sidebar aggregiert Kopf- und MEA-Zählung.
@@ -322,7 +329,7 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
 - 6.10-B **Einzelwirtschaftsplan PDF-Redesign** (Inter-Font, 5-Block-Aufbau: Meta-Header, Hausgeld-Summary, Umlageschlüssel, Verteilungsergebnis mit Sektionen, Hinweis-Box) ✅
 - 6.11 **Zeiterfassung & Projekte** (Projektbezogene Zeiterfassung mit Arbeitspaketen, Live-Timer, manueller Zeiteintrag, Bearbeitung, Arbeitsrapport-PDF, Nav-Integration) ✅
 - 6.14 **Automatischer Zahlungsabgleich** (Fuzzy-Match beim CSV-Import: Betrag + IBAN → offene Sollstellung vorschlagen) 📋
-- 6.15 🔴 **WP/JAB Workflow-Umbau** (NÄCHSTE PRIORITÄT — Ziel-Workflow definiert in `outputs/Finanzen-Workflow.md`, Tech-Konzept in `outputs/Finanzen-Technisch.md`, Gap-Analyse in `outputs/Finanzen-Gap-Analyse.md`)
+- 6.15 ✅ **WP/JAB Workflow-Umbau** (ABGESCHLOSSEN — alle 7 Unterpunkte erledigt)
   - 6.15-A ✅ **Journal-Sperre** — Buchungen für abgeschlossene Jahre blockieren. `_finIsYearClosed()` + `_finBlockIfYearClosed()` prüft `budget_plans.status='closed'`. 5 Insert-Stellen abgesichert, Stornos bleiben GoBD-konform erlaubt. Visuelles Lock-Banner im Journal-Tab.
   - 6.15-B ✅ **Vermögensbericht (JAB-Step 1)** — Neue Tabelle `financial_statements`. JAB-Wizard von 5 auf 6 Steps erweitert. Step 1: Saldenabgleich Bank/Rücklage (System vs. Auszug), Forderungen/Verbindlichkeiten mit Inline-Stornierung, Upsert in `financial_statements`. (§ 28 WEG).
   - 6.15-C ✅ **Beirat-Prüfprotokoll** — Neue Tabelle `audit_protocols`. Digitales Formular in Beirat-View (Ergebnis, Umfang, Feststellungen), Hinweisbox (Text aus `global_settings.audit_hint_text`), Prüfprotokoll-Übersicht in Admin-Belegprüfung.
@@ -347,7 +354,7 @@ RLS: 3 Policies für `landlord` (apartments, persons, documents via ownerships),
   > Platzhalter-Parser `{{variable_name}}` mit automatischer Ersetzung. Template-Renderer `generateFromTemplate()` in utils-pdf.js.
   > Dokumenten-Designer in Einstellungen (Splitscreen: Block-Editor + Live-Preview). Drag & Drop, Variablen-Palette, Debounced PDF-Vorschau.
   > PoC: Mahnung auf Template-System migriert (mit Legacy-Fallback). Weitere PDF-Typen schrittweise migrierbar.
-- 7.11 🔄 **Stammdaten-Dynamisierung** (Quick-Wins)
+- 7.11 ✅ **Stammdaten-Dynamisierung** (ABGESCHLOSSEN)
   - 7.11-A ~~Gebäude-Bankdaten in Mahnung-PDF~~ — Nicht nötig: Mahnungstext verweist auf bekanntes WEG-Konto.
   - 7.11-B ~~Verwalter-Bankdaten global~~ — Nicht nötig: Bankdaten bereits auf Briefbogen abgebildet.
   - 7.11-C ✅ **Verzugszins Auto-Berechnung** — Mahnlauf-Default auf `base_rate + 5` (§ 288 BGB) vorbelegt, Hint-Text ergänzt.
