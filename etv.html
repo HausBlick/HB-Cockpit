@@ -106,6 +106,24 @@
         body.etv-fullscreen header,
         body.etv-fullscreen #bottom-nav { display: none !important; }
         body.etv-fullscreen #content-area { padding: 0 !important; }
+        /* === Sidebar: Icon-Only (collapsed) + Hover-Expand (Desktop only) === */
+        @media (min-width: 768px) {
+            #sidebar { width: 64px !important; overflow: hidden; transition: width 0.25s cubic-bezier(0.25, 1, 0.5, 1) 0.3s; }
+            #sidebar:hover { width: 288px !important; transition: width 0.2s cubic-bezier(0.25, 1, 0.5, 1) 0s; }
+            .sidebar-logo-area { padding: 16px 0 14px !important; }
+            #sidebar:hover .sidebar-logo-area { padding: 32px 32px 16px !important; }
+            .sidebar-logo-icon { width: 32px !important; height: 32px !important; object-fit: contain; margin-bottom: 0 !important; }
+            #sidebar:hover .sidebar-logo-icon { width: 40px !important; height: 40px !important; margin-bottom: 8px !important; }
+            .sidebar-logo-text { display: none; }
+            #sidebar:hover .sidebar-logo-text { display: block; }
+            .nav-label { max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; display: inline-block; vertical-align: middle; transition: max-width 0.2s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.15s; }
+            #sidebar:hover .nav-label { max-width: 200px; opacity: 1; }
+            .nav-link { padding: 12px 8px !important; gap: 0 !important; justify-content: center; }
+            #sidebar:hover .nav-link { padding: 12px 16px !important; gap: 12px !important; justify-content: flex-start; }
+            .nav-section-title { max-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; overflow: hidden !important; opacity: 0; transition: max-height 0.2s, opacity 0.15s, padding 0.2s; }
+            #sidebar:hover .nav-section-title { max-height: 50px !important; padding-top: 24px !important; padding-bottom: 8px !important; opacity: 1; }
+            #sidebar:not(:hover) .nav-badge { display: none !important; }
+        }
     </style>
 </head>
 <body class="font-sans flex flex-col md:flex-row text-left relative overflow-hidden" style="height:100vh;height:100dvh" onclick="closeDropdowns(event)">
@@ -115,10 +133,12 @@
     <!-- Sidebar -->
     <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-40 w-72 bg-white border-r border-gray-100 flex-shrink-0 h-screen flex flex-col shadow-soft text-left">
         <a href="dashboard.html"
-            class="p-8 pb-4 hidden md:block text-center border-b border-gray-50 mb-4 cursor-pointer hover:bg-gray-50/50 transition-colors">
-            <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-10 w-auto mx-auto mb-2">
-            <div class="font-extrabold text-xl tracking-tighter text-hb-olive">Mieterportal</div>
-            <p class="text-[10px] uppercase tracking-widest font-bold text-gray-400">HB Verwaltung</p>
+            class="sidebar-logo-area hidden md:block text-center border-b border-gray-50 mb-4 cursor-pointer hover:bg-gray-50/50 transition-colors">
+            <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="sidebar-logo-icon mx-auto">
+            <div class="sidebar-logo-text">
+                <div class="font-extrabold text-xl tracking-tighter text-hb-olive">Mieterportal</div>
+                <p class="text-[10px] uppercase tracking-widest font-bold text-gray-400">HB Verwaltung</p>
+            </div>
         </a>
         <div class="flex-grow p-4 overflow-y-auto chat-scroll">
             <ul class="space-y-1" id="nav-links"></ul>
@@ -170,7 +190,7 @@
     <script src="js/utils.js?v=20260425h"></script>
     <script src="js/utils-pdf.js?v=20260513i"></script>
     <script src="js/modules/mod-etv.js?v=20260515e"></script>
-    <script src="js/nav.js?v=20260513a"></script>
+    <script src="js/nav.js?v=20260518a"></script>
 
 </body>
 </html>

@@ -11,22 +11,22 @@
 function _navItem(fn, icon, label, badgeId) {
     const page = _getCurrentPage();
     const ext = EXTERNAL_PAGES[fn];
-    const badge = badgeId ? ` <span id="${badgeId}" class="nav-badge"></span>` : '';
+    const badge = badgeId ? `<span id="${badgeId}" class="nav-badge"></span>` : '';
 
     if (ext) {
         // Externe Seite — immer als href-Link
         const pageName = ext.replace('.html', '');
         const isActive = page === pageName;
-        return `<li><a href="${ext}" class="nav-link${isActive ? ' active-link' : ''}">${icon} ${label}${badge}</a></li>`;
+        return `<li><a href="${ext}" class="nav-link${isActive ? ' active-link' : ''}">${icon}<span class="nav-label"> ${label}</span>${badge}</a></li>`;
     }
 
     if (page === 'dashboard') {
         // Auf Dashboard: SPA-Routing per onclick
-        return `<li><a onclick="${fn}(); setActiveNav(this)" class="nav-link">${icon} ${label}${badge}</a></li>`;
+        return `<li><a onclick="${fn}(); setActiveNav(this)" class="nav-link">${icon}<span class="nav-label"> ${label}</span>${badge}</a></li>`;
     }
 
     // Auf externer Seite: Link zurück zum Dashboard mit Modul-Parameter
-    return `<li><a href="dashboard.html?m=${fn}" class="nav-link">${icon} ${label}${badge}</a></li>`;
+    return `<li><a href="dashboard.html?m=${fn}" class="nav-link">${icon}<span class="nav-label"> ${label}</span>${badge}</a></li>`;
 }
 
 // ─── Init ────────────────────────────────────────────────────
@@ -119,9 +119,9 @@ function renderNav(role) {
     // Dashboard-Link (Sonderfall: auf Dashboard onclick, sonst href)
     let html;
     if (page === 'dashboard') {
-        html = `<li><a onclick="loadDashboard(); setActiveNav(this)" class="nav-link active-link">${icons.dashboard} Dashboard</a></li>`;
+        html = `<li><a onclick="loadDashboard(); setActiveNav(this)" class="nav-link active-link">${icons.dashboard}<span class="nav-label"> Dashboard</span></a></li>`;
     } else {
-        html = `<li><a href="dashboard.html" class="nav-link">${icons.dashboard} Dashboard</a></li>`;
+        html = `<li><a href="dashboard.html" class="nav-link">${icons.dashboard}<span class="nav-label"> Dashboard</span></a></li>`;
     }
 
     if (role === 'admin' || role === 'manager') {
@@ -146,7 +146,7 @@ function renderNav(role) {
         const _bPage = _getCurrentPage();
         html += `<li><a ${_bPage === 'etv' ? `onclick="loadBeschluesse(); setActiveNav(this)"` : `href="etv.html?tab=beschluesse"`} class="nav-link">
             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
-            Beschlusssammlung <span id="nav-badge-beschluesse" class="nav-badge"></span>
+            <span class="nav-label"> Beschlusssammlung</span><span id="nav-badge-beschluesse" class="nav-badge"></span>
         </a></li>`;
         html += _navItem('loadSettings',       icons.settings,  'Einstellungen');
 
