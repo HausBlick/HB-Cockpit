@@ -416,6 +416,26 @@ Architektur-Konventionen, die NICHT zum Design-System gehören (verbleiben hier)
 
 ---
 
+### Sidebar Icon-Only + Hover-Expand (2026-05-18)
+
+**5 Dateien geändert:** `nav.js`, `dashboard.html`, `etv.html`, `finanzen.html`, `zeiterfassung.html`.
+
+**CSS (`@media (min-width: 768px)`) in allen 4 HTML-Shells:**
+- `#sidebar`: Default `width: 64px`, `overflow: hidden`. Hover: `width: 288px`. Collapse-Delay 300ms (verhindert versehentliches Schließen beim seitlichen Rausfahren), Expand sofort.
+- `.sidebar-logo-area`: Padding 16px (collapsed) → 32px (expanded). CSS-kontrolliert statt Tailwind `p-8`.
+- `.sidebar-logo-icon`: 32px collapsed → 40px expanded. `object-fit: contain`.
+- `.sidebar-logo-text`: `display: none` → `display: block` (Hover).
+- `.nav-label`: `max-width: 0 + opacity: 0` → `max-width: 200px + opacity: 1` (Hover). Smooth Fade.
+- `.nav-link`: `padding: 12px 8px, gap: 0, justify-content: center` (collapsed) → `padding: 12px 16px, gap: 12px, justify-content: flex-start` (expanded).
+- `.nav-section-title`: `max-height: 0` → `max-height: 50px` (Hover). Padding ebenfalls geclipt.
+- `.nav-badge`: `display: none` wenn Sidebar eingeklappt (via `#sidebar:not(:hover)`).
+
+**nav.js:** Alle Label-Texte in `<span class="nav-label">` gewickelt (Dashboard-Link, `_navItem()`, Beschlusssammlung-Hardcode). Badges bleiben direkte Flex-Kinder des `.nav-link`.
+
+**Offener Punkt:** `ticket_messages` noch nicht in `supabase_realtime`-Publikation → Ticket-Chat Realtime funktioniert nicht (bekannt, 1 SQL-Zeile Fix).
+
+---
+
 ### ETV — Durchführungs-Tab UX + Realtime-Sync (2026-05-18)
 
 **Abstimmungs-Notiz als Inline-Textarea mit Auto-Save (`mod-etv.js` v20260515e):**
