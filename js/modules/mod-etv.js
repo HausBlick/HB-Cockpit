@@ -478,6 +478,9 @@ function _etvRenderMain() {
                     <button onclick="_etvEditSessionSettings()" class="bg-hb-ultralight p-3 rounded-xl text-hb-olive hover:bg-gray-100 transition-colors">
                         ${icons.settings || '⚙'}
                     </button>
+                    <button id="etv-fullscreen-btn" onclick="_etvToggleFullscreen()" title="Vollbildmodus" class="bg-hb-ultralight p-3 rounded-xl text-hb-olive hover:bg-gray-100 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                    </button>
                 </div>
             </div>
 
@@ -637,8 +640,8 @@ function _etvRenderExec() {
     const selectedTop = _etvState.agenda.find(t => t.id === _etvState.selectedTopId);
 
     const sidebarOpen = !_etvState.sidebarCollapsed;
-    const middleSpan = sidebarOpen ? 'xl:col-span-4' : 'xl:col-span-5';
-    const detailSpan = sidebarOpen ? 'xl:col-span-5' : 'xl:col-span-7';
+    const middleSpan = sidebarOpen ? 'xl:col-span-3' : 'xl:col-span-3';
+    const detailSpan = sidebarOpen ? 'xl:col-span-6' : 'xl:col-span-9';
 
     const hasProtoData = !!(s?.chairman_name || s?.actual_start_time);
     const protoBits = hasProtoData ? [
@@ -3104,4 +3107,24 @@ window._beschRequestCopy = async (buildingId) => {
 
     showToast('Anfrage gesendet. Der Verwalter stellt Ihnen die Beschlusssammlung zeitnah bereit.', 'success');
 };
+
+// ─── VOLLBILDMODUS ────────────────────────────────────────────────────────────
+
+const _etvFsIconExpand   = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>`;
+const _etvFsIconCollapse = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="10" y1="14" x2="3" y2="21"></line><line x1="21" y1="3" x2="14" y2="10"></line></svg>`;
+
+window._etvToggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+    } else {
+        document.exitFullscreen();
+    }
+};
+
+document.addEventListener('fullscreenchange', () => {
+    const isFs = !!document.fullscreenElement;
+    document.body.classList.toggle('etv-fullscreen', isFs);
+    const btn = document.getElementById('etv-fullscreen-btn');
+    if (btn) btn.innerHTML = isFs ? _etvFsIconCollapse : _etvFsIconExpand;
+});
 
