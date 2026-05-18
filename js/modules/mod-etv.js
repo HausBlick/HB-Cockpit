@@ -34,6 +34,8 @@ const _etvState = {
     votingTopId: null  // aktiver TOP im Einzelstimmen-Modal
 };
 
+let _etvRealtimeChannel = null;
+
 // ─── PLATZHALTER-HELPERS (5.8-C) ────────────────────────────────────────────
 
 function _etvGetPlaceholders(text) {
@@ -313,6 +315,7 @@ window._etvDownloadAnwesenheitsliste = async () => {
  * Öffnet eine spezifische Versammlung und lädt alle Daten
  */
 window._etvOpenSession = async (sessionId) => {
+    if (_etvRealtimeChannel) { _supabase.removeChannel(_etvRealtimeChannel); _etvRealtimeChannel = null; }
     _etvState.sessionId = sessionId;
     _etvState.selectedTopId = null;
     
@@ -351,6 +354,28 @@ window._etvOpenSession = async (sessionId) => {
     if (_etvState.owners.length > 0) {
         await _etvAutoInitAttendance();
     }
+
+    // Realtime: Abstimmungs-Notizen live auf allen Geräten synchronisieren
+    _etvRealtimeChannel = _supabase
+        .channel(`etv-agenda-${sessionId}`)
+        .on('postgres_changes', {
+            event:  'UPDATE',
+            schema: 'public',
+            table:  'etv_agenda_items',
+            filter: `session_id=eq.${sessionId}`,
+        }, (payload) => {
+            const updated = payload.new;
+            const top = _etvState.agenda.find(t => t.id === updated.id);
+            if (!top) return;
+            if (top.result_note !== updated.result_note) {
+                top.result_note = updated.result_note;
+                const ta = document.getElementById(`etv-exec-note-${updated.id}`);
+                if (ta && document.activeElement !== ta) {
+                    ta.value = updated.result_note || '';
+                }
+            }
+        })
+        .subscribe();
 
     _etvRenderMain();
 };
@@ -844,7 +869,19 @@ function _etvRenderTopDetailPanel(top, resultLabelFn) {
                 ${section('Interne Notiz (nur Verwalter)', top.internal_note, { box: true, field: 'internal_note' })}
                 ${section('Vorbemerkung', top.preliminary_remark, { field: 'preliminary_remark' })}
                 ${section('Beschlussantrag', _etvRenderResolution(top) || null, { field: 'proposed_resolution' })}
-                ${section('Abstimmungs-Notiz', top.result_note, { field: 'result_note' })}
+                <div>
+                    <div class="text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                        Abstimmungs-Notiz
+                        <span id="etv-note-status-${top.id}" class="text-[9px] normal-case font-normal text-gray-400"></span>
+                    </div>
+                    <textarea
+                        id="etv-exec-note-${top.id}"
+                        rows="3"
+                        placeholder="Notiz zur Abstimmung (erscheint im Protokoll)…"
+                        oninput="_etvNoteInput('${top.id}')"
+                        class="w-full bg-hb-ultralight rounded-xl px-4 py-3 text-[15px] border border-hb-olive/10 focus:border-hb-olive focus:ring-1 focus:ring-hb-olive/20 resize-none leading-relaxed"
+                    >${top.result_note || ''}</textarea>
+                </div>
 
                 ${docs.length ? `
                     <div>
@@ -1775,6 +1812,32 @@ window._etvSavePlaceholders = async (topId) => {
     _etvOpenSession(_etvState.sessionId);
 };
 
+// ─── ABSTIMMUNGS-NOTIZ AUTO-SAVE ────
+
+const _etvNoteTimers = {};
+
+window._etvNoteInput = (topId) => {
+    const statusEl = document.getElementById(`etv-note-status-${topId}`);
+    if (statusEl) statusEl.textContent = 'wird gespeichert…';
+    clearTimeout(_etvNoteTimers[topId]);
+    _etvNoteTimers[topId] = setTimeout(async () => {
+        const val = document.getElementById(`etv-exec-note-${topId}`)?.value?.trim() || null;
+        const { error } = await _supabase.from('etv_agenda_items')
+            .update({ result_note: val })
+            .eq('id', topId);
+        if (error) {
+            if (statusEl) statusEl.textContent = '⚠ Fehler';
+            return;
+        }
+        const top = _etvState.agenda.find(t => t.id === topId);
+        if (top) top.result_note = val;
+        if (statusEl) {
+            statusEl.textContent = '✓ gespeichert';
+            setTimeout(() => { statusEl.textContent = ''; }, 2000);
+        }
+    }, 700);
+};
+
 // ─── QUICK-EDIT (Felder während Durchführung bearbeiten) ────
 
 window._etvQuickEditField = (topId, fieldName, label) => {
@@ -1784,8 +1847,8 @@ window._etvQuickEditField = (topId, fieldName, label) => {
     const isResolution = fieldName === 'proposed_resolution';
     showModal('etv-qedit-modal', `
         <div class="p-6 space-y-4">
-            <textarea id="etv-qedit-val" rows="${isResolution ? 8 : 5}"
-                class="w-full rounded-xl border border-hb-olive/20 bg-hb-ultralight px-4 py-3 text-[15px] text-hb-offblack leading-relaxed resize-none"
+            <textarea id="etv-qedit-val" rows="${isResolution ? 12 : 8}"
+                class="w-full rounded-xl border border-hb-olive/20 bg-hb-ultralight px-4 py-3 text-[15px] text-hb-offblack leading-relaxed resize-y"
                 placeholder="${isResolution ? 'Beschlussantrag eingeben…' : ''}">${current}</textarea>
             <div class="flex gap-3 justify-end">
                 <button onclick="hideModal('etv-qedit-modal')"
@@ -1794,7 +1857,7 @@ window._etvQuickEditField = (topId, fieldName, label) => {
                     class="px-5 py-2.5 rounded-xl bg-hb-olive text-white font-bold text-sm hover:bg-hb-olive/90 transition-all">Speichern</button>
             </div>
         </div>
-    `, { title: label + ' bearbeiten', maxWidth: 'max-w-lg' });
+    `, { title: label + ' bearbeiten', maxWidth: 'max-w-2xl' });
 };
 
 window._etvQuickEditSave = async (topId, fieldName) => {
