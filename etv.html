@@ -101,6 +101,11 @@
         .segment-item { white-space: nowrap; padding: 8px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; color: #373737; background: transparent; cursor: pointer; transition: background 0.15s, color 0.15s; }
         .segment-item:hover { background: rgba(104,116,81,0.05); }
         .segment-item.active { background: #687451; color: white; }
+        /* ETV Vollbildmodus */
+        body.etv-fullscreen #sidebar,
+        body.etv-fullscreen header,
+        body.etv-fullscreen #bottom-nav { display: none !important; }
+        body.etv-fullscreen #content-area { padding: 0 !important; }
     </style>
 </head>
 <body class="font-sans flex flex-col md:flex-row text-left relative overflow-hidden" style="height:100vh;height:100dvh" onclick="closeDropdowns(event)">
@@ -164,7 +169,7 @@
     <script src="js/config.js?v=20260511a"></script>
     <script src="js/utils.js?v=20260425h"></script>
     <script src="js/utils-pdf.js?v=20260513i"></script>
-    <script src="js/modules/mod-etv.js?v=20260515c"></script>
+    <script src="js/modules/mod-etv.js?v=20260515e"></script>
     <script src="js/nav.js?v=20260513a"></script>
 
 </body>
