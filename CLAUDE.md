@@ -240,6 +240,7 @@ Architektur-Konventionen, die NICHT zum Design-System gehören (verbleiben hier)
 | Storage-Fix | fix_storage_documents_update_policy | UPDATE-Policy für `storage.objects` (bucket=documents) hinzugefügt — fehlte komplett, blockierte upsert-Uploads (z.B. Protokoll-PDF bei Neugeneration). |
 | RLS-Fix | fix_rls_documents_released_visibility | `docs_select_owner` + `docs_select_tenant` + `landlord_read_own_documents`: `status='active'` → `status IN ('active','released')` — Eigentümer/Mieter sahen Dokumente mit status='released' (Protokoll, JAB) nicht. |
 | Phase 5.8-F | 20260513000001_beschluesse | `beschluesse`-Tabelle (building_id, beschluss_nr, beschluss_datum, art ENUM, beschluss_text, abstimmung_ja/nein/enthaltung, ergebnis ENUM, etv_session_id FK nullable, top_id FK nullable UNIQUE, status ENUM, status_notiz, status_datum, created_by). RLS: admin/manager SELECT+INSERT+UPDATE, kein DELETE (absichtlich keine DELETE-Policy). 3 Indexes. |
+| Realtime-Fix | enable_realtime_etv_agenda_items | `ALTER PUBLICATION supabase_realtime ADD TABLE etv_agenda_items` — Tabelle war nicht in der Publikation, Realtime-Events wurden nie gefeuert. Ticket-messages-Tabelle ebenfalls betroffen (noch nicht gefixt). |
 
 ---
 
@@ -412,6 +413,38 @@ Architektur-Konventionen, die NICHT zum Design-System gehören (verbleiben hier)
 
 > Komprimierte Dokumentation aller durchgeführten Änderungen.
 > Migrationen, Architektur-Entscheidungen und DB-Schema-Änderungen bleiben erhalten.
+
+---
+
+### ETV — Durchführungs-Tab UX + Realtime-Sync (2026-05-18)
+
+**Abstimmungs-Notiz als Inline-Textarea mit Auto-Save (`mod-etv.js` v20260515e):**
+- Abstimmungs-Notiz im Durchführungs-Tab ist jetzt direkte `<textarea>` statt read-only + Modal.
+- Auto-Save nach 700ms Tipp-Pause (`_etvNoteInput(topId)`): Supabase UPDATE auf `etv_agenda_items.result_note`.
+- Status-Feedback neben Label: "wird gespeichert…" → "✓ gespeichert" (verschwindet nach 2s).
+- Debounce-Timer je TOP in `_etvNoteTimers = {}` (Map), kein Überschreiben bei schnellen TOP-Wechseln.
+
+**Supabase Realtime — Live-Sync der Abstimmungs-Notiz:**
+- Subscription auf `etv_agenda_items` (event: UPDATE, filter: `session_id=eq.{id}`) beim Öffnen einer Session.
+- Empfänger-Gerät: `_etvState.agenda` wird aktualisiert, Textarea-Wert gesetzt — aber **nur wenn das Feld nicht fokussiert ist** (verhindert Überschreiben beim Tippen).
+- Channel wird bei Session-Wechsel sauber via `removeChannel()` getrennt.
+- DB-Fix nötig gewesen: `etv_agenda_items` war nicht in `supabase_realtime`-Publikation → Migration `enable_realtime_etv_agenda_items`.
+
+**Quick-Edit Modal vergrößert:**
+- `max-w-lg` → `max-w-2xl`. Zeilen: Notiz/Vorbemerkung 5→8, Beschlussantrag 8→12.
+- `resize-none` → `resize-y` (manuell weiter aufziehbar).
+
+**Durchführungs-Tab Layout 25/75:**
+- TOP-Liste: `xl:col-span-5` → `xl:col-span-3` (25%).
+- Detail-Panel: `xl:col-span-7` → `xl:col-span-9` (75%).
+- Bei offener Quorum-Sidebar: 3+3+6=12 (statt 3+4+5).
+
+**Vollbildmodus:**
+- Button (Expand-SVG-Icon) neben Zahnrad im Session-Header (`id="etv-fullscreen-btn"`).
+- `_etvToggleFullscreen()`: `requestFullscreen()` / `exitFullscreen()`.
+- `fullscreenchange`-Event: setzt/entfernt `body.etv-fullscreen` Klasse.
+- CSS in `etv.html`: `body.etv-fullscreen` blendet `#sidebar`, `header`, `#bottom-nav` aus, `#content-area padding: 0`.
+- Icon wechselt automatisch zwischen Expand und Collapse. ESC beendet Vollbild nativ.
 
 ---
 
