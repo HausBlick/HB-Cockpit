@@ -1,0 +1,11 @@
+{
+    "workbench.activityBar.autoHide": false,
+    "workbench.activityBar.compact": true,
+    "workbench.activityBar.location": "top",
+    "workbench.colorTheme": "Abyss",
+    "workbench.statusBar.visible": true,
+    "workbench.tips.enabled": true,
+    "workbench.sideBar.location": "left",
+    "workbench.iconTheme": "vs-minimal",
+    "workbench.preferredDarkColorTheme": "Light Modern"
+}
