@@ -416,21 +416,22 @@ Architektur-Konventionen, die NICHT zum Design-System gehören (verbleiben hier)
 
 ---
 
-### Sidebar Icon-Only + Hover-Expand (2026-05-18)
+### Sidebar Icon-Only + Hover-Expand (2026-05-18/19)
 
-**5 Dateien geändert:** `nav.js`, `dashboard.html`, `etv.html`, `finanzen.html`, `zeiterfassung.html`.
+**Commits:** `6e7807d` (Feature), `8d607d3` (Animation-Fix). **5 Dateien:** `nav.js`, `dashboard.html`, `etv.html`, `finanzen.html`, `zeiterfassung.html`.
 
-**CSS (`@media (min-width: 768px)`) in allen 4 HTML-Shells:**
-- `#sidebar`: Default `width: 64px`, `overflow: hidden`. Hover: `width: 288px`. Collapse-Delay 300ms (verhindert versehentliches Schließen beim seitlichen Rausfahren), Expand sofort.
-- `.sidebar-logo-area`: Padding 16px (collapsed) → 32px (expanded). CSS-kontrolliert statt Tailwind `p-8`.
-- `.sidebar-logo-icon`: 32px collapsed → 40px expanded. `object-fit: contain`.
-- `.sidebar-logo-text`: `display: none` → `display: block` (Hover).
-- `.nav-label`: `max-width: 0 + opacity: 0` → `max-width: 200px + opacity: 1` (Hover). Smooth Fade.
-- `.nav-link`: `padding: 12px 8px, gap: 0, justify-content: center` (collapsed) → `padding: 12px 16px, gap: 12px, justify-content: flex-start` (expanded).
-- `.nav-section-title`: `max-height: 0` → `max-height: 50px` (Hover). Padding ebenfalls geclipt.
-- `.nav-badge`: `display: none` wenn Sidebar eingeklappt (via `#sidebar:not(:hover)`).
+**Finaler CSS-Stand (`@media (min-width: 768px)`) in allen 4 HTML-Shells:**
+- `#sidebar`: Default `width: 72px`, `overflow: hidden`. Expand: 0.08s Delay + 0.3s `cubic-bezier(0.4,0,0.2,1)`. Collapse: 0.4s Delay (Sidebar bleibt beim seitlichen Rausfahren kurz offen).
+- `.sidebar-logo-area`: Padding 16px 0 (collapsed) → 32px (expanded). CSS-kontrolliert statt Tailwind `p-8`.
+- `.sidebar-logo-icon`: 32px collapsed → 40px expanded.
+- `.sidebar-logo-text`: opacity+max-height Transition (nicht display:none — sonst kein Fade).
+- `.nav-label`: `max-width: 0 + opacity: 0` → `max-width: 200px + opacity: 1`. Separate `transition` (nicht `all`).
+- `.nav-link`: `padding: 12px` (quadratisch, 40×40px Icon-Button, zentriert durch symmetrisches Padding) → `padding: 12px 16px` expanded. **Kein** `justify-content`-Wechsel (nicht animierbar, war Ursache des Ruckelns). Explizite `transition` auf `background-color/color/padding/gap` — überschreibt `transition: all 0.2s` (Konflikt mit Sidebar-Width-Transition).
+- `.nav-section-title`: max-height 0→50px. `.nav-badge`: `display:none` wenn collapsed.
 
-**nav.js:** Alle Label-Texte in `<span class="nav-label">` gewickelt (Dashboard-Link, `_navItem()`, Beschlusssammlung-Hardcode). Badges bleiben direkte Flex-Kinder des `.nav-link`.
+**nav.js:** Alle Labels in `<span class="nav-label">` gewickelt. Badges als direkte Flex-Kinder von `.nav-link` (außerhalb `nav-label`) → `ml-auto` funktioniert im expanded Zustand.
+
+**Architektur-Entscheidung:** 72px Sidebar (statt 64px) — notwendig für quadratischen Button: Container p-4 (16px) + nav-link padding 12px + Icon 16px + 12px + 16px = 72px.
 
 **Offener Punkt:** `ticket_messages` noch nicht in `supabase_realtime`-Publikation → Ticket-Chat Realtime funktioniert nicht (bekannt, 1 SQL-Zeile Fix).
 
