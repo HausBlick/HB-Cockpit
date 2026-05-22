@@ -3813,35 +3813,38 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
         { label: 'Beirat / Eigentümer', name: signatories.b2 || session.beirat_signatory_2     || null, x: mLeft + 248, },
     ];
 
-    // lineW = gleiche Breite für alle drei Linien (Unterschrift / Name / Datum)
     const drawSignRow = (pg, fy, fields) => {
         const lineW = 215;
         for (const f of fields) {
             // ── Unterschriftslinie ──────────────────────────────────
             pg.drawLine({ start: { x: f.x, y: fy }, end: { x: f.x + lineW, y: fy }, thickness: 0.5, color: offblack });
+
+            let belowSignY; // Y-Position nach Name/Rolle
             if (f.name) {
+                // Name bekannt: direkt unter Linie, dann Rolle — keine extra Namenlinie
                 pg.drawText(f.name, { x: f.x, y: fy - 11, size: 8, font: fSemi, color: offblack });
+                pg.drawText(f.label, { x: f.x, y: fy - 22, size: 7, font: fBold, color: gray50 });
+                belowSignY = fy - 22;
+            } else {
+                // Kein Name: Namenlinie mit Schreibraum + Beschriftung + Rolle
+                const nameY = fy - 42;
+                pg.drawLine({ start: { x: f.x, y: nameY }, end: { x: f.x + lineW, y: nameY }, thickness: 0.5, color: offblack });
+                pg.drawText('Name in Druckbuchstaben', { x: f.x, y: nameY - 11, size: 7, font: fReg, color: gray50 });
+                pg.drawText(f.label, { x: f.x, y: nameY - 22, size: 7, font: fBold, color: gray50 });
+                belowSignY = nameY - 22;
             }
 
-            // ── Namenlinie (gleich breit, Schreibraum oben) ─────────
-            const nameY = fy - 44;
-            pg.drawLine({ start: { x: f.x, y: nameY }, end: { x: f.x + lineW, y: nameY }, thickness: 0.5, color: offblack });
-            pg.drawText('Name in Druckbuchstaben', { x: f.x, y: nameY - 11, size: 7, font: fReg, color: gray50 });
-
-            // ── Rolle ────────────────────────────────────────────────
-            pg.drawText(f.label, { x: f.x, y: nameY - 23, size: 7, font: fBold, color: gray50 });
-
-            // ── Datumlinie (gleich breit, Schreibraum oben) ─────────
-            const datumY = nameY - 48;
+            // ── Datumlinie (Schreibraum oben) ───────────────────────
+            const datumY = belowSignY - 28;
             pg.drawLine({ start: { x: f.x, y: datumY }, end: { x: f.x + lineW, y: datumY }, thickness: 0.5, color: offblack });
             pg.drawText('Datum', { x: f.x, y: datumY - 11, size: 7, font: fReg, color: gray50 });
         }
     };
 
-    drawSignRow(page, y, signFields);
-    y -= 124;
-    drawSignRow(page, y, signFields2);
-    y -= 124;
+    drawSignRow(page, y, signFields);   // Zeile 1: Namen bekannt, kompaktes Layout
+    y -= 110;                           // Großer Abstand zur zweiten Zeile
+    drawSignRow(page, y, signFields2);  // Zeile 2: Beirat, mit Namenlinie
+    y -= 120;
 
     // Hinweis Original beim Verwalter
     [page, y] = await checkBreak(page, y, 60);
