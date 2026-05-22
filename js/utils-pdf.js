@@ -3842,7 +3842,7 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
     };
 
     drawSignRow(page, y, signFields);   // Zeile 1: Namen bekannt, kompaktes Layout
-    y -= 110;                           // Großer Abstand zur zweiten Zeile
+    y -= 135;                           // Abstand zur zweiten Zeile
     drawSignRow(page, y, signFields2);  // Zeile 2: Beirat, mit Namenlinie
     y -= 120;
 
