@@ -317,8 +317,7 @@ window._etvDownloadAnwesenheitsliste = async () => {
 window._etvOpenSession = async (sessionId) => {
     if (_etvRealtimeChannel) { _supabase.removeChannel(_etvRealtimeChannel); _etvRealtimeChannel = null; }
     _etvState.sessionId = sessionId;
-    _etvState.selectedTopId = null;
-    
+
     // Komplett-Check: Session, TOPs, Präsenz, Wohnungen & Eigentümer
     const [sRes, aRes, attRes, aptRes] = await Promise.all([
         _supabase.from('etv_sessions').select('*').eq('id', sessionId).single(),
@@ -627,6 +626,7 @@ function _etvRenderExec() {
         if (status === 'rejected')  return { text: 'Abgelehnt',   cls: 'bg-hb-orange/10 text-hb-orange border-hb-orange/20' };
         if (status === 'abstained') return { text: 'Enthaltung',  cls: 'bg-gray-100 text-gray-500 border-gray-300' };
         if (status === 'postponed') return { text: 'Vertagt',     cls: 'bg-gray-100 text-gray-500 border-gray-200' };
+        if (status === 'closed')   return { text: 'Erledigt',    cls: 'bg-hb-success/12 text-hb-success border-hb-success/20' };
         return { text: 'Offen', cls: 'bg-gray-100 text-gray-400 border-gray-200' };
     };
 
@@ -910,8 +910,15 @@ function _etvRenderTopDetailPanel(top, resultLabelFn) {
 
             <!-- Abstimmungs-Bereich -->
             ${isNoVote ? `
-                <div class="bg-hb-ultralight/40 px-5 py-4 border-t border-hb-olive/5 text-center">
-                    <span class="text-xs text-gray-400 italic">Nicht abstimmungsrelevant</span>
+                <div class="bg-hb-ultralight/40 px-5 py-5 border-t border-hb-olive/10 text-center">
+                    ${top.result_status === 'closed' ? `
+                        <div class="flex items-center justify-center gap-2 text-hb-success">
+                            <span class="font-black text-base leading-none">✓</span>
+                            <span class="text-xs font-black uppercase tracking-widest">Abgeschlossen</span>
+                        </div>
+                    ` : `
+                        <button onclick="_etvMarkTopClosed('${top.id}')" class="btn-primary text-xs px-6 py-2.5">Abgeschlossen</button>
+                    `}
                 </div>
             ` : `
                 ${(() => {
@@ -1031,11 +1038,15 @@ function _etvRenderFollow() {
 
         let statusBadge = '';
         if (top.voting_type === 'none') {
-            statusBadge = '<span class="text-[10px] font-black text-gray-400 uppercase bg-gray-100 px-2 py-0.5 rounded-md">Kein Beschluss</span>';
+            statusBadge = top.result_status === 'closed'
+                ? '<span class="text-[10px] font-black text-hb-success uppercase bg-hb-success/10 border border-hb-success/20 px-2 py-0.5 rounded-md">✓ Erledigt</span>'
+                : '<span class="text-[10px] font-black text-gray-400 uppercase bg-gray-100 px-2 py-0.5 rounded-md">Kein Beschluss</span>';
         } else if (top.result_status === 'approved') {
             statusBadge = '<span class="text-[10px] font-black text-hb-success uppercase bg-hb-success/10 border border-hb-success/20 px-2 py-0.5 rounded-md">✓ Angenommen</span>';
         } else if (top.result_status === 'rejected') {
             statusBadge = '<span class="text-[10px] font-black text-hb-error uppercase bg-hb-error/10 border border-hb-error/20 px-2 py-0.5 rounded-md">✗ Abgelehnt</span>';
+        } else if (top.result_status === 'abstained') {
+            statusBadge = '<span class="text-[10px] font-black text-gray-600 uppercase bg-gray-100 border border-gray-300 px-2 py-0.5 rounded-md">Enthaltung</span>';
         } else {
             statusBadge = '<span class="text-[10px] font-black text-gray-400 uppercase bg-gray-100 px-2 py-0.5 rounded-md">Ausstehend</span>';
         }
@@ -1085,7 +1096,16 @@ function _etvRenderFollow() {
             <div id="etv-follow-body-${top.id}" class="hidden px-5 pb-5 pt-4 space-y-4">
                 ${top.preliminary_remark ? `
                 <div>
-                    <label class="block text-[10px] font-black text-hb-olive uppercase tracking-widest mb-1.5">Vorbemerkung</label>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-[10px] font-black text-hb-olive uppercase tracking-widest">Vorbemerkung</label>
+                        <label class="flex items-center gap-2 cursor-pointer select-none">
+                            <span class="text-[10px] text-gray-400 font-bold">Im Protokoll aufführen</span>
+                            <div class="relative">
+                                <input type="checkbox" id="etv-follow-remark-toggle-${top.id}" ${top.remark_in_protocol ? 'checked' : ''} class="sr-only peer">
+                                <div class="w-9 h-5 bg-gray-200 rounded-full peer peer-checked:bg-hb-olive after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:border-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4 peer-checked:after:border-white"></div>
+                            </div>
+                        </label>
+                    </div>
                     <textarea id="etv-follow-remark-${top.id}" rows="3" class="w-full bg-hb-ultralight rounded-xl px-4 py-3 text-sm border border-hb-olive/10 focus:border-hb-olive focus:ring-1 focus:ring-hb-olive/20 resize-none">${top.preliminary_remark || ''}</textarea>
                 </div>` : ''}
                 <div>
@@ -1215,20 +1235,24 @@ window._etvFollowToggleTop = (id) => {
 window._etvFollowSaveTop = async (id) => {
     const top = _etvState.agenda.find(a => a.id === id);
     if (!top) return;
-    const resolution  = document.getElementById(`etv-follow-resolution-${id}`)?.value?.trim() ?? top.proposed_resolution;
-    const discussion  = document.getElementById(`etv-follow-discussion-${id}`)?.value?.trim() ?? top.result_note;
-    const remark      = document.getElementById(`etv-follow-remark-${id}`)?.value?.trim()     ?? top.preliminary_remark;
+    const resolution      = document.getElementById(`etv-follow-resolution-${id}`)?.value?.trim() ?? top.proposed_resolution;
+    const discussion      = document.getElementById(`etv-follow-discussion-${id}`)?.value?.trim() ?? top.result_note;
+    const remark          = document.getElementById(`etv-follow-remark-${id}`)?.value?.trim()     ?? top.preliminary_remark;
+    const remarkToggle    = document.getElementById(`etv-follow-remark-toggle-${id}`);
+    const remarkInProtocol = remarkToggle ? remarkToggle.checked : (top.remark_in_protocol ?? false);
 
     const { error } = await _supabase.from('etv_agenda_items').update({
         proposed_resolution: resolution || null,
         result_note:         discussion  || null,
         preliminary_remark:  remark      || null,
+        remark_in_protocol:  remarkInProtocol,
     }).eq('id', id);
 
     if (error) { showToast('Fehler beim Speichern.', 'error'); return; }
     top.proposed_resolution = resolution || null;
     top.result_note         = discussion  || null;
     top.preliminary_remark  = remark      || null;
+    top.remark_in_protocol  = remarkInProtocol;
     showToast('TOP gespeichert.');
 };
 
@@ -1800,6 +1824,17 @@ window._etvVoteJa = (topId) => {
     _etvCastVote(topId, 'yes');
 };
 
+window._etvMarkTopClosed = async (topId) => {
+    const { error } = await _supabase.from('etv_agenda_items')
+        .update({ result_status: 'closed' })
+        .eq('id', topId);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    const top = _etvState.agenda.find(t => t.id === topId);
+    if (top) top.result_status = 'closed';
+    showToast('TOP als abgeschlossen markiert.', 'success');
+    _etvRenderMain();
+};
+
 window._etvSavePlaceholders = async (topId) => {
     const resolver = document.getElementById(`ph-resolver-${topId}`);
     if (!resolver) return;
@@ -2018,7 +2053,7 @@ window._etvSaveSessionSettings = async () => {
 };
 
 window._etvCloseSession = async () => {
-    const votedStatuses = ['approved', 'rejected', 'abstained', 'postponed', 'none'];
+    const votedStatuses = ['approved', 'rejected', 'abstained', 'postponed', 'none', 'closed'];
     const openTops = _etvState.agenda.filter(t => t.voting_type !== 'none' && !votedStatuses.includes(t.result_status));
     if (openTops.length > 0) {
         if (!confirm(`${openTops.length} TOP(s) wurden noch nicht abgestimmt. Trotzdem schließen?`)) return;
