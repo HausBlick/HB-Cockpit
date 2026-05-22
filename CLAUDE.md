@@ -416,6 +416,18 @@ Architektur-Konventionen, die NICHT zum Design-System gehören (verbleiben hier)
 
 ---
 
+### ETV Durchführung & Nachbereitung Fixes (2026-05-22)
+
+**Migration `etv_remark_in_protocol`:** `etv_agenda_items.remark_in_protocol BOOLEAN DEFAULT false` — steuert ob Vorbemerkung im Protokoll-PDF erscheint.
+
+**`mod-etv.js` + `utils-pdf.js` (v20260522a):**
+- **`resultLabel`:** Neuer Status `'closed'` → Badge "Erledigt" (hb-success).
+- **Kein-Beschluss-TOPs (`voting_type='none'`):** Abstimmungs-Bereich zeigt jetzt "Abgeschlossen"-Button statt statischem Text. Klick → `_etvMarkTopClosed()` → `result_status='closed'`. Danach: grüner "✓ Abgeschlossen"-Status im Panel und in der TOP-Liste.
+- **Enthaltung-Status in Nachbereitung:** `statusBadge` hatte keinen `abstained`-Fall → fiel in "Ausstehend". Jetzt korrekt: grau "Enthaltung"-Badge.
+- **Vorbemerkung Toggle (Nachbereitung):** Neben dem "Vorbemerkung"-Label jetzt Toggle "Im Protokoll aufführen". Standard: aus. Wird mit "Speichern" in `remark_in_protocol` persistiert.
+- **Protokoll-PDF:** Vorbemerkung erscheint nur noch wenn `item.remark_in_protocol === true`. Einladungs-PDF: unverändert (zeigt Vorbemerkung immer).
+- **`_etvCloseSession`:** `'closed'` zu `votedStatuses` hinzugefügt (Kein-Beschluss-TOPs als erledigt gezählt).
+
 ### Sidebar Icon-Only + Hover-Expand (2026-05-18/19)
 
 **Commits:** `6e7807d` (Feature), `8d607d3` (Animation-Fix). **5 Dateien:** `nav.js`, `dashboard.html`, `etv.html`, `finanzen.html`, `zeiterfassung.html`.

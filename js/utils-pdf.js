@@ -3711,8 +3711,10 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
         // TOP-Header — olive Balken, dynamische Höhe (shared helper, identisch zur Einladung)
         y = _pdfDrawTopHeader(page, y, item, sharedFonts, sharedLayout);
 
-        // Vorbemerkung
-        [page, y] = await _pdfDrawSection(page, y, 'Vorbemerkung', item.preliminary_remark, sharedFonts, sharedLayout, cbFn, gray50);
+        // Vorbemerkung — nur wenn in Nachbereitung explizit für Protokoll freigegeben
+        if (item.remark_in_protocol) {
+            [page, y] = await _pdfDrawSection(page, y, 'Vorbemerkung', item.preliminary_remark, sharedFonts, sharedLayout, cbFn, gray50);
+        }
 
         // Inhalt / Beschlussantrag (Platzhalter werden durch aufgelöste Werte ersetzt)
         const resLabel = item.voting_type === 'none' ? 'Inhalt' : 'Beschlussantrag';
@@ -3792,44 +3794,54 @@ async function generateETVProtokollPDF(sessionId, options = {}) {
     // ════════════════════════════════════════════════════════════
     // LETZTE SEITE — UNTERSCHRIFTEN-BLOCK
     // ════════════════════════════════════════════════════════════
-    if (y < mBottom + 200) { page = await addPage(); drawRunningHeader(page, pageNum); y = CONTENT_TOP; }
+    if (y < mBottom + 380) { page = await addPage(); drawRunningHeader(page, pageNum); y = CONTENT_TOP; }
 
     y -= 20;
     page.drawLine({ start: { x: mLeft, y: y + 10 }, end: { x: mRight, y: y + 10 }, thickness: 0.5, color: olive });
 
     const signIntro = `Dieses Protokoll wurde am ${dateStr} in ${session.location || 'Versammlungsort'} aufgenommen. Die Richtigkeit der vorstehenden Feststellungen wird durch die nachstehenden Unterschriften gemäß § 24 Abs. 6 WEG bestätigt.`;
     [page, y] = await drawBlock(page, y, signIntro, fReg, 9, gray30);
-    y -= 20;
+    y -= 24;
 
     // 2×2 Unterschriften-Felder
-    const placeholder = '______ (Hier Name in Druckbuchstaben einfügen)';
     const signFields = [
-        { label: 'Versammlungsleiter',   name: signatories.vl || session.chairman_name  || null, x: mLeft,       },
-        { label: 'Protokollführer',       name: signatories.pf || session.secretary_name || null, x: mLeft + 248, },
+        { label: 'Versammlungsleiter',  name: signatories.vl || session.chairman_name         || null, x: mLeft,       },
+        { label: 'Protokollführer',     name: signatories.pf || session.secretary_name         || null, x: mLeft + 248, },
     ];
     const signFields2 = [
-        { label: 'Beirat / Eigentümer',  name: signatories.b1 || session.beirat_signatory_1 || null, x: mLeft,       },
-        { label: 'Beirat / Eigentümer',  name: signatories.b2 || session.beirat_signatory_2 || null, x: mLeft + 248, },
+        { label: 'Beirat / Eigentümer', name: signatories.b1 || session.beirat_signatory_1     || null, x: mLeft,       },
+        { label: 'Beirat / Eigentümer', name: signatories.b2 || session.beirat_signatory_2     || null, x: mLeft + 248, },
     ];
 
-    const drawSignRow = (pg, fy2, fields) => {
+    // lineW = gleiche Breite für alle drei Linien (Unterschrift / Name / Datum)
+    const drawSignRow = (pg, fy, fields) => {
+        const lineW = 215;
         for (const f of fields) {
-            const lineW = 175;
-            pg.drawLine({ start: { x: f.x, y: fy2 }, end: { x: f.x + lineW, y: fy2 }, thickness: 0.5, color: offblack });
+            // ── Unterschriftslinie ──────────────────────────────────
+            pg.drawLine({ start: { x: f.x, y: fy }, end: { x: f.x + lineW, y: fy }, thickness: 0.5, color: offblack });
             if (f.name) {
-                pg.drawText(f.name, { x: f.x, y: fy2 - 12, size: 8, font: fSemi, color: offblack });
-            } else {
-                pg.drawText(placeholder, { x: f.x, y: fy2 - 12, size: 7, font: fReg, color: gray50 });
+                pg.drawText(f.name, { x: f.x, y: fy - 11, size: 8, font: fSemi, color: offblack });
             }
-            pg.drawText(f.label, { x: f.x, y: fy2 - 24, size: 7, font: fBold, color: gray50 });
-            pg.drawText(`Datum: ____________________`, { x: f.x, y: fy2 - 36, size: 7, font: fReg, color: gray50 });
+
+            // ── Namenlinie (gleich breit, Schreibraum oben) ─────────
+            const nameY = fy - 44;
+            pg.drawLine({ start: { x: f.x, y: nameY }, end: { x: f.x + lineW, y: nameY }, thickness: 0.5, color: offblack });
+            pg.drawText('Name in Druckbuchstaben', { x: f.x, y: nameY - 11, size: 7, font: fReg, color: gray50 });
+
+            // ── Rolle ────────────────────────────────────────────────
+            pg.drawText(f.label, { x: f.x, y: nameY - 23, size: 7, font: fBold, color: gray50 });
+
+            // ── Datumlinie (gleich breit, Schreibraum oben) ─────────
+            const datumY = nameY - 48;
+            pg.drawLine({ start: { x: f.x, y: datumY }, end: { x: f.x + lineW, y: datumY }, thickness: 0.5, color: offblack });
+            pg.drawText('Datum', { x: f.x, y: datumY - 11, size: 7, font: fReg, color: gray50 });
         }
     };
 
     drawSignRow(page, y, signFields);
-    y -= 55;
+    y -= 124;
     drawSignRow(page, y, signFields2);
-    y -= 55;
+    y -= 124;
 
     // Hinweis Original beim Verwalter
     [page, y] = await checkBreak(page, y, 60);
