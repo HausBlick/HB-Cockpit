@@ -312,7 +312,7 @@ function _ticketRowHtml(t) {
     const dirBadge = isMine
         ? `<span class="ml-1.5 text-[9px] font-bold bg-hb-olive/10 text-hb-olive px-1.5 py-0.5 rounded">Von mir</span>`
         : (isAssigned ? `<span class="ml-1.5 text-[9px] font-bold bg-hb-orange/10 text-hb-orange px-1.5 py-0.5 rounded">An mich</span>` : '');
-    const unreadBadge = _ticketUnreadSet.has(t.id)
+    const unreadBadge = _ticketUnreadSet.has(t.id) && t.assigned_to === currentUser.id
         ? `<span class="ml-1.5 text-[9px] font-bold bg-hb-orange text-white px-1.5 py-0.5 rounded-full">Neu</span>`
         : '';
     const location = [t.buildings?.name, t.apartments?.apartment_number ? `Wohnung ${t.apartments.apartment_number}` : null].filter(Boolean).join(' / ') || '—';
