@@ -6,6 +6,20 @@
 
 ---
 
+### feat(dashboard): Hausgeld-Kachel mit Einheiten-Paging (2026-05-24)
+
+**Modul:** `mod-dashboard.js`
+**Feature:** Die 4. KPI-Kachel zeigt für Owner alle Einheiten mit Hausgeld, blätterbar per ‹ ›.
+- Owner-Einheiten via `ownerships (is_active=true) → apartments → buildings`
+- Betrag per `getMonthlyHausgeld()`, Fallback `apartments.hausgeld`
+- "Gültig ab" aus `budget_plans (status=active)`, nur wenn dynHG vorhanden
+- Pfeile nur bei mehr als einer Einheit; Einheit + Objekt immer angezeigt
+- Tenant-Pfad ("Warmmiete") unverändert
+- `_dashHgState` als Modul-State; `window._dashHausgeldPage(dir)` rendert nur die Kachel neu
+**Geänderte Dateien:** `js/modules/mod-dashboard.js`
+
+---
+
 ### Fix B1: Ansprechpartner-Widget — falsche Spaltennamen korrigiert (2026-05-24)
 
 **Modul:** `mod-dashboard.js`
