@@ -416,9 +416,8 @@ async function _renderUserDashboard() {
             .order('created_at', { ascending: false }).limit(20),
 
         _supabase.from('contacts')
-            .select('id, company_name, first_name, last_name, phone, email, category, building_ids')
-            .in('category', ['Verwalter', 'Hausmeister'])
-            .eq('is_released', true),
+            .select('id, company, contact_person, is_company, phone, mobile, email, category, building_ids, logo_url')
+            .in('category', ['Verwalter', 'Hausmeister']),
     ]);
 
     // ── KPI-Berechnungen ──
@@ -467,8 +466,8 @@ async function _renderUserDashboard() {
     const allContacts = contactsRes.data || [];
     const contact = (
         (buildingId
-            ? allContacts.find(c => (c.building_ids || []).includes(buildingId) && c.category === 'Verwalter')
-              || allContacts.find(c => (c.building_ids || []).includes(buildingId))
+            ? allContacts.find(c => (c.building_ids || []).map(String).includes(String(buildingId)) && c.category === 'Verwalter')
+              || allContacts.find(c => (c.building_ids || []).map(String).includes(String(buildingId)))
             : null)
         || allContacts.find(c => c.category === 'Verwalter')
         || allContacts[0]
@@ -595,18 +594,20 @@ async function _renderUserDashboard() {
                 ${contact ? `
                     <div class="p-5">
                         <div class="flex items-start gap-4">
-                            <div class="w-12 h-12 rounded-full bg-hb-olive/10 text-hb-olive flex items-center justify-center font-extrabold text-lg flex-shrink-0">
-                                ${(contact.company_name || contact.first_name || '?').charAt(0).toUpperCase()}
-                            </div>
+                            ${contact.logo_url
+                                ? `<img src="${contact.logo_url}" class="w-12 h-12 rounded-full object-cover flex-shrink-0" alt="">`
+                                : `<div class="w-12 h-12 rounded-full bg-hb-olive/10 text-hb-olive flex items-center justify-center font-extrabold text-lg flex-shrink-0">
+                                ${(contact.company || contact.contact_person || '?').charAt(0).toUpperCase()}
+                            </div>`}
                             <div class="flex-1 min-w-0">
                                 <div class="font-bold text-hb-offblack leading-tight">
-                                    ${contact.company_name || [contact.first_name, contact.last_name].filter(Boolean).join(' ')}
+                                    ${contact.company || contact.contact_person || '—'}
                                 </div>
                                 <span class="text-[10px] font-black uppercase bg-hb-olive/10 text-hb-olive px-1.5 py-0.5 rounded mt-1 inline-block">${contact.category}</span>
-                                ${contact.phone ? `
-                                    <a href="tel:${contact.phone}" class="flex items-center gap-2 text-sm text-gray-600 hover:text-hb-olive mt-3 transition-colors">
+                                ${(contact.phone || contact.mobile) ? `
+                                    <a href="tel:${contact.phone || contact.mobile}" class="flex items-center gap-2 text-sm text-gray-600 hover:text-hb-olive mt-3 transition-colors">
                                         <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
-                                        ${contact.phone}
+                                        ${contact.phone || contact.mobile}
                                     </a>` : ''}
                                 ${contact.email ? `
                                     <a href="mailto:${contact.email}" class="flex items-center gap-2 text-sm text-gray-600 hover:text-hb-olive mt-2 transition-colors">

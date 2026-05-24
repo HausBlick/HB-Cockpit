@@ -6,6 +6,19 @@
 
 ---
 
+### Fix B1: Ansprechpartner-Widget — falsche Spaltennamen korrigiert (2026-05-24)
+
+**Modul:** `mod-dashboard.js`
+**Problem:** contacts-Abfrage verwendete nicht existierende Spalten (`company_name`, `first_name`, `last_name`, `is_released`) → Query schlug fehl → Widget zeigte immer "Noch kein Ansprechpartner hinterlegt".
+**Fix:**
+- `.select()` auf echte Spalten umgestellt: `company, contact_person, is_company, phone, mobile, email, category, building_ids, logo_url`
+- `.eq('is_released', true)` entfernt (Spalte existiert nicht; Sichtbarkeit regelt RLS)
+- `building_ids`-Vergleich auf String normalisiert (DB liefert `["16"]`, buildingId ist Zahl)
+- Render: `company_name`/`first_name`/`last_name` → `company`/`contact_person`; `logo_url` als rundes Bild wenn vorhanden; `mobile` als Fallback wenn `phone` leer
+**Geänderte Dateien:** `js/modules/mod-dashboard.js`
+
+---
+
 ### Fix B2: Beschlusssammlung-Anfrage nur eigene Gebäude (2026-05-24)
 
 **Modul:** `mod-dokumente.js`
