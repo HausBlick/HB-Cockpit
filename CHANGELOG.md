@@ -6,6 +6,17 @@
 
 ---
 
+### feat(tickets): Owner-Sidebar vereinfacht + Auto-Assignment an Verwalter (2026-05-24)
+
+- Owner sieht in der Ticket-Sidebar nur noch „Meine Tickets" und „Erledigt" (statt Posteingang/Gesendet/etc.)
+- Default-View beim Öffnen des Ticket-Moduls ist für alle Rollen `mine`
+- Neues Ticket eines Owners wird automatisch dem zugewiesenen Verwalter (`management_assignments`) des gewählten Gebäudes zugewiesen
+- Gebäude-Filter bleibt erhalten (auch für Owner mit mehreren Gebäuden)
+
+**Geänderte Dateien:** `js/modules/mod-tickets.js`
+
+---
+
 ### feat(tickets): B3 — Antwort-Benachrichtigung und Gelesen-Tracking (2026-05-24)
 
 **Module:** Migration `ticket_reads`, Edge Function `send-notification`, `mod-tickets.js`

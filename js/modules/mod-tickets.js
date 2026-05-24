@@ -54,8 +54,7 @@ async function loadTickets() {
     if (window.innerWidth < 1024) {
         document.getElementById('ticket-main').style.display = 'none';
     } else {
-        const isAdmin = ['admin', 'manager'].includes(userProfile?.role);
-        await _loadTicketView(isAdmin ? 'mine' : 'inbox');
+        await _loadTicketView('mine');
     }
 }
 
@@ -119,10 +118,8 @@ async function _renderFilterMenu() {
         { id: 'Erledigt',              label: 'Alle erledigten',         icon: svgIcons.checkCircle, showBadge: false },
         { id: 'mine-done',             label: 'Meine erledigten',        icon: svgIcons.checkSquare, showBadge: false },
     ] : [
-        { id: 'inbox',                 label: 'Posteingang',             icon: svgIcons.person,      showBadge: true  },
-        { id: 'sent',                  label: 'Gesendet',                icon: svgIcons.circle,      showBadge: true  },
-        { id: 'inbox-done',            label: 'Erledigt im Posteingang', icon: svgIcons.checkCircle, showBadge: false },
-        { id: 'sent-done',             label: 'Erledigte Gesendete',     icon: svgIcons.checkSquare, showBadge: false },
+        { id: 'mine',      label: 'Meine Tickets', icon: svgIcons.person,      showBadge: true  },
+        { id: 'mine-done', label: 'Erledigt',       icon: svgIcons.checkCircle, showBadge: false },
     ];
 
     menu.innerHTML = filters.map(f => `
@@ -895,6 +892,11 @@ window.saveTicket = async () => {
         const { data: tenantId } = await _supabase.rpc('get_tenant_for_apartment', { apt_id: aptId });
         assignedTo = tenantId || null;
         if (!tenantId) showToast('Kein aktiver Mieter für diese Einheit gefunden.', 'error');
+    } else if (role === 'owner' && bId) {
+        // Owner (kein Landlord) → automatisch an zugewiesenen Verwalter des Gebäudes
+        const { data: mgmt } = await _supabase.from('management_assignments')
+            .select('manager_id').eq('building_id', bId).limit(1).maybeSingle();
+        assignedTo = mgmt?.manager_id || null;
     } else {
         // Admin/Manager → manuell gewählt
         const recipientSel = document.getElementById('tkt_recipient');
