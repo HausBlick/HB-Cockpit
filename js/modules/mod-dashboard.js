@@ -114,9 +114,6 @@ window._dashGoNewContact = async () => {
 window._dashOpenTicket = async (ticketId) => {
     _dashNavTo(loadTickets); await loadTickets(); openTicketDetail(ticketId);
 };
-window._dashOpenNews = async (newsId) => {
-    _dashNavTo(loadNews); await loadNews(); openNewsModal(newsId);
-};
 window._dashDownloadDoc = async (docId) => {
     const { data: doc } = await _supabase.from('documents')
         .select('file_path, generated_filename, document_title, title').eq('id', docId).single();
@@ -445,7 +442,7 @@ async function _renderUserDashboard() {
         _supabase.from('document_reads').select('document_id').eq('user_id', uid),
 
         _supabase.from('news').select('id'),
-        _supabase.from('news_reads').select('news_id').eq('user_id', uid),
+        _supabase.from('news_reads').select('news_id, read_at').eq('user_id', uid),
 
         _supabase.from('tickets')
             .select('id, title, category, status, created_at')
@@ -503,6 +500,7 @@ async function _renderUserDashboard() {
     const newDocCount = (allDocsRes.data || []).filter(d => !readDocSet.has(d.id)).length;
     const readNewsSet = new Set((newsReadsRes.data || []).map(r => r.news_id));
     const newNewsCount = (allNewsRes.data || []).filter(n => !readNewsSet.has(n.id)).length;
+    const newsReadMap = new Map((newsReadsRes.data || []).map(r => [r.news_id, r.read_at ? new Date(r.read_at) : null]));
 
     // ── Warmmiete (tenant only) ──
     let finLabel = 'Warmmiete / Monat', finValue = '—';
@@ -518,14 +516,14 @@ async function _renderUserDashboard() {
     let latestNews = [];
     if (buildingId) {
         const { data } = await _supabase.from('news')
-            .select('id, title, content, created_at')
+            .select('id, title, content, created_at, updated_at')
             .eq('building_id', buildingId)
             .order('created_at', { ascending: false }).limit(3);
         latestNews = data || [];
     }
     if (!latestNews.length) {
         const { data } = await _supabase.from('news')
-            .select('id, title, content, created_at')
+            .select('id, title, content, created_at, updated_at')
             .order('created_at', { ascending: false }).limit(3);
         latestNews = data || [];
     }
@@ -588,9 +586,17 @@ async function _renderUserDashboard() {
                 ${latestNews.length === 0
                     ? '<p class="p-6 text-[15px] text-gray-400 text-center">Keine aktuellen Meldungen.</p>'
                     : latestNews.map(n => {
-                        const preview = (n.content || '').replace(/<[^>]*>/g, '').slice(0, 90);
-                        return `<div onclick="_dashOpenNews('${n.id}')" class="p-4 cursor-pointer hover:bg-gray-50 transition-colors border-b border-hb-olive/10 last:border-0">
-                            <div class="font-semibold text-hb-offblack text-sm mb-1">${n.title}</div>
+                        const preview   = (n.content || '').replace(/<[^>]*>/g, '').slice(0, 90);
+                        const readAt    = newsReadMap.get(n.id);
+                        const updatedAt = n.updated_at ? new Date(n.updated_at) : null;
+                        const wasEdited = updatedAt && (updatedAt - new Date(n.created_at)) > 60_000;
+                        const chip = !readAt
+                            ? `<span class="ml-1.5 bg-hb-orange text-white text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full">Neu</span>`
+                            : (wasEdited && updatedAt > readAt)
+                                ? `<span class="ml-1.5 bg-hb-olive text-white text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full">Update</span>`
+                                : '';
+                        return `<div onclick="openNewsModal(${n.id})" class="p-4 cursor-pointer hover:bg-gray-50 transition-colors border-b border-hb-olive/10 last:border-0">
+                            <div class="flex items-center flex-wrap gap-0.5 font-semibold text-hb-offblack text-sm mb-1">${n.title}${chip}</div>
                             <p class="text-xs text-gray-500 line-clamp-2">${preview}${preview.length >= 90 ? '…' : ''}</p>
                             <p class="text-[11px] text-gray-400 mt-1.5">${_dashRelTime(n.created_at)}</p>
                         </div>`;
