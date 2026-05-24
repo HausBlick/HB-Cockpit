@@ -3,10 +3,11 @@
 // Modul: Ticket-System — Mangelmeldungen im Zammad-Stil
 // ============================================================
 
-let _ticketFilter         = 'mine';
-let _ticketsData          = [];
-let _currentTicketId      = null;
+let _ticketFilter          = 'mine';
+let _ticketsData           = [];
+let _currentTicketId       = null;
 let _ticketRealtimeChannel = null;
+let _ticketUnreadSet       = new Set();
 
 // TICKET_STATUSES + TICKET_STATUS_STYLES → definiert in config.js
 const STATUS_STYLE = TICKET_STATUS_STYLES;
@@ -241,6 +242,24 @@ async function _loadTicketView(filterId) {
     const { data, error } = await query;
     if (error) { showToast(error.message, 'error'); return; }
     _ticketsData = data || [];
+
+    // Ungelesen-Status pro Ticket berechnen
+    _ticketUnreadSet = new Set();
+    if (_ticketsData.length) {
+        const ticketIds = _ticketsData.map(t => t.id);
+        const [readsRes, msgsRes] = await Promise.all([
+            _supabase.from('ticket_reads').select('ticket_id, last_read_at').eq('user_id', currentUser.id).in('ticket_id', ticketIds),
+            _supabase.from('ticket_messages').select('ticket_id, sender_id, created_at').eq('is_system_message', false).neq('sender_id', currentUser.id).in('ticket_id', ticketIds),
+        ]);
+        const readMap = new Map((readsRes.data || []).map(r => [r.ticket_id, r.last_read_at ? new Date(r.last_read_at) : null]));
+        for (const msg of (msgsRes.data || [])) {
+            const lastRead = readMap.get(msg.ticket_id);
+            if (!lastRead || new Date(msg.created_at) > lastRead) {
+                _ticketUnreadSet.add(msg.ticket_id);
+            }
+        }
+    }
+
     _renderTicketList(filterId);
 }
 
@@ -293,10 +312,13 @@ function _ticketRowHtml(t) {
     const dirBadge = isMine
         ? `<span class="ml-1.5 text-[9px] font-bold bg-hb-olive/10 text-hb-olive px-1.5 py-0.5 rounded">Von mir</span>`
         : (isAssigned ? `<span class="ml-1.5 text-[9px] font-bold bg-hb-orange/10 text-hb-orange px-1.5 py-0.5 rounded">An mich</span>` : '');
+    const unreadBadge = _ticketUnreadSet.has(t.id)
+        ? `<span class="ml-1.5 text-[9px] font-bold bg-hb-orange text-white px-1.5 py-0.5 rounded-full">Neu</span>`
+        : '';
     const location = [t.buildings?.name, t.apartments?.apartment_number ? `Wohnung ${t.apartments.apartment_number}` : null].filter(Boolean).join(' / ') || '—';
     return `<tr onclick="openTicketDetail('${t.id}')" class="hover:bg-hb-olive/5 cursor-pointer transition-colors">
         <td class="px-4 py-3">
-            <span class="font-bold text-hb-offblack">${t.title}</span>${dirBadge}
+            <span class="font-bold text-hb-offblack">${t.title}</span>${dirBadge}${unreadBadge}
         </td>
         <td class="px-4 py-3 text-gray-500 text-xs hidden md:table-cell">${t.category || '—'}</td>
         <td class="px-4 py-3 text-gray-500 text-xs hidden md:table-cell">${t.creator?.full_name || '—'}</td>
@@ -397,6 +419,12 @@ window.openTicketDetail = async (ticketId) => {
     const messages = messagesRes.data || [];
     const managers = managersRes.data || [];
     if (!t) { showToast('Ticket nicht gefunden.', 'error'); return; }
+
+    // Ticket als gelesen markieren (fire & forget)
+    _supabase.from('ticket_reads').upsert(
+        { user_id: currentUser.id, ticket_id: ticketId, last_read_at: new Date().toISOString() },
+        { onConflict: 'user_id,ticket_id' }
+    );
 
     const role    = userProfile?.role;
     const isAdmin = role === 'admin' || role === 'manager';
@@ -547,6 +575,11 @@ window.openTicketDetail = async (ticketId) => {
                 chat.innerHTML += _messageBubble(msg);
                 chat.scrollTop = chat.scrollHeight;
             }
+            // Gelesen-Timestamp aktualisieren, da Ticket gerade offen ist
+            _supabase.from('ticket_reads').upsert(
+                { user_id: currentUser.id, ticket_id: ticketId, last_read_at: new Date().toISOString() },
+                { onConflict: 'user_id,ticket_id' }
+            );
             refreshNavBadges?.();
         })
         .subscribe();
@@ -585,6 +618,9 @@ window.sendTicketMessage = async (ticketId) => {
     }]);
     input.disabled = false;
     if (error) { showToast(error.message, 'error'); return; }
+
+    // Benachrichtigung an Gegenpartei (fire & forget)
+    sendNotification('ticket_reply', { ticket_id: ticketId });
 
     // Auto-Reopen: Mieter/Eigentümer-Antwort setzt Status zurück auf "Offen"
     const role = userProfile?.role;
