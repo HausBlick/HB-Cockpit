@@ -15,7 +15,8 @@
 ### B1: Owner-Dashboard ist leer
 **Symptom:** Eigenes Gebäude fehlt, "Meine Einheit"-Modul zeigt "Demnächst verfügbar", Hausgeld-Saldo ist Strich.
 **Impact:** Erster Eindruck katastrophal. Eigentümer sieht nichts Persönliches.
-**Status:** offen
+**Status:** in Bearbeitung
+**Hinweis:** Wird die Zahl aus WP-Wizard übernommen? Zunächst die eigens gepflegten Daten aus der Einheit nutzen!
 
 ### B2: RLS-Lücke bei "Beschlusssammlung anfordern"
 **Symptom:** Owner kann fremde Gebäude in der Auswahl sehen/anfordern.

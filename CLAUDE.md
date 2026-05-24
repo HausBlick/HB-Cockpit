@@ -52,7 +52,7 @@ Dieses Projekt nutzt **vier** Dokumentations-Dateien mit strikt getrennten Zweck
 | | |
 |---|---|
 | **Live-URL** | https://portal.hausblick-fn.de/ |
-| **GitHub** | https://github.com/HausBlick/Mieter-Portal |
+| **GitHub** | https://github.com/HausBlick/HB-Cockpit |
 | **Supabase Projekt-ID** | `unprrlbvylmzxxhpfisr` |
 | **Supabase URL** | `https://unprrlbvylmzxxhpfisr.supabase.co` |
 | **Anon Key** | `sb_publishable_nWYozmRQq8E17z_ljZ2SHA_LUulwUV1` |

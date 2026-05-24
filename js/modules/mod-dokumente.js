@@ -1004,10 +1004,36 @@ function _formatFileSize(bytes) {
 window._docsRequestBeschlusssammlung = async () => {
     const buildingFilter = document.getElementById('docs-building-filter')?.value;
 
-    // Wenn kein Gebäude gewählt und Owner mehrere Gebäude hat: Auswahl anbieten
+    // Nur Gebäude laden, in denen der User eine aktive Eigentümerschaft hat
+    const { data: { user } } = await _supabase.auth.getUser();
+    const { data: personData } = await _supabase
+        .from('persons')
+        .select('id')
+        .eq('auth_user_id', user.id)
+        .maybeSingle();
+
+    if (!personData) {
+        showToast('Kein Eigentümer-Profil gefunden.', 'error');
+        return;
+    }
+
+    const { data: ownerships } = await _supabase
+        .from('ownerships')
+        .select('apartments(building_id)')
+        .eq('owner_id', personData.id)
+        .eq('is_active', true);
+
+    const buildingIds = [...new Set((ownerships || []).map(o => o.apartments?.building_id).filter(Boolean))];
+
+    if (!buildingIds.length) {
+        showToast('Kein Gebäude gefunden.', 'error');
+        return;
+    }
+
     const { data: buildings } = await _supabase
         .from('buildings')
         .select('id, name, street, house_number')
+        .in('id', buildingIds)
         .order('name');
 
     const ownerBuildings = (buildings || []);
@@ -1019,11 +1045,7 @@ window._docsRequestBeschlusssammlung = async () => {
 
     if (ownerBuildings.length === 1 || buildingFilter) {
         const bid = buildingFilter ? Number(buildingFilter) : ownerBuildings[0].id;
-        if (typeof _beschRequestCopy === 'function') {
-            await _beschRequestCopy(bid);
-        } else {
-            showToast('Funktion nicht verfügbar.', 'error');
-        }
+        await _docsSubmitBeschlussRequest(bid);
         return;
     }
 
@@ -1047,7 +1069,30 @@ window._docsRequestBeschlusssammlung = async () => {
 window._docsConfirmBeschlussRequest = async () => {
     const bid = document.getElementById('besch-request-building')?.value;
     hideModal('besch-request-modal');
-    if (typeof _beschRequestCopy === 'function') {
-        await _beschRequestCopy(Number(bid));
-    }
+    await _docsSubmitBeschlussRequest(Number(bid));
 };
+
+async function _docsSubmitBeschlussRequest(bid) {
+    if (!bid) { showToast('Bitte zuerst ein Gebäude auswählen.', 'error'); return; }
+
+    const building = (_docsState.buildings || []).find(b => b.id === bid);
+    const buildingName = building ? formatBuildingName(building) : `Objekt ${bid}`;
+
+    const { data: ticket, error } = await _supabase.from('tickets').insert({
+        title:       `Beschlusssammlung angefordert — ${buildingName}`,
+        description: `Eine Kopie der Beschlusssammlung für ${buildingName} wurde angefordert.`,
+        category:    'Beschlusssammlung-Anfrage',
+        status:      'Offen',
+        building_id: bid,
+        creator_id:  currentUser.id,
+        tenant_id:   currentUser.id,
+    }).select('id').single();
+
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+
+    if (ticket?.id) {
+        sendNotification('ticket_new', { ticket_id: ticket.id, building_id: bid, title: `Beschlusssammlung angefordert — ${buildingName}` });
+    }
+
+    showToast('Anfrage gesendet. Der Verwalter stellt Ihnen die Beschlusssammlung zeitnah bereit.', 'success');
+}

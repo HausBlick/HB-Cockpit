@@ -23,7 +23,7 @@ Diese Notiz erklärt dir, was du im Repo tun musst, um die neue Doku-Struktur zu
 
 ### 1. Backup machen
 ```bash
-cd /pfad/zum/Mieter-Portal
+cd /pfad/zum/HB-Cockpit
 git checkout main
 git pull
 git checkout -b doku-aufraeumung

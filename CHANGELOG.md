@@ -6,6 +6,17 @@
 
 ---
 
+### Fix B2: Beschlusssammlung-Anfrage nur eigene Gebäude (2026-05-24)
+
+**Modul:** `mod-dokumente.js`
+**Problem:** `_docsRequestBeschlusssammlung()` lud alle Gebäude ungefiltert aus der DB. Owner konnte fremde Gebäude in der Auswahl sehen.
+**Fix:**
+- Gebäude-Abfrage auf Ownerships des eingeloggten Users eingeschränkt: `persons` per `auth_user_id` → `ownerships` (is_active=true) → `apartments.building_id` → `buildings.in()`
+- `_beschRequestCopy()` (war in `mod-etv.js`, auf `dashboard.html` nicht geladen) durch lokale Funktion `_docsSubmitBeschlussRequest()` ersetzt — verwendet `_docsState.buildings` statt `_etvState.buildings`
+**Geänderte Dateien:** `js/modules/mod-dokumente.js`
+
+---
+
 ### ETV Durchführung & Nachbereitung Fixes (2026-05-22/24)
 
 **Commits:** `e50c38b`, `28aa708`, `9cc89d1`, `9ab4a44`. **Dateien:** `mod-etv.js`, `utils-pdf.js`, `etv.html` (v20260522a).
