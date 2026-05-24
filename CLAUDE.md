@@ -241,6 +241,8 @@ Architektur-Konventionen, die NICHT zum Design-System gehören (verbleiben hier)
 | RLS-Fix | fix_rls_documents_released_visibility | `docs_select_owner` + `docs_select_tenant` + `landlord_read_own_documents`: `status='active'` → `status IN ('active','released')` — Eigentümer/Mieter sahen Dokumente mit status='released' (Protokoll, JAB) nicht. |
 | Phase 5.8-F | 20260513000001_beschluesse | `beschluesse`-Tabelle (building_id, beschluss_nr, beschluss_datum, art ENUM, beschluss_text, abstimmung_ja/nein/enthaltung, ergebnis ENUM, etv_session_id FK nullable, top_id FK nullable UNIQUE, status ENUM, status_notiz, status_datum, created_by). RLS: admin/manager SELECT+INSERT+UPDATE, kein DELETE (absichtlich keine DELETE-Policy). 3 Indexes. |
 | Realtime-Fix | enable_realtime_etv_agenda_items | `ALTER PUBLICATION supabase_realtime ADD TABLE etv_agenda_items` — Tabelle war nicht in der Publikation, Realtime-Events wurden nie gefeuert. Ticket-messages-Tabelle ebenfalls betroffen (noch nicht gefixt). |
+| Phase 5.8 | 20260522000001_etv_remark_in_protocol | `etv_agenda_items.remark_in_protocol BOOLEAN DEFAULT false` — Toggle ob Vorbemerkung im Protokoll-PDF erscheint. |
+| Bugfix | 20260522000002_etv_result_status_constraints | `etv_agenda_items_result_status_check` um `abstained` + `closed` erweitert (fehlten → Enthaltungs-Updates schlugen lautlos fehl). |
 
 ---
 
@@ -416,17 +418,25 @@ Architektur-Konventionen, die NICHT zum Design-System gehören (verbleiben hier)
 
 ---
 
-### ETV Durchführung & Nachbereitung Fixes (2026-05-22)
+### ETV Durchführung & Nachbereitung Fixes (2026-05-22/24)
 
-**Migration `etv_remark_in_protocol`:** `etv_agenda_items.remark_in_protocol BOOLEAN DEFAULT false` — steuert ob Vorbemerkung im Protokoll-PDF erscheint.
+**Commits:** `e50c38b`, `28aa708`, `9cc89d1`, `9ab4a44`. **Dateien:** `mod-etv.js`, `utils-pdf.js`, `etv.html` (v20260522a).
 
-**`mod-etv.js` + `utils-pdf.js` (v20260522a):**
+**Migrationen:**
+- `etv_remark_in_protocol`: `etv_agenda_items.remark_in_protocol BOOLEAN DEFAULT false`
+- `etv_result_status_add_abstained_closed`: CHECK-Constraint erweitert um `abstained` + `closed` (fehlten → Updates schlugen lautlos fehl)
+
+**`mod-etv.js`:**
 - **`resultLabel`:** Neuer Status `'closed'` → Badge "Erledigt" (hb-success).
-- **Kein-Beschluss-TOPs (`voting_type='none'`):** Abstimmungs-Bereich zeigt jetzt "Abgeschlossen"-Button statt statischem Text. Klick → `_etvMarkTopClosed()` → `result_status='closed'`. Danach: grüner "✓ Abgeschlossen"-Status im Panel und in der TOP-Liste.
-- **Enthaltung-Status in Nachbereitung:** `statusBadge` hatte keinen `abstained`-Fall → fiel in "Ausstehend". Jetzt korrekt: grau "Enthaltung"-Badge.
-- **Vorbemerkung Toggle (Nachbereitung):** Neben dem "Vorbemerkung"-Label jetzt Toggle "Im Protokoll aufführen". Standard: aus. Wird mit "Speichern" in `remark_in_protocol` persistiert.
-- **Protokoll-PDF:** Vorbemerkung erscheint nur noch wenn `item.remark_in_protocol === true`. Einladungs-PDF: unverändert (zeigt Vorbemerkung immer).
-- **`_etvCloseSession`:** `'closed'` zu `votedStatuses` hinzugefügt (Kein-Beschluss-TOPs als erledigt gezählt).
+- **Kein-Beschluss-TOPs (`voting_type='none'`):** "Abgeschlossen"-Button statt statischem Text. `_etvMarkTopClosed()` → `result_status='closed'`. Badge "Erledigt" in Durchführungs- und Nachbereitungs-Liste.
+- **Enthaltung-Status in Nachbereitung:** Eigener `abstained`-Fall in `statusBadge` (war bisher "Ausstehend"). Grund war auch fehlendes `abstained` im DB-Constraint.
+- **selectedTopId-Fix:** `_etvOpenSession` hat `selectedTopId = null` gesetzt → nach jeder Abstimmung Sprung auf TOP 1. Zeile entfernt; bestehende Fallback-Logik in `_etvRenderMain` übernimmt korrekt.
+- **Vorbemerkung Toggle (Nachbereitung):** Toggle "Im Protokoll aufführen" neben Label. Standard: aus. Wird mit "Speichern" in `remark_in_protocol` persistiert.
+- **`_etvCloseSession`:** `'closed'` zu `votedStatuses` hinzugefügt.
+
+**`utils-pdf.js`:**
+- **Protokoll-PDF Vorbemerkung:** Erscheint nur wenn `item.remark_in_protocol === true`. Einladungs-PDF unverändert.
+- **Unterschriftsfelder komplett überarbeitet:** Alle drei Linien (Unterschrift/Name/Datum) gleich breit (215pt). Namenlinie + "Name in Druckbuchstaben" nur wenn kein Name vorausgefüllt. Mit Name: kompaktes Layout (Name + Rolle direkt unter Linie). Mehr Schreibraum zwischen den Linien. Größerer Abstand zwischen oberer und unterer Unterschriften-Zeile (135pt).
 
 ### Sidebar Icon-Only + Hover-Expand (2026-05-18/19)
 
