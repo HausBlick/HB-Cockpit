@@ -3,9 +3,18 @@
 // Supabase-Client, globale State-Variablen, Icon-Library
 // ============================================================
 
-const SUPABASE_URL = 'https://unprrlbvylmzxxhpfisr.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_nWYozmRQq8E17z_ljZ2SHA_LUulwUV1';
+// Supabase-Projekt nach Umgebung: localhost → Dev (hb-cockpit-dev),
+// sonst → Prod (HB-Cockpit)
+const _isLocalDev = ['localhost', '127.0.0.1'].includes(location.hostname);
+
+const SUPABASE_URL = _isLocalDev
+    ? 'https://obqbkiohcfrolkksekng.supabase.co'
+    : 'https://unprrlbvylmzxxhpfisr.supabase.co';
+const SUPABASE_KEY = _isLocalDev
+    ? 'sb_publishable_4j1l3I3EuGAoVQUR3KVUFg_38-b7x98'
+    : 'sb_publishable_nWYozmRQq8E17z_ljZ2SHA_LUulwUV1';
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+if (_isLocalDev) console.info('HB-Cockpit: DEV-Umgebung aktiv (hb-cockpit-dev)');
 
 // --- Globaler App-State ---
 let currentUser    = null;
