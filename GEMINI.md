@@ -222,15 +222,16 @@ API-Schnittstellen: Automatischer Datenabruf bei Techem, Ista & Co.
 
 ---
 
-## 🛠️ Aktuelle Validierungs-Tasks (Phase 6.15, 7.2 & 7.10 Review)
 
-Nach Abschluss der Implementierung stehen folgende Tests für den Administrator an:
+---
 
-1. **Buchhaltung abschließen:** Schließe testweise ein Jahr im System ab (Journal-Sperre auf Gebäude-Ebene prüfen).
-2. **JAB-Wizard:** Den neuen 6-stufigen Wizard komplett durchlaufen. Test-Salden im Vermögensbericht (Step 1) eintragen und Validierung prüfen.
-3. **Beirat-Cockpit:** Als Nutzer mit Sonderrolle `advisory` einloggen, Belege prüfen und das digitale Prüfprotokoll (Formular) absenden.
-4. **ETV-Einladung & Kombi-PDF:** Eine Versammlung planen und die Einladung versenden. Prüfen, ob das Kombi-PDF (Einladung + Tagesordnung + individuelle JAB/WP) generiert wird und Dokumente danach im Portal auf `released` stehen.
-5. **Beschluss aktivieren:** Nach der (testweisen) ETV den Button "Werte jetzt aktivieren" im Finanz-Modul drücken. Prüfen, ob `apartments.hausgeld` aktualisiert wurde und die Sollstellungen für Abrechnungsspitzen in `payment_demands` erzeugt wurden.
-6. **Dokumenten-Designer (7.10):** Prüfe in den Einstellungen die neuen Templates "Jahresabrechnung" und "Einzelwirtschaftsplan". Ändere testweise einen Textblock und generiere ein entsprechendes PDF im Finanz-Modul.
-7. **E-Mail-Benachrichtigungen (7.2):** Erstelle testweise ein Ticket oder einen News-Beitrag und prüfe, ob die E-Mail über Brevo korrekt versendet wird (Mail-Log in den Einstellungen prüfen). Opt-Out-Toggles im User-Profil testen.
+## 📌 Hinweis: Doku-Architektur (Stand 24.05.2026)
 
+Das Projekt nutzt jetzt **vier** Dokumentations-Dateien:
+
+- **GEMINI.md** (diese Datei) – Strategie & Vision (Gemini + Niko pflegen)
+- **CLAUDE.md** – schlanke Anweisungs-Datei für Claude Code (Niko pflegt)
+- **STATUS.md** – aktuelle Baustellen & offene Bugs (NUR Niko pflegt)
+- **CHANGELOG.md** – append-only Historie (Claude Code darf anhängen)
+
+Validierungs-Tasks und aktuelle Test-Checklisten wurden aus GEMINI.md herausgenommen und gehören jetzt in STATUS.md. Die alte BRIEFING.md ist archiviert und wird nicht mehr genutzt.
