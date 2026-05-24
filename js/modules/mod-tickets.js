@@ -247,16 +247,28 @@ async function _loadTicketView(filterId) {
     _ticketUnreadSet = new Set();
     if (_ticketsData.length) {
         const ticketIds = _ticketsData.map(t => t.id);
-        const [readsRes, msgsRes] = await Promise.all([
+        const [readsRes, foreignMsgsRes, ownMsgsRes] = await Promise.all([
             _supabase.from('ticket_reads').select('ticket_id, last_read_at').eq('user_id', currentUser.id).in('ticket_id', ticketIds),
-            _supabase.from('ticket_messages').select('ticket_id, sender_id, created_at').eq('is_system_message', false).neq('sender_id', currentUser.id).in('ticket_id', ticketIds),
+            // Nachrichten von anderen Usern
+            _supabase.from('ticket_messages').select('ticket_id, created_at').eq('is_system_message', false).neq('sender_id', currentUser.id).in('ticket_id', ticketIds),
+            // Eigene letzte Nachricht pro Ticket (Zeitstempel-Vergleich)
+            _supabase.from('ticket_messages').select('ticket_id, created_at').eq('is_system_message', false).eq('sender_id', currentUser.id).in('ticket_id', ticketIds),
         ]);
-        const readMap = new Map((readsRes.data || []).map(r => [r.ticket_id, r.last_read_at ? new Date(r.last_read_at) : null]));
-        for (const msg of (msgsRes.data || [])) {
+        const readMap    = new Map((readsRes.data    || []).map(r => [r.ticket_id, r.last_read_at ? new Date(r.last_read_at) : null]));
+        // Neueste eigene Nachricht pro Ticket
+        const ownLastMap = new Map();
+        for (const m of (ownMsgsRes.data || [])) {
+            const t = new Date(m.created_at);
+            if (!ownLastMap.has(m.ticket_id) || t > ownLastMap.get(m.ticket_id)) ownLastMap.set(m.ticket_id, t);
+        }
+        // Badge wenn Fremd-Nachricht neuer als letztes eigenes Schreiben UND letztes Lesen
+        for (const msg of (foreignMsgsRes.data || [])) {
+            const msgTime  = new Date(msg.created_at);
             const lastRead = readMap.get(msg.ticket_id);
-            if (!lastRead || new Date(msg.created_at) > lastRead) {
-                _ticketUnreadSet.add(msg.ticket_id);
-            }
+            const lastOwn  = ownLastMap.get(msg.ticket_id);
+            const baseline = lastRead && lastOwn ? (lastRead > lastOwn ? lastRead : lastOwn)
+                           : lastRead ?? lastOwn ?? null;
+            if (!baseline || msgTime > baseline) _ticketUnreadSet.add(msg.ticket_id);
         }
     }
 
@@ -312,7 +324,7 @@ function _ticketRowHtml(t) {
     const dirBadge = isMine
         ? `<span class="ml-1.5 text-[9px] font-bold bg-hb-olive/10 text-hb-olive px-1.5 py-0.5 rounded">Von mir</span>`
         : (isAssigned ? `<span class="ml-1.5 text-[9px] font-bold bg-hb-orange/10 text-hb-orange px-1.5 py-0.5 rounded">An mich</span>` : '');
-    const unreadBadge = _ticketUnreadSet.has(t.id) && t.assigned_to === currentUser.id
+    const unreadBadge = _ticketUnreadSet.has(t.id)
         ? `<span class="ml-1.5 text-[9px] font-bold bg-hb-orange text-white px-1.5 py-0.5 rounded-full">Neu</span>`
         : '';
     const location = [t.buildings?.name, t.apartments?.apartment_number ? `Wohnung ${t.apartments.apartment_number}` : null].filter(Boolean).join(' / ') || '—';
