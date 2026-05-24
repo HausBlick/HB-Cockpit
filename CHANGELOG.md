@@ -6,6 +6,18 @@
 
 ---
 
+### feat(config): Umgebungs-Erkennung — localhost nutzt Dev (2026-05-24)
+
+- `js/config.js`: Supabase-Client wird per `location.hostname` gewählt
+  - `localhost` / `127.0.0.1` → hb-cockpit-dev (`obqbkiohcfrolkksekng`)
+  - Alle anderen Hosts → Prod (`unprrlbvylmzxxhpfisr`) — Verhalten auf portal.hausblick-fn.de unverändert
+- Grep bestätigt: keine weiteren Stellen im `js/`-Verzeichnis mit hardcoded URLs/Keys
+- 208 → 216 Zeilen (vollständige Datei, nichts abgeschnitten)
+
+**Geänderte Dateien:** `js/config.js`
+
+---
+
 ### feat(tickets): Owner-Sidebar vereinfacht + Auto-Assignment an Verwalter (2026-05-24)
 
 - Owner sieht in der Ticket-Sidebar nur noch „Meine Tickets" und „Erledigt" (statt Posteingang/Gesendet/etc.)
