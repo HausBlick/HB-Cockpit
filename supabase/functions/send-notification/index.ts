@@ -6,7 +6,7 @@ const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 const PORTAL_URL = "https://portal.hausblick-fn.de";
 
 interface NotificationRequest {
-  type: "ticket_new" | "ticket_status" | "document_released" | "news_new";
+  type: "ticket_new" | "ticket_status" | "ticket_reply" | "document_released" | "news_new";
   payload: {
     ticket_id?: string;
     document_id?: number;
@@ -158,6 +158,22 @@ async function resolveRecipients(
         const r = await resolveEmail(supabase, uid);
         if (r) recipients.push(r);
       }
+      break;
+    }
+
+    case "ticket_reply": {
+      const { data: ticket } = await supabase
+        .from("tickets").select("title, creator_id, assigned_to").eq("id", payload.ticket_id).single();
+      if (!ticket) break;
+      if (ticket.title && !payload.title) payload.title = ticket.title;
+
+      // Empfänger ist die Partei, die NICHT der Absender ist
+      const recipientId: string | null =
+        ticket.creator_id === callerId ? (ticket.assigned_to || null) : (ticket.creator_id || null);
+      if (!recipientId) break;
+
+      const r = await resolveEmail(supabase, recipientId);
+      if (r) recipients.push(r);
       break;
     }
 
@@ -342,6 +358,7 @@ function buildEmailContent(
   const ctaUrls: Record<string, string> = {
     ticket_new: `${PORTAL_URL}/dashboard.html?m=loadTickets`,
     ticket_status: `${PORTAL_URL}/dashboard.html?m=loadTickets`,
+    ticket_reply: `${PORTAL_URL}/dashboard.html?m=loadTickets`,
     document_released: `${PORTAL_URL}/dashboard.html?m=loadDocuments`,
     news_new: `${PORTAL_URL}/dashboard.html?m=loadNews`,
   };

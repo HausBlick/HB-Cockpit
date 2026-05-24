@@ -6,6 +6,21 @@
 
 ---
 
+### feat(tickets): B3 — Antwort-Benachrichtigung und Gelesen-Tracking (2026-05-24)
+
+**Module:** Migration `ticket_reads`, Edge Function `send-notification`, `mod-tickets.js`
+**Feature:**
+- Neue Tabelle `ticket_reads` (user_id, ticket_id, last_read_at) mit RLS: jeder User sieht/schreibt nur eigene Zeilen.
+- Edge Function: neuer Typ `ticket_reply` — benachrichtigt die Gegenseite (creator ↔ assigned_to), fetch Titel aus DB, kein Versand wenn Gegenpartei fehlt.
+- `sendTicketMessage`: ruft `sendNotification('ticket_reply', ...)` nach erfolgreichem Insert auf (fire & forget).
+- `openTicketDetail`: Upsert in `ticket_reads` beim Öffnen und bei eingehender Realtime-Nachricht.
+- `_loadTicketView`: lädt `ticket_reads` + fremde `ticket_messages` parallel nach dem Ticket-Fetch; baut `_ticketUnreadSet`.
+- `_ticketRowHtml`: zeigt "Neu"-Badge (bg-hb-orange) wenn ungelesene Fremd-Nachrichten vorhanden.
+**Hinweis:** Migration muss manuell in Supabase eingespielt werden. Mailversand hängt an B4 (Brevo).
+**Geänderte Dateien:** `supabase/migrations/20260524000001_ticket_reads.sql`, `supabase/functions/send-notification/index.ts`, `supabase/functions/send-notification/email-content.ts`, `js/modules/mod-tickets.js`
+
+---
+
 ### feat(dashboard): Meldungen-Widget — Chip, Modal und Gelesen-Markierung (2026-05-24)
 
 **Module:** `mod-news.js`, `mod-dashboard.js`

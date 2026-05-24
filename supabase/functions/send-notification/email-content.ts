@@ -42,4 +42,11 @@ export const EMAIL_CONTENT = {
         body: (title: string) =>
             `Ein neuer Beitrag wurde auf dem Schwarzen Brett veröffentlicht: <strong>„${title}"</strong>.`,
     },
+
+    ticket_reply: {
+        subject: (title: string) =>
+            `HB-Cockpit | Neue Antwort: ${title}`,
+        body: (title: string) =>
+            `Es gibt eine neue Antwort im Ticket <strong>„${title}"</strong>.`,
+    },
 };
