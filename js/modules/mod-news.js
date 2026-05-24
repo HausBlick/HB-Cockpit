@@ -154,8 +154,16 @@ window.setNewsFilter = (cat) => {
 
 // ─── Modal: News lesen ────────────────────────────────────────
 window.openNewsModal = async (newsId) => {
-    const item = _newsData.find(n => n.id === newsId);
-    if (!item) return;
+    let item = _newsData.find(n => n.id === newsId);
+    if (!item) {
+        // Vom Dashboard aus aufgerufen: _newsData noch leer → nachladen
+        const { data } = await _supabase.from('news')
+            .select('*, author:profiles!news_author_id_fkey(id, full_name), buildings(name, file_number, street, house_number)')
+            .eq('id', newsId).maybeSingle();
+        if (!data) return;
+        _newsData.push(data);
+        item = data;
+    }
 
     // Gelesen markieren (immer upsert mit aktuellem Timestamp → Update-Badge verschwindet)
     const now = new Date();

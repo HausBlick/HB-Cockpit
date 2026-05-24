@@ -6,6 +6,19 @@
 
 ---
 
+### feat(dashboard): Meldungen-Widget — Chip, Modal und Gelesen-Markierung (2026-05-24)
+
+**Module:** `mod-news.js`, `mod-dashboard.js`
+**Feature:**
+- `openNewsModal()` lädt die News per Supabase nach, wenn `_newsData` leer ist (Aufruf vom Dashboard vor erstem Öffnen des Schwarzen Bretts). Gelesen-Markierung und Like-Toggle funktionieren danach korrekt.
+- Dashboard-Widget "Aktuelle Meldungen": `news_reads` um `read_at` erweitert, `latestNews`-Query um `updated_at`, `newsReadMap` (id → Date) aufgebaut.
+- Inline-Chip neben Titel: "Neu" (orange) wenn nie gelesen, "Update" (olive) wenn bearbeitet und `updated_at > read_at`, sonst kein Chip.
+- `onclick` auf `openNewsModal(n.id)` umgestellt (numerisch, kein String-Cast-Problem).
+- `_dashOpenNews` entfernt (war nur für dieses Widget genutzt).
+**Geänderte Dateien:** `js/modules/mod-news.js`, `js/modules/mod-dashboard.js`
+
+---
+
 ### feat(dashboard): Hausgeld-Kachel mit Einheiten-Paging (2026-05-24)
 
 **Modul:** `mod-dashboard.js`
