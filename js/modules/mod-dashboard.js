@@ -38,6 +38,48 @@ function _dashKpi(icon, label, value, highlight, onclickAttr) {
         </div>`;
 }
 
+// ─── Hausgeld-Kachel State & Render ───────────────────────────
+
+let _dashHgState = { units: [], idx: 0 };
+
+function _dashRenderHausgeldKachel() {
+    const { units, idx } = _dashHgState;
+    if (!units.length) {
+        return `<div class="card p-5">
+            <div class="text-xl mb-2">💶</div>
+            <div class="text-[32px] font-bold text-hb-offblack leading-none mb-1.5">—</div>
+            <div class="text-xs text-gray-500 font-semibold leading-snug">Keine Einheit zugeordnet</div>
+        </div>`;
+    }
+    const u = units[idx];
+    const amountStr  = u.amount ? `${Number(u.amount).toFixed(2).replace('.', ',')} €` : '—';
+    const aptLabel   = [u.apt.apartment_number, u.building ? formatBuildingName(u.building) : ''].filter(Boolean).join(' · ');
+    const validFrom  = u.validFrom ? new Date(u.validFrom).toLocaleDateString('de-DE') : null;
+    const multi      = units.length > 1;
+    return `<div class="card p-5" id="dash-hg-kachel">
+        <div class="flex items-start justify-between mb-2">
+            <div class="text-xl">💶</div>
+            ${multi ? `<div class="flex gap-0.5">
+                <button onclick="_dashHausgeldPage(-1)" class="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-hb-olive hover:bg-hb-olive/10 transition-colors font-bold">‹</button>
+                <button onclick="_dashHausgeldPage(1)"  class="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-hb-olive hover:bg-hb-olive/10 transition-colors font-bold">›</button>
+            </div>` : ''}
+        </div>
+        <div class="text-[32px] font-bold text-hb-offblack leading-none mb-1.5">${amountStr}</div>
+        <div class="text-xs text-gray-500 font-semibold leading-snug">Hausgeld</div>
+        <div class="text-[11px] text-gray-400 mt-1 truncate">${aptLabel}</div>
+        ${validFrom ? `<div class="text-[11px] text-gray-400">Gültig ab ${validFrom}</div>` : ''}
+        ${multi ? `<div class="text-[10px] text-gray-300 mt-1">${idx + 1} / ${units.length}</div>` : ''}
+    </div>`;
+}
+
+window._dashHausgeldPage = (dir) => {
+    const len = _dashHgState.units.length;
+    if (!len) return;
+    _dashHgState.idx = (_dashHgState.idx + dir + len) % len;
+    const el = document.getElementById('dash-hg-kachel');
+    if (el) el.outerHTML = _dashRenderHausgeldKachel();
+};
+
 // ─── Navigation helpers ───────────────────────────────────────
 
 function _dashNavTo(loadFn) {
@@ -420,6 +462,41 @@ async function _renderUserDashboard() {
             .in('category', ['Verwalter', 'Hausmeister']),
     ]);
 
+    // ── Owner: Alle Einheiten für Hausgeld-Kachel laden ──
+    _dashHgState = { units: [], idx: 0 };
+    if (role === 'owner') {
+        const { data: personData } = await _supabase
+            .from('persons').select('id').eq('auth_user_id', uid).maybeSingle();
+        if (personData?.id) {
+            const { data: owData } = await _supabase
+                .from('ownerships')
+                .select('apartments!inner(id, building_id, apartment_number, hausgeld)')
+                .eq('owner_id', personData.id)
+                .eq('is_active', true);
+            const ownerApts = (owData || []).map(o => o.apartments).filter(Boolean);
+            const bldIds = [...new Set(ownerApts.map(a => a.building_id))];
+            if (bldIds.length) {
+                const [bldRes, planRes] = await Promise.all([
+                    _supabase.from('buildings').select('id, name, file_number, street, house_number').in('id', bldIds),
+                    _supabase.from('budget_plans').select('building_id, valid_from').in('building_id', bldIds).eq('status', 'active'),
+                ]);
+                const bldMap  = Object.fromEntries((bldRes.data  || []).map(b => [b.id, b]));
+                const planMap = Object.fromEntries((planRes.data || []).map(p => [p.building_id, p]));
+                _dashHgState.units = await Promise.all(ownerApts.map(async apt => {
+                    const dynHG   = await getMonthlyHausgeld(apt.id, apt.building_id);
+                    const amount  = dynHG ?? apt.hausgeld;
+                    const validFrom = (dynHG !== null && dynHG !== undefined)
+                        ? (planMap[apt.building_id]?.valid_from || null)
+                        : null;
+                    return { apt, building: bldMap[apt.building_id] || null, amount, validFrom };
+                }));
+            }
+        }
+        if (!buildingId && _dashHgState.units.length) {
+            buildingId = _dashHgState.units[0].building?.id || null;
+        }
+    }
+
     // ── KPI-Berechnungen ──
     const openCount   = openTickRes.count || 0;
     const readDocSet  = new Set((docReadsRes.data || []).map(r => r.document_id));
@@ -427,20 +504,11 @@ async function _renderUserDashboard() {
     const readNewsSet = new Set((newsReadsRes.data || []).map(r => r.news_id));
     const newNewsCount = (allNewsRes.data || []).filter(n => !readNewsSet.has(n.id)).length;
 
-    // ── Hausgeld / Miete ──
-    let finLabel = 'Hausgeld / Miete', finValue = '—';
-    if (aptData) {
-        if (role === 'owner') {
-            const dynHG = await getMonthlyHausgeld(aptData.id, aptData.building_id);
-            const hg = dynHG ?? aptData.hausgeld;
-            if (hg) {
-                finValue = `${Number(hg).toFixed(2).replace('.', ',')} €`;
-                finLabel = 'Hausgeld / Monat';
-            }
-        } else if (role === 'tenant') {
-            const total = (Number(aptData.rent_amount) || 0) + (Number(aptData.utilities_amount) || 0);
-            if (total > 0) { finValue = `${total.toFixed(2).replace('.', ',')} €`; finLabel = 'Warmmiete / Monat'; }
-        }
+    // ── Warmmiete (tenant only) ──
+    let finLabel = 'Warmmiete / Monat', finValue = '—';
+    if (aptData && role === 'tenant') {
+        const total = (Number(aptData.rent_amount) || 0) + (Number(aptData.utilities_amount) || 0);
+        if (total > 0) { finValue = `${total.toFixed(2).replace('.', ',')} €`; }
     }
 
     // ── Ungelesene Dokumente für Widget 3 ──
@@ -505,7 +573,7 @@ async function _renderUserDashboard() {
             ${_dashKpi('🚨', 'Meine offenen Tickets', openCount,    openCount > 0,    "_dashGoTickets('mine')")}
             ${_dashKpi('📄', 'Neue Dokumente',        newDocCount,  newDocCount > 0,  '_dashGoDocs()')}
             ${_dashKpi('📰', 'Ungelesene News',       newNewsCount, newNewsCount > 0, '_dashNavToNews()')}
-            ${_dashKpi('💶', finLabel,                finValue,     false,            null)}
+            ${role === 'owner' ? _dashRenderHausgeldKachel() : _dashKpi('💶', finLabel, finValue, false, null)}
         </div>
 
         <!-- Widgets -->
