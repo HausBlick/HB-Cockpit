@@ -32,8 +32,9 @@ function _navItem(fn, icon, label, badgeId) {
 // ─── Init ────────────────────────────────────────────────────
 async function init() {
     try {
-        const { data: { user } } = await _supabase.auth.getUser();
-        if (!user) { window.location.href = 'index.html'; return; }
+        const { data: { session } } = await _supabase.auth.getSession();
+        if (!session) { window.location.href = 'index.html'; return; }
+        const user = session.user;
         currentUser = user;
 
         const { data: profile } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
