@@ -32,7 +32,8 @@ function _navItem(fn, icon, label, badgeId) {
 // ─── Init ────────────────────────────────────────────────────
 async function init() {
     try {
-        const { data: { session } } = await _supabase.auth.getSession();
+        const { data: { session }, error: sessionError } = await _supabase.auth.getSession();
+        console.log('[nav] getSession →', session ? 'OK user=' + session.user?.email : 'NULL', sessionError || '');
         if (!session) { window.location.href = 'index.html'; return; }
         const user = session.user;
         currentUser = user;
