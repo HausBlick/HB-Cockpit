@@ -126,8 +126,13 @@
     </div>
 
     <script>
-        const supabaseUrl = 'https://unprrlbvylmzxxhpfisr.supabase.co';
-        const supabaseKey = 'sb_publishable_nWYozmRQq8E17z_ljZ2SHA_LUulwUV1';
+        const _isLocalDev = ['localhost', '127.0.0.1'].includes(location.hostname);
+        const supabaseUrl = _isLocalDev
+            ? 'https://obqbkiohcfrolkksekng.supabase.co'
+            : 'https://unprrlbvylmzxxhpfisr.supabase.co';
+        const supabaseKey = _isLocalDev
+            ? 'sb_publishable_4j1l3I3EuGAoVQUR3KVUFg_38-b7x98'
+            : 'sb_publishable_nWYozmRQq8E17z_ljZ2SHA_LUulwUV1';
 
         // Hash BEFORE Supabase client consumes it
         const rawHash = window.location.hash;
