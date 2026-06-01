@@ -95,8 +95,8 @@
             </div>
             
             <div id="error-msg" class="hidden bg-hb-error/12 text-hb-error text-xs font-bold p-3 rounded-2xl border border-hb-error/20 text-center mt-4"></div>
-            <div id="success-msg" class="hidden bg-hb-success/12 text-hb-success text-xs font-bold p-4 rounded-2xl border border-hb-success/20 text-center mt-4">
-                Registrierung erfolgreich! Sie werden in wenigen Sekunden zum Login weitergeleitet...
+            <div id="success-msg" class="hidden bg-hb-success/12 text-hb-success text-xs font-bold p-4 rounded-2xl border border-hb-success/20 text-center mt-4 leading-relaxed">
+                Fast geschafft! Wir haben Ihnen eine Bestätigungs-E-Mail geschickt. Bitte klicken Sie auf den Link darin — danach können Sie sich oben links über „Zurück zum Login" anmelden.
             </div>
 
             <button type="submit" id="register-btn" class="w-full btn-primary py-4 text-sm mt-4">Account aktivieren</button>
@@ -125,6 +125,24 @@
             document.getElementById('invite_code').value = urlParams.get('code');
         }
 
+        // Bei vorhandenem Code: Einladung laden und E-Mail/Name vorbefüllen (E-Mail sperren,
+        // damit sie zur Einladung passt — der Trigger findet die Einladung über die E-Mail).
+        (async () => {
+            const codeParam = urlParams.get('code');
+            if (!codeParam) return;
+            const { data: inv } = await _supabase.from('invitations')
+                .select('email, full_name').eq('code', codeParam.trim().toUpperCase()).single();
+            if (!inv) return;
+            const emailEl = document.getElementById('email');
+            const nameEl  = document.getElementById('full_name');
+            if (inv.email) {
+                emailEl.value = inv.email;
+                emailEl.readOnly = true;
+                emailEl.classList.add('opacity-70', 'cursor-not-allowed');
+            }
+            if (inv.full_name && !nameEl.value) nameEl.value = inv.full_name;
+        })();
+
         document.getElementById('register-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('register-btn');
@@ -149,9 +167,9 @@
             btn.textContent = 'Prüfe Einladung...';
 
             try {
-                // 1. Prüfen ob der Einladungscode existiert
+                // 1. Einladungscode prüfen
                 const { data: inviteData, error: inviteError } = await _supabase.from('invitations').select('*').eq('code', code).single();
-                
+
                 if (inviteError || !inviteData) {
                     errBox.textContent = 'Ungültiger Einladungscode. Bitte überprüfen Sie Ihre Eingabe.';
                     errBox.classList.remove('hidden');
@@ -159,45 +177,25 @@
                     btn.textContent = 'Account aktivieren';
                     return;
                 }
-                
+
                 btn.textContent = 'Erstelle Account...';
-                
-                // 2. Auth User erstellen
-const { data: authData, error: authError } = await _supabase.auth.signUp({ 
-    email: email, 
-    password: pwd,
-    options: {
-        data: {
-            full_name: name // Das hier schickt den Namen an den Trigger!
-        }
-    }
-});
+
+                // 2. Auth-User anlegen — E-Mail aus der EINLADUNG (der DB-Trigger handle_new_user
+                //    findet die Einladung über die E-Mail und übernimmt Rolle, Name und Einheit).
+                //    Profilanlage, Rollenzuweisung und Löschen der Einladung passieren serverseitig
+                //    im Trigger — daher hier KEIN manueller profiles-Insert (bei aktivierter
+                //    E-Mail-Bestätigung existiert an dieser Stelle ohnehin noch keine Session).
+                const { error: authError } = await _supabase.auth.signUp({
+                    email: inviteData.email,
+                    password: pwd,
+                    options: { data: { full_name: name || inviteData.full_name } }
+                });
 
                 if (authError) throw authError;
 
-                // 3. Profil anlegen mit der korrekten ID und dem Apartment aus der Einladung
-                const { error: profileError } = await _supabase.from('profiles').insert([{
-                    id: authData.user.id,
-                    full_name: name,
-                    email: email,
-                    role: 'tenant',
-                    apartment_id: inviteData.apartment_id 
-                }]);
-
-                if(profileError && profileError.code !== '23505') { 
-                    console.log("Profile insert status:", profileError);
-                }
-
-                // 4. Einladung als erledigt markieren/löschen (damit der Code nur einmal gilt)
-                await _supabase.from('invitations').delete().eq('code', code);
-
-                // Erfolgsmeldung & Redirect
+                // 3. Erfolg — Nutzer muss nun die Bestätigungs-Mail anklicken, dann ist Login möglich.
                 document.getElementById('register-form').style.display = 'none';
                 successBox.classList.remove('hidden');
-                
-                setTimeout(() => {
-                    window.location.href = 'index.html'; // Zurück zum Login
-                }, 3000);
 
             } catch (error) {
                 errBox.textContent = error.message === 'User already registered' ? 'Diese E-Mail ist bereits registriert.' : 'Fehler: ' + error.message;

@@ -1201,6 +1201,10 @@ async function _settingsRenderNutzer() {
                             <input type="radio" name="nu-method" value="password" onchange="_nutzerMethodChange()">
                             <span class="text-sm font-semibold">Passwort direkt setzen</span>
                         </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="nu-method" value="code" onchange="_nutzerMethodChange()">
+                            <span class="text-sm font-semibold">Code-Einladung <span class="text-gray-400 font-normal">(Link läuft nicht ab)</span></span>
+                        </label>
                     </div>
                     <div id="nu-password-wrap" class="hidden mt-3">
                         <input type="password" id="nu-password" class="w-full md:w-80" placeholder="Passwort (min. 8 Zeichen)">
@@ -1363,13 +1367,27 @@ window._nutzerCreateSingle = async () => {
 
     try {
         const { data, error } = await _supabase.functions.invoke('create-user', {
-            body: { email, full_name: name, role, password, send_invite: !password, building_ids: buildingIds }
+            body: { email, full_name: name, role, password,
+                    invite_method: method === 'code' ? 'code' : undefined,
+                    send_invite: method === 'invite', building_ids: buildingIds }
         });
         if (error) throw new Error(error.message);
 
         const r = Array.isArray(data) ? data[0] : data;
         if (r?.success) {
-            resultEl.innerHTML = `<span class="text-hb-success font-bold">✓ Account angelegt${!password ? ' — Einladung gesendet' : ''}</span>`;
+            if (r.link) {
+                // Code-Einladung: unbefristeten Link zum Kopieren anzeigen
+                resultEl.innerHTML = `
+                    <div class="text-hb-success font-bold mb-1">✓ Einladung angelegt${r.mail_sent ? ' — Mail gesendet' : ' (Mail nicht gesendet — Link manuell teilen)'}</div>
+                    <div class="flex items-center gap-2 mt-1 max-w-xl">
+                        <input type="text" readonly value="${r.link}" id="nu-invite-link"
+                            class="flex-1 text-xs font-mono px-2 py-1.5 bg-hb-ultralight rounded-lg border border-gray-200">
+                        <button onclick="navigator.clipboard.writeText(document.getElementById('nu-invite-link').value); showToast('Link kopiert.','success')"
+                            class="text-xs font-bold text-hb-olive border border-hb-olive/30 rounded-lg px-3 py-1.5 hover:bg-hb-olive/5 whitespace-nowrap">Kopieren</button>
+                    </div>`;
+            } else {
+                resultEl.innerHTML = `<span class="text-hb-success font-bold">✓ Account angelegt${method === 'invite' ? ' — Einladung gesendet' : ''}</span>`;
+            }
             document.getElementById('nu-email').value = '';
             document.getElementById('nu-name').value = '';
         } else {
