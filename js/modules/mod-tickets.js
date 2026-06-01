@@ -466,6 +466,7 @@ window.openTicketDetail = async (ticketId) => {
                 </div>
                 <!-- Chat -->
                 <div class="flex-grow overflow-y-auto p-4 space-y-3 bg-gray-50/30" id="ticket-chat" style="min-height:200px">
+                    ${_renderTicketAttachments(attachments)}
                     ${messages.map(m => _messageBubble(m)).join('')}
                     ${!messages.length ? '<p class="text-center text-[15px] text-gray-400 py-8">Noch keine Nachrichten.</p>' : ''}
                 </div>
@@ -514,8 +515,6 @@ window.openTicketDetail = async (ticketId) => {
                     <p class="text-sm font-semibold">${t.category || '—'}</p>
                 </div>
 
-                <!-- Anhänge (W4) -->
-                ${_renderTicketAttachments(attachments)}
 
                 <!-- Gebäude -->
                 ${t.buildings ? `<div class="space-y-1">
@@ -857,7 +856,8 @@ window.showCreateTicketModal = async () => {
             <div class="space-y-2">
                 <label class="text-[10px] uppercase font-bold text-gray-500">Anhänge (optional)</label>
                 <input type="file" id="tkt_files" multiple accept="image/*,application/pdf"
-                    class="w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-hb-olive/10 file:text-hb-olive file:font-semibold file:cursor-pointer">
+                    style="height:auto"
+                    class="w-full text-sm text-gray-500 py-2.5 leading-normal file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-hb-olive/10 file:text-hb-olive file:font-semibold file:cursor-pointer">
                 <p class="text-[11px] text-gray-400">Fotos oder PDF, je max. 10 MB.</p>
             </div>
             <button onclick="saveTicket()" class="btn-primary w-full">Ticket erstellen</button>
@@ -939,19 +939,21 @@ window.openTicketAttachment = async (path) => {
     window.open(data.signedUrl, '_blank');
 };
 
-// Rendert die Anhang-Liste (Erstell-Anhänge aus ticket_attachments) für die Info-Sidebar.
+// Rendert die Erstell-Anhänge (aus ticket_attachments) als Karte oben im Ticket-Verlauf.
 function _renderTicketAttachments(attachments) {
     if (!attachments.length) return '';
-    return `<div class="space-y-2 border-t pt-4">
-        <p class="text-[10px] uppercase font-bold text-gray-400">Anhänge</p>
-        ${attachments.map(a => `
-            <button onclick="openTicketAttachment('${a.file_path.replace(/'/g, "\\'")}')"
-                class="flex items-center gap-2 text-sm text-hb-olive hover:underline w-full text-left min-h-[36px]">
-                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
-                </svg>
-                <span class="truncate">${a.file_name}</span>
-            </button>`).join('')}
+    return `<div class="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
+        <p class="text-[10px] uppercase font-bold text-gray-400 mb-2">📎 Anhänge zum Ticket</p>
+        <div class="space-y-1.5">
+            ${attachments.map(a => `
+                <button onclick="openTicketAttachment('${a.file_path.replace(/'/g, "\\'")}')"
+                    class="flex items-center gap-2 text-sm text-hb-olive hover:underline w-full text-left min-h-[36px]">
+                    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                    </svg>
+                    <span class="truncate">${a.file_name}</span>
+                </button>`).join('')}
+        </div>
     </div>`;
 }
 
