@@ -12,7 +12,7 @@ let _userBuildingId = null;
 // ─── Haupteinstieg ────────────────────────────────────────────
 async function loadNews() {
     const container = document.getElementById('content-area');
-    const canCreate = ['admin', 'manager', 'owner'].includes(userProfile?.role);
+    const canCreate = ['admin', 'manager'].includes(userProfile?.role);
     const roleDescs = {
         admin:   'Informieren Sie Ihre Mieter und Eigentümer über aktuelle Themen.',
         manager: 'Informieren Sie Ihre Mieter und Eigentümer über aktuelle Themen.',

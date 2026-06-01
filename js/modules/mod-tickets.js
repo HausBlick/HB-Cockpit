@@ -825,8 +825,9 @@ window.showCreateTicketModal = async () => {
         if (landlordId) window._tktLandlordId = landlordId;
     }
 
-    // Auto-Vorausfüllung: Einheit automatisch setzen wenn nur eine vorhanden
-    if (isTenantOrOwner && myUnits.length >= 1) {
+    // Auto-Vorausfüllung: Einheit nur automatisch setzen, wenn GENAU eine vorhanden ist.
+    // Bei mehreren Einheiten bleibt "— Keine Einheit —" stehen (W3), damit der Nutzer bewusst wählt.
+    if (isTenantOrOwner && myUnits.length === 1) {
         const unit = myUnits[0];
         const bSel = document.getElementById('tkt_building');
         if (bSel) bSel.value = unit.bld.id;
