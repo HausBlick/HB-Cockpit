@@ -412,7 +412,7 @@ window.openTicketDetail = async (ticketId) => {
     const main = document.getElementById('ticket-main');
     if (!main) return;
 
-    const [ticketRes, messagesRes, managersRes] = await Promise.all([
+    const [ticketRes, messagesRes, managersRes, attRes] = await Promise.all([
         _supabase.from('tickets')
             .select(`*, buildings(id, name, file_number, street, house_number), apartments(id, apartment_number),
                 creator:profiles!tickets_creator_id_fkey(id, full_name),
@@ -422,11 +422,13 @@ window.openTicketDetail = async (ticketId) => {
             .select('*, sender:profiles!ticket_messages_sender_id_fkey(id, full_name)')
             .eq('ticket_id', ticketId).order('created_at'),
         _supabase.from('profiles').select('id, full_name').in('role', ['admin', 'manager']),
+        _supabase.from('ticket_attachments').select('*').eq('ticket_id', ticketId).order('created_at'),
     ]);
 
-    const t        = ticketRes.data;
-    const messages = messagesRes.data || [];
-    const managers = managersRes.data || [];
+    const t           = ticketRes.data;
+    const messages    = messagesRes.data || [];
+    const managers    = managersRes.data || [];
+    const attachments = attRes.data || [];
     if (!t) { showToast('Ticket nicht gefunden.', 'error'); return; }
 
     // Ticket als gelesen markieren (fire & forget)
@@ -469,9 +471,19 @@ window.openTicketDetail = async (ticketId) => {
                 </div>
                 <!-- Eingabe -->
                 <div class="p-3 border-t border-gray-100 flex-shrink-0 flex gap-2 items-end bg-white">
-                    <textarea id="ticket-reply-input" rows="2" placeholder="Antwort schreiben…"
-                        class="flex-grow resize-none text-sm"
-                        onkeydown="if(event.key==='Enter'&&event.ctrlKey)sendTicketMessage('${t.id}')"></textarea>
+                    <label class="flex-shrink-0 cursor-pointer text-gray-400 hover:text-hb-olive min-h-[44px] min-w-[44px] flex items-center justify-center" title="Datei anhängen">
+                        <input type="file" id="ticket-reply-file" accept="image/*,application/pdf" class="hidden"
+                            onchange="_updateReplyFileLabel()">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                        </svg>
+                    </label>
+                    <div class="flex-grow min-w-0">
+                        <p id="ticket-reply-filename" class="hidden text-[11px] text-hb-olive font-semibold truncate mb-1"></p>
+                        <textarea id="ticket-reply-input" rows="2" placeholder="Antwort schreiben…"
+                            class="w-full resize-none text-sm"
+                            onkeydown="if(event.key==='Enter'&&event.ctrlKey)sendTicketMessage('${t.id}')"></textarea>
+                    </div>
                     <button onclick="sendTicketMessage('${t.id}')"
                         class="btn-primary px-4 py-2 min-h-[44px] text-sm flex-shrink-0">Senden</button>
                 </div>
@@ -501,6 +513,9 @@ window.openTicketDetail = async (ticketId) => {
                     <p class="text-[10px] uppercase font-bold text-gray-400">Kategorie</p>
                     <p class="text-sm font-semibold">${t.category || '—'}</p>
                 </div>
+
+                <!-- Anhänge (W4) -->
+                ${_renderTicketAttachments(attachments)}
 
                 <!-- Gebäude -->
                 ${t.buildings ? `<div class="space-y-1">
@@ -601,29 +616,58 @@ function _messageBubble(m) {
     const isOwn  = m.sender_id === currentUser.id;
     const name   = m.sender?.full_name || '—';
     const time   = new Date(m.created_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const attach = m.attachment_path ? `
+        <button onclick="openTicketAttachment('${m.attachment_path.replace(/'/g, "\\'")}')"
+            class="flex items-center gap-1.5 text-xs font-semibold ${isOwn ? 'text-white/90 hover:text-white' : 'text-hb-olive hover:underline'} mt-1.5">
+            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+            </svg>Anhang ansehen
+        </button>` : '';
     return `<div class="flex ${isOwn ? 'justify-end' : 'justify-start'}">
         <div class="max-w-[75%] space-y-1">
             ${!isOwn ? `<p class="text-[10px] font-bold text-gray-400 px-1">${name}</p>` : ''}
             <div class="${isOwn ? 'bg-hb-olive text-white' : 'bg-white border border-gray-100'} rounded-2xl px-4 py-2.5 text-sm shadow-sm">
-                ${m.message}
+                ${m.message || ''}${attach}
             </div>
             <p class="text-[10px] text-gray-300 px-1 ${isOwn ? 'text-right' : ''}">${time}</p>
         </div>
     </div>`;
 }
 
+// Label-Anzeige für angehängte Datei im Verlauf
+window._updateReplyFileLabel = () => {
+    const file = document.getElementById('ticket-reply-file')?.files?.[0];
+    const lbl  = document.getElementById('ticket-reply-filename');
+    if (!lbl) return;
+    if (file) { lbl.textContent = '📎 ' + file.name; lbl.classList.remove('hidden'); }
+    else { lbl.textContent = ''; lbl.classList.add('hidden'); }
+};
+
 // ─── Nachricht senden ─────────────────────────────────────────
 window.sendTicketMessage = async (ticketId) => {
-    const input = document.getElementById('ticket-reply-input');
-    const msg   = input?.value?.trim();
-    if (!msg) return;
-    input.value = '';
+    const input    = document.getElementById('ticket-reply-input');
+    const fileInput = document.getElementById('ticket-reply-file');
+    const msg      = input?.value?.trim();
+    const file     = fileInput?.files?.[0] || null;
+    if (!msg && !file) return; // weder Text noch Anhang
     input.disabled = true;
 
+    // Optionalen Anhang hochladen (W4) — über ticket_messages.attachment_path
+    let attachmentPath = null;
+    if (file) {
+        attachmentPath = await _uploadTicketFile(ticketId, file);
+        if (!attachmentPath) { input.disabled = false; return; } // Upload-Fehler → abbrechen
+    }
+
+    input.value = '';
+    if (fileInput) fileInput.value = '';
+    _updateReplyFileLabel();
+
     const { error } = await _supabase.from('ticket_messages').insert([{
-        ticket_id: ticketId,
-        sender_id: currentUser.id,
-        message:   msg,
+        ticket_id:       ticketId,
+        sender_id:       currentUser.id,
+        message:         msg || '',
+        attachment_path: attachmentPath,
     }]);
     input.disabled = false;
     if (error) { showToast(error.message, 'error'); return; }
@@ -657,7 +701,8 @@ window.sendTicketMessage = async (ticketId) => {
     const chat = document.getElementById('ticket-chat');
     if (chat) {
         chat.querySelector('p.text-center')?.remove();
-        const fakeMsg = { id: Date.now(), sender_id: currentUser.id, message: msg,
+        const fakeMsg = { id: Date.now(), sender_id: currentUser.id, message: msg || '',
+            attachment_path: attachmentPath,
             created_at: new Date().toISOString(), is_system_message: false,
             sender: { full_name: userProfile?.full_name } };
         chat.innerHTML += _messageBubble(fakeMsg);
@@ -809,11 +854,11 @@ window.showCreateTicketModal = async () => {
                 <label class="text-[10px] uppercase font-bold text-gray-500">Beschreibung *</label>
                 <textarea id="tkt_desc" rows="4" placeholder="Beschreibe das Problem so genau wie möglich…"></textarea>
             </div>
-            <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center text-sm text-gray-400">
-                <svg class="w-6 h-6 mx-auto mb-1 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
-                </svg>
-                Dateianhang (folgt in nächster Version)
+            <div class="space-y-2">
+                <label class="text-[10px] uppercase font-bold text-gray-500">Anhänge (optional)</label>
+                <input type="file" id="tkt_files" multiple accept="image/*,application/pdf"
+                    class="w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-hb-olive/10 file:text-hb-olive file:font-semibold file:cursor-pointer">
+                <p class="text-[11px] text-gray-400">Fotos oder PDF, je max. 10 MB.</p>
             </div>
             <button onclick="saveTicket()" class="btn-primary w-full">Ticket erstellen</button>
     `);
@@ -874,6 +919,42 @@ window.loadApartmentsForTicket = async (bId, preselect = null) => {
         + apts.map(a => `<option value="${a.id}" ${a.id === preselect || a.id == preselect ? 'selected' : ''}>Wohnung ${a.apartment_number}</option>`).join('');
 };
 
+// ─── Anhänge (W4) ─────────────────────────────────────────────
+const TKT_MAX_FILE = 10 * 1024 * 1024; // 10 MB
+
+// Lädt eine Datei nach ticket_attachments/<ticketId>/<datei> hoch, gibt den Pfad zurück (oder null).
+async function _uploadTicketFile(ticketId, file) {
+    if (file.size > TKT_MAX_FILE) { showToast(`„${file.name}" ist größer als 10 MB.`, 'error'); return null; }
+    const safe = file.name.replace(/[^\w.\-]+/g, '_');
+    const path = `${ticketId}/${Date.now()}-${safe}`;
+    const { error } = await _supabase.storage.from('ticket_attachments').upload(path, file, { upsert: false });
+    if (error) { showToast('Upload fehlgeschlagen: ' + error.message, 'error'); return null; }
+    return path;
+}
+
+// Öffnet einen Anhang über eine signierte URL (Bucket ist privat).
+window.openTicketAttachment = async (path) => {
+    const { data, error } = await _supabase.storage.from('ticket_attachments').createSignedUrl(path, 300);
+    if (error || !data?.signedUrl) { showToast('Anhang konnte nicht geöffnet werden.', 'error'); return; }
+    window.open(data.signedUrl, '_blank');
+};
+
+// Rendert die Anhang-Liste (Erstell-Anhänge aus ticket_attachments) für die Info-Sidebar.
+function _renderTicketAttachments(attachments) {
+    if (!attachments.length) return '';
+    return `<div class="space-y-2 border-t pt-4">
+        <p class="text-[10px] uppercase font-bold text-gray-400">Anhänge</p>
+        ${attachments.map(a => `
+            <button onclick="openTicketAttachment('${a.file_path.replace(/'/g, "\\'")}')"
+                class="flex items-center gap-2 text-sm text-hb-olive hover:underline w-full text-left min-h-[36px]">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                </svg>
+                <span class="truncate">${a.file_name}</span>
+            </button>`).join('')}
+    </div>`;
+}
+
 window.saveTicket = async () => {
     const title = document.getElementById('tkt_title')?.value?.trim();
     const desc  = document.getElementById('tkt_desc')?.value?.trim();
@@ -929,6 +1010,24 @@ window.saveTicket = async () => {
             sender_id: currentUser.id,
             message: desc,
         }]);
+    }
+
+    // Anhänge hochladen (W4) — nach Ticket-Insert, damit RLS den ticket_id-Pfad zulässt
+    if (ticket?.id) {
+        const files = Array.from(document.getElementById('tkt_files')?.files || []);
+        for (const file of files) {
+            const path = await _uploadTicketFile(ticket.id, file);
+            if (path) {
+                await _supabase.from('ticket_attachments').insert([{
+                    ticket_id:   ticket.id,
+                    file_path:   path,
+                    file_name:   file.name,
+                    file_size:   file.size,
+                    mime_type:   file.type,
+                    uploaded_by: currentUser.id,
+                }]);
+            }
+        }
     }
 
     hideModal('create-ticket-modal');
