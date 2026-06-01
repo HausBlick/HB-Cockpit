@@ -204,8 +204,7 @@
             btn.textContent = 'Lädt...';
             errBox.classList.add('hidden');
 
-            const { data: _loginData, error } = await _supabase.auth.signInWithPassword({ email, password });
-            console.log('[login] signInWithPassword →', 'user:', _loginData?.user?.email, 'session:', _loginData?.session ? 'OK' : 'NULL', 'error:', error?.message || 'none');
+            const { error } = await _supabase.auth.signInWithPassword({ email, password });
 
             if (error) {
                 errBox.textContent = (error.message === 'Invalid login credentials')
