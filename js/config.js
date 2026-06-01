@@ -14,7 +14,13 @@ const SUPABASE_KEY = _isLocalDev
     ? 'sb_publishable_4j1l3I3EuGAoVQUR3KVUFg_38-b7x98'
     : 'sb_publishable_nWYozmRQq8E17z_ljZ2SHA_LUulwUV1';
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-if (_isLocalDev) console.info('HB-Cockpit: DEV-Umgebung aktiv (hb-cockpit-dev)');
+if (_isLocalDev) {
+    console.info('HB-Cockpit: DEV-Umgebung aktiv (hb-cockpit-dev)');
+    const _devBanner = document.createElement('div');
+    _devBanner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#CC0000;color:#fff;text-align:center;font-size:11px;font-weight:bold;padding:5px 0;letter-spacing:.08em;pointer-events:none;';
+    _devBanner.textContent = '⚠  DEV-UMGEBUNG  —  hb-cockpit-dev  —  KEINE PRODUKTIONSDATEN';
+    document.body.prepend(_devBanner);
+}
 
 // --- Globaler App-State ---
 let currentUser    = null;
