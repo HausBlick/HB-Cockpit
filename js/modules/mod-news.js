@@ -224,10 +224,11 @@ window.openNewsModal = async (newsId) => {
     document.body.appendChild(modal);
 };
 
-// ─── Like Toggle (Optimistic UI + echter Recount) ─────────────
-// W2-Fix: news.likes wurde zuvor blind hochgezählt und driftete bei Re-Login/Refresh.
-// Jetzt: optimistisches UI für Reaktionsschnelligkeit, danach wird der wahre Count
-// aus news_likes gezählt und in news.likes geschrieben (Self-Healing, kein Drift).
+// ─── Like Toggle (Optimistic UI) ──────────────────────────────
+// W2-Fix: Der Client schreibt NUR noch die news_likes-Zeile (Insert/Delete).
+// Den Zähler news.likes und das liked_by-Array pflegt serverseitig der Trigger
+// trg_news_likes_sync_legacy → refresh_news_legacy_likes (drift-frei, da User per
+// RLS nur eigene Likes zählen können). Kein clientseitiges Hochzählen mehr.
 const _likeBusy = new Set();
 window.toggleNewsLike = async (e, newsId, fromModal = false) => {
     e.stopPropagation();
@@ -238,31 +239,23 @@ window.toggleNewsLike = async (e, newsId, fromModal = false) => {
 
     const wasLiked = _newsLiked.has(newsId);
 
-    // Optimistic update (vorläufiger Count, wird gleich durch echten ersetzt)
+    // Optimistisches UI (Anzeige; der echte Zähler kommt beim nächsten Render aus news.likes)
     item.likes = Math.max(0, (item.likes || 0) + (wasLiked ? -1 : 1));
     if (wasLiked) { _newsLiked.delete(newsId); } else { _newsLiked.add(newsId); }
     _updateLikeUI(newsId, !wasLiked, item.likes);
 
-    try {
-        // 1) Like-Zeile setzen/entfernen
-        if (wasLiked) {
-            await _supabase.from('news_likes').delete().match({ news_id: newsId, user_id: currentUser.id });
-        } else {
-            await _supabase.from('news_likes').upsert({ news_id: newsId, user_id: currentUser.id });
-        }
-        // 2) Wahren Count aus news_likes zählen und als Cache in news.likes schreiben
-        const { count } = await _supabase
-            .from('news_likes')
-            .select('*', { count: 'exact', head: true })
-            .eq('news_id', newsId);
-        if (typeof count === 'number') {
-            item.likes = count;
-            await _supabase.from('news').update({ likes: count }).eq('id', newsId);
-            _updateLikeUI(newsId, _newsLiked.has(newsId), count);
-        }
-    } finally {
-        _likeBusy.delete(newsId);
+    const { error } = wasLiked
+        ? await _supabase.from('news_likes').delete().match({ news_id: newsId, user_id: currentUser.id })
+        : await _supabase.from('news_likes').upsert({ news_id: newsId, user_id: currentUser.id });
+
+    if (error) {
+        // Bei Fehler optimistisches UI zurückrollen
+        item.likes = Math.max(0, (item.likes || 0) + (wasLiked ? 1 : -1));
+        if (wasLiked) { _newsLiked.add(newsId); } else { _newsLiked.delete(newsId); }
+        _updateLikeUI(newsId, _newsLiked.has(newsId), item.likes);
+        showToast('Like fehlgeschlagen: ' + error.message, 'error');
     }
+    _likeBusy.delete(newsId);
 };
 
 function _updateLikeUI(newsId, liked, count) {
