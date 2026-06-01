@@ -224,26 +224,44 @@ window.openNewsModal = async (newsId) => {
     document.body.appendChild(modal);
 };
 
-// ─── Like Toggle (Optimistic UI) ──────────────────────────────
+// ─── Like Toggle (Optimistic UI + echter Recount) ─────────────
+// W2-Fix: news.likes wurde zuvor blind hochgezählt und driftete bei Re-Login/Refresh.
+// Jetzt: optimistisches UI für Reaktionsschnelligkeit, danach wird der wahre Count
+// aus news_likes gezählt und in news.likes geschrieben (Self-Healing, kein Drift).
+const _likeBusy = new Set();
 window.toggleNewsLike = async (e, newsId, fromModal = false) => {
     e.stopPropagation();
-    const item    = _newsData.find(n => n.id === newsId);
+    if (_likeBusy.has(newsId)) return; // Re-Entrancy-Schutz gegen Doppelklick
+    const item = _newsData.find(n => n.id === newsId);
     if (!item) return;
+    _likeBusy.add(newsId);
+
     const wasLiked = _newsLiked.has(newsId);
-    const newCount = (item.likes || 0) + (wasLiked ? -1 : 1);
 
-    // Optimistic update
-    item.likes = newCount;
+    // Optimistic update (vorläufiger Count, wird gleich durch echten ersetzt)
+    item.likes = Math.max(0, (item.likes || 0) + (wasLiked ? -1 : 1));
     if (wasLiked) { _newsLiked.delete(newsId); } else { _newsLiked.add(newsId); }
-    _updateLikeUI(newsId, !wasLiked, newCount);
+    _updateLikeUI(newsId, !wasLiked, item.likes);
 
-    // DB
-    if (wasLiked) {
-        await _supabase.from('news_likes').delete().match({ news_id: newsId, user_id: currentUser.id });
-        await _supabase.from('news').update({ likes: newCount }).eq('id', newsId);
-    } else {
-        await _supabase.from('news_likes').upsert({ news_id: newsId, user_id: currentUser.id });
-        await _supabase.from('news').update({ likes: newCount }).eq('id', newsId);
+    try {
+        // 1) Like-Zeile setzen/entfernen
+        if (wasLiked) {
+            await _supabase.from('news_likes').delete().match({ news_id: newsId, user_id: currentUser.id });
+        } else {
+            await _supabase.from('news_likes').upsert({ news_id: newsId, user_id: currentUser.id });
+        }
+        // 2) Wahren Count aus news_likes zählen und als Cache in news.likes schreiben
+        const { count } = await _supabase
+            .from('news_likes')
+            .select('*', { count: 'exact', head: true })
+            .eq('news_id', newsId);
+        if (typeof count === 'number') {
+            item.likes = count;
+            await _supabase.from('news').update({ likes: count }).eq('id', newsId);
+            _updateLikeUI(newsId, _newsLiked.has(newsId), count);
+        }
+    } finally {
+        _likeBusy.delete(newsId);
     }
 };
 
