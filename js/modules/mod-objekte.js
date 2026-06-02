@@ -956,13 +956,17 @@ function renderAssignmentsList({ tenancies, ownerships }) {
 window.navigateToPerson = (personId) => { if (personId) showPersonForm(personId); };
 
 window.removeOwnership = async (id) => {
-    await _supabase.from('ownerships').update({ is_active: false, valid_to: new Date().toISOString().split('T')[0] }).eq('id', id);
+    const _today = new Date().toISOString().split('T')[0];
+    await _supabase.from('ownerships').update({ is_active: false, valid_to: _today }).eq('id', id);
+    await _supabase.from('unit_assignments').update({ is_active: false, valid_to: _today }).match({ source_table: 'ownerships', source_id: id });
     showToast('Eigentümer entfernt.', 'success');
     const aptId = parseInt(document.getElementById('apt_id')?.value || '0') || _currentAptId;
     if (aptId) { const a = await fetchApartmentAssignments(aptId); const el = document.getElementById('apt-assignments'); if (el) el.innerHTML = renderAssignmentsList(a); }
 };
 window.removeTenancy = async (id) => {
-    await _supabase.from('tenancies').update({ status: 'Historisch', end_date: new Date().toISOString().split('T')[0] }).eq('id', id);
+    const _today = new Date().toISOString().split('T')[0];
+    await _supabase.from('tenancies').update({ status: 'Historisch', end_date: _today }).eq('id', id);
+    await _supabase.from('unit_assignments').update({ is_active: false, valid_to: _today }).match({ source_table: 'tenancies', source_id: id });
     showToast('Mietverhältnis beendet.', 'success');
     const aptId = parseInt(document.getElementById('apt_id')?.value || '0') || _currentAptId;
     if (aptId) { const a = await fetchApartmentAssignments(aptId); const el = document.getElementById('apt-assignments'); if (el) el.innerHTML = renderAssignmentsList(a); }
@@ -1067,13 +1071,24 @@ window.saveAssignment = async (aptId) => {
     const role      = document.querySelector('input[name="assign_role"]:checked').value;
     const startDate = document.getElementById('assign_start').value || null;
     const endDate   = document.getElementById('assign_end').value || null;
-    let error;
+    let error, newRowId = null;
     if (role === 'Eigentümer') {
-        ({ error } = await _supabase.from('ownerships').insert([{ apartment_id: aptId, owner_id: personId, valid_from: startDate, valid_to: endDate, is_active: true }]));
+        const res = await _supabase.from('ownerships').insert([{ apartment_id: aptId, owner_id: personId, valid_from: startDate, valid_to: endDate, is_active: true }]).select('id').single();
+        error = res.error; newRowId = res.data?.id;
     } else {
-        ({ error } = await _supabase.from('tenancies').insert([{ apartment_id: aptId, tenant_id: personId, start_date: startDate, end_date: endDate, status: 'Aktiv' }]));
+        const res = await _supabase.from('tenancies').insert([{ apartment_id: aptId, tenant_id: personId, start_date: startDate, end_date: endDate, status: 'Aktiv' }]).select('id').single();
+        error = res.error; newRowId = res.data?.id;
     }
     if (error) { showToast(error.message, 'error'); return; }
+    // Dual-Write ins CRM-Modell (unit_assignments) — hält HB-CRM synchron, Alt-Tabellen bleiben Quelle für Alt-Module
+    if (newRowId) {
+        await _supabase.from('unit_assignments').insert([{
+            person_id: personId, apartment_id: aptId, building_id: selectedBuildingId,
+            role: role === 'Eigentümer' ? 'owner' : 'tenant',
+            valid_from: startDate, valid_to: endDate, is_active: true,
+            source_table: role === 'Eigentümer' ? 'ownerships' : 'tenancies', source_id: newRowId,
+        }]);
+    }
     showToast(`${role} erfolgreich zugewiesen.`, 'success');
     closeAssignModal();
     const newA = await fetchApartmentAssignments(aptId);
