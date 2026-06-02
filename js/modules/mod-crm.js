@@ -163,11 +163,86 @@ window.crmOpenObject = async (buildingId) => {
     }
 };
 
-// Vollansicht: Person als Vollseite, Objekt ins Objekt-Modul
+// Vollansicht: Person + Objekt jeweils als Vollseite (kein Modal)
 window.crmOpenDetail = (type, id) => {
     document.getElementById('crm-suggest')?.classList.add('hidden');
-    if (type === 'object') return crmOpenObject(id);
+    if (type === 'object') return showCrmObjectDetail(id);
     return showCrmPersonDetail(id);
+};
+
+// --- Objekt-Vollansicht (read-only Vollseite, Aktivitäten inline) ---
+window.showCrmObjectDetail = async (buildingId) => {
+    const c = document.getElementById('content-area');
+    if (!c) return;
+    c.innerHTML = `<div class="flex items-center justify-center py-20"><div class="w-8 h-8 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div></div>`;
+
+    const [bRes, aptRes, mgmtRes] = await Promise.all([
+        _supabase.from('buildings').select('*').eq('id', buildingId).single(),
+        _supabase.from('apartments').select('id, apartment_number, type, sq_meters').eq('building_id', buildingId).order('apartment_number'),
+        _supabase.from('management_assignments').select('manager:profiles!management_assignments_manager_id_fkey(full_name)').eq('building_id', buildingId),
+    ]);
+    const b = bRes.data;
+    if (!b) { showToast('Objekt nicht gefunden.', 'error'); loadCrm(); return; }
+    const apts = aptRes.data || [];
+    const managers = (mgmtRes.data || []).map(m => m.manager?.full_name).filter(Boolean);
+
+    const addr = [[b.street, b.house_number].filter(Boolean).join(' '), [b.zip_code, b.city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    const field = (label, value) => value
+        ? `<div class="space-y-0.5"><p class="text-[10px] uppercase font-bold text-gray-400">${_crmEsc(label)}</p><p class="text-sm font-semibold text-hb-offblack">${_crmEsc(value)}</p></div>`
+        : '';
+    const unitRows = apts.length ? apts.map(a => `
+        <div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+            <span class="text-sm text-gray-700">Wohnung ${_crmEsc(a.apartment_number)}${a.type ? ' · ' + _crmEsc(a.type) : ''}</span>
+            <span class="text-xs text-gray-400">${a.sq_meters ? _crmEsc(a.sq_meters) + ' m²' : ''}</span>
+        </div>`).join('') : '<p class="text-sm text-gray-400 py-2">Keine Einheiten erfasst.</p>';
+
+    c.innerHTML = `
+        <div class="text-left">
+            <div class="flex justify-between items-center mb-6">
+                <button onclick="loadCrm()" class="text-xs font-bold text-gray-400 uppercase tracking-widest hover:text-hb-orange">← Zurück zur Suche</button>
+                <div class="flex gap-2">
+                    <button onclick="showCrmActivityModal('object','${b.id}','${_crmAttr(b.name || addr)}')" class="btn-secondary text-xs px-4">Aktivität erfassen</button>
+                    <button onclick="crmOpenObject('${b.id}')" class="btn-primary text-xs px-4">Im Objekt-Modul bearbeiten</button>
+                </div>
+            </div>
+
+            <div class="card p-6 mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-lg bg-hb-olive/10 text-hb-olive flex items-center justify-center">${_crmIcons.object}</div>
+                    <div>
+                        <h2 class="text-xl font-extrabold text-hb-offblack leading-tight">${_crmEsc(b.name || addr || '—')}</h2>
+                        <p class="text-xs text-gray-400">Objekt${b.file_number ? ' · #' + _crmEsc(b.file_number) : ''}${b.status ? ' · ' + _crmEsc(b.status) : ''}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="card p-6 space-y-4">
+                    <p class="text-[10px] uppercase font-bold text-gray-300">Stammdaten</p>
+                    <div class="grid grid-cols-2 gap-4">
+                        ${field('Adresse', addr)}
+                        ${field('Objektnummer', b.file_number)}
+                        ${field('Baujahr', b.construction_year)}
+                        ${field('Heizung', b.heating_type)}
+                        ${field('Einheiten', apts.length || null)}
+                        ${field('Verwalter', managers.join(', '))}
+                    </div>
+                </div>
+                <div class="card p-6 space-y-3">
+                    <p class="text-[10px] uppercase font-bold text-gray-300">Einheiten</p>
+                    <div>${unitRows}</div>
+                </div>
+            </div>
+
+            <div class="card p-6 mt-6">
+                <p class="text-[10px] uppercase font-bold text-gray-300 mb-3">Aktivitäten</p>
+                <div id="crm-activity-container"></div>
+            </div>
+        </div>`;
+
+    if (typeof renderCrmActivityLog === 'function') {
+        renderCrmActivityLog(document.getElementById('crm-activity-container'), 'object', buildingId);
+    }
 };
 
 // --- Personen-Vollansicht (read-only Vollseite, Aktivitäten inline) ---
