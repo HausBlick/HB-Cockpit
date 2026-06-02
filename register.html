@@ -130,8 +130,8 @@
         (async () => {
             const codeParam = urlParams.get('code');
             if (!codeParam) return;
-            const { data: inv } = await _supabase.from('invitations')
-                .select('email, full_name').eq('code', codeParam.trim().toUpperCase()).single();
+            const { data: invRows } = await _supabase.rpc('get_invitation_by_code', { p_code: codeParam });
+            const inv = invRows?.[0];
             if (!inv) return;
             const emailEl = document.getElementById('email');
             const nameEl  = document.getElementById('full_name');
@@ -167,8 +167,9 @@
             btn.textContent = 'Prüfe Einladung...';
 
             try {
-                // 1. Einladungscode prüfen
-                const { data: inviteData, error: inviteError } = await _supabase.from('invitations').select('*').eq('code', code).single();
+                // 1. Einladungscode prüfen (per RPC, da anonym kein direkter Tabellenzugriff)
+                const { data: invRows, error: inviteError } = await _supabase.rpc('get_invitation_by_code', { p_code: code });
+                const inviteData = invRows?.[0];
 
                 if (inviteError || !inviteData) {
                     errBox.textContent = 'Ungültiger Einladungscode. Bitte überprüfen Sie Ihre Eingabe.';
