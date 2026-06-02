@@ -44,20 +44,15 @@ window.copyInviteCode = () => {
 };
 
 // --- Daten laden ---
+// CRM-Umbau Phase 2: Zuweisungen kommen jetzt aus der vereinheitlichten unit_assignments-Tabelle.
 async function loadPersonForEdit(personId) {
-    let personRes, bankRes, tenanciesRes, ownershipsRes, boardRes, spRes;
+    let personRes, bankRes, assignRes, spRes;
     try {
-        [personRes, bankRes, tenanciesRes, ownershipsRes, boardRes, spRes] = await Promise.all([
+        [personRes, bankRes, assignRes, spRes] = await Promise.all([
             _supabase.from('persons').select('*').eq('id', personId).single(),
             _supabase.from('person_bank_accounts').select('*').eq('person_id', personId).maybeSingle(),
-            _supabase.from('tenancies')
-                .select('id, start_date, end_date, status, apartment_id, apartments(apartment_number, buildings(name))')
-                .eq('tenant_id', personId),
-            _supabase.from('ownerships')
-                .select('id, valid_from, valid_to, is_active, apartment_id, apartments(apartment_number, buildings(name))')
-                .eq('owner_id', personId),
-            _supabase.from('board_members')
-                .select('id, valid_from, valid_to, buildings(name)')
+            _supabase.from('unit_assignments')
+                .select('id, role, advisory_function, valid_from, valid_to, is_active, iban, bic, rent_amount, apartment_id, building_id, apartments(apartment_number, buildings(name))')
                 .eq('person_id', personId),
             _supabase.from('service_providers')
                 .select('id, category, buildings(name)')
@@ -73,6 +68,20 @@ async function loadPersonForEdit(personId) {
         return { person: null };
     }
 
+    // Gebäudenamen für objektweite Zuweisungen (z.B. Beirat ohne Wohnung) nachladen
+    const assigns = assignRes.data || [];
+    const needBld = [...new Set(assigns.filter(a => !a.apartment_id && a.building_id).map(a => a.building_id))];
+    let bldMap = {};
+    if (needBld.length) {
+        const { data: blds } = await _supabase.from('buildings').select('id, name').in('id', needBld);
+        bldMap = Object.fromEntries((blds || []).map(b => [b.id, b.name]));
+    }
+    const assignments = assigns.map(a => ({
+        ...a,
+        buildingName:    a.apartments?.buildings?.name || bldMap[a.building_id] || '—',
+        apartmentNumber: a.apartments?.apartment_number || null,
+    }));
+
     // Profil-Rolle + Flags laden falls auth_user_id vorhanden
     let profileRole = null;
     let profileIsLandlord = false;
@@ -86,9 +95,7 @@ async function loadPersonForEdit(personId) {
     return {
         person: personRes.data,
         bank: bankRes.data,
-        tenancies: tenanciesRes.data || [],
-        ownerships: ownershipsRes.data || [],
-        boardMemberships: boardRes.data || [],
+        assignments,
         serviceProviders: spRes.data || [],
         profileRole,
         profileIsLandlord,
@@ -171,32 +178,33 @@ async function savePersonData(personId, isNew) {
     return savedId;
 }
 
-// --- Rollen-Tab rendern ---
-function renderRolesTab(tenancies, ownerships, boardMemberships = [], serviceProviders = []) {
+// --- Rollen-Tab rendern (aus unit_assignments) ---
+function renderRolesTab(assignments = [], serviceProviders = []) {
     const container = document.getElementById('person-tab-roles');
-    const tenancyRows = tenancies.map(t => {
-        const apt = t.apartments;
-        const label = apt ? `${apt.buildings?.name || '—'} / Wohnung ${apt.apartment_number}` : '—';
-        return `<div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-            <span class="text-sm text-gray-700">${label}</span>
-            <span class="badge-mieter border text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md">Mieter</span>
+    const roleMeta = {
+        owner:    ['Eigentümer', 'badge-eigentuemer'],
+        tenant:   ['Mieter',     'badge-mieter'],
+        advisory: ['Beirat',     'badge-beirat'],
+    };
+    const fmtDate = d => d ? new Date(d).toLocaleDateString('de-DE') : '';
+    const fmtEur  = v => `${Number(v).toFixed(2).replace('.', ',')} €`;
+
+    const assignRows = assignments.map(a => {
+        const [label, cls] = roleMeta[a.role] || [a.role, 'badge-dienstleister'];
+        const loc = a.apartmentNumber ? `${a.buildingName} / Wohnung ${a.apartmentNumber}` : a.buildingName;
+        const meta = [];
+        if (a.valid_from || a.valid_to) meta.push(`${fmtDate(a.valid_from)}–${fmtDate(a.valid_to) || 'offen'}`);
+        if (a.role === 'tenant' && a.rent_amount) meta.push(`Miete ${fmtEur(a.rent_amount)}`);
+        if (a.role === 'advisory' && a.advisory_function) meta.push(a.advisory_function);
+        if (a.iban) meta.push(`IBAN …${String(a.iban).slice(-4)}`);
+        if (!a.is_active) meta.push('beendet');
+        const metaHtml = meta.length ? `<span class="block text-[11px] text-gray-400 mt-0.5">${meta.join(' · ')}</span>` : '';
+        return `<div class="flex items-start justify-between py-2 border-b border-gray-50 last:border-0">
+            <span class="text-sm text-gray-700">${loc}${metaHtml}</span>
+            <span class="border ${cls} text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md whitespace-nowrap ml-2">${label}</span>
         </div>`;
     }).join('');
-    const ownershipRows = ownerships.map(o => {
-        const apt = o.apartments;
-        const label = apt ? `${apt.buildings?.name || '—'} / Wohnung ${apt.apartment_number}` : '—';
-        return `<div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-            <span class="text-sm text-gray-700">${label}</span>
-            <span class="badge-eigentuemer border text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md">Eigentümer</span>
-        </div>`;
-    }).join('');
-    const boardRows = boardMemberships.map(bm => {
-        const label = bm.buildings?.name || '—';
-        return `<div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-            <span class="text-sm text-gray-700">${label}</span>
-            <span class="badge-beirat border text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md">Beirat</span>
-        </div>`;
-    }).join('');
+
     const spRows = serviceProviders.map(sp => {
         const label = sp.buildings?.name ? `${sp.buildings.name}${sp.category ? ' · ' + sp.category : ''}` : (sp.category || '—');
         return `<div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
@@ -204,7 +212,8 @@ function renderRolesTab(tenancies, ownerships, boardMemberships = [], servicePro
             <span class="badge-dienstleister border text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md">Dienstleister</span>
         </div>`;
     }).join('');
-    const allRows = tenancyRows + ownershipRows + boardRows + spRows;
+
+    const allRows = assignRows + spRows;
     const empty = '<p class="text-[15px] text-gray-400 text-center py-4">Keine Zuweisungen vorhanden.</p>';
     container.innerHTML = `
         <div class="space-y-2">
@@ -224,16 +233,14 @@ async function showPersonForm(id = null) {
         <div class="w-8 h-8 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div>
     </div>`;
 
-    let p = {}, bank = {}, tenancies = [], ownerships = [], boardMemberships = [], serviceProviders = [], profileRole = null, profileIsLandlord = false;
+    let p = {}, bank = {}, assignments = [], serviceProviders = [], profileRole = null, profileIsLandlord = false;
     if (!isNew) {
         const data = await loadPersonForEdit(id);
         if (!data.person) { showToast('Person nicht gefunden.', 'error'); loadUserManagement(); return; }
         p = data.person;
         bank = data.bank || {};
-        tenancies = data.tenancies;
-        ownerships = data.ownerships;
-        boardMemberships = data.boardMemberships;
-        serviceProviders = data.serviceProviders;
+        assignments = data.assignments || [];
+        serviceProviders = data.serviceProviders || [];
         profileRole = data.profileRole;
         profileIsLandlord = data.profileIsLandlord || false;
     }
@@ -462,7 +469,7 @@ async function showPersonForm(id = null) {
         </div>`;
 
     // Rollen-Tab mit echten Daten befüllen
-    renderRolesTab(tenancies, ownerships, boardMemberships, serviceProviders);
+    renderRolesTab(assignments, serviceProviders);
 
     // Formular-Submit
     document.getElementById('person-form').onsubmit = async (e) => {
