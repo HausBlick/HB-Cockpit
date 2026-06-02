@@ -1301,15 +1301,16 @@ let _nutzerListData = [];
 window._nutzerLoadList = async () => {
     const tbody = document.getElementById('nutzer-list-tbody');
     if (tbody) tbody.innerHTML = '<tr><td colspan="4" class="py-6 text-center text-gray-400 text-sm">Wird geladen…</td></tr>';
-    const { data, error } = await _supabase
-        .from('profiles')
-        .select('id, full_name, email, role, apartment_id')
-        .order('full_name');
-    if (error) {
-        if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-hb-error text-sm">Fehler: ${error.message}</td></tr>`;
+    const [profRes, persRes] = await Promise.all([
+        _supabase.from('profiles').select('id, full_name, email, role, apartment_id').order('full_name'),
+        _supabase.from('persons').select('auth_user_id, crm_status').not('auth_user_id', 'is', null),
+    ]);
+    if (profRes.error) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-hb-error text-sm">Fehler: ${profRes.error.message}</td></tr>`;
         return;
     }
-    _nutzerListData = data || [];
+    const statusMap = Object.fromEntries((persRes.data || []).map(p => [p.auth_user_id, p.crm_status]));
+    _nutzerListData = (profRes.data || []).map(u => ({ ...u, crm_status: statusMap[u.id] || null }));
     _nutzerRenderList();
 };
 
@@ -1327,7 +1328,10 @@ window._nutzerRenderList = () => {
         <tr class="border-b border-gray-50">
             <td class="py-2 px-2 font-semibold">${u.full_name || '—'}</td>
             <td class="py-2 px-2 text-gray-500">${u.email || '—'}</td>
-            <td class="py-2 px-2"><span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-hb-olive/10 text-hb-olive">${ROLE_LABELS[u.role] || u.role || '—'}</span></td>
+            <td class="py-2 px-2">
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-hb-olive/10 text-hb-olive">${ROLE_LABELS[u.role] || u.role || '—'}</span>
+                ${u.crm_status && typeof crmStatusChip === 'function' ? ' ' + crmStatusChip(u.crm_status) : ''}
+            </td>
             <td class="py-2 px-2 text-gray-500">${u.apartment_id ? 'WE #' + u.apartment_id : '—'}</td>
         </tr>`).join('');
     const cont = tbody.closest('.rtable');

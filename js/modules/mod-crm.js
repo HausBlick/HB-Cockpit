@@ -176,6 +176,18 @@ window.crmSendInvite = async (personId, name, email) => {
     showCrmPersonDetail(personId); // Ansicht aktualisieren (Status → Eingeladen)
 };
 
+// Person (de)aktivieren — Soft-Status (crm_status). Aktivieren: 'active' wenn registriert, sonst 'inactive'.
+window.crmSetPersonActive = async (personId, activate, registered) => {
+    if (!activate && !confirm('Person wirklich deaktivieren? (Soft-Delete, Daten bleiben erhalten)')) return;
+    const newStatus = activate ? (registered ? 'active' : 'inactive') : 'deactivated';
+    const { error } = await _supabase.from('persons')
+        .update({ crm_status: newStatus, deactivated_at: activate ? null : new Date().toISOString() })
+        .eq('id', personId);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    showToast(activate ? 'Person reaktiviert.' : 'Person deaktiviert.', 'success');
+    showCrmPersonDetail(personId);
+};
+
 // Vollansicht: Person + Objekt jeweils als Vollseite (kein Modal)
 window.crmOpenDetail = (type, id) => {
     document.getElementById('crm-suggest')?.classList.add('hidden');
@@ -298,8 +310,11 @@ window.showCrmPersonDetail = async (personId) => {
         <div class="text-left">
             <div class="flex justify-between items-center mb-6">
                 <button onclick="loadCrm()" class="text-xs font-bold text-gray-400 uppercase tracking-widest hover:text-hb-orange">← Zurück zur Suche</button>
-                <div class="flex gap-2">
-                    ${(p.email && !p.auth_user_id) ? `<button onclick="crmSendInvite('${p.id}','${_crmAttr(displayName)}','${_crmAttr(p.email)}')" class="btn-secondary text-xs px-4">Einladen</button>` : ''}
+                <div class="flex gap-2 flex-wrap justify-end">
+                    ${(p.email && !p.auth_user_id) ? `<button onclick="crmSendInvite('${p.id}','${_crmAttr(displayName)}','${_crmAttr(p.email)}')" class="btn-secondary text-xs px-4">${p.crm_status === 'invited' ? 'Erneut einladen' : 'Einladen'}</button>` : ''}
+                    ${p.crm_status === 'deactivated'
+                        ? `<button onclick="crmSetPersonActive('${p.id}', true, ${p.auth_user_id ? 'true' : 'false'})" class="btn-secondary text-xs px-4">Reaktivieren</button>`
+                        : `<button onclick="crmSetPersonActive('${p.id}', false, ${p.auth_user_id ? 'true' : 'false'})" class="btn-secondary text-xs px-4">Deaktivieren</button>`}
                     <button onclick="showCrmActivityModal('person','${p.id}','${_crmAttr(displayName)}')" class="btn-secondary text-xs px-4">Aktivität erfassen</button>
                     <button onclick="showPersonForm('${p.id}')" class="btn-primary text-xs px-4">Bearbeiten</button>
                 </div>
