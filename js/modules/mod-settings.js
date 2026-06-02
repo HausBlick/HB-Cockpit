@@ -1263,9 +1263,76 @@ async function _settingsRenderNutzer() {
                 <div id="nu-batch-result" class="mt-4"></div>
             </div>
 
+            <!-- Alle Nutzer (Übersicht) -->
+            <div class="card p-6">
+                <div class="flex flex-wrap justify-between items-center gap-3 mb-5">
+                    <h2 class="text-sm font-black uppercase tracking-widest text-hb-olive">Alle Nutzer</h2>
+                    <div class="flex items-center gap-2">
+                        <input type="text" id="nu-list-search" oninput="_nutzerRenderList()" placeholder="Suchen (Name/E-Mail)…"
+                            class="text-sm h-9 w-56">
+                        <button onclick="_nutzerLoadList()" class="text-hb-olive border border-hb-olive/30 px-3 py-2 rounded-xl text-xs font-bold hover:bg-hb-olive/5 transition-all">↻ Aktualisieren</button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto rtable">
+                    <table class="w-full text-sm min-w-[640px]">
+                        <thead>
+                            <tr class="border-b border-hb-olive/10">
+                                <th class="text-left py-2 px-2 text-[10px] uppercase text-gray-400 font-bold">Name</th>
+                                <th class="text-left py-2 px-2 text-[10px] uppercase text-gray-400 font-bold">E-Mail</th>
+                                <th class="text-left py-2 px-2 text-[10px] uppercase text-gray-400 font-bold w-32">Rolle</th>
+                                <th class="text-left py-2 px-2 text-[10px] uppercase text-gray-400 font-bold w-28">Einheit</th>
+                            </tr>
+                        </thead>
+                        <tbody id="nutzer-list-tbody">
+                            <tr><td colspan="4" class="py-6 text-center text-gray-400 text-sm">Wird geladen…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
         </div>
     `;
+
+    _nutzerLoadList();
 }
+
+// Alle Nutzer laden + rendern (read-only Übersicht)
+let _nutzerListData = [];
+window._nutzerLoadList = async () => {
+    const tbody = document.getElementById('nutzer-list-tbody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="4" class="py-6 text-center text-gray-400 text-sm">Wird geladen…</td></tr>';
+    const { data, error } = await _supabase
+        .from('profiles')
+        .select('id, full_name, email, role, apartment_id')
+        .order('full_name');
+    if (error) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-hb-error text-sm">Fehler: ${error.message}</td></tr>`;
+        return;
+    }
+    _nutzerListData = data || [];
+    _nutzerRenderList();
+};
+
+window._nutzerRenderList = () => {
+    const tbody = document.getElementById('nutzer-list-tbody');
+    if (!tbody) return;
+    const q = (document.getElementById('nu-list-search')?.value || '').trim().toLowerCase();
+    const rows = _nutzerListData.filter(u =>
+        !q || (u.full_name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q));
+    if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="py-6 text-center text-gray-400 text-sm">Keine Nutzer gefunden.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = rows.map(u => `
+        <tr class="border-b border-gray-50">
+            <td class="py-2 px-2 font-semibold">${u.full_name || '—'}</td>
+            <td class="py-2 px-2 text-gray-500">${u.email || '—'}</td>
+            <td class="py-2 px-2"><span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-hb-olive/10 text-hb-olive">${ROLE_LABELS[u.role] || u.role || '—'}</span></td>
+            <td class="py-2 px-2 text-gray-500">${u.apartment_id ? 'WE #' + u.apartment_id : '—'}</td>
+        </tr>`).join('');
+    const cont = tbody.closest('.rtable');
+    if (cont && typeof makeTableResponsive === 'function') makeTableResponsive(cont);
+};
 
 function _nutzerEmptyRow() {
     return { email: '', name: '', role: 'owner', building_id: '', send_invite: true };
