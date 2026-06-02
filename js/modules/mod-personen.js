@@ -7,22 +7,24 @@ let personsData         = [];
 let currentPersonFilter = 'Alle';
 let personSearchQuery   = '';
 
-// --- Rollen aus tenancies/ownerships/board_members/service_providers ableiten ---
+// --- Rollen aus unit_assignments (vereinheitlicht) + service_providers ableiten ---
+// CRM-Umbau Phase 2: liest jetzt die neue unit_assignments-Tabelle statt der drei Alt-Tabellen
+// (ownerships/tenancies/board_members). Dienstleister kommen vorerst weiter aus service_providers
+// (Migration ins CRM folgt in späterer Phase).
 async function fetchPersonsWithRoles() {
-    const [personsRes, tenanciesRes, ownershipsRes, boardRes, spRes] = await Promise.all([
-        _supabase.from('persons').select('id, is_company, company_name, first_name, last_name, email, phone, mobile, city, is_registered, contact_type'),
-        _supabase.from('tenancies').select('tenant_id').neq('status', 'Historisch'),
-        _supabase.from('ownerships').select('owner_id').eq('is_active', true),
-        _supabase.from('board_members').select('person_id').is('valid_to', null),
+    const [personsRes, assignRes, spRes] = await Promise.all([
+        _supabase.from('persons').select('id, is_company, company_name, first_name, last_name, email, phone, mobile, city, is_registered, contact_type, crm_status'),
+        _supabase.from('unit_assignments').select('person_id, role').eq('is_active', true),
         _supabase.from('service_providers').select('person_id'),
     ]);
 
     if (personsRes.error) { showToast('Fehler beim Laden: ' + personsRes.error.message, 'error'); return []; }
 
-    const tenantIds     = new Set((tenanciesRes.data || []).map(r => r.tenant_id));
-    const ownerIds      = new Set((ownershipsRes.data || []).map(r => r.owner_id));
-    const boardIds      = new Set((boardRes.data || []).map(r => r.person_id));
-    const spIds         = new Set((spRes.data || []).map(r => r.person_id));
+    const assigns  = assignRes.data || [];
+    const ownerIds  = new Set(assigns.filter(a => a.role === 'owner').map(a => a.person_id));
+    const tenantIds = new Set(assigns.filter(a => a.role === 'tenant').map(a => a.person_id));
+    const boardIds  = new Set(assigns.filter(a => a.role === 'advisory').map(a => a.person_id));
+    const spIds     = new Set((spRes.data || []).map(r => r.person_id));
 
     return (personsRes.data || []).map(p => {
         const roles = [];
@@ -32,6 +34,18 @@ async function fetchPersonsWithRoles() {
         if (spIds.has(p.id))     roles.push('Dienstleister');
         return { ...p, roles };
     });
+}
+
+// --- CRM-Status-Chip (Konzept §5: inactive|invited|active|deactivated) ---
+function crmStatusChip(status) {
+    const map = {
+        active:      ['Aktiv',       'bg-hb-success/12 text-hb-success'],
+        invited:     ['Eingeladen',  'bg-hb-orange/12 text-hb-orange'],
+        deactivated: ['Deaktiviert', 'bg-hb-error/12 text-hb-error'],
+        inactive:    ['Inaktiv',     'bg-gray-100 text-gray-500'],
+    };
+    const [label, cls] = map[status] || map.inactive;
+    return `<span class="${cls} text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block">${label}</span>`;
 }
 
 // --- Personen-Liste laden ---
@@ -131,7 +145,8 @@ function renderPersonsTable() {
             <tr onclick="showPersonInfo('${p.id}')" class="hover:bg-gray-50 transition-colors cursor-pointer">
                 <td class="p-4">
                     <div class="font-bold text-hb-offblack">${displayName}</div>
-                    <div class="text-xs text-gray-500">${p.city || '—'}</div>
+                    <div class="text-xs text-gray-500 mb-1">${p.city || '—'}</div>
+                    ${crmStatusChip(p.crm_status)}
                 </td>
                 <td class="p-4">
                     <div class="text-sm text-gray-700">${p.email ? `<a href="mailto:${p.email}" onclick="event.stopPropagation()" class="text-hb-olive hover:underline">${p.email}</a>` : '—'}</div>
@@ -193,7 +208,8 @@ window.showPersonInfo = async (personId) => {
                             <p class="text-xs text-gray-400">${p.is_company ? 'Unternehmen' : 'Privatperson'}${p.city ? ' · ' + p.city : ''}</p>
                         </div>
                     </div>
-                    <div class="flex flex-wrap gap-1 pt-1">
+                    <div class="flex flex-wrap gap-1 pt-1 items-center">
+                        ${crmStatusChip(p.crm_status)}
                         ${roles.map(r => getRoleBadgeHtml(r)).join('')}
                         ${!roles.length ? '<span class="text-xs text-gray-300">Keine Rolle</span>' : ''}
                     </div>
