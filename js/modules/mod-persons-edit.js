@@ -260,6 +260,7 @@ async function showPersonForm(id = null) {
                 <button type="button" id="person-btn-tab-roles"   onclick="switchPersonTab('roles')"   class="person-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Rollen & Objekte</button>
                 <button type="button" id="person-btn-tab-portal"  onclick="switchPersonTab('portal')"  class="person-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Portal & Rechtliches</button>
                 <button type="button" id="person-btn-tab-finance" onclick="switchPersonTab('finance')" class="person-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Finanzen & SEPA</button>
+                ${!isNew ? `<button type="button" id="person-btn-tab-activity" onclick="switchPersonTab('activity')" class="person-tab-btn whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700">Aktivitäten</button>` : ''}
             </div>
 
             <form id="person-form" class="space-y-6">
@@ -461,6 +462,11 @@ async function showPersonForm(id = null) {
                     </div>
                 </div>
 
+                <!-- ===== TAB 5: AKTIVITÄTEN (Activity-Log) ===== -->
+                ${!isNew ? `<div id="person-tab-activity" class="person-tab-content hidden">
+                    <div id="crm-activity-container"></div>
+                </div>` : ''}
+
                 <div class="pt-6 border-t flex gap-4">
                     <button type="submit" class="btn-primary">Speichern</button>
                     <button type="button" onclick="loadUserManagement()" class="btn-secondary">Abbrechen</button>
@@ -470,6 +476,11 @@ async function showPersonForm(id = null) {
 
     // Rollen-Tab mit echten Daten befüllen
     renderRolesTab(assignments, serviceProviders);
+
+    // Activity-Log (nur für bestehende Personen)
+    if (!isNew && typeof renderCrmActivityLog === 'function') {
+        renderCrmActivityLog(document.getElementById('crm-activity-container'), 'person', id);
+    }
 
     // Formular-Submit
     document.getElementById('person-form').onsubmit = async (e) => {
