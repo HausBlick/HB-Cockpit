@@ -163,6 +163,19 @@ window.crmOpenObject = async (buildingId) => {
     }
 };
 
+// Portal-Einladung versenden (Token-Flow, Phase 3) — mit Doppel-Bestätigung.
+window.crmSendInvite = async (personId, name, email) => {
+    if (!email) { showToast('Person hat keine E-Mail-Adresse.', 'error'); return; }
+    if (!confirm(`Einladung an ${name} (${email}) wirklich versenden?`)) return;
+    const { data, error } = await _supabase.functions.invoke('send-crm-invite', { body: { person_id: personId } });
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    if (data?.error) { showToast('Fehler: ' + data.error, 'error'); return; }
+    showToast(data?.mail_sent
+        ? 'Einladung versendet ✓'
+        : `Token erstellt (Mail nicht gesendet): ${data?.token || ''}`, 'success');
+    showCrmPersonDetail(personId); // Ansicht aktualisieren (Status → Eingeladen)
+};
+
 // Vollansicht: Person + Objekt jeweils als Vollseite (kein Modal)
 window.crmOpenDetail = (type, id) => {
     document.getElementById('crm-suggest')?.classList.add('hidden');
@@ -285,6 +298,7 @@ window.showCrmPersonDetail = async (personId) => {
             <div class="flex justify-between items-center mb-6">
                 <button onclick="loadCrm()" class="text-xs font-bold text-gray-400 uppercase tracking-widest hover:text-hb-orange">← Zurück zur Suche</button>
                 <div class="flex gap-2">
+                    ${(p.email && !p.auth_user_id) ? `<button onclick="crmSendInvite('${p.id}','${_crmAttr(displayName)}','${_crmAttr(p.email)}')" class="btn-secondary text-xs px-4">Einladen</button>` : ''}
                     <button onclick="showCrmActivityModal('person','${p.id}','${_crmAttr(displayName)}')" class="btn-secondary text-xs px-4">Aktivität erfassen</button>
                     <button onclick="showPersonForm('${p.id}')" class="btn-primary text-xs px-4">Bearbeiten</button>
                 </div>
@@ -296,6 +310,7 @@ window.showCrmPersonDetail = async (personId) => {
                     <div>
                         <h2 class="text-xl font-extrabold text-hb-offblack leading-tight">${_crmEsc(displayName)}</h2>
                         <p class="text-xs text-gray-400">${p.is_company ? 'Unternehmen' : 'Privatperson'}${p.person_number ? ' · #' + _crmEsc(p.person_number) : ''}</p>
+                        ${typeof crmStatusChip === 'function' ? `<div class="mt-1">${crmStatusChip(p.crm_status)}</div>` : ''}
                     </div>
                 </div>
             </div>
