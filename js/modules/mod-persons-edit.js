@@ -52,7 +52,7 @@ async function loadPersonForEdit(personId) {
             _supabase.from('persons').select('*').eq('id', personId).single(),
             _supabase.from('person_bank_accounts').select('*').eq('person_id', personId).maybeSingle(),
             _supabase.from('unit_assignments')
-                .select('id, role, advisory_function, valid_from, valid_to, is_active, iban, bic, rent_amount, apartment_id, building_id, apartments(apartment_number, buildings(name))')
+                .select('id, role, advisory_function, valid_from, valid_to, is_active, iban, bic, rent_amount, apartment_id, building_id, context_number, apartments(apartment_number, buildings(name))')
                 .eq('person_id', personId),
             _supabase.from('service_providers')
                 .select('id, category, buildings(name)')
@@ -193,6 +193,7 @@ function renderRolesTab(assignments = [], serviceProviders = []) {
         const [label, cls] = roleMeta[a.role] || [a.role, 'badge-dienstleister'];
         const loc = a.apartmentNumber ? `${a.buildingName} / Wohnung ${a.apartmentNumber}` : a.buildingName;
         const meta = [];
+        if (a.context_number) meta.push(`Nr. ${a.context_number}`);
         if (a.valid_from || a.valid_to) meta.push(`${fmtDate(a.valid_from)}–${fmtDate(a.valid_to) || 'offen'}`);
         if (a.role === 'tenant' && a.rent_amount) meta.push(`Miete ${fmtEur(a.rent_amount)}`);
         if (a.role === 'advisory' && a.advisory_function) meta.push(a.advisory_function);

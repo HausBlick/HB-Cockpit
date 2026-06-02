@@ -285,6 +285,7 @@ window.showCrmPersonDetail = async (personId) => {
         const [label, cls] = roleMeta[a.role] || [a.role, 'badge-dienstleister'];
         const loc = a.apartmentNumber ? `${a.buildingName} / Wohnung ${a.apartmentNumber}` : a.buildingName;
         const meta = [];
+        if (a.context_number) meta.push(`Nr. ${a.context_number}`);
         if (a.valid_from || a.valid_to) meta.push(`${_crmDate(a.valid_from) || ''}–${_crmDate(a.valid_to) || 'offen'}`);
         if (!a.is_active) meta.push('beendet');
         return `<div class="flex items-start justify-between py-2 border-b border-gray-50 last:border-0">
