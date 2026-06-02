@@ -66,13 +66,13 @@
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
             </div>
             <h1 class="text-[28px] font-bold tracking-tight text-hb-offblack">Willkommen im Haus!</h1>
-            <p class="text-[15px] text-gray-500 font-medium mt-2 leading-relaxed">Bitte geben Sie Ihren Einladungscode ein, um Ihren Account zu aktivieren und Ihr Passwort festzulegen.</p>
+            <p class="text-[15px] text-gray-500 font-medium mt-2 leading-relaxed">Bitte geben Sie Ihre E-Mail-Adresse und den persönlichen Code aus Ihrer Einladungs-Mail ein, um Ihren Account zu aktivieren.</p>
         </div>
 
         <form id="register-form" class="space-y-5">
             <div>
-                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest mb-1">Einladungscode</label>
-                <input type="text" id="invite_code" class="w-full p-4 text-sm font-mono tracking-widest uppercase text-center border-hb-olive/30 bg-hb-olive/5 focus:bg-white" placeholder="z.B. HB-X7V2A" required>
+                <label class="block text-[10px] font-bold uppercase text-hb-olive tracking-widest mb-1">Einladungs-Code</label>
+                <input type="text" id="invite_code" class="w-full p-4 text-sm font-mono tracking-widest uppercase text-center border-hb-olive/30 bg-hb-olive/5 focus:bg-white" placeholder="z.B. A7K3M9QP" required>
             </div>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
@@ -119,52 +119,23 @@
         }
         const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-        // Falls in der URL ein Code mitgegeben wurde (z.B. ?code=HB-12345), direkt ins Feld eintragen
+        // Optional: E-Mail aus URL vorbefüllen (?email=)
         const urlParams = new URLSearchParams(window.location.search);
-        if(urlParams.has('code')) {
-            document.getElementById('invite_code').value = urlParams.get('code');
-        }
-
-        // Bei vorhandenem Code: Einladung laden und E-Mail/Name vorbefüllen (E-Mail sperren,
-        // damit sie zur Einladung passt — der Trigger findet die Einladung über die E-Mail).
-        async function _prefillFromCode() {
-            const codeParam = (urlParams.get('code') || document.getElementById('invite_code').value || '').trim();
-            if (!codeParam) return;
-            document.getElementById('invite_code').value = codeParam.toUpperCase();
-            try {
-                const { data: invRows, error } = await _supabase.rpc('get_invitation_by_code', { p_code: codeParam });
-                if (error) { console.error('[register] RPC-Fehler:', error); return; }
-                const inv = invRows?.[0];
-                console.log('[register] Einladung geladen:', inv);
-                if (!inv) return;
-                const emailEl = document.getElementById('email');
-                const nameEl  = document.getElementById('full_name');
-                if (inv.email) {
-                    emailEl.value = inv.email;
-                    emailEl.readOnly = true;
-                    emailEl.classList.add('opacity-70', 'cursor-not-allowed');
-                }
-                if (inv.full_name && !nameEl.value) nameEl.value = inv.full_name;
-            } catch (e) { console.error('[register] Vorbefüllung fehlgeschlagen:', e); }
-        }
-        // Sowohl sofort als auch nach vollständigem Laden des DOM versuchen (robust gegen Timing).
-        _prefillFromCode();
-        document.addEventListener('DOMContentLoaded', _prefillFromCode);
+        if (urlParams.get('email')) document.getElementById('email').value = urlParams.get('email');
 
         document.getElementById('register-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('register-btn');
             const errBox = document.getElementById('error-msg');
             const successBox = document.getElementById('success-msg');
-            
-            const code = document.getElementById('invite_code').value.trim().toUpperCase();
-            const name = document.getElementById('full_name').value.trim();
+
+            const token = document.getElementById('invite_code').value.trim().toUpperCase();
+            const name  = document.getElementById('full_name').value.trim();
             const email = document.getElementById('email').value.trim();
-            const pwd = document.getElementById('password').value;
+            const pwd   = document.getElementById('password').value;
             const pwdConfirm = document.getElementById('password_confirm').value;
 
             errBox.classList.add('hidden');
-
             if (pwd !== pwdConfirm) {
                 errBox.textContent = 'Die Passwörter stimmen nicht überein.';
                 errBox.classList.remove('hidden');
@@ -175,12 +146,11 @@
             btn.textContent = 'Prüfe Einladung...';
 
             try {
-                // 1. Einladungscode prüfen (per RPC, da anonym kein direkter Tabellenzugriff)
-                const { data: invRows, error: inviteError } = await _supabase.rpc('get_invitation_by_code', { p_code: code });
-                const inviteData = invRows?.[0];
-
-                if (inviteError || !inviteData) {
-                    errBox.textContent = 'Ungültiger Einladungscode. Bitte überprüfen Sie Ihre Eingabe.';
+                // 1. E-Mail + Code validieren (RPC, da anonym kein direkter Tabellenzugriff)
+                const { data: rows, error: vErr } = await _supabase.rpc('get_person_by_invite_token', { p_email: email, p_token: token });
+                const person = rows?.[0];
+                if (vErr || !person) {
+                    errBox.textContent = 'E-Mail oder Code ungültig (oder bereits registriert). Bitte prüfen Sie Ihre Einladungs-Mail.';
                     errBox.classList.remove('hidden');
                     btn.disabled = false;
                     btn.textContent = 'Account aktivieren';
@@ -189,20 +159,17 @@
 
                 btn.textContent = 'Erstelle Account...';
 
-                // 2. Auth-User anlegen — E-Mail aus der EINLADUNG (der DB-Trigger handle_new_user
-                //    findet die Einladung über die E-Mail und übernimmt Rolle, Name und Einheit).
-                //    Profilanlage, Rollenzuweisung und Löschen der Einladung passieren serverseitig
-                //    im Trigger — daher hier KEIN manueller profiles-Insert (bei aktivierter
-                //    E-Mail-Bestätigung existiert an dieser Stelle ohnehin noch keine Session).
+                // 2. Auth-User anlegen; Token als Metadatum → DB-Trigger handle_new_user verknüpft die
+                //    Person (auth_user_id), setzt crm_status='active', leitet die Rolle aus den
+                //    Zuweisungen ab und legt das Profil an. Kein manueller profiles-Insert hier.
                 const { error: authError } = await _supabase.auth.signUp({
-                    email: inviteData.email,
+                    email: email,
                     password: pwd,
-                    options: { data: { full_name: name || inviteData.full_name } }
+                    options: { data: { full_name: name || person.full_name, invite_token: token } }
                 });
-
                 if (authError) throw authError;
 
-                // 3. Erfolg — Nutzer muss nun die Bestätigungs-Mail anklicken, dann ist Login möglich.
+                // 3. Erfolg — Nutzer bestätigt die Mail, dann ist Login möglich.
                 document.getElementById('register-form').style.display = 'none';
                 successBox.classList.remove('hidden');
 
