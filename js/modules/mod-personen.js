@@ -12,10 +12,11 @@ let personSearchQuery   = '';
 // (ownerships/tenancies/board_members). Dienstleister kommen vorerst weiter aus service_providers
 // (Migration ins CRM folgt in späterer Phase).
 async function fetchPersonsWithRoles() {
-    const [personsRes, assignRes, spRes] = await Promise.all([
+    const [personsRes, assignRes, spRes, actRes] = await Promise.all([
         _supabase.from('persons').select('id, is_company, company_name, first_name, last_name, email, phone, mobile, city, is_registered, contact_type, crm_status'),
         _supabase.from('unit_assignments').select('person_id, role').eq('is_active', true),
         _supabase.from('service_providers').select('person_id'),
+        _supabase.from('crm_activities').select('entity_id, created_at').eq('entity_type', 'person'),
     ]);
 
     if (personsRes.error) { showToast('Fehler beim Laden: ' + personsRes.error.message, 'error'); return []; }
@@ -26,13 +27,19 @@ async function fetchPersonsWithRoles() {
     const boardIds  = new Set(assigns.filter(a => a.role === 'advisory').map(a => a.person_id));
     const spIds     = new Set((spRes.data || []).map(r => r.person_id));
 
+    // Letzte Aktivität je Person (max created_at)
+    const lastAct = {};
+    for (const a of (actRes.data || [])) {
+        if (!lastAct[a.entity_id] || a.created_at > lastAct[a.entity_id]) lastAct[a.entity_id] = a.created_at;
+    }
+
     return (personsRes.data || []).map(p => {
         const roles = [];
         if (ownerIds.has(p.id))  roles.push('Eigentümer');
         if (tenantIds.has(p.id)) roles.push('Mieter');
         if (boardIds.has(p.id))  roles.push('Beirat');
         if (spIds.has(p.id))     roles.push('Dienstleister');
-        return { ...p, roles };
+        return { ...p, roles, lastActivity: lastAct[p.id] || null };
     });
 }
 
@@ -141,19 +148,24 @@ function renderPersonsTable() {
         const displayName = p.is_company
             ? (p.company_name || p.last_name || '—')
             : `${p.first_name || ''} ${p.last_name || ''}`.trim() || '—';
+        const dnEsc = displayName.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const lastActTxt = p.lastActivity ? new Date(p.lastActivity).toLocaleDateString('de-DE') : null;
         return `
             <tr onclick="showPersonInfo('${p.id}')" class="hover:bg-gray-50 transition-colors cursor-pointer">
                 <td class="p-4">
                     <div class="font-bold text-hb-offblack">${displayName}</div>
                     <div class="text-xs text-gray-500 mb-1">${p.city || '—'}</div>
                     ${crmStatusChip(p.crm_status)}
+                    ${lastActTxt ? `<div class="text-[11px] text-gray-400 mt-1">Letzte Aktivität: ${lastActTxt}</div>` : ''}
                 </td>
                 <td class="p-4">
                     <div class="text-sm text-gray-700">${p.email ? `<a href="mailto:${p.email}" onclick="event.stopPropagation()" class="text-hb-olive hover:underline">${p.email}</a>` : '—'}</div>
                     <div class="text-xs text-gray-500">${p.phone || p.mobile || '—'}</div>
                 </td>
                 <td class="p-4">${p.roles.length ? p.roles.map(r => getRoleBadgeHtml(r)).join('') : '<span class="text-xs text-gray-300">—</span>'}</td>
-                <td class="p-4 text-right" onclick="event.stopPropagation()">
+                <td class="p-4 text-right whitespace-nowrap" onclick="event.stopPropagation()">
+                    <button onclick="showCrmActivityModal('person','${p.id}','${dnEsc}')"
+                        class="text-xs text-hb-olive border border-hb-olive/30 px-3 py-1.5 rounded-lg hover:bg-hb-olive/5 transition-colors mr-1">Aktivitäten</button>
                     <button onclick="showPersonForm('${p.id}')"
                         class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Bearbeiten</button>
                 </td>

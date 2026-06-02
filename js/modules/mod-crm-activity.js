@@ -54,6 +54,27 @@ window.renderCrmActivityLog = async (containerEl, entityType, entityId) => {
         </div>`;
 };
 
+// Activity-Log in einem Modal öffnen (z.B. aus Listen heraus).
+window.showCrmActivityModal = (entityType, entityId, title = 'Aktivitäten') => {
+    const safeTitle = String(title).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    document.getElementById('crm-activity-modal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'crm-activity-modal';
+    modal.className = 'fixed inset-0 bg-hb-offblack/40 backdrop-blur-sm z-50 flex items-center justify-center p-4';
+    modal.innerHTML = `
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col" onclick="event.stopPropagation()">
+            <div class="p-5 border-b border-gray-100 flex justify-between items-center flex-shrink-0">
+                <h2 class="text-lg font-extrabold text-hb-offblack">${safeTitle}</h2>
+                <button onclick="document.getElementById('crm-activity-modal').remove()"
+                    class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
+            </div>
+            <div class="p-5 overflow-y-auto flex-grow" id="crm-activity-container"></div>
+        </div>`;
+    modal.addEventListener('click', () => modal.remove());
+    document.body.appendChild(modal);
+    window.renderCrmActivityLog(document.getElementById('crm-activity-container'), entityType, entityId);
+};
+
 // Manuelle Aktivität speichern, danach Log neu laden.
 window.addCrmActivity = async (entityType, entityId) => {
     const cat  = document.getElementById('crm-act-cat')?.value || 'Notiz';
