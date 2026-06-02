@@ -156,7 +156,6 @@ function renderPersonsTable() {
                     <div class="font-bold text-hb-offblack">${displayName}</div>
                     <div class="text-xs text-gray-500 mb-1">${p.city || '—'}</div>
                     ${crmStatusChip(p.crm_status)}
-                    ${lastActTxt ? `<div class="text-[11px] text-gray-400 mt-1">Letzte Aktivität: ${lastActTxt}</div>` : ''}
                 </td>
                 <td class="p-4">
                     <div class="text-sm text-gray-700">${p.email ? `<a href="mailto:${p.email}" onclick="event.stopPropagation()" class="text-hb-olive hover:underline">${p.email}</a>` : '—'}</div>
@@ -164,6 +163,7 @@ function renderPersonsTable() {
                 </td>
                 <td class="p-4">${p.roles.length ? p.roles.map(r => getRoleBadgeHtml(r)).join('') : '<span class="text-xs text-gray-300">—</span>'}</td>
                 <td class="p-4 text-right whitespace-nowrap" onclick="event.stopPropagation()">
+                    ${lastActTxt ? `<div class="text-[11px] text-gray-400 mb-1">Letzte Aktivität: ${lastActTxt}</div>` : ''}
                     <button onclick="showCrmActivityModal('person','${p.id}','${dnEsc}')"
                         class="text-xs text-hb-olive border border-hb-olive/30 px-3 py-1.5 rounded-lg hover:bg-hb-olive/5 transition-colors mr-1">Aktivitäten</button>
                     <button onclick="showPersonForm('${p.id}')"

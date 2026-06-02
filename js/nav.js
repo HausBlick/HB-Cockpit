@@ -132,6 +132,7 @@ function renderNav(role) {
         html += _navItem('loadContacts',       icons.contact,   'Kontaktbuch');
 
         html += `<li class="nav-section-title">Verwaltung</li>`;
+        html += _navItem('loadCrm',            icons.users,      'HB-CRM');
         html += _navItem('loadUserManagement', icons.users,     'Personen');
         html += _navItem('loadTenants',        icons.buildings,  'Gebäude &amp; Einheiten');
 
