@@ -127,21 +127,29 @@
 
         // Bei vorhandenem Code: Einladung laden und E-Mail/Name vorbefüllen (E-Mail sperren,
         // damit sie zur Einladung passt — der Trigger findet die Einladung über die E-Mail).
-        (async () => {
-            const codeParam = urlParams.get('code');
+        async function _prefillFromCode() {
+            const codeParam = (urlParams.get('code') || document.getElementById('invite_code').value || '').trim();
             if (!codeParam) return;
-            const { data: invRows } = await _supabase.rpc('get_invitation_by_code', { p_code: codeParam });
-            const inv = invRows?.[0];
-            if (!inv) return;
-            const emailEl = document.getElementById('email');
-            const nameEl  = document.getElementById('full_name');
-            if (inv.email) {
-                emailEl.value = inv.email;
-                emailEl.readOnly = true;
-                emailEl.classList.add('opacity-70', 'cursor-not-allowed');
-            }
-            if (inv.full_name && !nameEl.value) nameEl.value = inv.full_name;
-        })();
+            document.getElementById('invite_code').value = codeParam.toUpperCase();
+            try {
+                const { data: invRows, error } = await _supabase.rpc('get_invitation_by_code', { p_code: codeParam });
+                if (error) { console.error('[register] RPC-Fehler:', error); return; }
+                const inv = invRows?.[0];
+                console.log('[register] Einladung geladen:', inv);
+                if (!inv) return;
+                const emailEl = document.getElementById('email');
+                const nameEl  = document.getElementById('full_name');
+                if (inv.email) {
+                    emailEl.value = inv.email;
+                    emailEl.readOnly = true;
+                    emailEl.classList.add('opacity-70', 'cursor-not-allowed');
+                }
+                if (inv.full_name && !nameEl.value) nameEl.value = inv.full_name;
+            } catch (e) { console.error('[register] Vorbefüllung fehlgeschlagen:', e); }
+        }
+        // Sowohl sofort als auch nach vollständigem Laden des DOM versuchen (robust gegen Timing).
+        _prefillFromCode();
+        document.addEventListener('DOMContentLoaded', _prefillFromCode);
 
         document.getElementById('register-form').addEventListener('submit', async (e) => {
             e.preventDefault();
