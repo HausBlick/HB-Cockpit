@@ -188,11 +188,14 @@ const EXTERNAL_PAGE_ROLES = {
 };
 
 function _getCurrentPage() {
-    const path = window.location.pathname;
-    if (path.endsWith('zeiterfassung.html')) return 'zeiterfassung';
-    if (path.endsWith('etv.html')) return 'etv';
-    if (path.endsWith('dokumente.html')) return 'dokumente';
-    if (path.endsWith('finanzen.html')) return 'finanzen';
+    // Letztes Pfad-Segment ohne .html — robust gegen "Clean URLs" (z.B. npx serve auf Dev
+    // liefert /etv statt /etv.html). Auf Prod (GitHub Pages) bleibt die .html-Endung erhalten.
+    const path = window.location.pathname.replace(/\/+$/, '');
+    const last = path.substring(path.lastIndexOf('/') + 1).replace(/\.html$/i, '');
+    if (last === 'zeiterfassung') return 'zeiterfassung';
+    if (last === 'etv')          return 'etv';
+    if (last === 'dokumente')    return 'dokumente';
+    if (last === 'finanzen')     return 'finanzen';
     return 'dashboard';
 }
 
