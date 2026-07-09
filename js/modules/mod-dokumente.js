@@ -39,12 +39,12 @@ async function loadDocuments() {
     const canTree   = role === 'admin' || role === 'manager';
 
     document.getElementById('content-area').innerHTML = `
-        <div class="flex justify-between items-end mb-6 text-left">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 mb-6 text-left">
             <div>
                 <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">Dokumenten Cloud</h2>
                 <p class="text-[15px] text-gray-500 mt-1">Dokumente zentral verwalten und bereitstellen.</p>
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                 ${canTree ? `
                 <div class="flex gap-1 bg-gray-100 rounded-xl p-1" id="docs-view-toggle">
                     <button id="docs-view-list-btn" onclick="_docsSetView('list')" title="Listenansicht"
