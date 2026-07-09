@@ -25,9 +25,15 @@ window.loadCrm = async () => {
     if (!c) return;
     c.innerHTML = `
         <div class="text-left">
-            <div class="mb-6">
-                <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">HB-CRM</h2>
-                <p class="text-[15px] text-gray-500 mt-1">Suche über Objekte und Personen — Name, Nummer, Straße oder E-Mail.</p>
+            <div class="flex justify-between items-start mb-6 gap-4">
+                <div>
+                    <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">HB-CRM</h2>
+                    <p class="text-[15px] text-gray-500 mt-1">Suche über Objekte und Personen — Name, Nummer, Straße oder E-Mail.</p>
+                </div>
+                <button onclick="showPersonForm()" class="btn-primary text-sm flex items-center gap-2 shadow-sm whitespace-nowrap flex-shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                    Neue Person
+                </button>
             </div>
             <div class="relative max-w-2xl">
                 <input type="text" id="crm-search" autocomplete="off" oninput="crmSearch(this.value)"

@@ -237,7 +237,7 @@ async function showPersonForm(id = null) {
     let p = {}, bank = {}, assignments = [], serviceProviders = [], profileRole = null, profileIsLandlord = false;
     if (!isNew) {
         const data = await loadPersonForEdit(id);
-        if (!data.person) { showToast('Person nicht gefunden.', 'error'); loadUserManagement(); return; }
+        if (!data.person) { showToast('Person nicht gefunden.', 'error'); loadCrm(); return; }
         p = data.person;
         bank = data.bank || {};
         assignments = data.assignments || [];
@@ -251,8 +251,8 @@ async function showPersonForm(id = null) {
     container.innerHTML = `
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-2xl font-extrabold">${isNew ? 'Neuen Kontakt anlegen' : 'Person bearbeiten'}</h2>
-            <button onclick="loadUserManagement()"
-                class="text-xs font-bold text-gray-400 uppercase tracking-widest hover:text-hb-orange">← Zurück</button>
+            <button onclick="loadCrm()"
+                class="text-xs font-bold text-gray-400 uppercase tracking-widest hover:text-hb-orange">← Zurück zum HB-CRM</button>
         </div>
         <div class="card p-8 text-left">
             <!-- Tab-Navigation -->
@@ -470,7 +470,7 @@ async function showPersonForm(id = null) {
 
                 <div class="pt-6 border-t flex gap-4">
                     <button type="submit" class="btn-primary">Speichern</button>
-                    <button type="button" onclick="loadUserManagement()" class="btn-secondary">Abbrechen</button>
+                    <button type="button" onclick="loadCrm()" class="btn-secondary">Abbrechen</button>
                 </div>
             </form>
         </div>`;
@@ -492,7 +492,9 @@ async function showPersonForm(id = null) {
         const savedId = await savePersonData(id, isNew);
         if (savedId) {
             showToast('Kontakt gespeichert.', 'success');
-            loadUserManagement();
+            // Zurück in die HB-CRM-Vollansicht der Person (statt in die alte Liste)
+            if (typeof showCrmPersonDetail === 'function') showCrmPersonDetail(savedId);
+            else loadCrm();
         } else {
             btn.disabled = false;
             btn.textContent = 'Speichern';
