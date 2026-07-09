@@ -136,8 +136,8 @@ window._docsSetView = (mode) => {
 // ─── LISTENANSICHT ─────────────────────────────────────────────
 function _buildListHtml() {
     return `
-        <div class="flex gap-5 items-start">
-            <div class="w-60 flex-shrink-0 flex flex-col gap-3">
+        <div class="flex flex-col lg:flex-row gap-4 lg:gap-5 items-stretch lg:items-start">
+            <div class="w-full lg:w-60 flex-shrink-0 grid grid-cols-2 lg:flex lg:flex-col gap-3 items-start lg:items-stretch">
                 <div class="card">
                     <div class="p-3 bg-hb-olive"><p class="text-xs font-bold text-white">Gebäude</p></div>
                     <div class="p-2">
@@ -148,7 +148,7 @@ function _buildListHtml() {
                 </div>
                 <div class="card">
                     <div class="p-3 bg-hb-olive"><p class="text-xs font-bold text-white">Kategorien</p></div>
-                    <div id="docs-category-list" class="py-1"></div>
+                    <div id="docs-category-list" class="py-1 max-h-52 lg:max-h-none overflow-y-auto"></div>
                     <div class="border-t border-hb-olive/10 p-3">
                         <label class="flex items-center gap-2 cursor-pointer text-xs text-gray-500">
                             <input type="checkbox" id="docs-show-archived" onchange="_docsToggleArchived(this.checked)">
@@ -157,7 +157,7 @@ function _buildListHtml() {
                     </div>
                 </div>
                 ${(userProfile?.role === 'owner') ? `
-                <div class="card">
+                <div class="card col-span-2 lg:col-span-1">
                     <div class="p-3 bg-hb-olive"><p class="text-xs font-bold text-white">Beschlusssammlung</p></div>
                     <div class="p-3">
                         <p class="text-[13px] text-gray-500 mb-3 leading-snug">Als Eigentümer haben Sie das Recht, eine Kopie der Beschlusssammlung zu erhalten (§ 24 Abs. 7 WEG).</p>
@@ -167,7 +167,7 @@ function _buildListHtml() {
                     </div>
                 </div>` : ''}
             </div>
-            <div class="flex-grow min-w-0 card">
+            <div class="w-full lg:flex-grow min-w-0 card">
                 <div class="p-4 bg-hb-olive flex justify-between items-center">
                     <p class="text-sm font-bold text-white" id="docs-list-title">Alle Dokumente</p>
                     <span id="docs-count" class="text-xs text-white/70"></span>
