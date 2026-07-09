@@ -318,7 +318,9 @@ window.showCrmPersonDetail = async (personId) => {
             <div class="flex justify-between items-center mb-6">
                 <button onclick="loadCrm()" class="text-xs font-bold text-gray-400 uppercase tracking-widest hover:text-hb-orange">← Zurück zur Suche</button>
                 <div class="flex gap-2 flex-wrap justify-end">
-                    ${(p.email && !p.auth_user_id) ? `<button onclick="crmSendInvite('${p.id}','${_crmAttr(displayName)}','${_crmAttr(p.email)}')" class="btn-secondary text-xs px-4">${p.crm_status === 'invited' ? 'Erneut einladen' : 'Einladen'}</button>` : ''}
+                    ${!p.auth_user_id ? (p.email
+                        ? `<button onclick="crmSendInvite('${p.id}','${_crmAttr(displayName)}','${_crmAttr(p.email)}')" class="btn-secondary text-xs px-4">${p.crm_status === 'invited' ? 'Erneut einladen' : 'Einladen'}</button>`
+                        : `<button type="button" disabled title="E-Mail hinterlegen, um einzuladen" class="btn-secondary text-xs px-4 opacity-50 cursor-not-allowed">Einladen</button>`) : ''}
                     ${p.crm_status === 'deactivated'
                         ? `<button onclick="crmSetPersonActive('${p.id}', true, ${p.auth_user_id ? 'true' : 'false'})" class="btn-secondary text-xs px-4">Reaktivieren</button>`
                         : `<button onclick="crmSetPersonActive('${p.id}', false, ${p.auth_user_id ? 'true' : 'false'})" class="btn-secondary text-xs px-4">Deaktivieren</button>`}
