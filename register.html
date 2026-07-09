@@ -119,9 +119,10 @@
         }
         const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-        // Optional: E-Mail aus URL vorbefüllen (?email=)
+        // E-Mail + Name aus der Einladung vorbefüllen (?email=, ?name=). Der Token bleibt manuell (2. Faktor).
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('email')) document.getElementById('email').value = urlParams.get('email');
+        if (urlParams.get('name'))  document.getElementById('full_name').value = urlParams.get('name');
 
         document.getElementById('register-form').addEventListener('submit', async (e) => {
             e.preventDefault();
