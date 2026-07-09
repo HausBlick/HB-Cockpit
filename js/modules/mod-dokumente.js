@@ -179,7 +179,8 @@ function _buildListHtml() {
                     <p class="text-sm font-bold text-white" id="docs-list-title">Alle Dokumente</p>
                     <span id="docs-count" class="text-xs text-white/70"></span>
                 </div>
-                <div class="overflow-x-auto">
+                <!-- Desktop: Tabelle (ab lg) -->
+                <div class="overflow-x-auto hidden lg:block">
                     <table class="w-full text-left">
                         <thead>
                             <tr class="bg-gray-50 text-xs font-bold text-gray-500 border-b border-gray-100">
@@ -195,6 +196,10 @@ function _buildListHtml() {
                             <tr><td colspan="6" class="p-8 text-center text-gray-400">Lädt...</td></tr>
                         </tbody>
                     </table>
+                </div>
+                <!-- Mobile: schlanke Karten-Liste (nur < lg) -->
+                <div id="docs-cards-mobile" class="lg:hidden divide-y divide-hb-olive/10">
+                    <div class="p-8 text-center text-gray-400 text-sm">Lädt...</div>
                 </div>
             </div>
         </div>`;
@@ -325,30 +330,43 @@ window._docsFilterCatIdx = (idx) => {
     _renderDocsTable();
 };
 
-// Dokumenten-Tabelle
+// Dokumenten-Tabelle (Desktop) + Karten (Mobile)
 function _renderDocsTable() {
-    const tbody = document.getElementById('docs-table-body');
-    if (!tbody) return;
+    const tbody  = document.getElementById('docs-table-body');
+    const mobile = document.getElementById('docs-cards-mobile');
+    if (!tbody && !mobile) return;
 
     let filtered = _docsState.data;
     if (_docsState.category === '__draft__')  filtered = filtered.filter(d => d.status === 'draft');
     else if (_docsState.category)             filtered = filtered.filter(d => d.category === _docsState.category && d.status !== 'draft');
     else                                      filtered = filtered.filter(d => d.status !== 'draft');
 
+    // Sortierung: ungelesene zuerst, danach neueste zuerst
+    filtered = filtered.slice().sort((a, b) => {
+        const aUnread = !_docsState.readDocIds.has(a.id) && a.status !== 'draft';
+        const bUnread = !_docsState.readDocIds.has(b.id) && b.status !== 'draft';
+        if (aUnread !== bUnread) return aUnread ? -1 : 1;
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    });
+
     const titleEl = document.getElementById('docs-list-title');
     const countEl = document.getElementById('docs-count');
     if (titleEl) titleEl.textContent = _docsState.category === '__draft__' ? 'Entwürfe' : (_docsState.category || 'Alle Dokumente');
     if (countEl) countEl.textContent = `${filtered.length} Dokument${filtered.length !== 1 ? 'e' : ''}`;
 
+    const canEdit = userProfile?.role === 'admin' || userProfile?.role === 'manager';
+
     if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="6" style="display:block" class="p-8 text-center text-gray-400 text-sm">Keine Dokumente gefunden.</td></tr>';
-        // Mobil: rtable-Klarheit — blendet den Tabellenkopf aus, statt abgeschnittener Spalten
-        tbody.closest('.card')?.classList.add('rtable');
+        if (tbody)  tbody.innerHTML  = '<tr><td colspan="6" class="p-8 text-center text-gray-400 text-sm">Keine Dokumente gefunden.</td></tr>';
+        if (mobile) mobile.innerHTML = '<div class="p-8 text-center text-gray-400 text-sm">Keine Dokumente gefunden.</div>';
         return;
     }
 
-    const canEdit = userProfile?.role === 'admin' || userProfile?.role === 'manager';
+    // ── Mobile: schlanke Karten ──
+    if (mobile) mobile.innerHTML = filtered.map(d => _docsMobileCard(d, canEdit)).join('');
 
+    // ── Desktop: Tabellenzeilen ──
+    if (!tbody) return;
     tbody.innerHTML = filtered.map(d => {
         const isRead     = _docsState.readDocIds.has(d.id);
         const isArchived = d.is_deleted;
@@ -402,7 +420,41 @@ function _renderDocsTable() {
                 <td class="p-4 text-right" onclick="event.stopPropagation()">${actionBtns}</td>
             </tr>`;
     }).join('');
-    makeTableResponsive(tbody.closest('.card'));
+}
+
+// Eine schlanke Dokument-Karte für Mobile: Name + kompakte Meta-Zeile + Aktion
+function _docsMobileCard(d, canEdit) {
+    const isRead      = _docsState.readDocIds.has(d.id);
+    const isArchived  = d.is_deleted;
+    const isDraft     = d.status === 'draft';
+    const unread      = !isRead && !isDraft;
+    const displayName = d.generated_filename || d.document_title || d.title;
+    const bldName     = d.buildings?.name || '—';
+    const apt         = d.apartment_id ? _docsState.apartments.find(a => a.id == d.apartment_id) : null;
+    const location    = apt ? `${bldName} / ${apt.apartment_number}` : bldName;
+    const meta        = [d.category, location, d.year].filter(Boolean).join(' · ');
+
+    const action = (isDraft && canEdit)
+        ? `<button onclick="event.stopPropagation(); _publishDoc(${d.id})" title="Freigeben"
+              class="flex-shrink-0 text-[11px] font-bold text-white bg-hb-olive px-2.5 py-1.5 rounded-lg">Freigeben</button>`
+        : `<button onclick="event.stopPropagation(); _downloadDoc(${d.id})" title="Herunterladen"
+              class="flex-shrink-0 p-2 text-hb-olive rounded-lg active:bg-hb-ultralight">${_DICO_DL}</button>`;
+
+    return `
+        <div onclick="_openDocModal(${d.id})"
+            class="flex items-center gap-3 px-4 py-3 cursor-pointer active:bg-hb-ultralight transition-colors ${isArchived ? 'opacity-50' : ''}">
+            <div class="w-10 h-10 rounded-xl bg-hb-olive/10 text-hb-olive flex items-center justify-center flex-shrink-0 text-[10px] font-black">${_docsFileIcon(d.file_type)}</div>
+            <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5">
+                    ${unread ? '<span class="w-1.5 h-1.5 rounded-full bg-hb-orange flex-shrink-0"></span>' : ''}
+                    <span class="text-[15px] text-hb-offblack truncate ${unread ? 'font-bold' : 'font-semibold'}">${displayName}</span>
+                    ${isDraft ? '<span class="text-[9px] font-black uppercase bg-hb-orange/10 text-hb-orange px-1.5 py-0.5 rounded flex-shrink-0">Entwurf</span>' : ''}
+                    ${isArchived ? '<span class="text-[9px] font-black uppercase bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded flex-shrink-0">Archiv</span>' : ''}
+                </div>
+                <div class="text-[12px] text-gray-400 truncate mt-0.5">${meta || '—'}</div>
+            </div>
+            ${action}
+        </div>`;
 }
 
 // ─── BAUMANSICHT ───────────────────────────────────────────────
