@@ -117,6 +117,7 @@ function _crmRow(it) {
                 </div>
             </div>
             <div class="flex items-center gap-3 flex-shrink-0">
+                ${it.type === 'person' && it.crm_status && typeof crmStatusChip === 'function' ? crmStatusChip(it.crm_status) : ''}
                 ${last ? `<span class="text-[11px] text-gray-400 hidden sm:block">Letzte Aktivität: ${last}</span>` : ''}
                 ${_crmRowActions(it)}
             </div>
