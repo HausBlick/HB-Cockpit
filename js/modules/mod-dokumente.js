@@ -118,6 +118,7 @@ function _renderDocsView() {
         container.innerHTML = _buildListHtml();
         _populateBuildingFilter();
         _renderDocsCategoryList();
+        _renderDocsCategorySelect();
         _renderDocsTable();
     }
 }
@@ -137,7 +138,13 @@ window._docsSetView = (mode) => {
 function _buildListHtml() {
     return `
         <div class="flex flex-col lg:flex-row gap-4 lg:gap-5 items-stretch lg:items-start">
-            <div class="w-full lg:w-60 flex-shrink-0 grid grid-cols-2 lg:flex lg:flex-col gap-3 items-start lg:items-stretch">
+            <!-- Mobile-Filterleiste (nur < lg): schlanke Dropdowns -->
+            <div class="lg:hidden flex gap-2">
+                <select id="docs-building-filter-m" onchange="_docsFilterBuilding(this.value)" class="flex-1 text-sm"><option value="">Alle Gebäude</option></select>
+                <select id="docs-category-select-m" onchange="_docsFilterCatVal(this.value)" class="flex-1 text-sm"><option value="__all__">Alle Kategorien</option></select>
+            </div>
+            <!-- Desktop-Sidebar (ab lg) -->
+            <div class="hidden lg:flex lg:flex-col lg:w-60 flex-shrink-0 gap-3">
                 <div class="card">
                     <div class="p-3 bg-hb-olive"><p class="text-xs font-bold text-white">Gebäude</p></div>
                     <div class="p-2">
@@ -148,7 +155,7 @@ function _buildListHtml() {
                 </div>
                 <div class="card">
                     <div class="p-3 bg-hb-olive"><p class="text-xs font-bold text-white">Kategorien</p></div>
-                    <div id="docs-category-list" class="py-1 max-h-52 lg:max-h-none overflow-y-auto"></div>
+                    <div id="docs-category-list" class="py-1"></div>
                     <div class="border-t border-hb-olive/10 p-3">
                         <label class="flex items-center gap-2 cursor-pointer text-xs text-gray-500">
                             <input type="checkbox" id="docs-show-archived" onchange="_docsToggleArchived(this.checked)">
@@ -157,7 +164,7 @@ function _buildListHtml() {
                     </div>
                 </div>
                 ${(userProfile?.role === 'owner') ? `
-                <div class="card col-span-2 lg:col-span-1">
+                <div class="card">
                     <div class="p-3 bg-hb-olive"><p class="text-xs font-bold text-white">Beschlusssammlung</p></div>
                     <div class="p-3">
                         <p class="text-[13px] text-gray-500 mb-3 leading-snug">Als Eigentümer haben Sie das Recht, eine Kopie der Beschlusssammlung zu erhalten (§ 24 Abs. 7 WEG).</p>
@@ -194,18 +201,21 @@ function _buildListHtml() {
 }
 
 function _populateBuildingFilter() {
-    const sel = document.getElementById('docs-building-filter');
-    if (!sel) return;
-    while (sel.options.length > 1) sel.remove(1);
     const isAdmin = userProfile?.role === 'admin' || userProfile?.role === 'manager';
     const visibleBldIds = isAdmin ? null : new Set(_docsState.data.map(d => d.building_id).filter(Boolean));
     const buildings = isAdmin ? _docsState.buildings : _docsState.buildings.filter(b => visibleBldIds.has(b.id));
-    buildings.forEach(b => {
-        const opt = document.createElement('option');
-        opt.value = b.id;
-        opt.textContent = formatBuildingName(b);
-        if (_docsState.buildingId && b.id == _docsState.buildingId) opt.selected = true;
-        sel.appendChild(opt);
+    // Desktop-Sidebar-Select + Mobile-Leisten-Select gleich befüllen
+    ['docs-building-filter', 'docs-building-filter-m'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        while (sel.options.length > 1) sel.remove(1);
+        buildings.forEach(b => {
+            const opt = document.createElement('option');
+            opt.value = b.id;
+            opt.textContent = formatBuildingName(b);
+            if (_docsState.buildingId && b.id == _docsState.buildingId) opt.selected = true;
+            sel.appendChild(opt);
+        });
     });
     if (_docsState.showArchived) {
         const cb = document.getElementById('docs-show-archived');
@@ -266,11 +276,52 @@ function _renderDocsCategoryList() {
     el.innerHTML = html;
 }
 
+// Mobile-Kategorie-Dropdown (spiegelt die Sidebar-Liste)
+function _renderDocsCategorySelect() {
+    const sel = document.getElementById('docs-category-select-m');
+    if (!sel) return;
+    const counts = {};
+    _docsState.data.filter(d => d.status !== 'draft')
+        .forEach(d => { counts[d.category] = (counts[d.category] || 0) + 1; });
+    const total      = _docsState.data.filter(d => d.status !== 'draft').length;
+    const draftCount = _docsState.data.filter(d => d.status === 'draft').length;
+    const cur = _docsState.category;
+
+    let html = `<option value="__all__" ${!cur ? 'selected' : ''}>Alle Kategorien (${total})</option>`;
+    if (draftCount > 0) {
+        html += `<option value="__draft__" ${cur === '__draft__' ? 'selected' : ''}>Entwürfe (${draftCount})</option>`;
+    }
+    const groups = [
+        { label: 'WEG',       cats: KATEGORIEN_WEG },
+        { label: 'Miet',      cats: KATEGORIEN_MIET },
+        { label: 'Allgemein', cats: KATEGORIEN_ALLGEMEIN },
+    ];
+    groups.forEach(g => {
+        const visible = g.cats.filter(c => counts[c] > 0 || cur === c);
+        if (!visible.length) return;
+        html += `<optgroup label="${g.label}">`;
+        visible.forEach(cat => {
+            const cnt = counts[cat] || 0;
+            html += `<option value="${cat}" ${cur === cat ? 'selected' : ''}>${cat}${cnt > 0 ? ` (${cnt})` : ''}</option>`;
+        });
+        html += `</optgroup>`;
+    });
+    sel.innerHTML = html;
+}
+
+window._docsFilterCatVal = (val) => {
+    _docsState.category = (val === '__all__') ? null : val;
+    _renderDocsCategoryList();
+    _renderDocsCategorySelect();
+    _renderDocsTable();
+};
+
 window._docsFilterCatIdx = (idx) => {
     if (idx === -1)      _docsState.category = null;
     else if (idx === -2) _docsState.category = '__draft__';
     else                 _docsState.category = ALLE_KATEGORIEN[idx];
     _renderDocsCategoryList();
+    _renderDocsCategorySelect();
     _renderDocsTable();
 };
 
@@ -290,7 +341,9 @@ function _renderDocsTable() {
     if (countEl) countEl.textContent = `${filtered.length} Dokument${filtered.length !== 1 ? 'e' : ''}`;
 
     if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-gray-400 text-sm">Keine Dokumente gefunden.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="display:block" class="p-8 text-center text-gray-400 text-sm">Keine Dokumente gefunden.</td></tr>';
+        // Mobil: rtable-Klarheit — blendet den Tabellenkopf aus, statt abgeschnittener Spalten
+        tbody.closest('.card')?.classList.add('rtable');
         return;
     }
 
