@@ -119,10 +119,14 @@
         }
         const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-        // E-Mail + Name aus der Einladung vorbefüllen (?email=, ?name=). Der Token bleibt manuell (2. Faktor).
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('email')) document.getElementById('email').value = urlParams.get('email');
-        if (urlParams.get('name'))  document.getElementById('full_name').value = urlParams.get('name');
+        // E-Mail + Name aus der Einladung vorbefüllen. Wir lesen sowohl den Hash (#…) als auch ?query:
+        // Clean-URL-Server (z.B. npx serve auf Dev) verwerfen bei der .html→/register-Umleitung den
+        // ?query-Teil — der Hash bleibt IMMER erhalten. Der Token bleibt manuell (2. Faktor).
+        const _q = new URLSearchParams(window.location.search);
+        const _h = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
+        const _pre = (k) => _q.get(k) || _h.get(k);
+        if (_pre('email')) document.getElementById('email').value = _pre('email');
+        if (_pre('name'))  document.getElementById('full_name').value = _pre('name');
 
         document.getElementById('register-form').addEventListener('submit', async (e) => {
             e.preventDefault();
