@@ -178,9 +178,18 @@ async function savePersonData(personId, isNew) {
     return savedId;
 }
 
-// --- Rollen-Tab rendern (aus unit_assignments) ---
-function renderRolesTab(assignments = [], serviceProviders = []) {
+// --- Rollen-Tab rendern (aus unit_assignments) — editierbar: Zuweisung hinzufügen/beenden ---
+let _peBuildingsCache = null;
+async function _peEnsureBuildings() {
+    if (_peBuildingsCache) return _peBuildingsCache;
+    const { data } = await _supabase.from('buildings').select('id, name, file_number, street, house_number').order('file_number');
+    _peBuildingsCache = data || [];
+    return _peBuildingsCache;
+}
+
+async function renderRolesTab(assignments = [], serviceProviders = [], personId = null) {
     const container = document.getElementById('person-tab-roles');
+    if (!container) return;
     const roleMeta = {
         owner:    ['Eigentümer', 'badge-eigentuemer'],
         tenant:   ['Mieter',     'badge-mieter'],
@@ -200,9 +209,18 @@ function renderRolesTab(assignments = [], serviceProviders = []) {
         if (a.iban) meta.push(`IBAN …${String(a.iban).slice(-4)}`);
         if (!a.is_active) meta.push('beendet');
         const metaHtml = meta.length ? `<span class="block text-[11px] text-gray-400 mt-0.5">${meta.join(' · ')}</span>` : '';
+        // "Beenden" nur für aktive owner/tenant (haben source in ownerships/tenancies)
+        const canEnd = a.is_active && (a.source_table === 'ownerships' || a.source_table === 'tenancies') && personId;
+        const endBtn = canEnd
+            ? `<button type="button" onclick="endPersonAssignment('${a.source_table}', ${a.source_id}, '${personId}')"
+                 class="text-[11px] font-bold text-hb-error border border-hb-error/30 rounded-lg px-2 py-1 hover:bg-hb-error/5 whitespace-nowrap ml-2">Beenden</button>`
+            : '';
         return `<div class="flex items-start justify-between py-2 border-b border-gray-50 last:border-0">
             <span class="text-sm text-gray-700">${loc}${metaHtml}</span>
-            <span class="border ${cls} text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md whitespace-nowrap ml-2">${label}</span>
+            <span class="flex items-center gap-1 flex-shrink-0">
+                <span class="border ${cls} text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md whitespace-nowrap">${label}</span>
+                ${endBtn}
+            </span>
         </div>`;
     }).join('');
 
@@ -216,13 +234,90 @@ function renderRolesTab(assignments = [], serviceProviders = []) {
 
     const allRows = assignRows + spRows;
     const empty = '<p class="text-[15px] text-gray-400 text-center py-4">Keine Zuweisungen vorhanden.</p>';
+
+    let addForm = '';
+    if (personId) {
+        const buildings = await _peEnsureBuildings();
+        const bldOpts = buildings.map(b => `<option value="${b.id}">${typeof formatBuildingName === 'function' ? formatBuildingName(b) : (b.name || b.file_number)}</option>`).join('');
+        const today = new Date().toISOString().split('T')[0];
+        addForm = `
+            <div class="bg-hb-olive/5 border border-hb-olive/15 rounded-xl p-4 mt-3">
+                <p class="text-[10px] uppercase font-bold text-hb-olive mb-3">Neue Zuweisung</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="space-y-1">
+                        <label class="text-[10px] uppercase font-bold text-gray-500">Gebäude</label>
+                        <select id="pa_building" onchange="_peLoadUnits(this.value)"><option value="">— wählen —</option>${bldOpts}</select>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[10px] uppercase font-bold text-gray-500">Einheit</label>
+                        <select id="pa_unit"><option value="">— erst Gebäude wählen —</option></select>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[10px] uppercase font-bold text-gray-500">Rolle</label>
+                        <select id="pa_role"><option value="Eigentümer">Eigentümer</option><option value="Mieter">Mieter</option></select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Von</label><input type="date" id="pa_from" value="${today}"></div>
+                        <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Bis (optional)</label><input type="date" id="pa_to"></div>
+                    </div>
+                </div>
+                <button type="button" onclick="addPersonAssignment('${personId}')" class="btn-primary text-xs px-4 mt-3">Zuweisen</button>
+            </div>`;
+    } else {
+        addForm = '<p class="text-xs text-gray-400 mt-2">Person zuerst speichern, dann können Zuweisungen hinzugefügt werden.</p>';
+    }
+
     container.innerHTML = `
         <div class="space-y-2">
-            <p class="text-xs text-gray-400 mb-2">Zuweisungen erfolgen über das <strong>Objekte-Modul</strong>. Diese Ansicht ist schreibgeschützt.</p>
-            <div class="bg-white border border-gray-100 rounded-xl p-4">
-                ${allRows || empty}
-            </div>
+            <div class="bg-white border border-gray-100 rounded-xl p-4">${allRows || empty}</div>
+            ${addForm}
         </div>`;
+}
+
+// Einheiten eines Gebäudes ins Zuweisungs-Formular laden
+window._peLoadUnits = async (buildingId) => {
+    const sel = document.getElementById('pa_unit');
+    if (!sel) return;
+    if (!buildingId) { sel.innerHTML = '<option value="">— erst Gebäude wählen —</option>'; return; }
+    const { data } = await _supabase.from('apartments').select('id, apartment_number').eq('building_id', buildingId).order('apartment_number');
+    sel.innerHTML = '<option value="">— wählen —</option>' + (data || []).map(a => `<option value="${a.id}">Wohnung ${a.apartment_number}</option>`).join('');
+};
+
+// Zuweisung anlegen (schreibt in ownerships/tenancies; DB-Trigger synct unit_assignments + Rolle)
+window.addPersonAssignment = async (personId) => {
+    const aptId = parseInt(document.getElementById('pa_unit')?.value) || null;
+    const role  = document.getElementById('pa_role')?.value;
+    const from  = document.getElementById('pa_from')?.value || null;
+    const to    = document.getElementById('pa_to')?.value || null;
+    if (!aptId) { showToast('Bitte eine Einheit wählen.', 'error'); return; }
+    let error;
+    if (role === 'Eigentümer') {
+        ({ error } = await _supabase.from('ownerships').insert([{ apartment_id: aptId, owner_id: personId, valid_from: from, valid_to: to, is_active: true }]));
+    } else {
+        ({ error } = await _supabase.from('tenancies').insert([{ apartment_id: aptId, tenant_id: personId, start_date: from, end_date: to, status: 'Aktiv' }]));
+    }
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast(`${role} zugewiesen.`, 'success');
+    _peReloadRoles(personId);
+};
+
+// Zuweisung beenden
+window.endPersonAssignment = async (sourceTable, sourceId, personId) => {
+    if (!confirm('Zuweisung wirklich beenden?')) return;
+    const today = new Date().toISOString().split('T')[0];
+    if (sourceTable === 'ownerships') {
+        await _supabase.from('ownerships').update({ is_active: false, valid_to: today }).eq('id', sourceId);
+    } else {
+        await _supabase.from('tenancies').update({ status: 'Historisch', end_date: today }).eq('id', sourceId);
+    }
+    showToast('Zuweisung beendet.', 'success');
+    _peReloadRoles(personId);
+};
+
+// Rollen-Tab neu laden
+async function _peReloadRoles(personId) {
+    const data = await loadPersonForEdit(personId);
+    if (data.person) renderRolesTab(data.assignments || [], data.serviceProviders || [], personId);
 }
 
 // --- Haupt-Render ---
@@ -475,8 +570,8 @@ async function showPersonForm(id = null) {
             </form>
         </div>`;
 
-    // Rollen-Tab mit echten Daten befüllen
-    renderRolesTab(assignments, serviceProviders);
+    // Rollen-Tab mit echten Daten befüllen (editierbar bei bestehender Person)
+    renderRolesTab(assignments, serviceProviders, isNew ? null : id);
 
     // Activity-Log (nur für bestehende Personen)
     if (!isNew && typeof renderCrmActivityLog === 'function') {
