@@ -30,10 +30,16 @@ window.loadCrm = async () => {
                     <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">HB-CRM</h2>
                     <p class="text-[15px] text-gray-500 mt-1">Suche über Objekte und Personen — Name, Nummer, Straße oder E-Mail.</p>
                 </div>
-                <button onclick="showPersonForm()" class="btn-primary text-sm flex items-center gap-2 shadow-sm whitespace-nowrap flex-shrink-0">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-                    Neue Person
-                </button>
+                <div class="flex gap-2 flex-shrink-0">
+                    <button onclick="showContactForm()" class="btn-secondary text-sm flex items-center gap-2 whitespace-nowrap">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5m14 0h2M5 21H3m4-14h2m-2 4h2m6-4h2m-2 4h2M9 21v-4a1 1 0 011-1h4a1 1 0 011 1v4"/></svg>
+                        Neue Firma
+                    </button>
+                    <button onclick="showPersonForm()" class="btn-primary text-sm flex items-center gap-2 shadow-sm whitespace-nowrap">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                        Neue Person
+                    </button>
+                </div>
             </div>
             <div class="relative max-w-2xl">
                 <input type="text" id="crm-search" autocomplete="off" oninput="crmSearch(this.value)"
@@ -288,6 +294,24 @@ window.showCrmPersonDetail = async (personId) => {
     const p = data.person;
     const assignments = data.assignments || [];
     const bank = data.bank || {};
+
+    // Firma: Ansprechpartner (Kaskade) + Gebäude-Freigaben laden
+    let crmKids = [], crmLinks = [], crmBmap = {};
+    if (p.is_company) {
+        const [kidsRes, linksRes] = await Promise.all([
+            _supabase.from('persons').select('id, first_name, last_name, contact_role, email, phone, auth_user_id, crm_status')
+                .eq('parent_person_id', p.id).order('last_name'),
+            _supabase.from('person_building_links').select('id, building_id, category, is_emergency').eq('person_id', p.id),
+        ]);
+        crmKids = kidsRes.data || [];
+        crmLinks = linksRes.data || [];
+        const bids = [...new Set(crmLinks.map(l => l.building_id))];
+        if (bids.length) {
+            const { data: bs } = await _supabase.from('buildings').select('id, name, file_number').in('id', bids);
+            (bs || []).forEach(b => crmBmap[b.id] = b);
+        }
+    }
+
     const displayName = p.is_company
         ? (p.company_name || p.last_name || '—')
         : `${p.salutation ? p.salutation + ' ' : ''}${p.first_name || ''} ${p.last_name || ''}`.trim() || '—';
@@ -312,6 +336,43 @@ window.showCrmPersonDetail = async (personId) => {
             <span class="border ${cls} text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md whitespace-nowrap ml-2">${label}</span>
         </div>`;
     }).join('') : '<p class="text-sm text-gray-400 py-2">Keine Zuweisungen.</p>';
+
+    // Firmen-Zusatz: Ansprechpartner (Kaskade K11) + Gebäude-Freigaben
+    const companyExtraHtml = p.is_company ? `
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+            <div class="card p-6 space-y-3">
+                <div class="flex items-center justify-between">
+                    <p class="text-[10px] uppercase font-bold text-gray-300">Ansprechpartner</p>
+                    <button onclick="showContactPersonForm('${p.id}')" class="text-[11px] font-bold text-hb-olive hover:underline">+ Hinzufügen</button>
+                </div>
+                <div>${crmKids.length ? crmKids.map(k => {
+                    const nm = [k.first_name, k.last_name].filter(Boolean).join(' ') || (k.last_name || '—');
+                    return `<div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                        <div class="min-w-0">
+                            <span class="text-sm font-semibold text-hb-offblack">${_crmEsc(nm)}</span>
+                            ${k.contact_role ? `<span class="text-xs text-gray-400"> · ${_crmEsc(k.contact_role)}</span>` : ''}
+                            ${k.auth_user_id ? `<span class="ml-1 text-[9px] font-black uppercase bg-hb-olive/10 text-hb-olive px-1 py-0.5 rounded">Login</span>` : ''}
+                            ${(k.email || k.phone) ? `<div class="text-xs text-gray-500">${_crmEsc([k.email, k.phone].filter(Boolean).join(' · '))}</div>` : ''}
+                        </div>
+                        <button onclick="showContactPersonForm('${p.id}','${k.id}')" class="text-[11px] text-hb-olive font-semibold hover:underline flex-shrink-0">Bearbeiten</button>
+                    </div>`;
+                }).join('') : '<p class="text-sm text-gray-400 py-2">Keine Ansprechpartner.</p>'}</div>
+            </div>
+            <div class="card p-6 space-y-3">
+                <div class="flex items-center justify-between">
+                    <p class="text-[10px] uppercase font-bold text-gray-300">Gebäude-Freigaben</p>
+                    <button onclick="crmAddRelease('${p.id}')" class="text-[11px] font-bold text-hb-olive hover:underline">+ Freigeben</button>
+                </div>
+                <div>${crmLinks.length ? crmLinks.map(l => {
+                    const b = crmBmap[l.building_id];
+                    const bn = b ? [(b.file_number || ''), (b.name || '')].filter(Boolean).join(' · ') : ('Gebäude ' + l.building_id);
+                    return `<div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                        <span class="text-sm text-gray-700">${_crmEsc(bn)}${l.category ? `<span class="text-xs text-gray-400"> · ${_crmEsc(l.category)}</span>` : ''}${l.is_emergency ? ' <span class="text-[9px] font-black uppercase bg-hb-orange/10 text-hb-orange px-1 py-0.5 rounded">Notfall</span>' : ''}</span>
+                        <button onclick="crmRemoveRelease('${l.id}','${p.id}')" class="text-[11px] text-hb-orange font-semibold hover:underline flex-shrink-0">Entfernen</button>
+                    </div>`;
+                }).join('') : '<p class="text-sm text-gray-400 py-2">An kein Gebäude freigegeben.</p>'}</div>
+            </div>
+        </div>` : '';
 
     c.innerHTML = `
         <div class="text-left">
@@ -360,6 +421,8 @@ window.showCrmPersonDetail = async (personId) => {
                 </div>
             </div>
 
+            ${companyExtraHtml}
+
             <div class="card p-6 mt-6">
                 <p class="text-[10px] uppercase font-bold text-gray-300 mb-3">Aktivitäten</p>
                 <div id="crm-activity-container"></div>
@@ -369,4 +432,53 @@ window.showCrmPersonDetail = async (personId) => {
     if (typeof renderCrmActivityLog === 'function') {
         renderCrmActivityLog(document.getElementById('crm-activity-container'), 'person', personId);
     }
+};
+
+// --- Gebäude-Freigabe einer Firma (person_building_links) ---
+window.crmAddRelease = async (personId) => {
+    const { data: bs } = await _supabase.from('buildings').select('id, name, file_number').order('file_number');
+    const buildings = bs || [];
+    if (!buildings.length) { showToast('Keine Gebäude vorhanden.', 'error'); return; }
+    const cats = (typeof CONTACT_CATEGORIES !== 'undefined' && CONTACT_CATEGORIES.length) ? CONTACT_CATEGORIES : ['Dienstleister'];
+    showModal('crm-release-modal', `
+            <h3 class="text-lg font-extrabold text-hb-offblack mb-4">An Gebäude freigeben</h3>
+            <div class="space-y-3">
+                <div class="space-y-1">
+                    <label class="text-[10px] uppercase font-bold text-gray-500">Gebäude</label>
+                    <select id="crm_rel_bld" class="w-full text-sm">${buildings.map(b => `<option value="${b.id}">${_crmEsc([(b.file_number || ''), (b.name || ('Gebäude ' + b.id))].filter(Boolean).join(' · '))}</option>`).join('')}</select>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[10px] uppercase font-bold text-gray-500">Kategorie</label>
+                    <select id="crm_rel_cat" class="w-full text-sm">${cats.map(c => `<option value="${c}">${_crmEsc(c)}</option>`).join('')}</select>
+                </div>
+                <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-600"><input type="checkbox" id="crm_rel_emerg" class="w-4 h-4 accent-[#687451]"> 24/7 Notfallkontakt</label>
+            </div>
+            <div class="flex gap-3 justify-end pt-4">
+                <button onclick="hideModal('crm-release-modal')" class="btn-secondary text-sm">Abbrechen</button>
+                <button onclick="crmSaveRelease('${personId}')" class="btn-primary text-sm">Freigeben</button>
+            </div>
+    `, { maxWidth: 'max-w-md' });
+};
+
+window.crmSaveRelease = async (personId) => {
+    const building_id  = parseInt(document.getElementById('crm_rel_bld')?.value);
+    const category     = document.getElementById('crm_rel_cat')?.value || null;
+    const is_emergency = document.getElementById('crm_rel_emerg')?.checked || false;
+    if (!building_id) return;
+    const { error } = await _supabase.from('person_building_links').upsert(
+        [{ person_id: personId, building_id, category, is_emergency, is_visible_to_tenants: true }],
+        { onConflict: 'person_id,building_id' }
+    );
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    hideModal('crm-release-modal');
+    showToast('Freigegeben.', 'success');
+    showCrmPersonDetail(personId);
+};
+
+window.crmRemoveRelease = async (linkId, personId) => {
+    if (!confirm('Freigabe entfernen?')) return;
+    const { error } = await _supabase.from('person_building_links').delete().eq('id', linkId);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    showToast('Freigabe entfernt.', 'success');
+    showCrmPersonDetail(personId);
 };

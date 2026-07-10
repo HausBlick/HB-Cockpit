@@ -559,7 +559,10 @@ window.saveContact = async (contactId) => {
 
     hideModal('contact-form-modal');
     showToast(contactId ? 'Kontakt aktualisiert.' : 'Kontakt angelegt.', 'success');
-    await loadContacts();
+    // Kontext: aus dem CRM heraus die CRM-Ansicht auffrischen, sonst Kontaktbuch
+    const _onCrm = document.getElementById('crm-results') || document.getElementById('crm-activity-container');
+    if (_onCrm && typeof loadCrm === 'function') await loadCrm();
+    else await loadContacts();
 
     // Nach Anlage einer Firma: Ansprechpartner hinzufügen?
     if (!contactId && isCompany && personId) {
@@ -659,7 +662,7 @@ window.saveContactPerson = async (contactId, personId = null) => {
     if (error) { showToast(error.message, 'error'); return; }
     hideModal('contact-person-form-modal');
     showToast('Ansprechpartner gespeichert.', 'success');
-    openContactDetail(contactId);   // Detail mit aktualisierter Liste neu öffnen
+    _afterContactPersonChange(contactId);
 };
 
 window.deleteContactPerson = async (personId, contactId) => {
@@ -667,8 +670,17 @@ window.deleteContactPerson = async (personId, contactId) => {
     const { error } = await _supabase.from('persons').delete().eq('id', personId);
     if (error) { showToast(error.message, 'error'); return; }
     showToast('Ansprechpartner gelöscht.', 'success');
-    openContactDetail(contactId);
+    _afterContactPersonChange(contactId);
 };
+
+// Nach Ansprechpartner-Änderung die richtige Ansicht auffrischen (CRM-Firma-Detail vs. Kontaktbuch)
+function _afterContactPersonChange(contactId) {
+    if (document.getElementById('crm-activity-container') && typeof showCrmPersonDetail === 'function') {
+        showCrmPersonDetail(contactId);
+    } else {
+        openContactDetail(contactId);
+    }
+}
 
 window.deleteContact = async (contactId) => {
     if (!confirm('Kontakt wirklich löschen? Alle Ansprechpartner werden ebenfalls gelöscht.')) return;
