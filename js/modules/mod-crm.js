@@ -343,7 +343,10 @@ window.showCrmPersonDetail = async (personId) => {
             <div class="card p-6 space-y-3">
                 <div class="flex items-center justify-between">
                     <p class="text-[10px] uppercase font-bold text-gray-300">Ansprechpartner</p>
-                    <button onclick="showContactPersonForm('${p.id}')" class="text-[11px] font-bold text-hb-olive hover:underline">+ Hinzufügen</button>
+                    <div class="flex items-center gap-3">
+                        ${p.person_number === '0000' ? `<button onclick="crmAddStaff('${p.id}')" class="text-[11px] font-bold text-hb-olive hover:underline">+ Mitarbeiter (Login)</button>` : ''}
+                        <button onclick="showContactPersonForm('${p.id}')" class="text-[11px] font-bold text-hb-olive hover:underline">+ Hinzufügen</button>
+                    </div>
                 </div>
                 <div>${crmKids.length ? crmKids.map(k => {
                     const nm = [k.first_name, k.last_name].filter(Boolean).join(' ') || (k.last_name || '—');
@@ -481,4 +484,79 @@ window.crmRemoveRelease = async (linkId, personId) => {
     if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
     showToast('Freigabe entfernt.', 'success');
     showCrmPersonDetail(personId);
+};
+
+// --- Mitarbeiter (HB Verwaltung) mit Login + Rolle + Objektzuweisung anlegen ---
+window.crmAddStaff = async (companyId) => {
+    const { data: bs } = await _supabase.from('buildings').select('id, name, file_number').order('file_number');
+    const buildings = bs || [];
+    showModal('crm-staff-modal', `
+            <h3 class="text-lg font-extrabold text-hb-offblack mb-1">Mitarbeiter anlegen</h3>
+            <p class="text-xs text-gray-400 mb-4">Legt einen Login an, verknüpft ihn mit HB Verwaltung und vergibt Rolle/Objekte.</p>
+            <div class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Vorname</label><input id="cs_first" class="w-full text-sm" placeholder="Max"></div>
+                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Nachname *</label><input id="cs_last" class="w-full text-sm" placeholder="Mustermann"></div>
+                </div>
+                <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">E-Mail *</label><input id="cs_email" type="email" class="w-full text-sm" placeholder="max@hausblick-fn.de"></div>
+                <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Rolle</label>
+                    <select id="cs_role" onchange="document.getElementById('cs_bld_wrap').style.display=this.value==='manager'?'block':'none'" class="w-full text-sm">
+                        <option value="manager">Manager (nur zugewiesene Gebäude)</option>
+                        <option value="admin">Admin (Vollzugriff)</option>
+                    </select>
+                </div>
+                <div id="cs_bld_wrap" class="space-y-1">
+                    <label class="text-[10px] uppercase font-bold text-gray-500">Zugewiesene Gebäude</label>
+                    <div class="max-h-32 overflow-y-auto border border-gray-200 rounded-xl p-2 bg-gray-50 space-y-1">
+                        ${buildings.length ? buildings.map(b => `<label class="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" value="${b.id}" class="cs_bld accent-[#687451]"> ${_crmEsc([(b.file_number || ''), (b.name || ('Gebäude ' + b.id))].filter(Boolean).join(' · '))}</label>`).join('') : '<p class="text-xs text-gray-400">Keine Gebäude.</p>'}
+                    </div>
+                </div>
+                <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Zugang</label>
+                    <select id="cs_method" onchange="document.getElementById('cs_pw_wrap').style.display=this.value==='password'?'block':'none'" class="w-full text-sm">
+                        <option value="invite">Einladung per E-Mail (setzt eigenes Passwort)</option>
+                        <option value="password">Passwort direkt setzen</option>
+                    </select>
+                </div>
+                <div id="cs_pw_wrap" style="display:none" class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Passwort</label><input id="cs_pw" type="text" class="w-full text-sm" placeholder="min. 8 Zeichen"></div>
+            </div>
+            <div class="flex gap-3 justify-end pt-4">
+                <button onclick="hideModal('crm-staff-modal')" class="btn-secondary text-sm">Abbrechen</button>
+                <button onclick="crmSaveStaff('${companyId}')" class="btn-primary text-sm">Anlegen</button>
+            </div>
+    `, { maxWidth: 'max-w-md' });
+};
+
+window.crmSaveStaff = async (companyId) => {
+    const first  = document.getElementById('cs_first')?.value?.trim() || '';
+    const last   = document.getElementById('cs_last')?.value?.trim() || '';
+    const email  = document.getElementById('cs_email')?.value?.trim();
+    const role   = document.getElementById('cs_role')?.value || 'manager';
+    const method = document.getElementById('cs_method')?.value || 'invite';
+    const pw     = document.getElementById('cs_pw')?.value?.trim();
+    const full_name = [first, last].filter(Boolean).join(' ');
+    if (!email || !last) { showToast('Nachname und E-Mail sind Pflicht.', 'error'); return; }
+    if (method === 'password' && (!pw || pw.length < 8)) { showToast('Passwort min. 8 Zeichen.', 'error'); return; }
+
+    const building_ids = role === 'manager'
+        ? [...document.querySelectorAll('.cs_bld:checked')].map(e => parseInt(e.value))
+        : [];
+    const body = { email, full_name, role, building_ids };
+    if (method === 'password') body.password = pw;
+
+    const { data, error } = await _supabase.functions.invoke('create-user', { body });
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    const res = Array.isArray(data) ? data[0] : data;
+    if (!res || res.success === false) { showToast('Fehler: ' + (res?.error || 'unbekannt'), 'error'); return; }
+
+    // Als Kind-Person (Ansprechpartner) der Verwaltung mit Login verknüpfen
+    if (res.user_id) {
+        await _supabase.from('persons').insert([{
+            is_company: false, first_name: first || null, last_name: last, email,
+            contact_type: 'Privatperson', parent_person_id: companyId, auth_user_id: res.user_id,
+            contact_role: role === 'admin' ? 'Admin' : 'Manager', is_visible_to_tenants: true, crm_status: 'active',
+        }]);
+    }
+    hideModal('crm-staff-modal');
+    showToast('Mitarbeiter angelegt.', 'success');
+    showCrmPersonDetail(companyId);
 };
