@@ -915,12 +915,9 @@ window._tktShowRecipientInfo = async (bId, aptId = null) => {
         fallback = 'die Hausverwaltung';
         suffix   = 'Hausverwaltung';
         if (bId) {
-            const { data: mgmt } = await _supabase.from('management_assignments')
-                .select('manager_id').eq('building_id', bId).limit(1).maybeSingle();
-            if (mgmt?.manager_id) {
-                const { data: p } = await _supabase.from('profiles').select('full_name').eq('id', mgmt.manager_id).maybeSingle();
-                name = p?.full_name || null;
-            }
+            // RLS-sichere RPC: Owner dürfen management_assignments nicht direkt lesen
+            const { data } = await _supabase.rpc('get_building_manager', { p_building_id: bId });
+            name = data?.[0]?.full_name || null;
         }
     }
 
@@ -1021,9 +1018,9 @@ window.saveTicket = async () => {
         if (!tenantId) showToast('Kein aktiver Mieter für diese Einheit gefunden.', 'error');
     } else if (role === 'owner' && bId) {
         // Owner (kein Landlord) → automatisch an zugewiesenen Verwalter des Gebäudes
-        const { data: mgmt } = await _supabase.from('management_assignments')
-            .select('manager_id').eq('building_id', bId).limit(1).maybeSingle();
-        assignedTo = mgmt?.manager_id || null;
+        // RLS-sichere RPC statt Direktzugriff; DB-Trigger trg_set_ticket_assignee ist Backstop.
+        const { data } = await _supabase.rpc('get_building_manager', { p_building_id: bId });
+        assignedTo = data?.[0]?.manager_id || null;
     } else {
         // Admin/Manager → manuell gewählt
         const recipientSel = document.getElementById('tkt_recipient');
