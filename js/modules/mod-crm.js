@@ -54,11 +54,18 @@ window.loadCrm = async () => {
     const loading = document.getElementById('crm-results');
     if (loading) loading.innerHTML = '<p class="text-sm text-gray-400 py-6">Lädt…</p>';
 
-    const [persRes, bldRes, actRes] = await Promise.all([
+    const [persRes, bldRes, actRes, ctxRes] = await Promise.all([
         _supabase.from('persons').select('id, is_company, company_name, first_name, last_name, email, person_number, crm_status, street, house_number, zip_code, city'),
         _supabase.from('buildings').select('id, name, file_number, status, street, house_number, zip_code, city'),
         _supabase.from('crm_activities').select('entity_type, entity_id, created_at'),
+        _supabase.from('unit_assignments').select('person_id, context_number').not('context_number', 'is', null),
     ]);
+
+    // Kundennummer für Owner/Mieter = context_number(n) pro Gebäude
+    const ctxMap = {};
+    for (const u of (ctxRes.data || [])) {
+        (ctxMap[u.person_id] ??= new Set()).add(u.context_number);
+    }
 
     const lastAct = {};
     for (const a of (actRes.data || [])) {
@@ -74,11 +81,13 @@ window.loadCrm = async () => {
     const persons = (persRes.data || []).map(p => {
         const name = p.is_company ? (p.company_name || p.last_name || '—') : `${p.first_name || ''} ${p.last_name || ''}`.trim() || '—';
         const addr = addrOf(p);
+        const ctxNums = ctxMap[p.id] ? [...ctxMap[p.id]] : [];
+        const number  = p.person_number || ctxNums.join(', ');
         return {
-            type: 'person', id: p.id, title: name, number: p.person_number || '',
+            type: 'person', id: p.id, title: name, number: number,
             kind: p.is_company ? 'Firma' : 'Person', crm_status: p.crm_status,
             email: p.email || '', address: addr, lastActivity: lastAct[`person:${p.id}`] || null,
-            search: `${name} ${p.email || ''} ${p.person_number || ''} ${addr}`.toLowerCase(),
+            search: `${name} ${p.email || ''} ${p.person_number || ''} ${ctxNums.join(' ')} ${addr}`.toLowerCase(),
         };
     });
     const objects = (bldRes.data || []).map(b => {
@@ -316,6 +325,10 @@ window.showCrmPersonDetail = async (personId) => {
         ? (p.company_name || p.last_name || '—')
         : `${p.salutation ? p.salutation + ' ' : ''}${p.first_name || ''} ${p.last_name || ''}`.trim() || '—';
 
+    // Kundennummer: globale person_number (Firma/Staff) ODER context_number pro Gebäude (Owner/Mieter)
+    const _ctxNums = [...new Set((assignments || []).map(a => a.context_number).filter(Boolean))];
+    const kundennummer = p.person_number || (_ctxNums.length ? _ctxNums.join(', ') : null);
+
     const field = (label, value, isEmail = false) => value
         ? `<div class="space-y-0.5">
                <p class="text-[10px] uppercase font-bold text-gray-400">${_crmEsc(label)}</p>
@@ -398,7 +411,7 @@ window.showCrmPersonDetail = async (personId) => {
                     <div class="w-12 h-12 rounded-full bg-hb-olive/10 text-hb-olive font-black flex items-center justify-center text-xl">${_crmEsc(displayName.charAt(0).toUpperCase())}</div>
                     <div>
                         <h2 class="text-xl font-extrabold text-hb-offblack leading-tight">${_crmEsc(displayName)}</h2>
-                        <p class="text-xs text-gray-400">${p.is_company ? 'Unternehmen' : 'Privatperson'}${p.person_number ? ' · #' + _crmEsc(p.person_number) : ''}</p>
+                        <p class="text-xs text-gray-400">${p.is_company ? 'Unternehmen' : 'Privatperson'}${kundennummer ? ' · #' + _crmEsc(kundennummer) : ''}</p>
                         ${typeof crmStatusChip === 'function' ? `<div class="mt-1">${crmStatusChip(p.crm_status)}</div>` : ''}
                     </div>
                 </div>
