@@ -29,7 +29,7 @@ async function loadTickets() {
             <div id="ticket-sidebar" class="w-full lg:w-56 xl:w-64 flex-shrink-0">
                 <div class="card lg:h-full flex flex-col overflow-hidden">
                     <div class="px-4 py-3 flex justify-between items-center bg-hb-olive">
-                        <h2 class="text-sm font-bold text-white">Tickets</h2>
+                        <h2 class="text-sm font-bold text-white">${(userProfile?.role==='admin'||userProfile?.role==='manager')?'HB-Desk':'Tickets'}</h2>
                         <button onclick="showCreateTicketModal()"
                             class="bg-white text-hb-olive w-9 h-9 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center text-lg leading-none hover:bg-hb-ultralight transition-colors">+</button>
                     </div>

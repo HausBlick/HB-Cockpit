@@ -127,29 +127,29 @@ function renderNav(role) {
 
     if (role === 'admin' || role === 'manager') {
         html += `<li class="nav-section-title">Kommunikation</li>`;
-        html += _navItem('loadNews',           icons.news,      'Schwarzes Brett', 'nav-badge-news');
-        html += _navItem('loadTickets',        icons.tickets,   'Tickets',         'nav-badge-tickets');
-        html += _navItem('loadContacts',       icons.contact,   'Kontaktbuch');
+        html += _navItem('loadNews',           icons.news,      'HB-News',      'nav-badge-news');
+        html += _navItem('loadTickets',        icons.tickets,   'HB-Desk',      'nav-badge-tickets');
+        html += _navItem('loadContacts',       icons.contact,   'HB-Contacts');
 
         html += `<li class="nav-section-title">Verwaltung</li>`;
-        html += _navItem('loadCrm',            icons.users,      'HB-CRM');
-        html += _navItem('loadTenants',        icons.buildings,  'Gebäude &amp; Einheiten');
+        html += _navItem('loadCrm',            icons.users,      'HB-Hub');
+        html += _navItem('loadTenants',        icons.buildings,  'HB-Units');
 
         html += `<li class="nav-section-title">Finanzen</li>`;
-        html += _navItem('loadFinance',        icons.finance,   'Buchhaltung');
-        html += _navItem('loadZeiterfassung',  icons.clock,     'Zeiterfassung');
+        html += _navItem('loadFinance',        icons.finance,   'HB-Finance');
+        html += _navItem('loadZeiterfassung',  icons.clock,     'HB-Track');
 
         html += `<li class="nav-section-title">Service & Dokumente</li>`;
-        html += _navItem('loadDocuments',      icons.docs,      'Dokumenten Cloud', 'nav-badge-docs');
-        html += _navItem('loadCalendar',       icons.calendar,  'Kalender');
-        html += _navItem('loadETV',            icons.users,     'Eigentümerversammlung');
-        // Beschlusssammlung: auf etv.html per onclick, sonst href mit tab-Param
+        html += _navItem('loadDocuments',      icons.docs,      'HB-Docs',      'nav-badge-docs');
+        html += _navItem('loadCalendar',       icons.calendar,  'HB-Dates');
+        html += _navItem('loadETV',            icons.users,     'HB-Meet');
+        // Beschlusssammlung (HB-Votes): auf etv.html per onclick, sonst href mit tab-Param
         const _bPage = _getCurrentPage();
         html += `<li><a ${_bPage === 'etv' ? `onclick="loadBeschluesse(); setActiveNav(this)"` : `href="etv.html?tab=beschluesse"`} class="nav-link">
             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
-            <span class="nav-label"> Beschlusssammlung</span><span id="nav-badge-beschluesse" class="nav-badge"></span>
+            <span class="nav-label"> HB-Votes</span><span id="nav-badge-beschluesse" class="nav-badge"></span>
         </a></li>`;
-        html += _navItem('loadSettings',       icons.settings,  'Einstellungen');
+        html += _navItem('loadSettings',       icons.settings,  'HB-Setup');
 
     } else if (role === 'owner') {
         html += `<li class="nav-section-title">Mein Asset</li>`;

@@ -157,7 +157,7 @@ function _finRenderShell() {
     document.getElementById('content-area').innerHTML = `
         <div class="flex justify-between items-end mb-6">
             <div>
-                <h2 class="text-[28px] font-bold text-hb-olive tracking-tight">Buchhaltung</h2>
+                <h2 class="text-[28px] font-bold text-hb-olive tracking-tight">${(userProfile?.role==='admin'||userProfile?.role==='manager')?'HB-Finance':'Buchhaltung'}</h2>
                 <p class="text-[15px] text-gray-500 mt-1">Konten, Buchungen, Zählerstände & Sollstellungen.</p>
             </div>
             <select id="fin-building-select" onchange="_finOnBuildingChange(this.value)"

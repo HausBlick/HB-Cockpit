@@ -63,7 +63,7 @@ async function loadTenants() {
             <div class="w-full lg:w-56 xl:w-64 flex-shrink-0 flex flex-col gap-3 h-full">
                 <div class="card flex flex-col h-full overflow-hidden">
                     <div class="px-4 py-3 flex justify-between items-center bg-hb-olive">
-                        <h2 class="text-sm font-bold text-white">Objekte</h2>
+                        <h2 class="text-sm font-bold text-white">HB-Units</h2>
                         <button onclick="showBuildingForm()"
                             class="bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors">+ Neues Objekt</button>
                     </div>

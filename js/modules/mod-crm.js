@@ -26,7 +26,7 @@ window.loadCrm = async () => {
     c.innerHTML = `
         <div class="text-left">
             <div class="flex justify-between items-center mb-8 gap-4">
-                <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">HB-CRM</h2>
+                <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">HB-Hub</h2>
                 <div class="flex gap-2 flex-shrink-0">
                     <button onclick="showContactForm()" class="btn-secondary text-sm flex items-center gap-2 whitespace-nowrap">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5m14 0h2M5 21H3m4-14h2m-2 4h2m6-4h2m-2 4h2M9 21v-4a1 1 0 011-1h4a1 1 0 011 1v4"/></svg>

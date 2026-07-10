@@ -242,7 +242,7 @@ window._etvSelectBuilding = async (id) => {
         <div class="flex flex-col h-full">
             <div class="flex justify-between items-center mb-6 flex-shrink-0">
                 <div>
-                    <h1 class="text-[28px] font-bold text-hb-offblack">Eigentümerversammlungen</h1>
+                    <h1 class="text-[28px] font-bold text-hb-offblack">HB-Meet</h1>
                     <p class="text-xs text-gray-400 mt-0.5 font-bold uppercase tracking-widest">${buildingLabel}</p>
                 </div>
                 <div class="flex items-center gap-2 flex-shrink-0">

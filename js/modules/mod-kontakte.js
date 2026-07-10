@@ -96,7 +96,7 @@ function _renderContactsPage(role) {
     document.getElementById('content-area').innerHTML = `
         <div class="flex justify-between items-end mb-5">
             <div>
-                <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">Kontaktbuch</h2>
+                <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">${(userProfile?.role==='admin'||userProfile?.role==='manager')?'HB-Contacts':'Kontaktbuch'}</h2>
                 <p class="text-[15px] text-gray-500 mt-1">Ansprechpartner, Dienstleister und Notfallkontakte</p>
             </div>
             ${isAdmin || isOwner ? `

@@ -41,7 +41,7 @@ async function loadDocuments() {
     document.getElementById('content-area').innerHTML = `
         <div class="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 mb-6 text-left">
             <div>
-                <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">Dokumenten Cloud</h2>
+                <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">${(userProfile?.role==='admin'||userProfile?.role==='manager')?'HB-Docs':'Dokumenten Cloud'}</h2>
                 <p class="text-[15px] text-gray-500 mt-1">Dokumente zentral verwalten und bereitstellen.</p>
             </div>
             <div class="flex items-center gap-2 sm:gap-3 flex-shrink-0">
