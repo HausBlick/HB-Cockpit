@@ -58,7 +58,11 @@ async function loadTenants() {
     }
     const container = document.getElementById('content-area');
     container.innerHTML = `
-        <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)] text-left">
+        <div class="mb-5 text-left">
+            <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">HB-Units</h2>
+            <p class="text-[15px] text-gray-500 mt-1">Gebäude, Einheiten und Zuweisungen verwalten.</p>
+        </div>
+        <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-210px)] text-left">
             <!-- Linke Sidebar: schmaler -->
             <div class="w-full lg:w-56 xl:w-64 flex-shrink-0 flex flex-col gap-3 h-full">
                 <div class="card flex flex-col h-full overflow-hidden">

@@ -39,7 +39,8 @@ function _settingsRender(s) {
 
     document.getElementById('content-area').innerHTML = `
         <div class="py-6">
-            <h1 class="text-[28px] font-bold text-hb-offblack mb-4">HB-Setup</h1>
+            <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">HB-Setup</h2>
+            <p class="text-[15px] text-gray-500 mt-1 mb-4">Portal-Einstellungen und Nutzerübersicht.</p>
 
             <!-- Tab-Navigation -->
             <div class="flex gap-1 mb-5 border-b border-hb-olive/10 pb-0">

@@ -242,8 +242,8 @@ window._etvSelectBuilding = async (id) => {
         <div class="flex flex-col h-full">
             <div class="flex justify-between items-center mb-6 flex-shrink-0">
                 <div>
-                    <h1 class="text-[28px] font-bold text-hb-offblack">HB-Meet</h1>
-                    <p class="text-xs text-gray-400 mt-0.5 font-bold uppercase tracking-widest">${buildingLabel}</p>
+                    <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">HB-Meet</h2>
+                    <p class="text-[15px] text-gray-500 mt-1">Eigentümerversammlungen planen und protokollieren · ${buildingLabel}</p>
                 </div>
                 <div class="flex items-center gap-2 flex-shrink-0">
                     <button onclick="_etvDownloadAnwesenheitsliste()" class="btn-outline text-sm font-bold flex items-center gap-2 px-4 py-2.5">
@@ -2580,7 +2580,11 @@ async function loadBeschluesse() {
     }
 
     ca.innerHTML = `
-        <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)] text-left">
+        <div class="mb-5 text-left">
+            <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">HB-Votes</h2>
+            <p class="text-[15px] text-gray-500 mt-1">Alle gefassten Beschlüsse im Überblick.</p>
+        </div>
+        <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-210px)] text-left">
             <div class="w-full lg:w-56 xl:w-64 flex-shrink-0 flex flex-col h-full">
                 <div class="card flex flex-col h-full overflow-hidden">
                     <div class="px-4 py-3 bg-hb-olive"><h2 class="text-sm font-bold text-white">Objekte</h2></div>

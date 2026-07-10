@@ -68,8 +68,8 @@ function _timeRenderShell() {
     ca.innerHTML = `
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
             <div>
-                <h1 class="text-[28px] font-bold text-hb-offblack">HB-Track</h1>
-                <p class="text-xs text-gray-500 mt-1">${bName}</p>
+                <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">HB-Track</h2>
+                <p class="text-[15px] text-gray-500 mt-1">Arbeitszeiten und Projekte erfassen · ${bName}</p>
             </div>
             <div class="flex gap-2">
                 <select onchange="_timeChangeBuilding(this.value)" class="text-sm border-gray-200 rounded-lg">

@@ -24,7 +24,11 @@ async function loadTickets() {
 
     const container = document.getElementById('content-area');
     container.innerHTML = `
-        <div class="flex flex-col lg:flex-row gap-6 lg:h-[calc(100vh-140px)] text-left">
+        <div class="mb-5 text-left">
+            <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">${(userProfile?.role==='admin'||userProfile?.role==='manager')?'HB-Desk':'Tickets'}</h2>
+            <p class="text-[15px] text-gray-500 mt-1">Anfragen und Tickets bearbeiten und verwalten.</p>
+        </div>
+        <div class="flex flex-col lg:flex-row gap-6 lg:h-[calc(100vh-210px)] text-left">
             <!-- Linke Filter-Sidebar -->
             <div id="ticket-sidebar" class="w-full lg:w-56 xl:w-64 flex-shrink-0">
                 <div class="card lg:h-full flex flex-col overflow-hidden">
