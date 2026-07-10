@@ -288,6 +288,7 @@ window.openContactDetail = async (contactId) => {
     if (!contactRes.data) { showToast('Kontakt nicht gefunden.', 'error'); return; }
     const c       = contactRes.data;
     const persons = (personsRes.data || []).map(p => ({
+        id: p.id,
         name: [p.first_name, p.last_name].filter(Boolean).join(' ') || (p.last_name || '—'),
         role: p.contact_role,
         phone: p.phone,
@@ -319,7 +320,8 @@ window.openContactDetail = async (contactId) => {
                             ${p.phone ? `<p class="text-xs text-gray-500">${p.phone}</p>` : ''}
                             ${p.email ? `<p class="text-xs text-gray-500">${p.email}</p>` : ''}
                         </div>
-                        ${!visible ? `<span class="text-[9px] text-gray-400 flex-shrink-0">nicht sichtbar</span>` : ''}
+                        ${!visible ? `<span class="text-[9px] text-gray-400 flex-shrink-0 mr-1">nicht sichtbar</span>` : ''}
+                        ${isAdmin ? `<button onclick="hideModal('contact-detail-modal'); showContactPersonForm('${c.id}', '${p.id}')" class="text-[11px] text-hb-olive font-semibold hover:underline flex-shrink-0">Bearbeiten</button>` : ''}
                     </div>`;
                 }).join('')}
             </div>
@@ -576,66 +578,96 @@ function _showAddPersonsPrompt(contactId, companyName) {
     `, { maxWidth: 'max-w-md' });
 }
 
-window.showContactPersonForm = (contactId) => {
+window.showContactPersonForm = async (contactId, personId = null) => {
+    let p = {};
+    if (personId) {
+        const { data } = await _supabase.from('persons')
+            .select('first_name, last_name, contact_role, phone, email, is_visible_to_tenants')
+            .eq('id', personId).single();
+        p = data || {};
+    }
     const modal = showModal('contact-person-form-modal', `
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-extrabold text-hb-offblack">Ansprechpartner</h3>
                 <button onclick="hideModal('contact-person-form-modal')" class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
             </div>
             <div class="space-y-3">
-                <div class="space-y-1">
-                    <label class="text-[10px] uppercase font-bold text-gray-500">Name *</label>
-                    <input type="text" id="cp_name" placeholder="Max Mustermann">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="space-y-1">
+                        <label class="text-[10px] uppercase font-bold text-gray-500">Vorname</label>
+                        <input type="text" id="cp_first" value="${p.first_name || ''}" placeholder="Max">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[10px] uppercase font-bold text-gray-500">Nachname *</label>
+                        <input type="text" id="cp_last" value="${p.last_name || ''}" placeholder="Mustermann">
+                    </div>
                 </div>
                 <div class="space-y-1">
                     <label class="text-[10px] uppercase font-bold text-gray-500">Rolle / Position</label>
-                    <input type="text" id="cp_role" placeholder="Notdienst, Projektleiter, …">
+                    <input type="text" id="cp_role" value="${p.contact_role || ''}" placeholder="Notdienst, Projektleiter, …">
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div class="space-y-1">
                         <label class="text-[10px] uppercase font-bold text-gray-500">Telefon</label>
-                        <input type="tel" id="cp_phone" placeholder="+49 …">
+                        <input type="tel" id="cp_phone" value="${p.phone || ''}" placeholder="+49 …">
                     </div>
                     <div class="space-y-1">
                         <label class="text-[10px] uppercase font-bold text-gray-500">E-Mail</label>
-                        <input type="email" id="cp_email" placeholder="max@firma.de">
+                        <input type="email" id="cp_email" value="${p.email || ''}" placeholder="max@firma.de">
                     </div>
                 </div>
                 <label class="flex items-center gap-3 cursor-pointer p-3 bg-gray-50 rounded-xl">
-                    <input type="checkbox" id="cp_visible" checked class="w-5 h-5 accent-[#687451]">
+                    <input type="checkbox" id="cp_visible" ${p.is_visible_to_tenants !== false ? 'checked' : ''} class="w-5 h-5 accent-[#687451]">
                     <div>
                         <p class="text-sm font-semibold text-hb-offblack">Für Mieter sichtbar</p>
                         <p class="text-xs text-gray-400">Deaktivieren für interne Kontakte</p>
                     </div>
                 </label>
             </div>
-            <div class="flex gap-3 justify-end pt-2">
-                <button onclick="hideModal('contact-person-form-modal')" class="btn-secondary text-sm">Abbrechen</button>
-                <button onclick="saveContactPerson('${contactId}')" class="btn-primary text-sm">Speichern</button>
+            <div class="flex gap-3 justify-between items-center pt-2">
+                ${personId ? `<button onclick="deleteContactPerson('${personId}', '${contactId}')" class="text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5 transition-colors">Löschen</button>` : '<div></div>'}
+                <div class="flex gap-3">
+                    <button onclick="hideModal('contact-person-form-modal')" class="btn-secondary text-sm">Abbrechen</button>
+                    <button onclick="saveContactPerson('${contactId}', ${personId ? `'${personId}'` : 'null'})" class="btn-primary text-sm">Speichern</button>
+                </div>
             </div>
     `, { maxWidth: 'max-w-md' });
 };
 
-window.saveContactPerson = async (contactId) => {
-    const name = document.getElementById('cp_name')?.value?.trim();
-    if (!name) { showToast('Name ist Pflichtfeld.', 'error'); return; }
+window.saveContactPerson = async (contactId, personId = null) => {
+    const first = document.getElementById('cp_first')?.value?.trim() || null;
+    const last  = document.getElementById('cp_last')?.value?.trim();
+    if (!last) { showToast('Nachname ist Pflichtfeld.', 'error'); return; }
 
-    const { error } = await _supabase.from('persons').insert([{
-        is_company:            false,
-        first_name:            null,
-        last_name:             name,
-        contact_type:          'Privatperson',
-        parent_person_id:      contactId,
+    const payload = {
+        first_name:            first,
+        last_name:             last,
         contact_role:          document.getElementById('cp_role')?.value?.trim()  || null,
         phone:                 document.getElementById('cp_phone')?.value?.trim() || null,
         email:                 document.getElementById('cp_email')?.value?.trim() || null,
         is_visible_to_tenants: document.getElementById('cp_visible')?.checked ?? true,
-        crm_status:            'active',
-    }]);
+    };
+
+    let error;
+    if (personId) {
+        ({ error } = await _supabase.from('persons').update(payload).eq('id', personId));
+    } else {
+        ({ error } = await _supabase.from('persons').insert([{
+            is_company: false, contact_type: 'Privatperson', parent_person_id: contactId, crm_status: 'active', ...payload,
+        }]));
+    }
     if (error) { showToast(error.message, 'error'); return; }
     hideModal('contact-person-form-modal');
     showToast('Ansprechpartner gespeichert.', 'success');
-    _showAddPersonsPrompt(contactId, '');
+    openContactDetail(contactId);   // Detail mit aktualisierter Liste neu öffnen
+};
+
+window.deleteContactPerson = async (personId, contactId) => {
+    if (!confirm('Ansprechpartner wirklich löschen?')) return;
+    const { error } = await _supabase.from('persons').delete().eq('id', personId);
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Ansprechpartner gelöscht.', 'success');
+    openContactDetail(contactId);
 };
 
 window.deleteContact = async (contactId) => {
