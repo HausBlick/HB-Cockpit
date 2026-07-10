@@ -26,7 +26,7 @@ async function loadContacts() {
     _myBuildingIds = await _getMyBuildingIds(role, uid);
 
     const [contactsRes, releasesRes] = await Promise.all([
-        _supabase.from('contacts').select('*').order('created_at', { ascending: false }),
+        _supabase.from('contacts_visible').select('*').order('created_at', { ascending: false }),
         _supabase.from('contact_releases').select('contact_id, building_id, released_by'),
     ]);
 
@@ -278,7 +278,7 @@ window.openContactDetail = async (contactId) => {
         : _allBuildingIds.filter(bid => _myBuildingIds.includes(bid));
 
     const [contactRes, personsRes, buildingsRes] = await Promise.all([
-        _supabase.from('contacts').select('*').eq('id', contactId).single(),
+        _supabase.from('contacts_visible').select('*').eq('id', contactId).single(),
         _supabase.from('contact_persons').select('*').eq('contact_id', contactId).order('name'),
         buildingIdsForContact.length
             ? _supabase.from('buildings').select('id, name, file_number, street, house_number').in('id', buildingIdsForContact)
