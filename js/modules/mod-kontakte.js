@@ -269,8 +269,13 @@ function _contactCardHtml(c) {
 
 // ─── Detail-Modal ─────────────────────────────────────────────
 window.openContactDetail = async (contactId) => {
+    const _isAdminView = userProfile?.role === 'admin' || userProfile?.role === 'manager';
     const cached = _contactsData.find(c => c.id === contactId);
-    const buildingIdsForContact = cached?.building_ids || [];
+    // W7 Datenschutz: Nicht-Admins sehen nur die Gebäude, mit denen sie selbst verbunden sind
+    const _allBuildingIds = cached?.building_ids || [];
+    const buildingIdsForContact = _isAdminView
+        ? _allBuildingIds
+        : _allBuildingIds.filter(bid => _myBuildingIds.includes(bid));
 
     const [contactRes, personsRes, buildingsRes] = await Promise.all([
         _supabase.from('contacts').select('*').eq('id', contactId).single(),
@@ -291,11 +296,13 @@ window.openContactDetail = async (contactId) => {
 
     const field = (label, val) => val ? `<div><p class="text-[10px] uppercase font-bold text-gray-400">${label}</p><p class="text-sm font-semibold text-hb-offblack mt-0.5">${val}</p></div>` : '';
 
-    const personsHtml = (c.is_company && persons.length) ? `
+    // W7 Datenschutz: Nicht-Admins sehen keine intern markierten Ansprechpartner (is_visible_to_tenants=false)
+    const visiblePersons = isAdmin ? persons : persons.filter(p => p.is_visible_to_tenants);
+    const personsHtml = (c.is_company && visiblePersons.length) ? `
         <div>
             <p class="text-[10px] uppercase font-bold text-gray-300 mb-2">Ansprechpartner</p>
             <div class="space-y-2">
-                ${persons.map(p => {
+                ${visiblePersons.map(p => {
                     const visible = isAdmin || p.is_visible_to_tenants;
                     return `<div class="flex items-center gap-3 p-2.5 bg-gray-50 rounded-xl ${!visible ? 'opacity-50' : ''}">
                         <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style="background:rgba(104,116,81,.1)">
