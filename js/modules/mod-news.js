@@ -5,7 +5,7 @@
 
 let _newsData       = [];
 let _newsLiked      = new Set();
-let _newsRead       = new Set();
+let _newsRead       = new Map();
 let _newsFilter     = 'Alle';
 let _userBuildingId = null;
 
