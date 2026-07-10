@@ -1162,105 +1162,16 @@ async function _settingsRenderNutzer() {
     container.innerHTML = `
         <div class="space-y-6 pb-16">
 
-            <!-- Einzelanlage -->
-            <div class="card p-6">
-                <h2 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-5">Einzelne Account anlegen</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">E-Mail *</label>
-                        <input type="email" id="nu-email" class="w-full mt-1" placeholder="max@example.com">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Voller Name *</label>
-                        <input type="text" id="nu-name" class="w-full mt-1" placeholder="Max Mustermann">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Rolle *</label>
-                        <select id="nu-role" onchange="_nutzerRoleChange()" class="w-full mt-1">
-                            <option value="admin">Admin</option>
-                            <option value="manager">Objektbetreuer (Manager)</option>
-                            <option value="owner" selected>Eigentümer</option>
-                            <option value="tenant">Mieter</option>
-                        </select>
-                    </div>
-                    <div id="nu-buildings-wrap" class="hidden">
-                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Gebäude-Zuweisung (Manager)</label>
-                        <select id="nu-buildings" multiple class="w-full mt-1 h-28">${buildingOpts}</select>
-                        <p class="text-[10px] text-gray-400 mt-1">Strg/Cmd gedrückt halten für Mehrfachauswahl</p>
-                    </div>
-                </div>
-
-                <div class="mt-4 pt-4 border-t border-hb-olive/10">
-                    <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Anmeldung</label>
-                    <div class="flex flex-wrap gap-5 mt-2">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="nu-method" value="invite" checked onchange="_nutzerMethodChange()">
-                            <span class="text-sm font-semibold">Einladungs-E-Mail senden</span>
-                        </label>
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="nu-method" value="password" onchange="_nutzerMethodChange()">
-                            <span class="text-sm font-semibold">Passwort direkt setzen</span>
-                        </label>
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="nu-method" value="code" onchange="_nutzerMethodChange()">
-                            <span class="text-sm font-semibold">Code-Einladung <span class="text-gray-400 font-normal">(Link läuft nicht ab)</span></span>
-                        </label>
-                    </div>
-                    <div id="nu-password-wrap" class="hidden mt-3">
-                        <input type="password" id="nu-password" class="w-full md:w-80" placeholder="Passwort (min. 8 Zeichen)">
-                    </div>
-                </div>
-
-                <div class="mt-5 flex items-center gap-3">
-                    <button onclick="_nutzerCreateSingle()" class="bg-hb-olive text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:shadow-md transition-all">
-                        Account anlegen
-                    </button>
-                    <div id="nu-result" class="text-sm"></div>
-                </div>
-            </div>
-
-            <!-- Batch-Anlage -->
-            <div class="card p-6">
-                <div class="flex flex-wrap justify-between items-center gap-3 mb-5">
-                    <h2 class="text-sm font-black uppercase tracking-widest text-hb-olive">Batch-Anlage (mehrere Accounts)</h2>
-                    <div class="flex gap-2">
-                        <button onclick="_nutzerDownloadTemplate()" class="text-hb-olive border border-hb-olive/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-hb-olive/5 transition-all">
-                            ↓ CSV-Vorlage
-                        </button>
-                        <label class="text-hb-olive border border-hb-olive/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-hb-olive/5 transition-all cursor-pointer">
-                            ↑ CSV importieren
-                            <input type="file" accept=".csv,.txt" class="hidden" onchange="_nutzerImportCSV(this)">
-                        </label>
-                    </div>
-                </div>
-
-                <div class="overflow-x-auto mb-4">
-                    <table class="w-full text-sm min-w-[700px]">
-                        <thead>
-                            <tr class="border-b border-hb-olive/10">
-                                <th class="text-left py-2 px-2 text-[10px] uppercase text-gray-400 font-bold w-56">E-Mail</th>
-                                <th class="text-left py-2 px-2 text-[10px] uppercase text-gray-400 font-bold w-44">Name</th>
-                                <th class="text-left py-2 px-2 text-[10px] uppercase text-gray-400 font-bold w-36">Rolle</th>
-                                <th class="text-left py-2 px-2 text-[10px] uppercase text-gray-400 font-bold w-44">Gebäude (Manager)</th>
-                                <th class="text-center py-2 px-2 text-[10px] uppercase text-gray-400 font-bold w-24">Einladung</th>
-                                <th class="w-8"></th>
-                            </tr>
-                        </thead>
-                        <tbody id="nutzer-batch-tbody">
-                            ${_nutzerBatchTableRows(buildingOpts)}
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="flex items-center gap-3 flex-wrap">
-                    <button onclick="_nutzerAddBatchRow()" class="text-hb-olive border border-hb-olive/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-hb-olive/5 transition-all">
-                        + Zeile hinzufügen
-                    </button>
-                    <button onclick="_nutzerBatchCreate()" class="bg-hb-olive text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:shadow-md transition-all">
-                        Alle anlegen
-                    </button>
-                </div>
-                <div id="nu-batch-result" class="mt-4"></div>
+            <!-- Hinweis: Anlage jetzt im CRM -->
+            <div class="card p-5" style="background:rgba(104,116,81,.05);border-color:rgba(104,116,81,.15)">
+                <h2 class="text-sm font-black uppercase tracking-widest text-hb-olive mb-2">Nutzer anlegen</h2>
+                <p class="text-sm text-hb-offblack leading-relaxed">
+                    Nutzer werden jetzt im <strong>HB-CRM</strong> angelegt:
+                    <strong>Mitarbeiter</strong> über HB Verwaltung → „+ Mitarbeiter (Login)",
+                    <strong>Eigentümer/Mieter</strong> über „Neue Person" → Zuweisung → „Einladen".
+                    Diese Seite zeigt nur noch die Übersicht, wer als Nutzer registriert ist.
+                </p>
+                <button onclick="loadCrm()" class="mt-3 btn-primary text-xs px-4">Zum HB-CRM</button>
             </div>
 
             <!-- Alle Nutzer (Übersicht) -->
