@@ -571,7 +571,7 @@ function _showAddPersonsPrompt(contactId, companyName) {
             <p class="text-[15px] text-gray-500">Möchten Sie für <strong>${companyName || 'diese Firma'}</strong> direkt Ansprechpartner anlegen?</p>
             <div class="flex gap-3 justify-end">
                 <button onclick="hideModal('add-persons-prompt')" class="btn-secondary text-sm">Nicht jetzt</button>
-                <button onclick="hideModal('add-persons-prompt'); showContactPersonForm(${contactId})" class="btn-primary text-sm">Ansprechpartner anlegen</button>
+                <button onclick="hideModal('add-persons-prompt'); showContactPersonForm('${contactId}')" class="btn-primary text-sm">Ansprechpartner anlegen</button>
             </div>
     `, { maxWidth: 'max-w-md' });
 }
@@ -611,7 +611,7 @@ window.showContactPersonForm = (contactId) => {
             </div>
             <div class="flex gap-3 justify-end pt-2">
                 <button onclick="hideModal('contact-person-form-modal')" class="btn-secondary text-sm">Abbrechen</button>
-                <button onclick="saveContactPerson(${contactId})" class="btn-primary text-sm">Speichern</button>
+                <button onclick="saveContactPerson('${contactId}')" class="btn-primary text-sm">Speichern</button>
             </div>
     `, { maxWidth: 'max-w-md' });
 };
