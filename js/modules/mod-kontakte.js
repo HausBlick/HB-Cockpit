@@ -27,7 +27,7 @@ async function loadContacts() {
 
     const [contactsRes, releasesRes] = await Promise.all([
         _supabase.from('contacts_visible').select('*').order('created_at', { ascending: false }),
-        _supabase.from('contact_releases').select('contact_id, building_id, released_by'),
+        _supabase.from('person_building_links').select('person_id, building_id, released_by').not('released_by', 'is', null),
     ]);
 
     const allContacts = contactsRes.data || [];
@@ -46,11 +46,10 @@ async function loadContacts() {
         const releasedIds = new Set(
             _contactReleases
                 .filter(r => _myBuildingIds.includes(r.building_id))
-                .map(r => r.contact_id)
+                .map(r => r.person_id)
         );
         _contactsData = allContacts.filter(c =>
-            (c.visibility_scope === 'global' && c.is_emergency) ||
-            releasedIds.has(c.id)
+            c.is_emergency || releasedIds.has(c.id)
         );
     }
 
@@ -235,11 +234,11 @@ function _contactCardHtml(c) {
     // Release-Toggle nur für Vermieter (Landlord)
     let releaseToggle = '';
     if (isOwner && userProfile?._isLandlord) {
-        const released = _contactReleases.some(r => r.released_by === currentUser.id && r.contact_id === c.id);
+        const released = _contactReleases.some(r => r.released_by === currentUser.id && r.person_id === c.id);
         releaseToggle = `
             <div class="border-t border-gray-50 mt-2 pt-2" onclick="event.stopPropagation()">
                 <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" ${released ? 'checked' : ''} onchange="toggleContactRelease(${c.id}, this.checked)" class="accent-[#687451] w-4 h-4">
+                    <input type="checkbox" ${released ? 'checked' : ''} onchange="toggleContactRelease('${c.id}', this.checked)" class="accent-[#687451] w-4 h-4">
                     <span class="text-xs text-gray-500">Für meine Mieter freigegeben</span>
                 </label>
             </div>`;
@@ -248,13 +247,13 @@ function _contactCardHtml(c) {
     const canEdit = isAdmin || (isOwner && c.created_by === currentUser.id);
 
     return `
-        <div onclick="openContactDetail(${c.id})" class="card p-4 cursor-pointer hover:shadow-md transition-shadow flex flex-col gap-3">
+        <div onclick="openContactDetail('${c.id}')" class="card p-4 cursor-pointer hover:shadow-md transition-shadow flex flex-col gap-3">
             <div class="flex items-start gap-3">
                 ${iconHtml}
                 <div class="flex-1 min-w-0">
                     <div class="flex items-start justify-between gap-1">
                         <h3 class="font-bold text-hb-offblack text-sm leading-snug truncate">${name}</h3>
-                        ${canEdit ? `<button onclick="event.stopPropagation(); showContactForm(${c.id})" class="text-xs text-hb-olive bg-hb-ultralight px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0">Bearbeiten</button>` : ''}
+                        ${canEdit ? `<button onclick="event.stopPropagation(); showContactForm('${c.id}')" class="text-xs text-hb-olive bg-hb-ultralight px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0">Bearbeiten</button>` : ''}
                     </div>
                     <div class="flex flex-wrap gap-1 mt-1">
                         <span class="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md" style="background:rgba(104,116,81,.12);color:#687451">${cat}</span>
@@ -279,7 +278,8 @@ window.openContactDetail = async (contactId) => {
 
     const [contactRes, personsRes, buildingsRes] = await Promise.all([
         _supabase.from('contacts_visible').select('*').eq('id', contactId).single(),
-        _supabase.from('contact_persons').select('*').eq('contact_id', contactId).order('name'),
+        _supabase.from('persons').select('id, first_name, last_name, contact_role, phone, email, is_visible_to_tenants')
+            .eq('parent_person_id', contactId).order('last_name'),
         buildingIdsForContact.length
             ? _supabase.from('buildings').select('id, name, file_number, street, house_number').in('id', buildingIdsForContact)
             : Promise.resolve({ data: [] }),
@@ -287,7 +287,13 @@ window.openContactDetail = async (contactId) => {
 
     if (!contactRes.data) { showToast('Kontakt nicht gefunden.', 'error'); return; }
     const c       = contactRes.data;
-    const persons = personsRes.data || [];
+    const persons = (personsRes.data || []).map(p => ({
+        name: [p.first_name, p.last_name].filter(Boolean).join(' ') || (p.last_name || '—'),
+        role: p.contact_role,
+        phone: p.phone,
+        email: p.email,
+        is_visible_to_tenants: p.is_visible_to_tenants,
+    }));
     const bList   = buildingsRes.data || [];
     const role    = userProfile?.role;
     const isAdmin = role === 'admin' || role === 'manager';
@@ -350,7 +356,7 @@ window.openContactDetail = async (contactId) => {
                     </div>
                 </div>
                 <div class="flex items-center gap-2 flex-shrink-0 ml-4">
-                    ${canEdit ? `<button onclick="hideModal('contact-detail-modal'); showContactForm(${c.id})" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Bearbeiten</button>` : ''}
+                    ${canEdit ? `<button onclick="hideModal('contact-detail-modal'); showContactForm('${c.id}')" class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">Bearbeiten</button>` : ''}
                     <button onclick="hideModal('contact-detail-modal')" class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
                 </div>
             </div>
@@ -370,7 +376,7 @@ window.openContactDetail = async (contactId) => {
                 ${buildingsHtml}
                 ${isAdmin && c.is_company ? `
                 <div class="border-t pt-4">
-                    <button onclick="showContactPersonForm(${c.id})" class="text-xs font-bold text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                    <button onclick="showContactPersonForm('${c.id}')" class="text-xs font-bold text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">
                         + Ansprechpartner hinzufügen
                     </button>
                 </div>` : ''}
@@ -385,7 +391,7 @@ window.showContactForm = async (contactId = null) => {
 
     const [contactRes, buildingsRes] = await Promise.all([
         contactId
-            ? _supabase.from('contacts').select('*').eq('id', contactId).single()
+            ? _supabase.from('contacts_visible').select('*').eq('id', contactId).single()
             : Promise.resolve({ data: null }),
         _myBuildingIds.length
             ? _supabase.from('buildings').select('id, name, file_number, street, house_number').in('id', _myBuildingIds).order('name')
@@ -479,10 +485,10 @@ window.showContactForm = async (contactId = null) => {
                 </label>
             </div>
             <div class="p-6 border-t border-gray-50 flex justify-between items-center flex-shrink-0">
-                ${isEdit ? `<button onclick="deleteContact(${c.id})" class="text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5 transition-colors">Löschen</button>` : '<div></div>'}
+                ${isEdit ? `<button onclick="deleteContact('${c.id}')" class="text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5 transition-colors">Löschen</button>` : '<div></div>'}
                 <div class="flex gap-3">
                     <button onclick="hideModal('contact-form-modal')" class="btn-secondary text-sm">Abbrechen</button>
-                    <button onclick="saveContact(${contactId || 'null'})" class="btn-primary text-sm">Speichern</button>
+                    <button onclick="saveContact(${contactId ? `'${contactId}'` : 'null'})" class="btn-primary text-sm">Speichern</button>
                 </div>
             </div>
     `, { maxWidth: 'max-w-lg' });
@@ -504,37 +510,58 @@ window.saveContact = async (contactId) => {
     if (!isCompany && !person) { showToast('Name ist Pflichtfeld.', 'error'); return; }
 
     const buildingIds = [...document.querySelectorAll('.ctct_building_cb:checked')].map(el => parseInt(el.value));
+    const category    = document.getElementById('ctct_category')?.value || 'Sonstiges';
+    const isEmergency = document.getElementById('ctct_emergency')?.checked || false;
 
-    const payload = {
-        is_company:     isCompany,
-        company:        company,
-        contact_person: person,
-        category:       document.getElementById('ctct_category')?.value || 'Sonstiges',
-        phone:          document.getElementById('ctct_phone')?.value?.trim()   || null,
-        mobile:         document.getElementById('ctct_mobile')?.value?.trim()  || null,
-        email:          document.getElementById('ctct_email')?.value?.trim()   || null,
-        address:        document.getElementById('ctct_address')?.value?.trim() || null,
-        is_emergency:   document.getElementById('ctct_emergency')?.checked || false,
-        building_ids:   buildingIds.length ? buildingIds : null,
+    // one point of truth: schreibt in persons (+ person_building_links für Freigaben)
+    const pPayload = {
+        is_company:       isCompany,
+        company_name:     isCompany ? company : null,
+        first_name:       null,
+        last_name:        isCompany ? company : person,   // last_name ist NOT NULL
+        contact_type:     isCompany ? 'Firma' : 'Privatperson',
+        contact_category: category,
+        phone:            document.getElementById('ctct_phone')?.value?.trim()   || null,
+        mobile:           document.getElementById('ctct_mobile')?.value?.trim()  || null,
+        email:            document.getElementById('ctct_email')?.value?.trim()   || null,
+        contact_address:  document.getElementById('ctct_address')?.value?.trim() || null,
+        crm_status:       'active',
     };
 
-    const scopeEl = document.getElementById('ctct_scope');
-    if (scopeEl) payload.visibility_scope = scopeEl.value;
-    if (!contactId) payload.created_by = currentUser.id;
+    let personId = contactId;
+    if (contactId) {
+        const { error } = await _supabase.from('persons').update(pPayload).eq('id', contactId);
+        if (error) { showToast(error.message, 'error'); return; }
+    } else {
+        const { data, error } = await _supabase.from('persons').insert([pPayload]).select('id').single();
+        if (error) { showToast(error.message, 'error'); return; }
+        personId = data.id;
+    }
 
-    const { data: saved, error } = contactId
-        ? await _supabase.from('contacts').update(payload).eq('id', contactId).select('id').single()
-        : await _supabase.from('contacts').insert([payload]).select('id').single();
-
-    if (error) { showToast(error.message, 'error'); return; }
+    // Gebäude-Freigaben abgleichen (person_building_links)
+    const { data: existing } = await _supabase.from('person_building_links').select('id, building_id').eq('person_id', personId);
+    const existingBids = new Set((existing || []).map(l => l.building_id));
+    const wantBids     = new Set(buildingIds);
+    const toAdd    = buildingIds.filter(b => !existingBids.has(b));
+    const toRemove = (existing || []).filter(l => !wantBids.has(l.building_id)).map(l => l.id);
+    if (toAdd.length) {
+        await _supabase.from('person_building_links').insert(
+            toAdd.map(b => ({ person_id: personId, building_id: b, category, is_emergency: isEmergency, is_visible_to_tenants: true }))
+        );
+    }
+    if (toRemove.length) await _supabase.from('person_building_links').delete().in('id', toRemove);
+    if (buildingIds.length) {
+        await _supabase.from('person_building_links').update({ category, is_emergency: isEmergency })
+            .eq('person_id', personId).in('building_id', buildingIds);
+    }
 
     hideModal('contact-form-modal');
     showToast(contactId ? 'Kontakt aktualisiert.' : 'Kontakt angelegt.', 'success');
     await loadContacts();
 
-    // Nach Anlage einer Firma: Mitarbeiter hinzufügen?
-    if (!contactId && isCompany && saved?.id) {
-        _showAddPersonsPrompt(saved.id, company);
+    // Nach Anlage einer Firma: Ansprechpartner hinzufügen?
+    if (!contactId && isCompany && personId) {
+        _showAddPersonsPrompt(personId, company);
     }
 };
 
@@ -593,13 +620,17 @@ window.saveContactPerson = async (contactId) => {
     const name = document.getElementById('cp_name')?.value?.trim();
     if (!name) { showToast('Name ist Pflichtfeld.', 'error'); return; }
 
-    const { error } = await _supabase.from('contact_persons').insert([{
-        contact_id:            contactId,
-        name,
-        role:                  document.getElementById('cp_role')?.value?.trim()  || null,
+    const { error } = await _supabase.from('persons').insert([{
+        is_company:            false,
+        first_name:            null,
+        last_name:             name,
+        contact_type:          'Privatperson',
+        parent_person_id:      contactId,
+        contact_role:          document.getElementById('cp_role')?.value?.trim()  || null,
         phone:                 document.getElementById('cp_phone')?.value?.trim() || null,
         email:                 document.getElementById('cp_email')?.value?.trim() || null,
         is_visible_to_tenants: document.getElementById('cp_visible')?.checked ?? true,
+        crm_status:            'active',
     }]);
     if (error) { showToast(error.message, 'error'); return; }
     hideModal('contact-person-form-modal');
@@ -609,7 +640,9 @@ window.saveContactPerson = async (contactId) => {
 
 window.deleteContact = async (contactId) => {
     if (!confirm('Kontakt wirklich löschen? Alle Ansprechpartner werden ebenfalls gelöscht.')) return;
-    const { error } = await _supabase.from('contacts').delete().eq('id', contactId);
+    // Kind-Ansprechpartner zuerst, dann die Firma/Person (pbl-Freigaben cascaden)
+    await _supabase.from('persons').delete().eq('parent_person_id', contactId);
+    const { error } = await _supabase.from('persons').delete().eq('id', contactId);
     if (error) { showToast(error.message, 'error'); return; }
     hideModal('contact-form-modal');
     showToast('Kontakt gelöscht.', 'success');
@@ -624,16 +657,16 @@ window.toggleContactRelease = async (contactId, checked) => {
         const myBids = (c?.building_ids || []).filter(bid => _myBuildingIds.includes(bid));
         const bids = myBids.length ? myBids : _myBuildingIds.slice(0, 1);
         await Promise.all(bids.map(bid =>
-            _supabase.from('contact_releases').upsert(
-                [{ contact_id: contactId, released_by: uid, building_id: bid }],
-                { onConflict: 'contact_id,released_by,building_id' }
+            _supabase.from('person_building_links').upsert(
+                [{ person_id: contactId, building_id: bid, released_by: uid, category: c?.category || null, is_visible_to_tenants: true }],
+                { onConflict: 'person_id,building_id' }
             )
         ));
     } else {
-        await _supabase.from('contact_releases').delete()
-            .eq('contact_id', contactId).eq('released_by', uid);
+        await _supabase.from('person_building_links').delete()
+            .eq('person_id', contactId).eq('released_by', uid);
     }
     // Lokalen State aktualisieren
-    _contactReleases = _contactReleases.filter(r => !(r.released_by === uid && r.contact_id === contactId));
+    _contactReleases = _contactReleases.filter(r => !(r.released_by === uid && r.person_id === contactId));
     showToast(checked ? 'Freigegeben.' : 'Freigabe aufgehoben.', 'success');
 };

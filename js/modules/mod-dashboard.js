@@ -506,7 +506,7 @@ async function _renderUserDashboard() {
             .eq('status', 'active').eq('is_deleted', false)
             .order('created_at', { ascending: false }).limit(20),
 
-        _supabase.from('contacts')
+        _supabase.from('contacts_visible')
             .select('id, company, contact_person, is_company, phone, mobile, email, category, building_ids, logo_url')
             .in('category', ['Verwalter', 'Hausmeister']),
     ]);
