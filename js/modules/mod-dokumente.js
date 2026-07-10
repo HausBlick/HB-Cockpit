@@ -638,27 +638,34 @@ window._openDocModal = async (docId) => {
     const displayName = doc.generated_filename || doc.document_title || doc.title;
 
     const modal = showModal('doc-detail-modal', `
-            <div class="p-5 border-b border-gray-100 flex justify-between items-start flex-shrink-0">
-                <div>
-                    <h2 class="text-lg font-extrabold text-hb-offblack leading-tight">${displayName}</h2>
-                    <p class="text-xs text-gray-400 mt-0.5">${[doc.category, doc.year, doc.buildings?.name].filter(Boolean).join(' · ')}</p>
-                    ${doc.original_filename && doc.original_filename !== displayName
-                        ? `<p class="text-[11px] text-gray-300 mt-0.5">Originaldatei: ${doc.original_filename}</p>` : ''}
+            <div class="p-5 border-b border-gray-100 flex-shrink-0">
+                <div class="flex justify-between items-start gap-3">
+                    <div class="min-w-0">
+                        <h2 class="text-lg font-extrabold text-hb-offblack leading-tight break-words">${displayName}</h2>
+                        <p class="text-xs text-gray-400 mt-0.5">${[doc.category, doc.year, doc.buildings?.name].filter(Boolean).join(' · ')}</p>
+                        ${doc.original_filename && doc.original_filename !== displayName
+                            ? `<p class="text-[11px] text-gray-300 mt-0.5 break-all">Originaldatei: ${doc.original_filename}</p>` : ''}
+                    </div>
+                    <button onclick="hideModal('doc-detail-modal')"
+                        class="flex-shrink-0 text-gray-400 hover:text-hb-orange font-bold text-xl leading-none -mr-1 -mt-1 p-1">✕</button>
                 </div>
-                <div class="flex gap-2 items-center ml-4 flex-shrink-0">
-                    ${signedUrl ? `<a href="${signedUrl}" download="${displayName}" onclick="_markDocRead(${doc.id})" class="btn-primary text-xs px-3 py-1.5">Download</a>` : ''}
+                <div class="flex flex-wrap gap-2 mt-3">
+                    ${signedUrl ? `<a href="${signedUrl}" download="${displayName}" onclick="_markDocRead(${doc.id})" class="btn-primary text-xs px-3 py-2">Download</a>` : ''}
                     ${canEdit ? `
                         <button onclick="hideModal('doc-detail-modal'); _openDocEditModal(${doc.id})"
-                            class="text-xs text-hb-olive bg-hb-ultralight px-3 py-1.5 rounded-lg hover:bg-gray-100">Bearbeiten</button>
+                            class="text-xs text-hb-olive bg-hb-ultralight px-3 py-2 rounded-lg hover:bg-gray-100">Bearbeiten</button>
                         <button onclick="_archiveDoc(${doc.id})"
-                            class="text-xs text-hb-orange px-3 py-1.5 rounded-lg hover:bg-hb-orange/5">${doc.is_deleted ? 'Wiederherstellen' : 'Archivieren'}</button>` : ''}
-                    <button onclick="hideModal('doc-detail-modal')"
-                        class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none ml-1">✕</button>
+                            class="text-xs text-hb-orange bg-hb-orange/5 px-3 py-2 rounded-lg hover:bg-hb-orange/10">${doc.is_deleted ? 'Wiederherstellen' : 'Archivieren'}</button>` : ''}
                 </div>
             </div>
             <div class="flex-grow overflow-hidden min-h-0">
                 ${isPdf && signedUrl
-                    ? `<iframe src="${signedUrl}" class="w-full h-full" style="min-height:500px;" frameborder="0"></iframe>`
+                    ? `<iframe src="${signedUrl}" class="w-full h-full hidden lg:block" style="min-height:500px;" frameborder="0"></iframe>
+                       <div class="lg:hidden p-8 text-center">
+                           <div class="text-5xl mb-4">📄</div>
+                           <p class="text-[15px] text-gray-500 mb-4">PDF-Vorschau auf dem Handy nicht möglich.</p>
+                           <a href="${signedUrl}" target="_blank" rel="noopener" class="btn-primary inline-block text-sm px-5 py-2.5">PDF öffnen</a>
+                       </div>`
                     : `<div class="p-10 text-center text-gray-400">
                            <div class="text-5xl mb-4">${_docsFileIcon(doc.file_type)}</div>
                            <p class="text-[15px] mb-3">Vorschau nicht verfügbar.</p>
