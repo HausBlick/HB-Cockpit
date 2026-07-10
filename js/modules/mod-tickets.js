@@ -825,7 +825,7 @@ window.showCreateTicketModal = async () => {
                 </div>
                 <div class="space-y-2 ${hideLocationFields ? 'hidden' : ''}">
                     <label class="text-[10px] uppercase font-bold text-gray-500">Gebäude</label>
-                    <select id="tkt_building" onchange="loadApartmentsForTicket(this.value); loadRecipientsForTicket(this.value)">
+                    <select id="tkt_building" onchange="loadApartmentsForTicket(this.value); loadRecipientsForTicket(this.value); _tktShowRecipientInfo(this.value)">
                         <option value="">— Bitte wählen —</option>
                         ${bList.map(b => `<option value="${b.id}">${formatBuildingName(b)}</option>`).join('')}
                     </select>
@@ -849,6 +849,8 @@ window.showCreateTicketModal = async () => {
                 <label class="text-[10px] uppercase font-bold text-gray-500">Empfänger (optional)</label>
                 <select id="tkt_recipient"><option value="">— Wird geladen… —</option></select>
             </div>` : ''}
+            ${((role === 'owner' && !userProfile?._isLandlord) || role === 'tenant') ? `
+            <div id="tkt_recipient_info"></div>` : ''}
             <div class="space-y-2">
                 <label class="text-[10px] uppercase font-bold text-gray-500">Beschreibung *</label>
                 <textarea id="tkt_desc" rows="4" placeholder="Beschreibe das Problem so genau wie möglich…"></textarea>
@@ -878,6 +880,7 @@ window.showCreateTicketModal = async () => {
         if (bSel) bSel.value = unit.bld.id;
         await loadApartmentsForTicket(unit.bld.id, unit.apt.id);
         await loadRecipientsForTicket(unit.bld.id);
+        await _tktShowRecipientInfo(unit.bld.id, unit.apt.id);
     } else if (userProfile?.apartment_id) {
         const { data: apt } = await _supabase.from('apartments').select('id, building_id, apartment_number').eq('id', userProfile.apartment_id).single();
         if (apt) {
@@ -885,8 +888,48 @@ window.showCreateTicketModal = async () => {
             if (bSel) bSel.value = apt.building_id;
             await loadApartmentsForTicket(apt.building_id, apt.id);
             await loadRecipientsForTicket(apt.building_id);
+            await _tktShowRecipientInfo(apt.building_id, apt.id);
         }
     }
+};
+
+// Read-only Empfänger-Hinweis für Owner/Mieter: zeigt, an wen das Ticket automatisch geht.
+window._tktShowRecipientInfo = async (bId, aptId = null) => {
+    const box = document.getElementById('tkt_recipient_info');
+    if (!box) return;
+    const role = userProfile?.role;
+    let name = null, fallback, suffix;
+
+    if (role === 'tenant') {
+        fallback = 'deinen Vermieter';
+        suffix   = 'Vermieter';
+        const useApt = aptId || (window._tktMyUnits?.[0]?.apt?.id);
+        if (useApt) {
+            const { data: lid } = await _supabase.rpc('get_landlord_for_apartment', { apt_id: useApt });
+            if (lid) {
+                const { data: p } = await _supabase.from('profiles').select('full_name').eq('id', lid).maybeSingle();
+                name = p?.full_name || null;
+            }
+        }
+    } else {
+        fallback = 'die Hausverwaltung';
+        suffix   = 'Hausverwaltung';
+        if (bId) {
+            const { data: mgmt } = await _supabase.from('management_assignments')
+                .select('manager_id').eq('building_id', bId).limit(1).maybeSingle();
+            if (mgmt?.manager_id) {
+                const { data: p } = await _supabase.from('profiles').select('full_name').eq('id', mgmt.manager_id).maybeSingle();
+                name = p?.full_name || null;
+            }
+        }
+    }
+
+    const target = name ? `<strong>${name}</strong> (${suffix})` : `<strong>${fallback}</strong>`;
+    box.innerHTML = `
+        <div class="flex items-start gap-2 rounded-xl bg-hb-olive/5 border border-hb-olive/10 px-3 py-2.5 text-sm text-hb-offblack">
+            <svg class="w-4 h-4 text-hb-olive flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            <span>Dieses Ticket geht an ${target}.</span>
+        </div>`;
 };
 
 window.loadRecipientsForTicket = async (bId) => {
