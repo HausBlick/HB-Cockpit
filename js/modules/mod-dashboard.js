@@ -131,9 +131,24 @@ window._dashDownloadDoc = async (docId) => {
     window.refreshNavBadges?.();
 };
 
+// Mobilnummer für wa.me normalisieren (DE-Default): +49…/0049…/0176… -> 49176…
+function _waNumber(raw) {
+    if (!raw) return null;
+    let d = String(raw).replace(/[^\d+]/g, '').replace(/^\+/, '');
+    if (d.startsWith('00')) d = d.slice(2);
+    else if (d.startsWith('0')) d = '49' + d.slice(1);
+    return d.length >= 8 ? d : null;
+}
+
 // F1: Eine Ansprechpartner-Karte (Verwalter/Hausmeister) im Dashboard-Widget
-function _dashPersonCard({ name, sub, badge, avatarUrl, phone, email }) {
-    const initial = (name || '?').charAt(0).toUpperCase();
+function _dashPersonCard({ name, sub, badge, avatarUrl, phone, mobile, whatsapp, email }) {
+    const initial   = (name || '?').charAt(0).toUpperCase();
+    const svgPhone  = `<svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>`;
+    const svgMail   = `<svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>`;
+    const svgWa     = `<svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.945C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.82 9.82 0 001.599 5.317l-.999 3.648 3.9-1.022zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.096 3.2 5.077 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>`;
+    const line = (href, svg, text, cls) =>
+        `<a href="${href}" class="flex items-center gap-2 text-sm mt-2 transition-colors ${cls || 'text-gray-600 hover:text-hb-olive'}">${svg}<span class="truncate">${text}</span></a>`;
+    const wa = whatsapp ? _waNumber(mobile) : null;
     return `
         <div class="p-5">
             <div class="flex items-start gap-4">
@@ -144,16 +159,12 @@ function _dashPersonCard({ name, sub, badge, avatarUrl, phone, email }) {
                     <div class="font-bold text-hb-offblack leading-tight">${name || '—'}</div>
                     ${sub ? `<div class="text-xs text-gray-500 mt-0.5">${sub}</div>` : ''}
                     <span class="text-[10px] font-black uppercase bg-hb-olive/10 text-hb-olive px-1.5 py-0.5 rounded mt-1 inline-block">${badge}</span>
-                    ${phone ? `
-                        <a href="tel:${phone}" class="flex items-center gap-2 text-sm text-gray-600 hover:text-hb-olive mt-3 transition-colors">
-                            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
-                            ${phone}
-                        </a>` : ''}
-                    ${email ? `
-                        <a href="mailto:${email}" class="flex items-center gap-2 text-sm text-gray-600 hover:text-hb-olive mt-2 transition-colors">
-                            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                            ${email}
-                        </a>` : ''}
+                    <div class="mt-2">
+                        ${phone  ? line(`tel:${phone}`,  svgPhone, phone) : ''}
+                        ${mobile ? line(`tel:${mobile}`, svgPhone, mobile) : ''}
+                        ${wa     ? line(`https://wa.me/${wa}`, svgWa, 'WhatsApp', 'text-[#25D366] hover:opacity-80 font-semibold') : ''}
+                        ${email  ? line(`mailto:${email}`, svgMail, email) : ''}
+                    </div>
                 </div>
             </div>
         </div>`;
@@ -714,7 +725,9 @@ async function _renderUserDashboard() {
                             sub:       verwalter.function_title || '',
                             badge:     'Verwalter',
                             avatarUrl: verwalterAvatar,
-                            phone:     verwalter.phone || verwalter.mobile,
+                            phone:     verwalter.phone,
+                            mobile:    verwalter.mobile,
+                            whatsapp:  verwalter.whatsapp_enabled,
                             email:     verwalter.email,
                         }) : ''}
                         ${hausmeister ? _dashPersonCard({
@@ -722,7 +735,9 @@ async function _renderUserDashboard() {
                             sub:       (hausmeister.company && hausmeister.contact_person) ? hausmeister.contact_person : '',
                             badge:     'Hausmeister',
                             avatarUrl: hausmeister.logo_url,
-                            phone:     hausmeister.phone || hausmeister.mobile,
+                            phone:     hausmeister.phone,
+                            mobile:    hausmeister.mobile,
+                            whatsapp:  false,
                             email:     hausmeister.email,
                         }) : ''}
                     </div>` : '<p class="p-6 text-[15px] text-gray-400 text-center">Noch kein Ansprechpartner hinterlegt.</p>'}

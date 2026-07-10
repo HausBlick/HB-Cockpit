@@ -25,7 +25,7 @@ async function loadProfile() {
     let me = {}, avatarSignedUrl = '';
     if (isStaff) {
         const { data } = await _supabase.from('profiles')
-            .select('avatar_url, function_title, phone, mobile').eq('id', currentUser.id).single();
+            .select('avatar_url, function_title, phone, mobile, whatsapp_enabled').eq('id', currentUser.id).single();
         me = data || {};
         if (me.avatar_url) {
             const { data: s } = await _supabase.storage.from('avatars').createSignedUrl(me.avatar_url, 3600);
@@ -121,6 +121,13 @@ async function loadProfile() {
                                 <input type="tel" id="profile-mobile-input" value="${_escHtml(me.mobile || '')}" placeholder="+49 …" class="w-full px-4 text-sm mt-1">
                             </div>
                         </div>
+                        <label class="flex items-center gap-3 cursor-pointer p-3 bg-gray-50 rounded-xl">
+                            <input type="checkbox" id="profile-whatsapp-input" ${me.whatsapp_enabled ? 'checked' : ''} class="w-5 h-5 accent-[#687451]">
+                            <div>
+                                <p class="text-sm font-semibold text-hb-offblack">WhatsApp-Kontakt anbieten</p>
+                                <p class="text-xs text-gray-400">Zeigt Eigentümern einen WhatsApp-Link zu Ihrer Mobilnummer.</p>
+                            </div>
+                        </label>
                         <button onclick="_profileSaveContactInfo()" class="btn-primary px-4 py-2 text-sm">Speichern</button>
                     </div>
                 </div>` : ''}
@@ -210,9 +217,10 @@ window._profileSaveName = async () => {
 // F1: Ansprechpartner-Daten (Funktion/Telefon/Mobil) speichern
 window._profileSaveContactInfo = async () => {
     const payload = {
-        function_title: document.getElementById('profile-function-input')?.value?.trim() || null,
-        phone:          document.getElementById('profile-phone-input')?.value?.trim()  || null,
-        mobile:         document.getElementById('profile-mobile-input')?.value?.trim() || null,
+        function_title:   document.getElementById('profile-function-input')?.value?.trim() || null,
+        phone:            document.getElementById('profile-phone-input')?.value?.trim()  || null,
+        mobile:           document.getElementById('profile-mobile-input')?.value?.trim() || null,
+        whatsapp_enabled: document.getElementById('profile-whatsapp-input')?.checked || false,
     };
     const { error } = await _supabase.from('profiles').update(payload).eq('id', currentUser.id);
     if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
