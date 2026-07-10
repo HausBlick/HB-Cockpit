@@ -131,6 +131,34 @@ window._dashDownloadDoc = async (docId) => {
     window.refreshNavBadges?.();
 };
 
+// F1: Eine Ansprechpartner-Karte (Verwalter/Hausmeister) im Dashboard-Widget
+function _dashPersonCard({ name, sub, badge, avatarUrl, phone, email }) {
+    const initial = (name || '?').charAt(0).toUpperCase();
+    return `
+        <div class="p-5">
+            <div class="flex items-start gap-4">
+                ${avatarUrl
+                    ? `<img src="${avatarUrl}" class="w-12 h-12 rounded-full object-cover flex-shrink-0" alt="">`
+                    : `<div class="w-12 h-12 rounded-full bg-hb-olive/10 text-hb-olive flex items-center justify-center font-extrabold text-lg flex-shrink-0">${initial}</div>`}
+                <div class="flex-1 min-w-0">
+                    <div class="font-bold text-hb-offblack leading-tight">${name || '—'}</div>
+                    ${sub ? `<div class="text-xs text-gray-500 mt-0.5">${sub}</div>` : ''}
+                    <span class="text-[10px] font-black uppercase bg-hb-olive/10 text-hb-olive px-1.5 py-0.5 rounded mt-1 inline-block">${badge}</span>
+                    ${phone ? `
+                        <a href="tel:${phone}" class="flex items-center gap-2 text-sm text-gray-600 hover:text-hb-olive mt-3 transition-colors">
+                            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                            ${phone}
+                        </a>` : ''}
+                    ${email ? `
+                        <a href="mailto:${email}" class="flex items-center gap-2 text-sm text-gray-600 hover:text-hb-olive mt-2 transition-colors">
+                            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                            ${email}
+                        </a>` : ''}
+                </div>
+            </div>
+        </div>`;
+}
+
 // ─── Entry Point ──────────────────────────────────────────────
 
 async function loadDashboard() {
@@ -540,6 +568,20 @@ async function _renderUserDashboard() {
         || null
     );
 
+    // F1: Verwalter aus Manager-Profil (via RLS-sicherer RPC) + Hausmeister aus Kontaktbuch
+    let verwalter = null, verwalterAvatar = '';
+    if (buildingId) {
+        const { data: mgr } = await _supabase.rpc('get_building_manager', { p_building_id: buildingId });
+        verwalter = mgr?.[0] || null;
+        if (verwalter?.avatar_url) {
+            const { data: s } = await _supabase.storage.from('avatars').createSignedUrl(verwalter.avatar_url, 3600);
+            verwalterAvatar = s?.signedUrl || '';
+        }
+    }
+    const hausmeister = buildingId
+        ? allContacts.find(c => (c.building_ids || []).map(String).includes(String(buildingId)) && c.category === 'Hausmeister')
+        : allContacts.find(c => c.category === 'Hausmeister');
+
     const roleLabel = ROLE_LABELS[role] || 'Nutzer-Portal';
 
     // ── Render ──
@@ -665,31 +707,24 @@ async function _renderUserDashboard() {
                 <div class="px-4 py-3 bg-hb-olive">
                     <h3 class="text-sm font-bold text-white">Mein Ansprechpartner</h3>
                 </div>
-                ${contact ? `
-                    <div class="p-5">
-                        <div class="flex items-start gap-4">
-                            ${contact.logo_url
-                                ? `<img src="${contact.logo_url}" class="w-12 h-12 rounded-full object-cover flex-shrink-0" alt="">`
-                                : `<div class="w-12 h-12 rounded-full bg-hb-olive/10 text-hb-olive flex items-center justify-center font-extrabold text-lg flex-shrink-0">
-                                ${(contact.company || contact.contact_person || '?').charAt(0).toUpperCase()}
-                            </div>`}
-                            <div class="flex-1 min-w-0">
-                                <div class="font-bold text-hb-offblack leading-tight">
-                                    ${contact.company || contact.contact_person || '—'}
-                                </div>
-                                <span class="text-[10px] font-black uppercase bg-hb-olive/10 text-hb-olive px-1.5 py-0.5 rounded mt-1 inline-block">${contact.category}</span>
-                                ${(contact.phone || contact.mobile) ? `
-                                    <a href="tel:${contact.phone || contact.mobile}" class="flex items-center gap-2 text-sm text-gray-600 hover:text-hb-olive mt-3 transition-colors">
-                                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
-                                        ${contact.phone || contact.mobile}
-                                    </a>` : ''}
-                                ${contact.email ? `
-                                    <a href="mailto:${contact.email}" class="flex items-center gap-2 text-sm text-gray-600 hover:text-hb-olive mt-2 transition-colors">
-                                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                                        ${contact.email}
-                                    </a>` : ''}
-                            </div>
-                        </div>
+                ${(verwalter || hausmeister) ? `
+                    <div class="divide-y divide-gray-50">
+                        ${verwalter ? _dashPersonCard({
+                            name:      verwalter.full_name,
+                            sub:       verwalter.function_title || '',
+                            badge:     'Verwalter',
+                            avatarUrl: verwalterAvatar,
+                            phone:     verwalter.phone || verwalter.mobile,
+                            email:     verwalter.email,
+                        }) : ''}
+                        ${hausmeister ? _dashPersonCard({
+                            name:      hausmeister.company || hausmeister.contact_person,
+                            sub:       (hausmeister.company && hausmeister.contact_person) ? hausmeister.contact_person : '',
+                            badge:     'Hausmeister',
+                            avatarUrl: hausmeister.logo_url,
+                            phone:     hausmeister.phone || hausmeister.mobile,
+                            email:     hausmeister.email,
+                        }) : ''}
                     </div>` : '<p class="p-6 text-[15px] text-gray-400 text-center">Noch kein Ansprechpartner hinterlegt.</p>'}
             </div>
 

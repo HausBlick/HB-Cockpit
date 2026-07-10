@@ -20,6 +20,19 @@ async function loadProfile() {
 
     const roleLabel = ROLE_LABELS[userProfile.role] || userProfile.role;
 
+    // F1: Ansprechpartner-Daten nur für Verwalter (admin/manager)
+    const isStaff = userProfile.role === 'admin' || userProfile.role === 'manager';
+    let me = {}, avatarSignedUrl = '';
+    if (isStaff) {
+        const { data } = await _supabase.from('profiles')
+            .select('avatar_url, function_title, phone, mobile').eq('id', currentUser.id).single();
+        me = data || {};
+        if (me.avatar_url) {
+            const { data: s } = await _supabase.storage.from('avatars').createSignedUrl(me.avatar_url, 3600);
+            avatarSignedUrl = s?.signedUrl || '';
+        }
+    }
+
     ca.innerHTML = `
         <div class="py-6">
             <h1 class="text-[28px] font-bold text-hb-offblack mb-6">Mein Profil</h1>
@@ -75,6 +88,42 @@ async function loadProfile() {
                         </div>
                     </div>
                 </div>
+
+                ${isStaff ? `
+                <!-- Ansprechpartner-Daten (F1, nur Verwalter) -->
+                <div class="card">
+                    <div class="bg-hb-olive px-5 py-3">
+                        <span class="text-sm font-bold text-white">Ansprechpartner-Daten</span>
+                    </div>
+                    <div class="p-5 space-y-4">
+                        <p class="text-xs text-gray-400 leading-snug">Diese Angaben sehen Ihre Eigentümer im Dashboard-Widget „Mein Ansprechpartner".</p>
+                        <div class="flex items-center gap-4">
+                            <div class="w-16 h-16 rounded-full bg-hb-olive/10 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                <img id="profile-avatar-preview" src="${avatarSignedUrl}" class="${avatarSignedUrl ? '' : 'hidden'} w-full h-full object-cover" alt="">
+                                <span id="profile-avatar-placeholder" class="${avatarSignedUrl ? 'hidden' : ''} text-hb-olive font-extrabold text-xl">${_escHtml((userProfile.full_name || '?').charAt(0).toUpperCase())}</span>
+                            </div>
+                            <label class="text-sm text-hb-olive font-semibold bg-hb-ultralight px-4 py-2 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
+                                Foto hochladen
+                                <input type="file" accept="image/*" class="hidden" onchange="_profileUploadAvatar(this)">
+                            </label>
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Funktion / Bezeichnung</label>
+                            <input type="text" id="profile-function-input" value="${_escHtml(me.function_title || '')}" placeholder="z.B. Objektbetreuer" class="w-full px-4 text-sm mt-1">
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Telefon</label>
+                                <input type="tel" id="profile-phone-input" value="${_escHtml(me.phone || '')}" placeholder="+49 …" class="w-full px-4 text-sm mt-1">
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Mobil</label>
+                                <input type="tel" id="profile-mobile-input" value="${_escHtml(me.mobile || '')}" placeholder="+49 …" class="w-full px-4 text-sm mt-1">
+                            </div>
+                        </div>
+                        <button onclick="_profileSaveContactInfo()" class="btn-primary px-4 py-2 text-sm">Speichern</button>
+                    </div>
+                </div>` : ''}
 
                 <!-- Sicherheit -->
                 <div class="card">
@@ -156,6 +205,45 @@ window._profileSaveName = async () => {
     document.getElementById('profile-name-display').textContent = name;
     document.getElementById('profile-name-edit').classList.add('hidden');
     showToast('Name gespeichert.', 'success');
+};
+
+// F1: Ansprechpartner-Daten (Funktion/Telefon/Mobil) speichern
+window._profileSaveContactInfo = async () => {
+    const payload = {
+        function_title: document.getElementById('profile-function-input')?.value?.trim() || null,
+        phone:          document.getElementById('profile-phone-input')?.value?.trim()  || null,
+        mobile:         document.getElementById('profile-mobile-input')?.value?.trim() || null,
+    };
+    const { error } = await _supabase.from('profiles').update(payload).eq('id', currentUser.id);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    userProfile.phone = payload.phone;
+    userProfile.mobile = payload.mobile;
+    userProfile.function_title = payload.function_title;
+    showToast('Ansprechpartner-Daten gespeichert.', 'success');
+};
+
+// F1: Profilfoto hochladen (privater avatars-Bucket, Pfad {uid}/avatar.<ext>)
+window._profileUploadAvatar = async (input) => {
+    const file = input.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { showToast('Bitte eine Bilddatei wählen.', 'error'); return; }
+    if (file.size > 5 * 1024 * 1024) { showToast('Bild ist größer als 5 MB.', 'error'); return; }
+    const ext  = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const path = `${currentUser.id}/avatar.${ext}`;
+    const { error: upErr } = await _supabase.storage.from('avatars').upload(path, file, { upsert: true });
+    if (upErr) { showToast('Upload fehlgeschlagen: ' + upErr.message, 'error'); return; }
+    const { error: dbErr } = await _supabase.from('profiles').update({ avatar_url: path }).eq('id', currentUser.id);
+    if (dbErr) { showToast('Fehler beim Speichern: ' + dbErr.message, 'error'); return; }
+    userProfile.avatar_url = path;
+    const { data: signed } = await _supabase.storage.from('avatars').createSignedUrl(path, 3600);
+    const img = document.getElementById('profile-avatar-preview');
+    const ph  = document.getElementById('profile-avatar-placeholder');
+    if (img && signed?.signedUrl) {
+        img.src = signed.signedUrl + '&t=' + (input.files[0].size); // Cache-Bust bei gleichem Pfad
+        img.classList.remove('hidden');
+        ph?.classList.add('hidden');
+    }
+    showToast('Foto gespeichert.', 'success');
 };
 
 // Save email
