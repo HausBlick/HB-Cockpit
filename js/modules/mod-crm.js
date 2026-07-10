@@ -25,11 +25,8 @@ window.loadCrm = async () => {
     if (!c) return;
     c.innerHTML = `
         <div class="text-left">
-            <div class="flex justify-between items-start mb-6 gap-4">
-                <div>
-                    <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">HB-CRM</h2>
-                    <p class="text-[15px] text-gray-500 mt-1">Suche über Objekte und Personen — Name, Nummer, Straße oder E-Mail.</p>
-                </div>
+            <div class="flex justify-between items-center mb-8 gap-4">
+                <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">HB-CRM</h2>
                 <div class="flex gap-2 flex-shrink-0">
                     <button onclick="showContactForm()" class="btn-secondary text-sm flex items-center gap-2 whitespace-nowrap">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5m14 0h2M5 21H3m4-14h2m-2 4h2m6-4h2m-2 4h2M9 21v-4a1 1 0 011-1h4a1 1 0 011 1v4"/></svg>
@@ -41,14 +38,16 @@ window.loadCrm = async () => {
                     </button>
                 </div>
             </div>
-            <div class="relative max-w-2xl">
-                <input type="text" id="crm-search" autocomplete="off" oninput="crmSearch(this.value)"
-                    onkeydown="if(event.key==='Escape'){document.getElementById('crm-suggest').classList.add('hidden')}"
-                    placeholder="Suchen: Mustermann, Hauptstraße, 0011, 012…"
-                    class="w-full text-base h-12 pl-4 pr-4">
-                <div id="crm-suggest" class="hidden absolute z-30 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"></div>
+            <div class="max-w-3xl mx-auto mb-8">
+                <div class="relative">
+                    <svg class="absolute left-5 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
+                    <input type="text" id="crm-search" autocomplete="off" oninput="crmSearch(this.value)"
+                        placeholder="Suchen — Name, Kunden-/Firmennummer, Straße, E-Mail…"
+                        class="w-full text-lg h-16 pl-14 pr-5 rounded-full shadow-md border border-gray-200 focus:border-hb-olive focus:outline-none focus:ring-4 focus:ring-hb-olive/15 transition-all">
+                </div>
+                <p class="text-center text-xs text-gray-400 mt-3">z. B. „0011", „0011-01", „Mustermann", „Hauptstraße 5"</p>
             </div>
-            <div id="crm-results" class="mt-6"></div>
+            <div id="crm-results"></div>
         </div>`;
 
     const loading = document.getElementById('crm-results');
@@ -146,23 +145,8 @@ function _crmRow(it) {
 }
 
 window.crmSearch = (q) => {
+    // Live-Filterung direkt in der Ergebnisliste (kein separates Vorschlags-Dropdown mehr)
     renderCrmResults(q);
-    const sug = document.getElementById('crm-suggest');
-    if (!sug) return;
-    const s = (q || '').trim();
-    if (!s) { sug.classList.add('hidden'); sug.innerHTML = ''; return; }
-    const top = _crmFilter(q).slice(0, 6);
-    if (!top.length) { sug.classList.add('hidden'); sug.innerHTML = ''; return; }
-    sug.innerHTML = top.map(it => {
-        const sub = [it.kind, it.number ? '#' + it.number : null].filter(Boolean).join(' · ');
-        return `<div onclick="crmOpenDetail('${it.type}','${it.id}')"
-            class="flex items-center gap-2 px-4 py-2 hover:bg-hb-olive/5 cursor-pointer">
-            <span class="text-hb-olive">${it.type === 'object' ? _crmIcons.object : _crmIcons.person}</span>
-            <span class="text-sm font-semibold text-hb-offblack truncate">${_crmEsc(it.title)}</span>
-            <span class="text-xs text-gray-400 truncate">${_crmEsc(sub)}</span>
-        </div>`;
-    }).join('');
-    sug.classList.remove('hidden');
 };
 
 function renderCrmResults(q) {
