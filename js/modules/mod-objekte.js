@@ -585,30 +585,49 @@ window._meterHistoryModal = async (meterId) => {
         _supabase.from('meter_readings').select('id, reading_value, reading_date, reading_type').eq('meter_id', meterId).order('reading_date', { ascending: true }),
     ]);
     const unit = m?.unit ? ' ' + _mtrEsc(m.unit) : '';
+    const fmt = n => Number(n).toLocaleString('de-DE', { maximumFractionDigits: 3 });
     const asc = readings || [];
-    const rowsHtml = asc.length ? asc.map((r, i) => {
+    const rowsHtml = asc.map((r, i) => {
         const prev = i > 0 ? asc[i - 1] : null;
-        let verbrauch = '<span class="text-xs text-gray-300 ml-2">Startwert</span>';
+        let vCell = '<span class="text-xs text-gray-300">Startwert</span>';
         if (prev) {
-            const d = Math.round((Number(r.reading_value) - Number(prev.reading_value)) * 1000) / 1000;
+            const d = Number(r.reading_value) - Number(prev.reading_value);
             const days = Math.round((new Date(r.reading_date) - new Date(prev.reading_date)) / 86400000);
-            verbrauch = `<span class="text-xs text-hb-olive ml-2">Verbrauch ${d >= 0 ? '+' : ''}${d}${unit}${days > 0 ? ` · ${days} Tage` : ''}</span>`;
+            const perYear = days > 0 ? d / (days / 365.25) : null;
+            const cls = d >= 0 ? 'text-hb-olive' : 'text-hb-orange';
+            const sub = [
+                days > 0 ? `in ${fmt(days)} Tagen` : '',
+                (perYear !== null && days >= 180) ? `Ø ${fmt(Math.round(perYear * 10) / 10)}${unit}/Jahr` : '',
+            ].filter(Boolean).join(' · ');
+            vCell = `<span class="font-semibold ${cls}">${d >= 0 ? '+' : ''}${fmt(d)}${unit}</span>${sub ? `<div class="text-[10px] text-gray-400 leading-tight">${sub}</div>` : ''}`;
         }
-        return { r, verbrauch };
-    }).slice().reverse().map(({ r, verbrauch }) => `
-        <div class="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0 text-sm">
-            <span class="text-gray-600 flex-shrink-0">${_mtrDate(r.reading_date)}${r.reading_type ? ` <span class="text-gray-300">· ${_mtrEsc(r.reading_type)}</span>` : ''}</span>
-            <span class="text-right flex items-center gap-2 justify-end min-w-0">
-                <span><span class="font-semibold text-hb-offblack">${_mtrEsc(r.reading_value)}${unit}</span>${verbrauch}</span>
-                ${isAM ? `<button onclick="_meterReadingEdit(${r.id}, ${meterId}, '${_mtrEsc(String(r.reading_value))}', '${r.reading_date || ''}')" class="text-gray-400 hover:text-hb-olive px-1" title="Bearbeiten">✎</button>
-                <button onclick="_meterReadingDelete(${r.id}, ${meterId})" class="text-gray-400 hover:text-hb-error px-1" title="Löschen">🗑</button>` : ''}
-            </span>
-        </div>`).join('') : '<p class="text-sm text-gray-400 py-2">Noch keine Ablesungen erfasst.</p>';
+        return { r, vCell };
+    }).slice().reverse().map(({ r, vCell }) => `
+        <tr class="border-b border-gray-50 last:border-0 align-top">
+            <td class="py-2.5 pr-3 text-gray-600 whitespace-nowrap">${_mtrDate(r.reading_date)}${r.reading_type ? `<div class="text-[10px] text-gray-300">${_mtrEsc(r.reading_type)}</div>` : ''}</td>
+            <td class="py-2.5 px-3 text-right font-semibold text-hb-offblack whitespace-nowrap">${fmt(r.reading_value)}${unit}</td>
+            <td class="py-2.5 pl-3 text-right whitespace-nowrap">${vCell}</td>
+            ${isAM ? `<td class="py-2.5 pl-2 text-right whitespace-nowrap">
+                <button onclick="_meterReadingEdit(${r.id}, ${meterId}, '${_mtrEsc(String(r.reading_value))}', '${r.reading_date || ''}')" class="text-gray-400 hover:text-hb-olive px-1" title="Bearbeiten">✎</button>
+                <button onclick="_meterReadingDelete(${r.id}, ${meterId})" class="text-gray-400 hover:text-hb-error px-1" title="Löschen">🗑</button>
+            </td>` : ''}
+        </tr>`).join('');
     const meta = _meterTypeMeta(m?.meter_type);
+    const body = asc.length
+        ? `<div class="max-h-96 overflow-y-auto"><table class="w-full text-sm border-collapse">
+            <thead><tr class="text-[10px] uppercase tracking-wider text-gray-400 border-b border-gray-200">
+                <th class="text-left font-bold py-2 pr-3">Datum</th>
+                <th class="text-right font-bold py-2 px-3">Zählerstand</th>
+                <th class="text-right font-bold py-2 pl-3">Verbrauch</th>
+                ${isAM ? '<th></th>' : ''}
+            </tr></thead>
+            <tbody>${rowsHtml}</tbody>
+        </table></div>`
+        : '<p class="text-sm text-gray-400 py-6 text-center">Noch keine Ablesungen erfasst.</p>';
     showModal('meter-history', `
         <h2 class="text-xl font-extrabold text-hb-offblack mb-1">${meta.icon} ${meta.label}${m?.meter_number ? ' · ' + _mtrEsc(m.meter_number) : ''}</h2>
-        <p class="text-xs text-gray-400 mb-4">Ablesungen & Verbrauch${m?.unit ? ' (in ' + _mtrEsc(m.unit) + ')' : ''}${isAM ? ' · nachträgliches Bearbeiten nur für Verwaltung' : ''}</p>
-        <div class="max-h-96 overflow-y-auto">${rowsHtml}</div>
+        <p class="text-xs text-gray-400 mb-4">Ablesungen & Verbrauch${m?.unit ? ' · in ' + _mtrEsc(m.unit) : ''}${isAM ? ' · Korrektur nur Verwaltung' : ''}</p>
+        ${body}
         <div class="flex justify-end mt-5"><button onclick="hideModal('meter-history')" class="btn-secondary">Schließen</button></div>`, { maxWidth: 'max-w-lg' });
 };
 
