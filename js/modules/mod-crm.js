@@ -214,7 +214,7 @@ window.showCrmObjectDetail = async (buildingId) => {
     const [bRes, aptRes, mgmtRes] = await Promise.all([
         _supabase.from('buildings').select('*').eq('id', buildingId).single(),
         _supabase.from('apartments').select('id, apartment_number, type, sq_meters').eq('building_id', buildingId).order('apartment_number'),
-        _supabase.from('management_assignments').select('manager_id, manager:profiles!management_assignments_manager_id_fkey(full_name)').eq('building_id', buildingId),
+        _supabase.from('management_assignments').select('manager_id, is_primary, manager:profiles!management_assignments_manager_id_fkey(full_name)').eq('building_id', buildingId).order('is_primary', { ascending: false }).order('created_at'),
     ]);
     const b = bRes.data;
     if (!b) { showToast('Objekt nicht gefunden.', 'error'); loadCrm(); return; }
@@ -228,18 +228,26 @@ window.showCrmObjectDetail = async (buildingId) => {
         const { data: allMgrs } = await _supabase.from('profiles').select('id, full_name, role').in('role', ['admin', 'manager']).order('full_name');
         const assignedIds = new Set(mgmt.map(m => m.manager_id));
         const free = (allMgrs || []).filter(m => !assignedIds.has(m.id));
-        const chips = mgmt.length ? mgmt.map(m => `
-            <span class="inline-flex items-center gap-2 bg-hb-olive/10 text-hb-olive text-sm font-semibold px-3 py-1.5 rounded-full">
+        const chips = mgmt.length ? mgmt.map(m => {
+            const isPrim = m.is_primary === true;
+            const star = isPrim
+                ? '<span title="Haupt-Verwalter">★</span>'
+                : `<button onclick="crmSetPrimaryManager('${b.id}','${m.manager_id}')" class="text-hb-olive/40 hover:text-hb-olive leading-none" title="Als Haupt-Verwalter setzen">☆</button>`;
+            return `
+            <span class="inline-flex items-center gap-2 ${isPrim ? 'bg-hb-olive text-white' : 'bg-hb-olive/10 text-hb-olive'} text-sm font-semibold px-3 py-1.5 rounded-full">
+                ${star}
                 ${_crmEsc(m.manager?.full_name || '—')}
-                <button onclick="crmRemoveManager('${b.id}','${m.manager_id}')" class="text-hb-olive/60 hover:text-hb-error font-bold leading-none text-base" title="Zuweisung entfernen">×</button>
-            </span>`).join('') : '<span class="text-sm text-gray-400">Noch kein Verwalter zugewiesen.</span>';
+                <button onclick="crmRemoveManager('${b.id}','${m.manager_id}')" class="${isPrim ? 'text-white/70 hover:text-white' : 'text-hb-olive/60 hover:text-hb-error'} font-bold leading-none text-base" title="Zuweisung entfernen">×</button>
+            </span>`;
+        }).join('') : '<span class="text-sm text-gray-400">Noch kein Verwalter zugewiesen.</span>';
         const options = free.length
             ? '<option value="">Verwalter wählen…</option>' + free.map(m => `<option value="${m.id}">${_crmEsc(m.full_name || '—')}${m.role === 'admin' ? ' (Admin)' : ''}</option>`).join('')
             : '<option value="">Alle verfügbaren bereits zugewiesen</option>';
         mgrAssignCard = `
             <div class="card p-6 mt-6">
                 <p class="text-[10px] uppercase font-bold text-gray-300 mb-3">Verwalter-Zuweisung</p>
-                <div class="flex flex-wrap gap-2 mb-4">${chips}</div>
+                <div class="flex flex-wrap gap-2 mb-2">${chips}</div>
+                ${mgmt.length > 1 ? '<p class="text-xs text-gray-400 mb-4">★ Der Haupt-Verwalter erhält neue Tickets automatisch. Ohne Markierung gilt der zuerst zugewiesene.</p>' : '<div class="mb-2"></div>'}
                 <div class="flex gap-2 items-center">
                     <select id="crm-mgr-select" class="!w-auto flex-grow" style="max-width:20rem">${options}</select>
                     <button onclick="crmAssignManager('${b.id}')" class="btn-primary text-xs px-4 flex-shrink-0"${free.length ? '' : ' disabled'}>Zuweisen</button>
@@ -325,6 +333,18 @@ window.crmRemoveManager = async (buildingId, managerId) => {
         .eq('building_id', Number(buildingId)).eq('manager_id', managerId);
     if (error) { showToast('Fehler beim Entfernen: ' + error.message, 'error'); return; }
     showToast('Zuweisung entfernt.', 'success');
+    showCrmObjectDetail(buildingId);
+};
+
+// Haupt-Verwalter setzen (Admin) — erhält neue Tickets bevorzugt.
+// Erst bestehenden Primary zurücksetzen (Unique-Index erlaubt nur einen), dann den gewählten setzen.
+window.crmSetPrimaryManager = async (buildingId, managerId) => {
+    const bId = Number(buildingId);
+    let res = await _supabase.from('management_assignments').update({ is_primary: false }).eq('building_id', bId).eq('is_primary', true);
+    if (res.error) { showToast('Fehler: ' + res.error.message, 'error'); return; }
+    res = await _supabase.from('management_assignments').update({ is_primary: true }).eq('building_id', bId).eq('manager_id', managerId);
+    if (res.error) { showToast('Fehler: ' + res.error.message, 'error'); return; }
+    showToast('Haupt-Verwalter gesetzt.', 'success');
     showCrmObjectDetail(buildingId);
 };
 

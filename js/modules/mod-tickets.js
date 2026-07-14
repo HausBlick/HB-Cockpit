@@ -766,7 +766,7 @@ window.escalateTicket = async (ticketId) => {
     const bId = ticketData.data?.building_id;
     let managerId = null;
     if (bId) {
-        const { data: mgmt } = await _supabase.from('management_assignments').select('manager_id').eq('building_id', bId).limit(1).single();
+        const { data: mgmt } = await _supabase.from('management_assignments').select('manager_id').eq('building_id', bId).order('is_primary', { ascending: false }).order('created_at').limit(1).maybeSingle();
         managerId = mgmt?.manager_id || null;
     }
     const senderName = userProfile?.full_name || 'Eigentümer';
