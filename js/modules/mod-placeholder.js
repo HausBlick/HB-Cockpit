@@ -344,8 +344,134 @@ window._profileToggleNotif = async (type, enabled) => {
 };
 
 async function loadMyUnits() {
-    document.getElementById('content-area').innerHTML =
-        '<div class="p-10 card text-center"><h2 class="text-xl font-bold mb-2">Meine Einheiten</h2><p class="text-gray-500">Demnächst verfügbar.</p></div>';
+    const ca = document.getElementById('content-area');
+    ca.innerHTML = '<div class="flex justify-center py-20"><div class="w-8 h-8 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div></div>';
+
+    const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const euro = n => (n === null || n === undefined || isNaN(n)) ? '—'
+        : Number(n).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+    const dt = d => d ? new Date(d).toLocaleDateString('de-DE') : '';
+    const header = `
+        <div class="mb-6 text-left">
+            <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">Meine Einheiten</h2>
+            <p class="text-[15px] text-gray-500 mt-1">Ihre Eigentumseinheiten im Überblick.</p>
+        </div>`;
+    const empty = (msg) => `${header}<div class="p-10 card text-center max-w-md mx-auto"><p class="text-[15px] text-gray-500">${msg}</p></div>`;
+
+    // 1) Person → aktive Eigentümerschaften → Einheiten
+    const { data: person } = await _supabase.from('persons').select('id').eq('auth_user_id', currentUser.id).maybeSingle();
+    let apts = [];
+    if (person?.id) {
+        const { data: ow } = await _supabase.from('ownerships')
+            .select('apartments!inner(id, building_id, apartment_number, type, sq_meters, floor, mea, hausgeld)')
+            .eq('owner_id', person.id).eq('is_active', true);
+        apts = (ow || []).map(o => o.apartments).filter(Boolean);
+    }
+    if (!apts.length) {
+        ca.innerHTML = empty('Für Ihr Konto ist derzeit keine Einheit hinterlegt. Bitte wenden Sie sich an Ihre Verwaltung.');
+        return;
+    }
+
+    const bldIds = [...new Set(apts.map(a => a.building_id))];
+    const aptIds = apts.map(a => a.id);
+
+    // 2) Gebäude, Zähler, Zählerstände parallel
+    const [bldRes, metersRes] = await Promise.all([
+        _supabase.from('buildings').select('id, name, file_number, street, house_number, zip_code, city').in('id', bldIds),
+        _supabase.from('meters').select('id, apartment_id, meter_number, meter_type, location_in_apartment').in('apartment_id', aptIds).eq('is_active', true).order('meter_type'),
+    ]);
+    const bldMap = Object.fromEntries((bldRes.data || []).map(b => [b.id, b]));
+    const meters = metersRes.data || [];
+    const meterIds = meters.map(m => m.id);
+    let latestByMeter = {};
+    if (meterIds.length) {
+        const { data: rd } = await _supabase.from('meter_readings')
+            .select('meter_id, reading_value, reading_date')
+            .in('meter_id', meterIds).order('reading_date', { ascending: false });
+        (rd || []).forEach(r => { if (!latestByMeter[r.meter_id]) latestByMeter[r.meter_id] = r; });
+    }
+
+    // 3) Verwalter je Gebäude (RLS-sichere RPC) + dynamisches Hausgeld je Einheit
+    const mgrByBld = {}, hgByApt = {};
+    await Promise.all([
+        ...bldIds.map(async bid => {
+            const { data } = await _supabase.rpc('get_building_managers', { p_building_id: bid });
+            mgrByBld[bid] = (data || []).map(m => m.full_name).filter(Boolean);
+        }),
+        ...apts.map(async a => {
+            const dyn = await getMonthlyHausgeld(a.id, a.building_id);
+            hgByApt[a.id] = { amount: (dyn ?? a.hausgeld), dynamic: (dyn !== null && dyn !== undefined) };
+        }),
+    ]);
+
+    // 4) Render — eine Karte je Einheit
+    const meterIcon = t => {
+        const s = (t || '').toLowerCase();
+        if (s.includes('strom')) return '⚡';
+        if (s.includes('wasser')) return '💧';
+        if (s.includes('wärme') || s.includes('warme') || s.includes('heiz') || s.includes('gas')) return '🔥';
+        return '📊';
+    };
+
+    const cards = apts.sort((a, b) => String(a.apartment_number).localeCompare(String(b.apartment_number), 'de', { numeric: true })).map(a => {
+        const b = bldMap[a.building_id];
+        const addr = b ? [[b.street, b.house_number].filter(Boolean).join(' '), [b.zip_code, b.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') : '';
+        const stats = [
+            a.sq_meters ? `${esc(a.sq_meters)} m²` : null,
+            (a.mea !== null && a.mea !== undefined && a.mea !== '') ? `MEA ${esc(a.mea)}` : null,
+            (a.floor !== null && a.floor !== undefined && a.floor !== '') ? `${esc(a.floor)}` : null,
+            a.type ? esc(a.type) : null,
+        ].filter(Boolean).join('&nbsp;&nbsp;·&nbsp;&nbsp;');
+        const hg = hgByApt[a.id] || {};
+        const aptMeters = meters.filter(m => m.apartment_id === a.id);
+        const meterRows = aptMeters.length ? aptMeters.map(m => {
+            const r = latestByMeter[m.id];
+            const stand = r ? `${esc(r.reading_value)}${r.reading_date ? ` <span class="text-gray-400">(${dt(r.reading_date)})</span>` : ''}` : '<span class="text-gray-400">kein Stand erfasst</span>';
+            const label = [m.meter_type, m.meter_number].filter(Boolean).map(esc).join(' · ');
+            const loc = m.location_in_apartment ? ` <span class="text-gray-400">· ${esc(m.location_in_apartment)}</span>` : '';
+            return `<div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0 text-sm">
+                <span class="text-gray-700">${meterIcon(m.meter_type)} ${label}${loc}</span>
+                <span class="font-semibold text-hb-offblack">${stand}</span>
+            </div>`;
+        }).join('') : '<p class="text-sm text-gray-400 py-1">Keine Zähler hinterlegt.</p>';
+
+        return `
+        <div class="card p-6 space-y-5">
+            <div class="flex items-start gap-3">
+                <div class="w-11 h-11 rounded-lg bg-hb-olive/10 text-hb-olive flex items-center justify-center flex-shrink-0 text-xl">🏠</div>
+                <div class="min-w-0">
+                    <h3 class="text-lg font-extrabold text-hb-offblack leading-tight">Wohnung ${esc(a.apartment_number)}</h3>
+                    <p class="text-sm text-gray-500 truncate">${esc(formatBuildingName(b))}${addr ? ' · ' + esc(addr) : ''}</p>
+                </div>
+            </div>
+
+            ${stats ? `<p class="text-sm text-gray-600">${stats}</p>` : ''}
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="bg-hb-ultralight rounded-xl p-4">
+                    <p class="text-[10px] uppercase font-bold text-gray-400 mb-1">Monatliches Hausgeld</p>
+                    <p class="text-2xl font-extrabold text-hb-offblack">${euro(hg.amount)}</p>
+                    ${hg.dynamic ? '<p class="text-[11px] text-gray-400 mt-0.5">aus aktivem Wirtschaftsplan</p>' : ''}
+                </div>
+                <div class="bg-hb-ultralight rounded-xl p-4">
+                    <p class="text-[10px] uppercase font-bold text-gray-400 mb-1">Verwalter</p>
+                    <p class="text-sm font-semibold text-hb-offblack">${(mgrByBld[a.building_id] && mgrByBld[a.building_id].length) ? esc(mgrByBld[a.building_id].join(', ')) : '—'}</p>
+                </div>
+            </div>
+
+            <div>
+                <p class="text-[10px] uppercase font-bold text-gray-300 mb-1">Zähler & Stände</p>
+                ${meterRows}
+            </div>
+
+            <div class="flex flex-wrap gap-2 pt-1">
+                <button onclick="loadDocuments()" class="btn-outline text-xs px-4">Dokumente ansehen</button>
+                <button onclick="(typeof _dashNewTicket==='function'?_dashNewTicket():loadTickets())" class="btn-outline text-xs px-4">Ticket melden</button>
+            </div>
+        </div>`;
+    }).join('');
+
+    ca.innerHTML = `${header}<div class="grid grid-cols-1 xl:grid-cols-2 gap-6 text-left">${cards}</div>`;
 }
 
 async function loadMyTenants() {
