@@ -146,7 +146,7 @@ function renderNav(role) {
         // Beschlusssammlung (HB-Votes): auf etv.html per onclick, sonst href mit tab-Param
         const _bPage = _getCurrentPage();
         html += `<li><a ${_bPage === 'etv' ? `onclick="loadBeschluesse(); setActiveNav(this)"` : `href="etv.html?tab=beschluesse"`} class="nav-link">
-            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+            <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
             <span class="nav-label"> HB-Votes</span><span id="nav-badge-beschluesse" class="nav-badge"></span>
         </a></li>`;
         html += _navItem('loadSettings',       icons.settings,  'HB-Setup');
