@@ -555,8 +555,8 @@ window.openTicketDetail = async (ticketId) => {
                         </select>` : `<p class="text-sm font-semibold">${t.assignee?.full_name || '—'}</p>`}
                 </div>
 
-                <!-- Eskalation/Weiterleitung -->
-                ${(isOwner || isLandlord) && t.status !== 'Erledigt' ? `
+                <!-- Eskalation/Weiterleitung — nur Vermieter (Landlord); Nicht-Vermieter-Tickets gehen ohnehin direkt an den Verwalter -->
+                ${isLandlord && t.status !== 'Erledigt' ? `
                     <div class="border-t pt-4 space-y-2">
                         ${isLandlord && t.apartment_id ? `
                             <button onclick="forwardToTenant('${t.id}', ${t.apartment_id})"

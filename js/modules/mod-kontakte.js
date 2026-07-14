@@ -99,7 +99,7 @@ function _renderContactsPage(role) {
                 <h2 class="text-[28px] font-bold text-hb-offblack tracking-tight">${(userProfile?.role==='admin'||userProfile?.role==='manager')?'HB-Contacts':'Kontaktbuch'}</h2>
                 <p class="text-[15px] text-gray-500 mt-1">Ansprechpartner, Dienstleister und Notfallkontakte</p>
             </div>
-            ${isAdmin || isOwner ? `
+            ${isAdmin || (isOwner && userProfile?._isLandlord) ? `
             <button onclick="showContactForm()" class="btn-primary flex items-center gap-2 text-sm shadow-sm">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
                 Neuer Kontakt
