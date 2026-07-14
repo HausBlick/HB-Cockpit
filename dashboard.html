@@ -114,23 +114,27 @@
         .ds-block { transition: box-shadow 0.15s, opacity 0.15s; }
         .ds-block[draggable="true"]:active { cursor: grabbing; }
         .ds-block.ring-2 { box-shadow: 0 0 0 2px rgba(104,116,81,0.3); }
-        /* === Sidebar: Icon-Only (collapsed) + Hover-Expand (Desktop only) === */
+        .sidebar-panel { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+        /* === Sidebar: Icon-Only (collapsed) + Hover-Peek Overlay + Pin (Desktop only) === */
         @media (min-width: 768px) {
-            #sidebar { width: 72px !important; overflow: hidden; transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.4s; }
-            #sidebar:hover { width: 288px !important; transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.08s; }
+            #sidebar { width: 72px !important; overflow: visible; transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+            #sidebar.pinned { width: 288px !important; }
+            .sidebar-panel { position: absolute; inset: 0; width: 100%; background: #fff; overflow: hidden; z-index: 40; transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.35s, box-shadow 0.3s; }
+            #sidebar:not(.pinned):hover .sidebar-panel { width: 288px; box-shadow: 0 12px 40px rgba(55,55,55,0.12); transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.05s, box-shadow 0.3s; }
             .sidebar-logo-area { padding: 16px 0 14px !important; }
-            #sidebar:hover .sidebar-logo-area { padding: 32px 32px 16px !important; }
+            #sidebar:hover .sidebar-logo-area, #sidebar.pinned .sidebar-logo-area { padding: 32px 32px 16px !important; }
             .sidebar-logo-icon { width: 32px !important; height: 32px !important; object-fit: contain; margin-bottom: 0 !important; }
-            #sidebar:hover .sidebar-logo-icon { width: 40px !important; height: 40px !important; margin-bottom: 8px !important; }
+            #sidebar:hover .sidebar-logo-icon, #sidebar.pinned .sidebar-logo-icon { width: 40px !important; height: 40px !important; margin-bottom: 8px !important; }
             .sidebar-logo-text { opacity: 0; max-height: 0; overflow: hidden; transition: opacity 0.2s, max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-            #sidebar:hover .sidebar-logo-text { opacity: 1; max-height: 60px; }
+            #sidebar:hover .sidebar-logo-text, #sidebar.pinned .sidebar-logo-text { opacity: 1; max-height: 60px; }
             .nav-label { max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; display: inline-block; vertical-align: middle; transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s; }
-            #sidebar:hover .nav-label { max-width: 200px; opacity: 1; }
+            #sidebar:hover .nav-label, #sidebar.pinned .nav-label { max-width: 200px; opacity: 1; }
             .nav-link { padding: 12px !important; gap: 0 !important; transition: background-color 0.2s, color 0.2s, padding 0.3s cubic-bezier(0.4, 0, 0.2, 1), gap 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; }
-            #sidebar:hover .nav-link { padding: 12px 16px !important; gap: 12px !important; }
+            #sidebar:hover .nav-link, #sidebar.pinned .nav-link { padding: 12px 16px !important; gap: 12px !important; }
             .nav-section-title { max-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; overflow: hidden !important; opacity: 0; transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s, padding 0.3s; }
-            #sidebar:hover .nav-section-title { max-height: 50px !important; padding-top: 24px !important; padding-bottom: 8px !important; opacity: 1; }
-            #sidebar:not(:hover) .nav-badge { display: none !important; }
+            #sidebar:hover .nav-section-title, #sidebar.pinned .nav-section-title { max-height: 50px !important; padding-top: 24px !important; padding-bottom: 8px !important; opacity: 1; }
+            #sidebar:not(:hover):not(.pinned) .nav-badge { display: none !important; }
+            #sidebar.pinned .sidebar-pin-btn { color: #687451 !important; background: rgba(104,116,81,0.06) !important; }
         }
         /* Tap-Feedback (Mobile) — physisches Druckgefühl auf primären Aktionen */
         .btn-primary:active, .btn-secondary:active, .btn-outline:active, .tap-feedback:active {
@@ -152,6 +156,7 @@
 
     <!-- Sidebar -->
     <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-40 w-72 bg-white border-r border-gray-100 flex-shrink-0 h-screen flex flex-col shadow-soft text-left">
+      <div class="sidebar-panel">
         <div onclick="loadDashboard(); document.querySelectorAll('#nav-links a').forEach(a=>a.classList.remove('active-link')); document.querySelector('#nav-links a')?.classList.add('active-link');"
             class="sidebar-logo-area hidden md:block text-center border-b border-gray-50 mb-4 cursor-pointer hover:bg-gray-50/50 transition-colors">
             <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="sidebar-logo-icon mx-auto">
@@ -163,6 +168,12 @@
         <div class="flex-grow p-4 overflow-y-auto chat-scroll">
             <ul class="space-y-1" id="nav-links"></ul>
         </div>
+        <button onclick="toggleSidebarPin()" id="sidebar-pin-btn" title="Menü fixieren" aria-pressed="false"
+            class="sidebar-pin-btn nav-link hidden md:flex items-center mx-2 mb-3 flex-shrink-0 text-gray-400 hover:text-hb-olive hover:bg-hb-olive/5">
+            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l-1 6 3.5 3v2H6.5v-2L10 10 9 4z"></path><line x1="12" y1="15" x2="12" y2="21"></line></svg>
+            <span class="nav-label text-[13px] font-semibold">Menü fixieren</span>
+        </button>
+      </div>
     </nav>
     <div id="overlay" onclick="toggleMenu()" class="fixed inset-0 bg-hb-offblack/20 backdrop-blur-sm z-30 hidden text-left"></div>
 
@@ -212,7 +223,7 @@
     ===================================================== -->
     <!-- pdf-lib + fontkit + utils-pdf.js → nur noch in externen Seiten (finanzen/etv/zeiterfassung) -->
     <script src="js/config.js?v=20260611a"></script>
-    <script src="js/utils.js?v=20260425h"></script>
+    <script src="js/utils.js?v=20260714a"></script>
     <script src="js/modules/mod-dashboard.js?v=20260425k"></script>
     <script src="js/modules/mod-objekte.js?v=20260711a"></script>
     <script src="js/modules/mod-crm-activity.js?v=20260602b"></script>

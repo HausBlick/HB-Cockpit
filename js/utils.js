@@ -40,6 +40,37 @@ function toggleMenu() {
     document.getElementById('overlay').classList.toggle('hidden');
 }
 
+// ─── Sidebar Pin (Desktop) ───────────────────────────────────
+// Eingeklappt = 72px Icons. Hover = Overlay-Peek (kein Reflow).
+// Pin geklickt = angedockt offen, bleibt bis zum Lösen (localStorage).
+function toggleSidebarPin() {
+    const sb = document.getElementById('sidebar');
+    if (!sb) return;
+    const pinned = sb.classList.toggle('pinned');
+    try { localStorage.setItem('hb_sidebar_pinned', pinned ? '1' : '0'); } catch (e) {}
+    _syncSidebarPinBtn(pinned);
+}
+
+function _syncSidebarPinBtn(pinned) {
+    const btn = document.getElementById('sidebar-pin-btn');
+    if (!btn) return;
+    const lbl = btn.querySelector('.nav-label');
+    if (lbl) lbl.textContent = pinned ? 'Menü lösen' : 'Menü fixieren';
+    btn.title = pinned ? 'Menü lösen' : 'Menü fixieren';
+    btn.setAttribute('aria-pressed', pinned ? 'true' : 'false');
+}
+
+function _initSidebarPin() {
+    const sb = document.getElementById('sidebar');
+    if (!sb) return;
+    let pinned = false;
+    try { pinned = localStorage.getItem('hb_sidebar_pinned') === '1'; } catch (e) {}
+    // Nur auf Desktop andocken – auf Mobile gilt das Slide-in-Menü.
+    if (pinned && window.matchMedia('(min-width: 768px)').matches) sb.classList.add('pinned');
+    _syncSidebarPinBtn(sb.classList.contains('pinned'));
+}
+document.addEventListener('DOMContentLoaded', _initSidebarPin);
+
 // ─── Modal / Bottom Sheet ────────────────────────────────────
 // Desktop: zentriertes Modal. Mobile: Bottom Sheet (slide-up).
 // Nutzung: const modal = showModal('my-id', '<h2>Titel</h2>...', { maxWidth: 'max-w-2xl' });
