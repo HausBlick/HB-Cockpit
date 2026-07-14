@@ -378,7 +378,7 @@ async function loadMyUnits() {
     // 2) Gebäude, Zähler, Zählerstände parallel
     const [bldRes, metersRes] = await Promise.all([
         _supabase.from('buildings').select('id, name, file_number, street, house_number, zip_code, city').in('id', bldIds),
-        _supabase.from('meters').select('id, apartment_id, meter_number, meter_type, location_in_apartment').in('apartment_id', aptIds).eq('is_active', true).order('meter_type'),
+        _supabase.from('meters').select('id, apartment_id, meter_number, meter_type, location_in_apartment, unit').in('apartment_id', aptIds).eq('is_active', true).order('meter_type'),
     ]);
     const bldMap = Object.fromEntries((bldRes.data || []).map(b => [b.id, b]));
     const meters = metersRes.data || [];
@@ -427,13 +427,15 @@ async function loadMyUnits() {
         const aptMeters = meters.filter(m => m.apartment_id === a.id);
         const meterRows = aptMeters.length ? aptMeters.map(m => {
             const r = latestByMeter[m.id];
-            const stand = r ? `${esc(r.reading_value)}${r.reading_date ? ` <span class="text-gray-400">(${dt(r.reading_date)})</span>` : ''}` : '<span class="text-gray-400">kein Stand</span>';
+            const u = m.unit ? ' ' + esc(m.unit) : '';
+            const stand = r ? `${esc(r.reading_value)}${u}${r.reading_date ? ` <span class="text-gray-400">(${dt(r.reading_date)})</span>` : ''}` : '<span class="text-gray-400">kein Stand</span>';
             const label = [meterLabel(m.meter_type), m.meter_number].filter(Boolean).map(esc).join(' · ');
             const loc = m.location_in_apartment ? ` <span class="text-gray-400">· ${esc(m.location_in_apartment)}</span>` : '';
             return `<div class="flex items-center justify-between gap-2 py-2 border-b border-gray-50 last:border-0 text-sm">
                 <span class="text-gray-700 min-w-0">${meterIcon(m.meter_type)} ${label}${loc}</span>
                 <span class="flex items-center gap-2 flex-shrink-0">
                     <span class="font-semibold text-hb-offblack">${stand}</span>
+                    <button onclick="_meterHistoryModal(${m.id})" class="btn-outline text-[11px] px-2 py-1">Verlauf</button>
                     <button onclick="_myUnitReading(${m.id})" class="btn-outline text-[11px] px-2 py-1">Stand melden</button>
                 </span>
             </div>`;

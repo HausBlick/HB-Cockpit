@@ -473,9 +473,10 @@ window._aptRenderMeters = async (apartmentId) => {
     const rows = list.length ? list.map(m => {
         const meta = _meterTypeMeta(m.meter_type);
         const r = latest[m.id];
-        const stand = r ? `${_mtrEsc(r.reading_value)}${r.reading_date ? ` · ${_mtrDate(r.reading_date)}` : ''}` : '—';
+        const unit = m.unit ? ' ' + _mtrEsc(m.unit) : '';
+        const stand = r ? `${_mtrEsc(r.reading_value)}${unit}${r.reading_date ? ` · ${_mtrDate(r.reading_date)}` : ''}` : '—';
         const cal = m.calibration_expiry ? `Eichung bis ${_mtrDate(m.calibration_expiry)}` : '';
-        const meta2 = [m.location_in_apartment ? _mtrEsc(m.location_in_apartment) : '', cal].filter(Boolean).join(' · ') || '—';
+        const meta2 = [m.location_in_apartment ? _mtrEsc(m.location_in_apartment) : '', m.unit ? 'in ' + _mtrEsc(m.unit) : '', cal].filter(Boolean).join(' · ') || '—';
         return `<div class="flex items-center justify-between gap-3 py-3 border-b border-gray-50 last:border-0">
             <div class="min-w-0">
                 <p class="text-sm font-semibold text-hb-offblack">${meta.icon} ${meta.label}${m.meter_number ? ' · ' + _mtrEsc(m.meter_number) : ''}</p>
@@ -483,6 +484,7 @@ window._aptRenderMeters = async (apartmentId) => {
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
                 <span class="text-xs text-gray-500 hidden sm:inline">Stand: <span class="font-semibold text-hb-offblack">${stand}</span></span>
+                <button onclick="_meterHistoryModal(${m.id})" class="btn-outline text-[11px] px-2 py-1">Verlauf</button>
                 <button onclick="_aptReadingForm(${m.id})" class="btn-outline text-[11px] px-2 py-1">+ Stand</button>
                 <button onclick="_aptMeterForm(${apartmentId}, ${m.id})" class="text-gray-400 hover:text-hb-olive px-1" title="Bearbeiten">✎</button>
                 <button onclick="_aptMeterDelete(${m.id}, ${apartmentId})" class="text-gray-400 hover:text-hb-error px-1" title="Entfernen">🗑</button>
@@ -508,6 +510,11 @@ window._aptMeterForm = async (apartmentId, meterId = null) => {
             <div><label class="text-[10px] uppercase font-bold text-gray-500">Zählernummer</label><input type="text" id="mf_num" value="${_mtrEsc(m.meter_number || '')}"></div>
             <div><label class="text-[10px] uppercase font-bold text-gray-500">Standort (optional)</label><input type="text" id="mf_loc" value="${_mtrEsc(m.location_in_apartment || '')}"></div>
             <div><label class="text-[10px] uppercase font-bold text-gray-500">Eichung bis (optional)</label><input type="date" id="mf_cal" value="${m.calibration_expiry || ''}"></div>
+            <div><label class="text-[10px] uppercase font-bold text-gray-500">Maßeinheit</label>
+                <select id="mf_unit">
+                    <option value="" ${!m.unit ? 'selected' : ''}>—</option>
+                    ${['m³', 'kWh', 'MWh', 'l', 'Einheiten'].map(u => `<option value="${u}" ${m.unit === u ? 'selected' : ''}>${u}</option>`).join('')}
+                </select></div>
         </div>
         <div class="flex gap-3 mt-5">
             <button onclick="_aptMeterSave(${apartmentId}, ${meterId || 'null'})" class="btn-primary flex-1">Speichern</button>
@@ -522,6 +529,7 @@ window._aptMeterSave = async (apartmentId, meterId) => {
         meter_number: document.getElementById('mf_num').value.trim() || null,
         location_in_apartment: document.getElementById('mf_loc').value.trim() || null,
         calibration_expiry: document.getElementById('mf_cal').value || null,
+        unit: document.getElementById('mf_unit').value || null,
         is_active: true,
     };
     const res = meterId
@@ -566,6 +574,77 @@ window._aptReadingSave = async (meterId) => {
     hideModal('reading-form');
     showToast('Stand gespeichert.', 'success');
     if (m?.apartment_id) _aptRenderMeters(m.apartment_id);
+};
+
+// Ablese-Verlauf + Verbrauch (Δ zwischen aufeinanderfolgenden Ständen). Für Admin/Manager und Eigentümer
+// nutzbar (RLS regelt Sichtbarkeit). meter_readings/meters sind für eigene Einheiten owner-lesbar.
+window._meterHistoryModal = async (meterId) => {
+    const isAM = userProfile?.role === 'admin' || userProfile?.role === 'manager';
+    const [{ data: m }, { data: readings }] = await Promise.all([
+        _supabase.from('meters').select('meter_type, meter_number, unit').eq('id', meterId).single(),
+        _supabase.from('meter_readings').select('id, reading_value, reading_date, reading_type').eq('meter_id', meterId).order('reading_date', { ascending: true }),
+    ]);
+    const unit = m?.unit ? ' ' + _mtrEsc(m.unit) : '';
+    const asc = readings || [];
+    const rowsHtml = asc.length ? asc.map((r, i) => {
+        const prev = i > 0 ? asc[i - 1] : null;
+        let verbrauch = '<span class="text-xs text-gray-300 ml-2">Startwert</span>';
+        if (prev) {
+            const d = Math.round((Number(r.reading_value) - Number(prev.reading_value)) * 1000) / 1000;
+            const days = Math.round((new Date(r.reading_date) - new Date(prev.reading_date)) / 86400000);
+            verbrauch = `<span class="text-xs text-hb-olive ml-2">Verbrauch ${d >= 0 ? '+' : ''}${d}${unit}${days > 0 ? ` · ${days} Tage` : ''}</span>`;
+        }
+        return { r, verbrauch };
+    }).slice().reverse().map(({ r, verbrauch }) => `
+        <div class="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0 text-sm">
+            <span class="text-gray-600 flex-shrink-0">${_mtrDate(r.reading_date)}${r.reading_type ? ` <span class="text-gray-300">· ${_mtrEsc(r.reading_type)}</span>` : ''}</span>
+            <span class="text-right flex items-center gap-2 justify-end min-w-0">
+                <span><span class="font-semibold text-hb-offblack">${_mtrEsc(r.reading_value)}${unit}</span>${verbrauch}</span>
+                ${isAM ? `<button onclick="_meterReadingEdit(${r.id}, ${meterId}, '${_mtrEsc(String(r.reading_value))}', '${r.reading_date || ''}')" class="text-gray-400 hover:text-hb-olive px-1" title="Bearbeiten">✎</button>
+                <button onclick="_meterReadingDelete(${r.id}, ${meterId})" class="text-gray-400 hover:text-hb-error px-1" title="Löschen">🗑</button>` : ''}
+            </span>
+        </div>`).join('') : '<p class="text-sm text-gray-400 py-2">Noch keine Ablesungen erfasst.</p>';
+    const meta = _meterTypeMeta(m?.meter_type);
+    showModal('meter-history', `
+        <h2 class="text-xl font-extrabold text-hb-offblack mb-1">${meta.icon} ${meta.label}${m?.meter_number ? ' · ' + _mtrEsc(m.meter_number) : ''}</h2>
+        <p class="text-xs text-gray-400 mb-4">Ablesungen & Verbrauch${m?.unit ? ' (in ' + _mtrEsc(m.unit) + ')' : ''}${isAM ? ' · nachträgliches Bearbeiten nur für Verwaltung' : ''}</p>
+        <div class="max-h-96 overflow-y-auto">${rowsHtml}</div>
+        <div class="flex justify-end mt-5"><button onclick="hideModal('meter-history')" class="btn-secondary">Schließen</button></div>`, { maxWidth: 'max-w-lg' });
+};
+
+// Ablesung nachträglich korrigieren/löschen — nur Admin/Manager (RLS blockiert Owner ohnehin).
+window._meterReadingEdit = (readingId, meterId, curVal, curDate) => {
+    showModal('reading-edit', `
+        <h2 class="text-xl font-extrabold text-hb-offblack mb-4">Ablesung korrigieren</h2>
+        <div class="space-y-3">
+            <div><label class="text-[10px] uppercase font-bold text-gray-500">Zählerstand</label><input type="number" step="0.001" id="re_val" value="${_mtrEsc(curVal)}"></div>
+            <div><label class="text-[10px] uppercase font-bold text-gray-500">Ablesedatum</label><input type="date" id="re_date" value="${curDate}"></div>
+        </div>
+        <div class="flex gap-3 mt-5">
+            <button onclick="_meterReadingEditSave(${readingId}, ${meterId})" class="btn-primary flex-1">Speichern</button>
+            <button onclick="hideModal('reading-edit')" class="btn-secondary">Abbrechen</button>
+        </div>`, { maxWidth: 'max-w-sm' });
+};
+
+window._meterReadingEditSave = async (readingId, meterId) => {
+    const val = parseFloat(document.getElementById('re_val').value);
+    const date = document.getElementById('re_date').value;
+    if (isNaN(val) || !date) { showToast('Bitte Wert und Datum angeben.', 'error'); return; }
+    const { error } = await _supabase.from('meter_readings').update({ reading_value: val, reading_date: date }).eq('id', readingId);
+    if (error) { showToast(error.message, 'error'); return; }
+    hideModal('reading-edit');
+    showToast('Ablesung aktualisiert.', 'success');
+    _meterHistoryModal(meterId);
+    if (document.getElementById('apt-meters-panel')) { const { data: mm } = await _supabase.from('meters').select('apartment_id').eq('id', meterId).single(); if (mm?.apartment_id) _aptRenderMeters(mm.apartment_id); }
+};
+
+window._meterReadingDelete = async (readingId, meterId) => {
+    if (!confirm('Diese Ablesung wirklich löschen?')) return;
+    const { error } = await _supabase.from('meter_readings').delete().eq('id', readingId);
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Ablesung gelöscht.', 'success');
+    _meterHistoryModal(meterId);
+    if (document.getElementById('apt-meters-panel')) { const { data: mm } = await _supabase.from('meters').select('apartment_id').eq('id', meterId).single(); if (mm?.apartment_id) _aptRenderMeters(mm.apartment_id); }
 };
 
 // ─── Gebäude-Formular (4 Tabs, Edit) ─────────────────────────
