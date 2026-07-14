@@ -593,14 +593,17 @@ async function _renderUserDashboard() {
     );
 
     // F1: Verwalter aus Manager-Profil (via RLS-sicherer RPC) + Hausmeister aus Kontaktbuch
-    let verwalter = null, verwalterAvatar = '';
+    let verwalterList = [];
     if (buildingId) {
-        const { data: mgr } = await _supabase.rpc('get_building_manager', { p_building_id: buildingId });
-        verwalter = mgr?.[0] || null;
-        if (verwalter?.avatar_url) {
-            const { data: s } = await _supabase.storage.from('avatars').createSignedUrl(verwalter.avatar_url, 3600);
-            verwalterAvatar = s?.signedUrl || '';
-        }
+        const { data: mgrs } = await _supabase.rpc('get_building_managers', { p_building_id: buildingId });
+        verwalterList = mgrs || [];
+        // Avatare parallel signieren
+        await Promise.all(verwalterList.map(async (v) => {
+            if (v.avatar_url) {
+                const { data: s } = await _supabase.storage.from('avatars').createSignedUrl(v.avatar_url, 3600);
+                v._signedAvatar = s?.signedUrl || '';
+            }
+        }));
     }
     const hausmeister = buildingId
         ? allContacts.find(c => (c.building_ids || []).map(String).includes(String(buildingId)) && c.category === 'Hausmeister')
@@ -608,11 +611,11 @@ async function _renderUserDashboard() {
 
     // F1: Personen-Liste fürs Karussell (max 2 nebeneinander, mehr -> swipen/Pfeile)
     const anspPersons = [];
-    if (verwalter) anspPersons.push({
-        name: verwalter.full_name, sub: verwalter.function_title || '', badge: 'Verwalter',
-        avatarUrl: verwalterAvatar, phone: verwalter.phone, mobile: verwalter.mobile,
-        whatsapp: verwalter.whatsapp_enabled, email: verwalter.email,
-    });
+    verwalterList.forEach(v => anspPersons.push({
+        name: v.full_name, sub: v.function_title || '', badge: 'Verwalter',
+        avatarUrl: v._signedAvatar || '', phone: v.phone, mobile: v.mobile,
+        whatsapp: v.whatsapp_enabled, email: v.email,
+    }));
     if (hausmeister) anspPersons.push({
         name: hausmeister.company || hausmeister.contact_person,
         sub: (hausmeister.company && hausmeister.contact_person) ? hausmeister.contact_person : '',
