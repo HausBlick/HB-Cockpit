@@ -210,15 +210,42 @@ window.showCrmObjectDetail = async (buildingId) => {
     if (!c) return;
     c.innerHTML = `<div class="flex items-center justify-center py-20"><div class="w-8 h-8 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div></div>`;
 
+    const isAdmin = userProfile?.role === 'admin';
     const [bRes, aptRes, mgmtRes] = await Promise.all([
         _supabase.from('buildings').select('*').eq('id', buildingId).single(),
         _supabase.from('apartments').select('id, apartment_number, type, sq_meters').eq('building_id', buildingId).order('apartment_number'),
-        _supabase.from('management_assignments').select('manager:profiles!management_assignments_manager_id_fkey(full_name)').eq('building_id', buildingId),
+        _supabase.from('management_assignments').select('manager_id, manager:profiles!management_assignments_manager_id_fkey(full_name)').eq('building_id', buildingId),
     ]);
     const b = bRes.data;
     if (!b) { showToast('Objekt nicht gefunden.', 'error'); loadCrm(); return; }
     const apts = aptRes.data || [];
-    const managers = (mgmtRes.data || []).map(m => m.manager?.full_name).filter(Boolean);
+    const mgmt = mgmtRes.data || [];
+    const managers = mgmt.map(m => m.manager?.full_name).filter(Boolean);
+
+    // Verwalter-Zuweisung — nur Admin darf schreiben (RLS: management_assignments is_admin())
+    let mgrAssignCard = '';
+    if (isAdmin) {
+        const { data: allMgrs } = await _supabase.from('profiles').select('id, full_name, role').in('role', ['admin', 'manager']).order('full_name');
+        const assignedIds = new Set(mgmt.map(m => m.manager_id));
+        const free = (allMgrs || []).filter(m => !assignedIds.has(m.id));
+        const chips = mgmt.length ? mgmt.map(m => `
+            <span class="inline-flex items-center gap-2 bg-hb-olive/10 text-hb-olive text-sm font-semibold px-3 py-1.5 rounded-full">
+                ${_crmEsc(m.manager?.full_name || '—')}
+                <button onclick="crmRemoveManager('${b.id}','${m.manager_id}')" class="text-hb-olive/60 hover:text-hb-error font-bold leading-none text-base" title="Zuweisung entfernen">×</button>
+            </span>`).join('') : '<span class="text-sm text-gray-400">Noch kein Verwalter zugewiesen.</span>';
+        const options = free.length
+            ? '<option value="">Verwalter wählen…</option>' + free.map(m => `<option value="${m.id}">${_crmEsc(m.full_name || '—')}${m.role === 'admin' ? ' (Admin)' : ''}</option>`).join('')
+            : '<option value="">Alle verfügbaren bereits zugewiesen</option>';
+        mgrAssignCard = `
+            <div class="card p-6 mt-6">
+                <p class="text-[10px] uppercase font-bold text-gray-300 mb-3">Verwalter-Zuweisung</p>
+                <div class="flex flex-wrap gap-2 mb-4">${chips}</div>
+                <div class="flex gap-2 items-center">
+                    <select id="crm-mgr-select" class="!w-auto flex-grow" style="max-width:20rem">${options}</select>
+                    <button onclick="crmAssignManager('${b.id}')" class="btn-primary text-xs px-4 flex-shrink-0"${free.length ? '' : ' disabled'}>Zuweisen</button>
+                </div>
+            </div>`;
+    }
 
     const addr = [[b.street, b.house_number].filter(Boolean).join(' '), [b.zip_code, b.city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
     const field = (label, value) => value
@@ -259,7 +286,7 @@ window.showCrmObjectDetail = async (buildingId) => {
                         ${field('Baujahr', b.construction_year)}
                         ${field('Heizung', b.heating_type)}
                         ${field('Einheiten', apts.length || null)}
-                        ${field('Verwalter', managers.join(', '))}
+                        ${isAdmin ? '' : field('Verwalter', managers.join(', '))}
                     </div>
                 </div>
                 <div class="card p-6 space-y-3">
@@ -267,6 +294,8 @@ window.showCrmObjectDetail = async (buildingId) => {
                     <div>${unitRows}</div>
                 </div>
             </div>
+
+            ${mgrAssignCard}
 
             <div class="card p-6 mt-6">
                 <p class="text-[10px] uppercase font-bold text-gray-300 mb-3">Aktivitäten</p>
@@ -277,6 +306,26 @@ window.showCrmObjectDetail = async (buildingId) => {
     if (typeof renderCrmActivityLog === 'function') {
         renderCrmActivityLog(document.getElementById('crm-activity-container'), 'object', buildingId);
     }
+};
+
+// Verwalter einem Objekt zuweisen (Admin) — RLS: management_assignments is_admin()
+window.crmAssignManager = async (buildingId) => {
+    const sel = document.getElementById('crm-mgr-select');
+    const managerId = sel?.value;
+    if (!managerId) { showToast('Bitte einen Verwalter wählen.', 'error'); return; }
+    const { error } = await _supabase.from('management_assignments').insert({ building_id: Number(buildingId), manager_id: managerId });
+    if (error) { showToast('Fehler beim Zuweisen: ' + error.message, 'error'); return; }
+    showToast('Verwalter zugewiesen.', 'success');
+    showCrmObjectDetail(buildingId);
+};
+
+// Verwalter-Zuweisung entfernen (Admin)
+window.crmRemoveManager = async (buildingId, managerId) => {
+    const { error } = await _supabase.from('management_assignments').delete()
+        .eq('building_id', Number(buildingId)).eq('manager_id', managerId);
+    if (error) { showToast('Fehler beim Entfernen: ' + error.message, 'error'); return; }
+    showToast('Zuweisung entfernt.', 'success');
+    showCrmObjectDetail(buildingId);
 };
 
 // --- Personen-Vollansicht (read-only Vollseite, Aktivitäten inline) ---
