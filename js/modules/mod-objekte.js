@@ -421,16 +421,9 @@ async function showApartmentInfo(id) {
                     ${boolField('Kaution bezahlt', apt.deposit_paid)}
                 </div>
 
-                <!-- TAB 4: ZÄHLER -->
-                <div id="apt-tab-meters" class="apt-tab-content hidden grid grid-cols-2 md:grid-cols-3 gap-5">
-                    ${infoField('Strom Nr.', apt.meter_electricity)}
-                    <div></div>
-                    ${infoField('Kaltwasser Nr.', apt.meter_water)}
-                    ${infoField('Kaltwasser Eichung', apt.meter_water_calibration_until)}
-                    ${infoField('Warmwasser Nr.', apt.meter_water_warm)}
-                    ${infoField('Warmwasser Eichung', apt.meter_water_warm_calibration)}
-                    ${infoField('Heizkosten Nr.', apt.meter_heating)}
-                    ${infoField('Heizkosten Eichung', apt.meter_heating_calibration_until)}
+                <!-- TAB 4: ZÄHLER (verwaltet meters/meter_readings) -->
+                <div id="apt-tab-meters" class="apt-tab-content hidden">
+                    <div id="apt-meters-panel"><div class="flex justify-center py-8"><div class="w-6 h-6 border-4 border-hb-olive border-t-transparent rounded-full animate-spin"></div></div></div>
                 </div>
 
                 <!-- TAB 5: RECHTLICHES -->
@@ -451,7 +444,129 @@ async function showApartmentInfo(id) {
 
             </div>
         </div>`;
+    _aptRenderMeters(apt.id);
 }
+
+// ─── Zähler-Verwaltung (meters/meter_readings) ───────────────
+const _METER_TYPES = [
+    { v: 'electricity', label: 'Strom',      icon: '⚡' },
+    { v: 'water',       label: 'Kaltwasser', icon: '💧' },
+    { v: 'water_warm',  label: 'Warmwasser', icon: '💧' },
+    { v: 'heating',     label: 'Heizkosten', icon: '🔥' },
+    { v: 'other',       label: 'Sonstiges',  icon: '📊' },
+];
+function _meterTypeMeta(t) { return _METER_TYPES.find(x => x.v === t) || { v: t, label: t || '—', icon: '📊' }; }
+function _mtrEsc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function _mtrDate(d) { return d ? new Date(d).toLocaleDateString('de-DE') : ''; }
+
+window._aptRenderMeters = async (apartmentId) => {
+    const panel = document.getElementById('apt-meters-panel');
+    if (!panel) return;
+    const { data: meters } = await _supabase.from('meters').select('*').eq('apartment_id', apartmentId).eq('is_active', true).order('meter_type');
+    const list = meters || [];
+    const ids = list.map(m => m.id);
+    const latest = {};
+    if (ids.length) {
+        const { data: rd } = await _supabase.from('meter_readings').select('meter_id, reading_value, reading_date').in('meter_id', ids).order('reading_date', { ascending: false });
+        (rd || []).forEach(r => { if (!latest[r.meter_id]) latest[r.meter_id] = r; });
+    }
+    const rows = list.length ? list.map(m => {
+        const meta = _meterTypeMeta(m.meter_type);
+        const r = latest[m.id];
+        const stand = r ? `${_mtrEsc(r.reading_value)}${r.reading_date ? ` · ${_mtrDate(r.reading_date)}` : ''}` : '—';
+        const cal = m.calibration_expiry ? `Eichung bis ${_mtrDate(m.calibration_expiry)}` : '';
+        const meta2 = [m.location_in_apartment ? _mtrEsc(m.location_in_apartment) : '', cal].filter(Boolean).join(' · ') || '—';
+        return `<div class="flex items-center justify-between gap-3 py-3 border-b border-gray-50 last:border-0">
+            <div class="min-w-0">
+                <p class="text-sm font-semibold text-hb-offblack">${meta.icon} ${meta.label}${m.meter_number ? ' · ' + _mtrEsc(m.meter_number) : ''}</p>
+                <p class="text-xs text-gray-400">${meta2}</p>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <span class="text-xs text-gray-500 hidden sm:inline">Stand: <span class="font-semibold text-hb-offblack">${stand}</span></span>
+                <button onclick="_aptReadingForm(${m.id})" class="btn-outline text-[11px] px-2 py-1">+ Stand</button>
+                <button onclick="_aptMeterForm(${apartmentId}, ${m.id})" class="text-gray-400 hover:text-hb-olive px-1" title="Bearbeiten">✎</button>
+                <button onclick="_aptMeterDelete(${m.id}, ${apartmentId})" class="text-gray-400 hover:text-hb-error px-1" title="Entfernen">🗑</button>
+            </div>
+        </div>`;
+    }).join('') : '<p class="text-sm text-gray-400 py-2">Keine Zähler hinterlegt.</p>';
+    panel.innerHTML = `
+        <div class="flex justify-between items-center mb-2">
+            <h3 class="text-xs font-black uppercase tracking-widest text-hb-olive">Zähler</h3>
+            <button onclick="_aptMeterForm(${apartmentId})" class="btn-primary text-xs px-3 py-1.5">+ Zähler</button>
+        </div>
+        <div>${rows}</div>`;
+};
+
+window._aptMeterForm = async (apartmentId, meterId = null) => {
+    let m = {};
+    if (meterId) { const { data } = await _supabase.from('meters').select('*').eq('id', meterId).single(); m = data || {}; }
+    const opts = _METER_TYPES.map(t => `<option value="${t.v}" ${m.meter_type === t.v ? 'selected' : ''}>${t.icon} ${t.label}</option>`).join('');
+    showModal('meter-form', `
+        <h2 class="text-xl font-extrabold text-hb-offblack mb-4">${meterId ? 'Zähler bearbeiten' : 'Neuer Zähler'}</h2>
+        <div class="space-y-3">
+            <div><label class="text-[10px] uppercase font-bold text-gray-500">Typ</label><select id="mf_type">${opts}</select></div>
+            <div><label class="text-[10px] uppercase font-bold text-gray-500">Zählernummer</label><input type="text" id="mf_num" value="${_mtrEsc(m.meter_number || '')}"></div>
+            <div><label class="text-[10px] uppercase font-bold text-gray-500">Standort (optional)</label><input type="text" id="mf_loc" value="${_mtrEsc(m.location_in_apartment || '')}"></div>
+            <div><label class="text-[10px] uppercase font-bold text-gray-500">Eichung bis (optional)</label><input type="date" id="mf_cal" value="${m.calibration_expiry || ''}"></div>
+        </div>
+        <div class="flex gap-3 mt-5">
+            <button onclick="_aptMeterSave(${apartmentId}, ${meterId || 'null'})" class="btn-primary flex-1">Speichern</button>
+            <button onclick="hideModal('meter-form')" class="btn-secondary">Abbrechen</button>
+        </div>`, { maxWidth: 'max-w-md' });
+};
+
+window._aptMeterSave = async (apartmentId, meterId) => {
+    const payload = {
+        apartment_id: apartmentId,
+        meter_type: document.getElementById('mf_type').value,
+        meter_number: document.getElementById('mf_num').value.trim() || null,
+        location_in_apartment: document.getElementById('mf_loc').value.trim() || null,
+        calibration_expiry: document.getElementById('mf_cal').value || null,
+        is_active: true,
+    };
+    const res = meterId
+        ? await _supabase.from('meters').update(payload).eq('id', meterId)
+        : await _supabase.from('meters').insert([payload]);
+    if (res.error) { showToast(res.error.message, 'error'); return; }
+    hideModal('meter-form');
+    showToast('Zähler gespeichert.', 'success');
+    _aptRenderMeters(apartmentId);
+};
+
+window._aptMeterDelete = async (meterId, apartmentId) => {
+    if (!confirm('Diesen Zähler entfernen? Erfasste Stände bleiben erhalten.')) return;
+    // Soft-Delete (is_active=false), damit Ablesungshistorie/Abrechnung nicht bricht.
+    const { error } = await _supabase.from('meters').update({ is_active: false }).eq('id', meterId);
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Zähler entfernt.', 'success');
+    _aptRenderMeters(apartmentId);
+};
+
+window._aptReadingForm = async (meterId) => {
+    const today = new Date().toISOString().split('T')[0];
+    showModal('reading-form', `
+        <h2 class="text-xl font-extrabold text-hb-offblack mb-4">Zählerstand erfassen</h2>
+        <div class="space-y-3">
+            <div><label class="text-[10px] uppercase font-bold text-gray-500">Zählerstand</label><input type="number" step="0.001" id="rf_val"></div>
+            <div><label class="text-[10px] uppercase font-bold text-gray-500">Ablesedatum</label><input type="date" id="rf_date" value="${today}"></div>
+        </div>
+        <div class="flex gap-3 mt-5">
+            <button onclick="_aptReadingSave(${meterId})" class="btn-primary flex-1">Speichern</button>
+            <button onclick="hideModal('reading-form')" class="btn-secondary">Abbrechen</button>
+        </div>`, { maxWidth: 'max-w-sm' });
+};
+
+window._aptReadingSave = async (meterId) => {
+    const val = parseFloat(document.getElementById('rf_val').value);
+    const date = document.getElementById('rf_date').value;
+    if (isNaN(val) || !date) { showToast('Bitte Wert und Datum angeben.', 'error'); return; }
+    const { data: m } = await _supabase.from('meters').select('apartment_id').eq('id', meterId).single();
+    const { error } = await _supabase.from('meter_readings').insert([{ meter_id: meterId, reading_value: val, reading_date: date, reading_type: 'Ablesung', recorded_by: currentUser.id }]);
+    if (error) { showToast(error.message, 'error'); return; }
+    hideModal('reading-form');
+    showToast('Stand gespeichert.', 'success');
+    if (m?.apartment_id) _aptRenderMeters(m.apartment_id);
+};
 
 // ─── Gebäude-Formular (4 Tabs, Edit) ─────────────────────────
 async function showBuildingForm(id = null) {
@@ -811,22 +926,8 @@ async function showApartmentForm(id = null) {
                     </div>
                 </div>
 
-                <div id="apt-tab-meters" class="apt-tab-content hidden grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Strom Nr.</label>
-                        <input type="text" id="apt_m_elec" value="${apt.meter_electricity || ''}"></div>
-                    <div></div>
-                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Kaltwasser Nr.</label>
-                        <input type="text" id="apt_m_water" value="${apt.meter_water || ''}"></div>
-                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Kaltwasser Eichung</label>
-                        <input type="date" id="apt_m_water_cal" value="${apt.meter_water_calibration_until || ''}"></div>
-                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Warmwasser Nr.</label>
-                        <input type="text" id="apt_m_water_warm" value="${apt.meter_water_warm || ''}"></div>
-                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Warmwasser Eichung</label>
-                        <input type="date" id="apt_m_water_warm_cal" value="${apt.meter_water_warm_calibration || ''}"></div>
-                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Heizkosten Nr.</label>
-                        <input type="text" id="apt_m_heat" value="${apt.meter_heating || ''}"></div>
-                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Heizkosten Eichung</label>
-                        <input type="date" id="apt_m_heat_cal" value="${apt.meter_heating_calibration_until || ''}"></div>
+                <div id="apt-tab-meters" class="apt-tab-content hidden">
+                    <p class="text-sm text-gray-500">Zähler werden jetzt in der Einheiten-Detailansicht unter „Zähler" verwaltet – dort Zähler hinzufügen/bearbeiten und Stände erfassen. Bei einer neuen Einheit bitte zuerst speichern.</p>
                 </div>
 
                 <div id="apt-tab-legal" class="apt-tab-content hidden grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -877,13 +978,6 @@ async function showApartmentForm(id = null) {
             utilities_amount:             parseFloat(document.getElementById('apt_utilities').value) || 0,
             deposit_amount:               parseFloat(document.getElementById('apt_deposit').value) || 0,
             deposit_paid:                 document.getElementById('apt_deposit_paid').checked,
-            meter_electricity:            document.getElementById('apt_m_elec').value || null,
-            meter_water:                  document.getElementById('apt_m_water').value || null,
-            meter_water_calibration_until:document.getElementById('apt_m_water_cal').value || null,
-            meter_water_warm:             document.getElementById('apt_m_water_warm').value || null,
-            meter_water_warm_calibration: document.getElementById('apt_m_water_warm_cal').value || null,
-            meter_heating:                document.getElementById('apt_m_heat').value || null,
-            meter_heating_calibration_until: document.getElementById('apt_m_heat_cal').value || null,
             tenant_status:                document.getElementById('apt_status').value,
             special_use_rights:           document.getElementById('apt_special').value || null,
         };

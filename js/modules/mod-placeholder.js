@@ -407,11 +407,12 @@ async function loadMyUnits() {
     // 4) Render — eine Karte je Einheit
     const meterIcon = t => {
         const s = (t || '').toLowerCase();
-        if (s.includes('strom')) return '⚡';
-        if (s.includes('wasser')) return '💧';
-        if (s.includes('wärme') || s.includes('warme') || s.includes('heiz') || s.includes('gas')) return '🔥';
+        if (s.includes('strom') || s.includes('electric')) return '⚡';
+        if (s.includes('wasser') || s.includes('water')) return '💧';
+        if (s.includes('wärme') || s.includes('warme') || s.includes('heiz') || s.includes('gas') || s.includes('heating')) return '🔥';
         return '📊';
     };
+    const meterLabel = t => ({ electricity: 'Strom', water: 'Kaltwasser', water_warm: 'Warmwasser', heating: 'Heizkosten' }[t] || t || 'Zähler');
 
     const cards = apts.sort((a, b) => String(a.apartment_number).localeCompare(String(b.apartment_number), 'de', { numeric: true })).map(a => {
         const b = bldMap[a.building_id];
@@ -426,12 +427,15 @@ async function loadMyUnits() {
         const aptMeters = meters.filter(m => m.apartment_id === a.id);
         const meterRows = aptMeters.length ? aptMeters.map(m => {
             const r = latestByMeter[m.id];
-            const stand = r ? `${esc(r.reading_value)}${r.reading_date ? ` <span class="text-gray-400">(${dt(r.reading_date)})</span>` : ''}` : '<span class="text-gray-400">kein Stand erfasst</span>';
-            const label = [m.meter_type, m.meter_number].filter(Boolean).map(esc).join(' · ');
+            const stand = r ? `${esc(r.reading_value)}${r.reading_date ? ` <span class="text-gray-400">(${dt(r.reading_date)})</span>` : ''}` : '<span class="text-gray-400">kein Stand</span>';
+            const label = [meterLabel(m.meter_type), m.meter_number].filter(Boolean).map(esc).join(' · ');
             const loc = m.location_in_apartment ? ` <span class="text-gray-400">· ${esc(m.location_in_apartment)}</span>` : '';
-            return `<div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0 text-sm">
-                <span class="text-gray-700">${meterIcon(m.meter_type)} ${label}${loc}</span>
-                <span class="font-semibold text-hb-offblack">${stand}</span>
+            return `<div class="flex items-center justify-between gap-2 py-2 border-b border-gray-50 last:border-0 text-sm">
+                <span class="text-gray-700 min-w-0">${meterIcon(m.meter_type)} ${label}${loc}</span>
+                <span class="flex items-center gap-2 flex-shrink-0">
+                    <span class="font-semibold text-hb-offblack">${stand}</span>
+                    <button onclick="_myUnitReading(${m.id})" class="btn-outline text-[11px] px-2 py-1">Stand melden</button>
+                </span>
             </div>`;
         }).join('') : '<p class="text-sm text-gray-400 py-1">Keine Zähler hinterlegt.</p>';
 
@@ -473,6 +477,32 @@ async function loadMyUnits() {
 
     ca.innerHTML = `${header}<div class="grid grid-cols-1 xl:grid-cols-2 gap-6 text-left">${cards}</div>`;
 }
+
+// Eigentümer übermittelt einen Zählerstand für einen eigenen Zähler (RLS: Owner-INSERT-Policy).
+window._myUnitReading = (meterId) => {
+    const today = new Date().toISOString().split('T')[0];
+    showModal('my-reading-form', `
+        <h2 class="text-xl font-extrabold text-hb-offblack mb-4">Zählerstand übermitteln</h2>
+        <div class="space-y-3">
+            <div><label class="text-[10px] uppercase font-bold text-gray-500">Zählerstand</label><input type="number" step="0.001" id="mrf_val"></div>
+            <div><label class="text-[10px] uppercase font-bold text-gray-500">Ablesedatum</label><input type="date" id="mrf_date" value="${today}"></div>
+        </div>
+        <div class="flex gap-3 mt-5">
+            <button onclick="_myUnitReadingSave(${meterId})" class="btn-primary flex-1">Übermitteln</button>
+            <button onclick="hideModal('my-reading-form')" class="btn-secondary">Abbrechen</button>
+        </div>`, { maxWidth: 'max-w-sm' });
+};
+
+window._myUnitReadingSave = async (meterId) => {
+    const val = parseFloat(document.getElementById('mrf_val').value);
+    const date = document.getElementById('mrf_date').value;
+    if (isNaN(val) || !date) { showToast('Bitte Wert und Datum angeben.', 'error'); return; }
+    const { error } = await _supabase.from('meter_readings').insert([{ meter_id: meterId, reading_value: val, reading_date: date, reading_type: 'Eigentümer', recorded_by: currentUser.id }]);
+    if (error) { showToast('Fehler: ' + error.message, 'error'); return; }
+    hideModal('my-reading-form');
+    showToast('Zählerstand übermittelt. Danke!', 'success');
+    loadMyUnits();
+};
 
 async function loadMyTenants() {
     document.getElementById('content-area').innerHTML =
