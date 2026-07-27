@@ -4,3 +4,50 @@ Audit/
 outputs/
 _db_dump/
 CRM-MIGRATION-PLAN.md
+RLS-Audit-Prod-2026-07-27.md
+supabase/migrations/
+
+# ── Secrets / Env ──
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+id_rsa*
+
+# ── Lokaler CLI-/Tool-State ──
+.supabase/
+**/.temp/
+
+# ── Build / Dependencies ──
+node_modules/
+dist/
+build/
+
+# ── OS / Editor ──
+.DS_Store
+Thumbs.db
+*.log
+*.bak
+
+# ── Intern: gehoert nicht auf (public) GitHub ──
+# Noch getrackt -> spaeter gemeinsam per 'git rm --cached <datei>' entfernen.
+# Gruppe A – Status/Doku
+STATUS.md
+CHANGELOG.md
+GEMINI.md
+CLAUDE.md
+MIGRATION_NOTES.md
+DESIGN.md
+# Gruppe B – Konzepte
+CRM-Konzept.md
+KONZEPT-CRM-Kontaktbuch.md
+KONZEPT-Meine-Einheiten.md
+KONZEPT-Zaehler-Merge.md
+# Gruppe C – Test/Seed/Debug-SQL
+scripts/
+# Gruppe D – Supabase-Backend (Config / Functions / E-Mail-Templates)
+supabase/config.toml
+supabase/functions/
+supabase/email-templates/
