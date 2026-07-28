@@ -712,7 +712,7 @@ async function showBuildingForm(id = null) {
                             <option value="verkauft" ${b.status==='verkauft'            ?'selected':''}>Verkauft</option>
                         </select></div>
                     <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Mandatsart</label>
-                        <select id="b_mandate">
+                        <select id="b_mandate" onchange="updateBuildingName()">
                             <option value="WEG" ${(b.mandate_type||'WEG')==='WEG'?'selected':''}>WEG-Verwaltung</option>
                             <option value="SEV" ${b.mandate_type==='SEV'?'selected':''}>Sondereigentumsverwaltung (SEV)</option>
                         </select></div>
@@ -876,9 +876,10 @@ window.updateBuildingName = () => {
     const file   = document.getElementById('b_file')?.value?.trim();
     const street = document.getElementById('b_street')?.value?.trim();
     const nr     = document.getElementById('b_nr')?.value?.trim();
+    const mandate = document.getElementById('b_mandate')?.value || 'WEG';
     const parts  = [];
-    if (file) parts.push(`[${file}]`);
-    parts.push('WEG');
+    if (file) parts.push(file);
+    parts.push(mandate);
     if (street) parts.push(street);
     if (nr) parts.push(nr);
     const el = document.getElementById('b_name');
