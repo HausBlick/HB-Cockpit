@@ -45,7 +45,7 @@ async function getMonthlyHausgeld(apartmentId, buildingId) {
         .select('id')
         .eq('building_id', buildingId)
         .eq('status', 'active')
-        .limit(1).single();
+        .limit(1).maybeSingle();
     if (!plan) return null; // kein aktiver WP → Caller nutzt Fallback
 
     // 2) WP-Positionen mit Schlüssel laden
