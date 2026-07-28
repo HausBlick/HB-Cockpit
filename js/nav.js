@@ -67,7 +67,21 @@ async function init() {
 
         // Header-Elemente befüllen
         document.getElementById('role-label').textContent = roleLabel;
-        document.getElementById('user-avatar').textContent    = profile.full_name.charAt(0).toUpperCase();
+        const _avatarEl = document.getElementById('user-avatar');
+        _avatarEl.textContent = profile.full_name.charAt(0).toUpperCase();
+        // Profilbild in der Header-Pille, falls vorhanden (Fallback bleibt der Buchstabe)
+        if (profile.avatar_url) {
+            _supabase.storage.from('avatars').createSignedUrl(profile.avatar_url, 3600).then(({ data }) => {
+                const url = data?.signedUrl;
+                const el  = document.getElementById('user-avatar');
+                if (!url || !el) return;
+                const img = new Image();
+                img.className = 'w-full h-full rounded-full object-cover';
+                img.alt = '';
+                img.onload = () => { el.textContent = ''; el.appendChild(img); };
+                img.src = url;
+            });
+        }
         document.getElementById('dropdown-name').textContent  = profile.full_name;
         document.getElementById('dropdown-email').textContent = profile.email;
 
