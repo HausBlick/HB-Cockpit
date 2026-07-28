@@ -32,7 +32,7 @@ let currentApartments  = [];
 // --- Globale Hilfsfunktionen ---
 function formatBuildingName(b) {
     if (!b) return '—';
-    if (b.file_number) return `${b.file_number} - WEG ${b.street || ''} ${b.house_number || ''}`.trim();
+    if (b.file_number) return `${b.file_number} - ${b.mandate_type || 'WEG'} ${b.street || ''} ${b.house_number || ''}`.trim();
     return b.name || '—';
 }
 
