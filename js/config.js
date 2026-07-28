@@ -134,7 +134,25 @@ const DOC_CATEGORIES_WEG = [
 ];
 const DOC_CATEGORIES_MIET      = ['Mietverträge', 'Wohnungsübergabe'];
 const DOC_CATEGORIES_ALLGEMEIN = ['Allgemein'];
-const DOC_CATEGORIES_ALL       = [...DOC_CATEGORIES_WEG, ...DOC_CATEGORIES_MIET, ...DOC_CATEGORIES_ALLGEMEIN];
+// SEV (Sondereigentumsverwaltung): eigene Kategorien statt WEG-Kategorien
+const DOC_CATEGORIES_SEV = [
+    'Objektakte', 'Mietvertrag', 'Wohnungsübergabe', 'Schadens- & Mängelvorgänge',
+    'Angebote & Handwerkerrechnungen', 'Haustechnik & Bedienungsanleitungen',
+    'Zählerstände', 'Versicherung', 'Schlüssel & Zutritt',
+    'Zeitnachweise & Abrechnungen', 'Allgemein',
+];
+// Set-dedup, damit alt-kategorisierte Dokumente (WEG/Miet) weiter korrekt einsortiert werden
+const DOC_CATEGORIES_ALL       = [...new Set([
+    ...DOC_CATEGORIES_WEG, ...DOC_CATEGORIES_MIET, ...DOC_CATEGORIES_SEV, ...DOC_CATEGORIES_ALLGEMEIN,
+])];
+
+// Ticket-Kategorien: Standard (WEG/allgemein) vs. SEV (Sondereigentumsverwaltung)
+const TICKET_CATEGORIES_STD = ['Sonstiges', 'Heizung', 'Wasser', 'Elektro'];
+const TICKET_CATEGORIES_SEV = [
+    'Mangel- & Schadensmeldung', 'Haustechnik', 'Handwerker & Instandsetzung',
+    'Zutritt & Schlüssel', 'Versicherungs- & Gewährleistungsfall', 'Freigabe erforderlich',
+    'Mieterangelegenheit', 'Mieterwechsel & Übergabe', 'Sonstiges',
+];
 
 const CONTACT_CATEGORIES = ['Vermieter', 'Verwalter', 'Hausmeister', 'Heizung', 'Sanitär', 'Elektro', 'Reinigung', 'Versicherung', 'Sonstiges'];
 

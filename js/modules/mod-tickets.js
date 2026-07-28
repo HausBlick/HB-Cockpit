@@ -808,6 +808,21 @@ window.showCreateTicketModal = async () => {
         myUnits.forEach(u => { if (!seen.has(u.bld.id)) { seen.add(u.bld.id); bList.push(u.bld); } });
     }
 
+    // Mandatsart je Gebäude → SEV-spezifische Ticket-Kategorien (#5)
+    const _bIds = [...new Set(bList.map(b => b.id))];
+    window._tktMandateByBld = {};
+    if (_bIds.length) {
+        const { data: _mrows } = await _supabase.from('buildings').select('id, mandate_type').in('id', _bIds);
+        window._tktMandateByBld = Object.fromEntries((_mrows || []).map(r => [r.id, r.mandate_type]));
+    }
+    window._tktRenderCategories = (buildingId) => {
+        const sel = document.getElementById('tkt_cat');
+        if (!sel) return;
+        const cats = (window._tktMandateByBld?.[buildingId] === 'SEV') ? TICKET_CATEGORIES_SEV : TICKET_CATEGORIES_STD;
+        const cur = sel.value;
+        sel.innerHTML = cats.map(c => `<option ${c === cur ? 'selected' : ''}>${c}</option>`).join('');
+    };
+
     const modal = showModal('create-ticket-modal', `
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-extrabold text-hb-offblack">Neues Ticket</h3>
@@ -829,7 +844,7 @@ window.showCreateTicketModal = async () => {
                 </div>
                 <div class="space-y-2 ${hideLocationFields ? 'hidden' : ''}">
                     <label class="text-[10px] uppercase font-bold text-gray-500">Gebäude</label>
-                    <select id="tkt_building" onchange="loadApartmentsForTicket(this.value); loadRecipientsForTicket(this.value); _tktShowRecipientInfo(this.value)">
+                    <select id="tkt_building" onchange="loadApartmentsForTicket(this.value); loadRecipientsForTicket(this.value); _tktShowRecipientInfo(this.value); _tktRenderCategories(this.value)">
                         <option value="">— Bitte wählen —</option>
                         ${bList.map(b => `<option value="${b.id}">${formatBuildingName(b)}</option>`).join('')}
                     </select>
@@ -882,6 +897,7 @@ window.showCreateTicketModal = async () => {
         const unit = myUnits[0];
         const bSel = document.getElementById('tkt_building');
         if (bSel) bSel.value = unit.bld.id;
+        _tktRenderCategories(unit.bld.id);
         await loadApartmentsForTicket(unit.bld.id, unit.apt.id);
         await loadRecipientsForTicket(unit.bld.id);
         await _tktShowRecipientInfo(unit.bld.id, unit.apt.id);

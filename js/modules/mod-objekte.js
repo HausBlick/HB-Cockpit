@@ -192,6 +192,7 @@ async function showBuildingInfo(b) {
                     ${infoField('Akten-Nr.', b.file_number)}
                     ${infoField('Status', b.status)}
                     ${infoField('Baujahr', b.construction_year)}
+                    ${infoField('Mandatsart', b.mandate_type==='SEV' ? 'Sondereigentumsverwaltung (SEV)' : 'WEG-Verwaltung')}
                     ${infoField('Straße', b.street)}
                     ${infoField('Hausnummer', b.house_number)}
                     ${infoField('PLZ / Ort', b.zip_code && b.city ? `${b.zip_code} ${b.city}` : (b.city || b.zip_code))}
@@ -710,6 +711,11 @@ async function showBuildingForm(id = null) {
                             <option value="inaktiv"  ${b.status==='inaktiv'             ?'selected':''}>Inaktiv</option>
                             <option value="verkauft" ${b.status==='verkauft'            ?'selected':''}>Verkauft</option>
                         </select></div>
+                    <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Mandatsart</label>
+                        <select id="b_mandate">
+                            <option value="WEG" ${(b.mandate_type||'WEG')==='WEG'?'selected':''}>WEG-Verwaltung</option>
+                            <option value="SEV" ${b.mandate_type==='SEV'?'selected':''}>Sondereigentumsverwaltung (SEV)</option>
+                        </select></div>
                     <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Straße</label>
                         <input type="text" id="b_street" value="${b.street || ''}" oninput="updateBuildingName()"></div>
                     <div class="space-y-1"><label class="text-[10px] uppercase font-bold text-gray-500">Hausnummer</label>
@@ -819,6 +825,7 @@ async function showBuildingForm(id = null) {
             name:                             document.getElementById('b_name').value,
             file_number:                      document.getElementById('b_file').value || null,
             status:                           document.getElementById('b_status').value,
+            mandate_type:                     document.getElementById('b_mandate')?.value || 'WEG',
             street:                           document.getElementById('b_street').value || null,
             house_number:                     document.getElementById('b_nr').value || null,
             zip_code:                         document.getElementById('b_zip').value || null,

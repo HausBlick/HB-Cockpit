@@ -56,21 +56,51 @@ function _dashRenderHausgeldKachel() {
     const aptLabel   = [u.apt.apartment_number, u.building ? formatBuildingName(u.building) : ''].filter(Boolean).join(' · ');
     const validFrom  = u.validFrom ? new Date(u.validFrom).toLocaleDateString('de-DE') : null;
     const multi      = units.length > 1;
+    const pager = multi ? `<div class="flex gap-0.5">
+                <button onclick="_dashHausgeldPage(-1)" class="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-hb-olive hover:bg-hb-olive/10 transition-colors font-bold">‹</button>
+                <button onclick="_dashHausgeldPage(1)"  class="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-hb-olive hover:bg-hb-olive/10 transition-colors font-bold">›</button>
+            </div>` : '';
+    const pageInfo = multi ? `<div class="text-[10px] text-gray-300 mt-1">${idx + 1} / ${units.length}</div>` : '';
+
+    // SEV: „Meine Miete" (Kaltmiete + Betriebskostenvorauszahlung) statt Hausgeld
+    if (u.mandate_type === 'SEV') {
+        const eur = v => (v !== null && v !== undefined && v !== '') ? `${Number(v).toFixed(2).replace('.', ',')} €` : '—';
+        return `<div class="card p-5" id="dash-hg-kachel">
+            <div class="flex items-start justify-between mb-2">
+                <div class="text-xl">💶</div>
+                <div class="flex items-center gap-1">
+                    <button onclick="_openRentEditModal(${u.apt.id}, ${u.rent ?? 'null'}, ${u.utilities ?? 'null'}, 'dashboard')" class="text-[11px] text-hb-olive font-bold hover:underline px-1">Bearb.</button>
+                    ${pager}
+                </div>
+            </div>
+            <div class="text-xs text-gray-500 font-semibold leading-snug mb-1.5">Meine Miete</div>
+            <div class="text-sm text-hb-offblack"><span class="text-gray-400">Kalt:</span> <span class="font-extrabold">${eur(u.rent)}</span></div>
+            <div class="text-sm text-hb-offblack"><span class="text-gray-400">BK:</span> <span class="font-extrabold">${eur(u.utilities)}</span></div>
+            <div class="text-[11px] text-gray-400 mt-1 truncate">${aptLabel}</div>
+            ${pageInfo}
+        </div>`;
+    }
+
     return `<div class="card p-5" id="dash-hg-kachel">
         <div class="flex items-start justify-between mb-2">
             <div class="text-xl">💶</div>
-            ${multi ? `<div class="flex gap-0.5">
-                <button onclick="_dashHausgeldPage(-1)" class="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-hb-olive hover:bg-hb-olive/10 transition-colors font-bold">‹</button>
-                <button onclick="_dashHausgeldPage(1)"  class="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-hb-olive hover:bg-hb-olive/10 transition-colors font-bold">›</button>
-            </div>` : ''}
+            ${pager}
         </div>
         <div class="text-[32px] font-bold text-hb-offblack leading-none mb-1.5">${amountStr}</div>
         <div class="text-xs text-gray-500 font-semibold leading-snug">Hausgeld</div>
         <div class="text-[11px] text-gray-400 mt-1 truncate">${aptLabel}</div>
         ${validFrom ? `<div class="text-[11px] text-gray-400">Gültig ab ${validFrom}</div>` : ''}
-        ${multi ? `<div class="text-[10px] text-gray-300 mt-1">${idx + 1} / ${units.length}</div>` : ''}
+        ${pageInfo}
     </div>`;
 }
+
+// Nach Miete-Bearbeitung (Dashboard): Werte in-memory aktualisieren + Kachel neu rendern
+window._dashRefreshHausgeldAfterRent = (aptId, kalt, bk) => {
+    const u = _dashHgState.units.find(x => x.apt.id === aptId);
+    if (u) { u.rent = kalt; u.utilities = bk; }
+    const el = document.getElementById('dash-hg-kachel');
+    if (el) el.outerHTML = _dashRenderHausgeldKachel();
+};
 
 window._dashHausgeldPage = (dir) => {
     const len = _dashHgState.units.length;
@@ -519,14 +549,14 @@ async function _renderUserDashboard() {
         if (personData?.id) {
             const { data: owData } = await _supabase
                 .from('ownerships')
-                .select('apartments!inner(id, building_id, apartment_number, hausgeld)')
+                .select('apartments!inner(id, building_id, apartment_number, hausgeld, rent_amount, utilities_amount)')
                 .eq('owner_id', personData.id)
                 .eq('is_active', true);
             const ownerApts = (owData || []).map(o => o.apartments).filter(Boolean);
             const bldIds = [...new Set(ownerApts.map(a => a.building_id))];
             if (bldIds.length) {
                 const [bldRes, planRes] = await Promise.all([
-                    _supabase.from('buildings').select('id, name, file_number, street, house_number').in('id', bldIds),
+                    _supabase.from('buildings').select('id, name, file_number, street, house_number, mandate_type').in('id', bldIds),
                     _supabase.from('budget_plans').select('building_id, valid_from').in('building_id', bldIds).eq('status', 'active'),
                 ]);
                 const bldMap  = Object.fromEntries((bldRes.data  || []).map(b => [b.id, b]));
@@ -537,7 +567,9 @@ async function _renderUserDashboard() {
                     const validFrom = (dynHG !== null && dynHG !== undefined)
                         ? (planMap[apt.building_id]?.valid_from || null)
                         : null;
-                    return { apt, building: bldMap[apt.building_id] || null, amount, validFrom };
+                    return { apt, building: bldMap[apt.building_id] || null, amount, validFrom,
+                             mandate_type: bldMap[apt.building_id]?.mandate_type || null,
+                             rent: apt.rent_amount, utilities: apt.utilities_amount };
                 }));
             }
         }

@@ -6,6 +6,7 @@
 // Dokument-Kategorien → definiert in config.js (DOC_CATEGORIES_*)
 const KATEGORIEN_WEG       = DOC_CATEGORIES_WEG;
 const KATEGORIEN_MIET      = DOC_CATEGORIES_MIET;
+const KATEGORIEN_SEV       = DOC_CATEGORIES_SEV;
 const KATEGORIEN_ALLGEMEIN = DOC_CATEGORIES_ALLGEMEIN;
 const ALLE_KATEGORIEN      = DOC_CATEGORIES_ALL;
 
@@ -75,7 +76,7 @@ async function _loadDocsInit() {
     _docsState.showArchived = false;
 
     const [bldRes, aptRes, profRes, docsData, readsRes] = await Promise.all([
-        _supabase.from('buildings').select('id, name, file_number, street, house_number').order('name'),
+        _supabase.from('buildings').select('id, name, file_number, street, house_number, mandate_type').order('name'),
         _supabase.from('apartments').select('id, building_id, apartment_number').order('apartment_number'),
         _supabase.from('profiles').select('id, full_name, email').order('full_name'),
         _fetchDocs(),
@@ -163,13 +164,23 @@ function _buildListHtml() {
                         </label>
                     </div>
                 </div>
-                ${(userProfile?.role === 'owner') ? `
+                ${(userProfile?.role === 'owner' && _docsState.buildings.some(b => b.mandate_type !== 'SEV')) ? `
                 <div class="card">
                     <div class="p-3 bg-hb-olive"><p class="text-xs font-bold text-white">Beschlusssammlung</p></div>
                     <div class="p-3">
                         <p class="text-[13px] text-gray-500 mb-3 leading-snug">Als Eigentümer haben Sie das Recht, eine Kopie der Beschlusssammlung zu erhalten (§ 24 Abs. 7 WEG).</p>
                         <button onclick="_docsRequestBeschlusssammlung()" class="w-full bg-hb-olive/10 text-hb-olive py-2.5 rounded-xl text-xs font-black hover:bg-hb-olive hover:text-white transition-all">
                             Kopie anfordern
+                        </button>
+                    </div>
+                </div>` : ''}
+                ${(userProfile?.role === 'owner' && _docsState.buildings.some(b => b.mandate_type === 'SEV')) ? `
+                <div class="card">
+                    <div class="p-3 bg-hb-olive"><p class="text-xs font-bold text-white">Dokument hochladen</p></div>
+                    <div class="p-3">
+                        <p class="text-[13px] text-gray-500 mb-3 leading-snug">Laden Sie Unterlagen zu Ihrem SEV-Objekt hoch (z. B. Belege, Fotos).</p>
+                        <button onclick="_openOwnerUploadModal()" class="w-full bg-hb-olive/10 text-hb-olive py-2.5 rounded-xl text-xs font-black hover:bg-hb-olive hover:text-white transition-all">
+                            Datei hochladen
                         </button>
                     </div>
                 </div>` : ''}
@@ -894,7 +905,7 @@ window._openUploadModal = () => {
                 <!-- Gebäude (immer) -->
                 <div>
                     <label class="block text-xs font-bold text-gray-500 mb-1">Gebäude</label>
-                    <select id="doc-upload-building" onchange="_docsUpdateScopeFields()">
+                    <select id="doc-upload-building" onchange="_docsUpdateScopeFields(); _docsUpdateUploadCategories();">
                         <option value="">Kein Gebäude</option>${bldOptions}
                     </select>
                 </div>
@@ -948,6 +959,17 @@ window._openUploadModal = () => {
                     class="btn-primary text-sm px-4 py-2">Hochladen</button>
             </div>
     `, { maxWidth: 'max-w-lg' });
+};
+
+// Kategorie-Optionen je nach Mandatsart des gewählten Gebäudes (SEV → nur SEV-Kategorien)
+window._docsUpdateUploadCategories = () => {
+    const buildingId = document.getElementById('doc-upload-building')?.value;
+    const sel = document.getElementById('doc-upload-category');
+    if (!sel) return;
+    const bld  = _docsState.buildings.find(b => b.id == buildingId);
+    const cats = (bld?.mandate_type === 'SEV') ? DOC_CATEGORIES_SEV : ALLE_KATEGORIEN;
+    const cur  = sel.value;
+    sel.innerHTML = cats.map(c => `<option value="${c}" ${c === cur ? 'selected' : ''}>${c}</option>`).join('');
 };
 
 // Kaskadierendes Scope-UI
@@ -1208,3 +1230,76 @@ async function _docsSubmitBeschlussRequest(bid) {
 
     showToast('Anfrage gesendet. Der Verwalter stellt Ihnen die Beschlusssammlung zeitnah bereit.', 'success');
 }
+
+// ─── Eigentümer-Upload (nur SEV-Objekte) ───────────────────────
+// Pfad immer {building_id}/eigentuemer-upload/{datei}; Kategorien = SEV.
+window._openOwnerUploadModal = () => {
+    _docsState.stagingFiles = [];
+    const sev = _docsState.buildings.filter(b => b.mandate_type === 'SEV');
+    if (!sev.length) { showToast('Kein SEV-Objekt vorhanden.', 'error'); return; }
+    const bldOptions = sev.map(b => `<option value="${b.id}">${formatBuildingName(b)}</option>`).join('');
+    const catOptions = DOC_CATEGORIES_SEV.map(c => `<option value="${c}">${c}</option>`).join('');
+    showModal('owner-upload-modal', `
+            <div class="p-5 border-b border-gray-100 flex justify-between items-center flex-shrink-0">
+                <h2 class="text-base font-extrabold text-hb-offblack">Dokument hochladen</h2>
+                <button onclick="hideModal('owner-upload-modal')" class="text-gray-400 hover:text-hb-orange font-bold text-xl leading-none">✕</button>
+            </div>
+            <div class="p-5 space-y-4 overflow-y-auto">
+                <div id="doc-drop-zone"
+                    ondragover="event.preventDefault(); this.classList.add('border-hb-olive','bg-hb-olive/5')"
+                    ondragleave="this.classList.remove('border-hb-olive','bg-hb-olive/5')"
+                    ondrop="_handleDocDrop(event)" onclick="document.getElementById('doc-file-input').click()"
+                    class="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center cursor-pointer hover:border-hb-olive hover:bg-hb-olive/5 transition-colors">
+                    <div class="text-3xl mb-1">📁</div>
+                    <p class="text-[15px] text-gray-500">Dateien ablegen oder <span class="text-hb-olive font-semibold">hier klicken</span></p>
+                    <p class="text-xs text-gray-400 mt-0.5">PDF, Word, Excel, Bilder — max. 20 MB</p>
+                    <input type="file" id="doc-file-input" multiple class="hidden" onchange="_handleDocFileInput(this.files)">
+                </div>
+                <div id="doc-upload-filelist" class="space-y-2 max-h-40 overflow-y-auto"></div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">Objekt (SEV)</label>
+                    <select id="owner-upload-building">${bldOptions}</select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">Kategorie</label>
+                    <select id="owner-upload-category">${catOptions}</select>
+                </div>
+            </div>
+            <div class="p-5 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
+                <button onclick="hideModal('owner-upload-modal')" class="btn-secondary text-sm px-4 py-2">Abbrechen</button>
+                <button id="owner-upload-btn" onclick="_doOwnerUploadDocs()" class="btn-primary text-sm px-4 py-2">Hochladen</button>
+            </div>
+    `, { maxWidth: 'max-w-lg' });
+};
+
+window._doOwnerUploadDocs = async () => {
+    if (!_docsState.stagingFiles.length) { showToast('Bitte Dateien auswählen.', 'error'); return; }
+    const buildingId = document.getElementById('owner-upload-building')?.value;
+    const category   = document.getElementById('owner-upload-category')?.value;
+    if (!buildingId) { showToast('Bitte ein Objekt wählen.', 'error'); return; }
+    const btn = document.getElementById('owner-upload-btn');
+    if (btn) { btn.textContent = 'Lädt hoch…'; btn.disabled = true; }
+    let ok = 0, fail = 0;
+    for (const item of _docsState.stagingFiles) {
+        const { file, title } = item;
+        const ext         = file.name.split('.').pop();
+        const safeName    = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        const storagePath = `${buildingId}/eigentuemer-upload/${safeName}`;
+        const { error: upErr } = await _supabase.storage
+            .from('documents').upload(storagePath, file, { cacheControl: '3600', upsert: false });
+        if (upErr) { console.error('Upload:', upErr); fail++; continue; }
+        const { error: dbErr } = await _supabase.from('documents').insert({
+            title, document_title: title, original_filename: file.name, category,
+            file_path: storagePath, file_type: file.type || ext, file_size: file.size,
+            visibility_scope: 'building', building_id: Number(buildingId),
+            uploaded_by: currentUser.id, status: 'active', is_deleted: false,
+        });
+        if (dbErr) { console.error('DB:', dbErr); fail++; continue; }
+        ok++;
+    }
+    hideModal('owner-upload-modal');
+    if (ok)   showToast(`${ok} Dokument${ok > 1 ? 'e' : ''} hochgeladen.`, 'success');
+    if (fail) showToast(`${fail} Datei${fail > 1 ? 'en' : ''} fehlgeschlagen.`, 'error');
+    _docsState.data = await _fetchDocs();
+    _renderDocsView();
+};

@@ -363,7 +363,7 @@ async function loadMyUnits() {
     let apts = [];
     if (person?.id) {
         const { data: ow } = await _supabase.from('ownerships')
-            .select('apartments!inner(id, building_id, apartment_number, type, sq_meters, floor, mea, hausgeld)')
+            .select('apartments!inner(id, building_id, apartment_number, type, sq_meters, floor, mea, hausgeld, rent_amount, utilities_amount)')
             .eq('owner_id', person.id).eq('is_active', true);
         apts = (ow || []).map(o => o.apartments).filter(Boolean);
     }
@@ -377,7 +377,7 @@ async function loadMyUnits() {
 
     // 2) Gebäude, Zähler, Zählerstände parallel
     const [bldRes, metersRes] = await Promise.all([
-        _supabase.from('buildings').select('id, name, file_number, street, house_number, zip_code, city').in('id', bldIds),
+        _supabase.from('buildings').select('id, name, file_number, street, house_number, zip_code, city, mandate_type').in('id', bldIds),
         _supabase.from('meters').select('id, apartment_id, meter_number, meter_type, location_in_apartment, unit').in('apartment_id', aptIds).eq('is_active', true).order('meter_type'),
     ]);
     const bldMap = Object.fromEntries((bldRes.data || []).map(b => [b.id, b]));
@@ -454,11 +454,20 @@ async function loadMyUnits() {
             ${stats ? `<p class="text-sm text-gray-600">${stats}</p>` : ''}
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                ${(b?.mandate_type === 'SEV') ? `
+                <div class="bg-hb-ultralight rounded-xl p-4">
+                    <div class="flex items-center justify-between mb-1">
+                        <p class="text-[10px] uppercase font-bold text-gray-400">Meine Miete (mtl.)</p>
+                        <button onclick="_openRentEditModal(${a.id}, ${a.rent_amount ?? 'null'}, ${a.utilities_amount ?? 'null'})" class="text-[11px] text-hb-olive font-bold hover:underline">Bearbeiten</button>
+                    </div>
+                    <p class="text-sm text-hb-offblack"><span class="text-gray-400">Kaltmiete:</span> <span class="font-extrabold">${euro(a.rent_amount)}</span></p>
+                    <p class="text-sm text-hb-offblack"><span class="text-gray-400">Betriebskosten:</span> <span class="font-extrabold">${euro(a.utilities_amount)}</span></p>
+                </div>` : `
                 <div class="bg-hb-ultralight rounded-xl p-4">
                     <p class="text-[10px] uppercase font-bold text-gray-400 mb-1">Monatliches Hausgeld</p>
                     <p class="text-2xl font-extrabold text-hb-offblack">${euro(hg.amount)}</p>
                     ${hg.dynamic ? '<p class="text-[11px] text-gray-400 mt-0.5">aus aktivem Wirtschaftsplan</p>' : ''}
-                </div>
+                </div>`}
                 <div class="bg-hb-ultralight rounded-xl p-4">
                     <p class="text-[10px] uppercase font-bold text-gray-400 mb-1">Verwalter</p>
                     <p class="text-sm font-semibold text-hb-offblack">${(mgrByBld[a.building_id] && mgrByBld[a.building_id].length) ? esc(mgrByBld[a.building_id].join(', ')) : '—'}</p>
@@ -504,6 +513,45 @@ window._myUnitReadingSave = async (meterId) => {
     hideModal('my-reading-form');
     showToast('Zählerstand übermittelt. Danke!', 'success');
     loadMyUnits();
+};
+
+// ─── Miete bearbeiten (SEV) — genutzt von Meine Einheiten + Dashboard ───
+// refreshKey: 'dashboard' → Dashboard-Kachel aktualisieren; sonst Meine-Einheiten neu laden.
+window._openRentEditModal = (aptId, rent, utilities, refreshKey) => {
+    showModal('rent-edit-modal', `
+        <div class="p-5 bg-hb-olive text-white"><h3 class="text-lg font-black">Miete bearbeiten</h3></div>
+        <div class="p-5 space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">Kaltmiete (€/Monat)</label>
+                <input type="number" step="0.01" id="rent-edit-kalt" value="${rent ?? ''}">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">Betriebskostenvorauszahlung (€/Monat)</label>
+                <input type="number" step="0.01" id="rent-edit-bk" value="${utilities ?? ''}">
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button onclick="hideModal('rent-edit-modal')" class="btn-secondary flex-1">Abbrechen</button>
+                <button id="rent-edit-save" class="btn-primary flex-1">Speichern</button>
+            </div>
+        </div>
+    `);
+    const btn = document.getElementById('rent-edit-save');
+    if (!btn) return;
+    btn.onclick = async () => {
+        const kaltRaw = parseFloat(document.getElementById('rent-edit-kalt').value);
+        const bkRaw   = parseFloat(document.getElementById('rent-edit-bk').value);
+        const kalt = isNaN(kaltRaw) ? null : kaltRaw;
+        const bk   = isNaN(bkRaw)   ? null : bkRaw;
+        btn.disabled = true; btn.textContent = 'Speichert…';
+        const { error } = await _supabase.rpc('set_unit_rent', {
+            p_apartment_id: aptId, p_rent: kalt, p_utilities: bk,
+        });
+        if (error) { showToast('Fehler: ' + error.message, 'error'); btn.disabled = false; btn.textContent = 'Speichern'; return; }
+        hideModal('rent-edit-modal');
+        showToast('Miete gespeichert.', 'success');
+        if (refreshKey === 'dashboard') window._dashRefreshHausgeldAfterRent?.(aptId, kalt, bk);
+        else if (typeof loadMyUnits === 'function') loadMyUnits();
+    };
 };
 
 async function loadMyTenants() {
