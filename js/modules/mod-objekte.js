@@ -1141,20 +1141,20 @@ function renderAssignmentsList({ tenancies, ownerships }) {
         ...ownerships.map(o => ({ role: 'Eigentümer', person: o['persons!ownerships_owner_id_fkey'] || o.persons, from: o.valid_from, to: o.valid_to, rm: `removeOwnership(${o.id})` })),
         ...tenancies.map(t  => ({ role: 'Mieter',     person: t['persons!tenancies_tenant_id_fkey']  || t.persons, from: t.start_date, to: t.end_date,   rm: `removeTenancy(${t.id})`  })),
     ];
-    return rows.map(r => {
+    return `<div class="space-y-2">${rows.map(r => {
         const name   = personDisplayName(r.person);
         const badge  = r.role === 'Eigentümer' ? 'bg-hb-olive/12 text-hb-olive' : 'bg-hb-gold-soft/30 text-hb-gold-bold';
         const period = r.from ? `${r.from}${r.to ? ' – ' + r.to : ''}` : '';
-        return `<div class="flex items-center justify-between py-2 px-3 bg-hb-ultralight rounded-xl border border-gray-100">
-            <div class="flex items-center gap-3 min-w-0">
-                <span class="${badge} text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full flex-shrink-0">${r.role}</span>
+        return `<div class="grid grid-cols-[5.5rem_minmax(0,1fr)_auto] items-center gap-3 py-2.5 px-3 bg-hb-ultralight rounded-xl border border-gray-100">
+            <span class="${badge} text-[10px] font-extrabold uppercase tracking-wider text-center px-2 py-0.5 rounded-full">${r.role}</span>
+            <div class="flex items-baseline gap-2 min-w-0">
                 <button type="button" onclick="navigateToPerson('${r.person?.id || ''}')"
                     class="text-sm font-bold text-hb-olive hover:underline truncate">${name}</button>
                 ${period ? `<span class="text-xs text-gray-400 flex-shrink-0">${period}</span>` : ''}
             </div>
-            <button type="button" onclick="${r.rm}" class="text-xs text-hb-orange px-2 flex-shrink-0">Entfernen</button>
+            <button type="button" onclick="${r.rm}" class="text-xs text-hb-orange px-2 flex-shrink-0 justify-self-end hover:underline">Entfernen</button>
         </div>`;
-    }).join('');
+    }).join('')}</div>`;
 }
 
 window.navigateToPerson = (personId) => { if (personId) showPersonForm(personId); };
