@@ -375,12 +375,23 @@ async function loadMyUnits() {
     const bldIds = [...new Set(apts.map(a => a.building_id))];
     const aptIds = apts.map(a => a.id);
 
-    // 2) Gebäude, Zähler, Zählerstände parallel
-    const [bldRes, metersRes] = await Promise.all([
+    // 2) Gebäude, Zähler, Zählerstände, aktive Mietverhältnisse parallel
+    const [bldRes, metersRes, tenRes] = await Promise.all([
         _supabase.from('buildings').select('id, name, file_number, street, house_number, zip_code, city, mandate_type').in('id', bldIds),
         _supabase.from('meters').select('id, apartment_id, meter_number, meter_type, location_in_apartment, unit').in('apartment_id', aptIds).eq('is_active', true).order('meter_type'),
+        _supabase.from('tenancies')
+            .select('id, apartment_id, start_date, end_date, status, persons!tenancies_tenant_id_fkey(id, first_name, last_name, phone, mobile, email)')
+            .in('apartment_id', aptIds).neq('status', 'Historisch'),
     ]);
     const bldMap = Object.fromEntries((bldRes.data || []).map(b => [b.id, b]));
+
+    // Aktive Mieter je Einheit gruppieren
+    const tenByApt = {};
+    (tenRes.data || []).forEach(t => {
+        const p = t['persons!tenancies_tenant_id_fkey'] || t.persons;
+        if (!p) return;
+        (tenByApt[t.apartment_id] = tenByApt[t.apartment_id] || []).push({ person: p, start_date: t.start_date, end_date: t.end_date });
+    });
     const meters = metersRes.data || [];
     const meterIds = meters.map(m => m.id);
     let latestByMeter = {};
@@ -424,6 +435,24 @@ async function loadMyUnits() {
             a.type ? esc(a.type) : null,
         ].filter(Boolean).join('&nbsp;&nbsp;·&nbsp;&nbsp;');
         const hg = hgByApt[a.id] || {};
+        const tenants = tenByApt[a.id] || [];
+        const tenantRows = tenants.map(t => {
+            const p = t.person;
+            const nm = [p.first_name, p.last_name].filter(Boolean).map(esc).join(' ') || '—';
+            const per = t.start_date ? `seit ${dt(t.start_date)}${t.end_date ? ' bis ' + dt(t.end_date) : ''}` : '';
+            const contact = [
+                p.phone  ? `<a href="tel:${esc(String(p.phone).replace(/\s+/g, ''))}" class="text-hb-olive hover:underline">☎ ${esc(p.phone)}</a>` : '',
+                p.mobile ? `<a href="tel:${esc(String(p.mobile).replace(/\s+/g, ''))}" class="text-hb-olive hover:underline">📱 ${esc(p.mobile)}</a>` : '',
+                p.email  ? `<a href="mailto:${esc(p.email)}" class="text-hb-olive hover:underline break-all">✉ ${esc(p.email)}</a>` : '',
+            ].filter(Boolean).join('<span class="text-gray-300 mx-2">·</span>');
+            return `<div class="py-2.5 px-3 bg-hb-ultralight rounded-xl">
+                <div class="flex items-baseline justify-between gap-2">
+                    <p class="text-sm font-semibold text-hb-offblack truncate">${nm}</p>
+                    ${per ? `<p class="text-[11px] text-gray-400 flex-shrink-0">${per}</p>` : ''}
+                </div>
+                <p class="text-xs mt-1 ${contact ? '' : 'text-gray-400'}">${contact || 'Keine Kontaktdaten hinterlegt.'}</p>
+            </div>`;
+        }).join('');
         const aptMeters = meters.filter(m => m.apartment_id === a.id);
         const meterRows = aptMeters.length ? aptMeters.map(m => {
             const r = latestByMeter[m.id];
@@ -473,6 +502,12 @@ async function loadMyUnits() {
                     <p class="text-sm font-semibold text-hb-offblack">${(mgrByBld[a.building_id] && mgrByBld[a.building_id].length) ? esc(mgrByBld[a.building_id].join(', ')) : '—'}</p>
                 </div>
             </div>
+
+            ${tenants.length ? `
+            <div>
+                <p class="text-[10px] uppercase font-bold text-gray-300 mb-1">Mieter</p>
+                <div class="space-y-1.5">${tenantRows}</div>
+            </div>` : ''}
 
             <div>
                 <p class="text-[10px] uppercase font-bold text-gray-300 mb-1">Zähler & Stände</p>
