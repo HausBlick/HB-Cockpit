@@ -20,6 +20,13 @@ if (_isLocalDev) {
     _devBanner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#CC0000;color:#fff;text-align:center;font-size:11px;font-weight:bold;padding:5px 0;letter-spacing:.08em;pointer-events:none;';
     _devBanner.textContent = '⚠  DEV-UMGEBUNG  —  hb-cockpit-dev  —  KEINE PRODUKTIONSDATEN';
     document.body.prepend(_devBanner);
+    // Dem Banner echten Platz geben, statt Header/Sidebar-Logo zu ueberlagern
+    const _bh = _devBanner.offsetHeight || 24;
+    const _bs = document.createElement('style');
+    _bs.textContent =
+      `body{margin-top:${_bh}px !important;height:calc(100vh - ${_bh}px) !important;height:calc(100dvh - ${_bh}px) !important;}` +
+      `#sidebar{height:100% !important;}`;
+    document.head.appendChild(_bs);
 }
 
 // --- Globaler App-State ---
@@ -196,6 +203,7 @@ const EXTERNAL_PAGES = {
     'loadZeiterfassung': 'zeiterfassung.html',
     'loadETV':           'etv.html',
     'loadFinance':       'finanzen.html',
+    'loadStamp':         'stamp.html',
 };
 
 // Auth-Guard: Welche externen Seiten nur bestimmte Rollen sehen dürfen
@@ -203,6 +211,7 @@ const EXTERNAL_PAGE_ROLES = {
     'zeiterfassung': ['admin', 'manager'],
     'etv':           ['admin', 'manager'],
     'finanzen':      ['admin', 'manager', 'owner'],  // Advisory-Zugang wird via _isAdvisory + board_members geprüft
+    'stamp':         ['admin', 'manager'],
 };
 
 function _getCurrentPage() {
@@ -211,6 +220,7 @@ function _getCurrentPage() {
     const path = window.location.pathname.replace(/\/+$/, '');
     const last = path.substring(path.lastIndexOf('/') + 1).replace(/\.html$/i, '');
     if (last === 'zeiterfassung') return 'zeiterfassung';
+    if (last === 'stamp')        return 'stamp';
     if (last === 'etv')          return 'etv';
     if (last === 'dokumente')    return 'dokumente';
     if (last === 'finanzen')     return 'finanzen';

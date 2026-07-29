@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/HB_icon_olive_RGB.svg">
+    <title>HB Cockpit | HB-Stamp</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'hb-olive':      '#687451',
+                        'hb-offblack':   '#373737',
+                        'hb-white':      '#FFFFFF',
+                        'hb-orange':     '#EB762D',
+                        'hb-gold-bold':  '#C5A059',
+                        'hb-gold-soft':  '#EEC981',
+                        'hb-gray':       '#B4B4B4',
+                        'hb-ultralight': '#F5F5F5',
+                        'hb-success':    '#4A7C59',
+                        'hb-error':      '#C4453E'
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    borderRadius: { 'lg': '8px', 'xl': '12px', '2xl': '16px' },
+                    boxShadow: {
+                        'soft': '0 2px 8px rgba(0,0,0,0.08)',
+                        'md':   '0 4px 16px rgba(0,0,0,0.10)',
+                        'lg':   '0 8px 32px rgba(0,0,0,0.14)'
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { background-color: #F5F5F5; font-size: 16px; color: #373737; }
+        #sidebar { transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1); }
+        .nav-link { border-radius: 12px; transition: all 0.2s; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 12px 16px; font-size: 14px; font-weight: 600; color: #687451; }
+        .nav-link:hover { background-color: #f3f4f6; color: #687451; }
+        .active-link { background-color: #687451 !important; color: white !important; }
+        .card { background: white; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid rgba(104,116,81,0.12); overflow: hidden; }
+        .dropdown-open { display: block !important; animation: fadeIn 0.15s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+        body input, body select, body textarea { border-radius: 12px; background-color: #F5F5F5; border: 1px solid #e5e7eb; transition: all 0.2s; padding: 10px 16px; width: 100%; height: 44px; font-size: 15px; }
+        body textarea { height: auto; min-height: 80px; padding: 10px 16px; }
+        input:focus, select:focus, textarea:focus { background-color: white; border-color: #687451; outline: none; box-shadow: 0 0 0 3px rgba(104, 116, 81, 0.1); }
+        input[type="checkbox"] { width: auto; accent-color: #687451; width: 1.2rem; height: 1.2rem; cursor: pointer; border-radius: 4px; }
+        .btn-primary { background-color: #687451; color: white; border-radius: 12px; transition: all 0.2s; font-weight: 600; padding: 12px 24px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+        .btn-primary:hover { background-color: #555f42; transform: translateY(-1px); }
+        .btn-secondary { background-color: #e5e7eb; color: #374151; border-radius: 12px; transition: all 0.2s; font-weight: 600; padding: 12px 24px; cursor: pointer; }
+        .btn-outline { background-color: white; color: #687451; border: 1.5px solid #687451; border-radius: 12px; transition: all 0.2s; font-weight: 600; padding: 10px 20px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+        .btn-outline:hover { background-color: #687451; color: white; transform: translateY(-1px); }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .modal-sheet { transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1); }
+        .modal-inner { transition: transform 0.25s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.25s cubic-bezier(0.25, 1, 0.5, 1); }
+        .bnav-item { color: #9ca3af; transition: color 0.15s; -webkit-tap-highlight-color: transparent; }
+        .bnav-item.bnav-active { color: #687451; }
+        .bnav-item .bnav-dot { display: none; width: 4px; height: 4px; border-radius: 50%; background: #687451; margin-top: 2px; }
+        .bnav-item.bnav-active .bnav-dot { display: block; }
+        @supports (padding-bottom: env(safe-area-inset-bottom)) {
+            #bottom-nav { padding-bottom: env(safe-area-inset-bottom); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { transition: none !important; animation: none !important; }
+        }
+        .btn-primary:active, .btn-secondary:active, .btn-outline:active, .tap-feedback:active {
+            transform: scale(0.97); opacity: 0.7; transition: transform 100ms ease-out, opacity 100ms ease-out;
+        }
+        .sidebar-panel { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+        .sidebar-panel .chat-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+        .sidebar-panel .chat-scroll::-webkit-scrollbar { display: none; }
+        @media (min-width: 768px) {
+            #sidebar { width: 72px !important; overflow: visible; transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+            #sidebar.pinned { width: 288px !important; }
+            .sidebar-panel { position: absolute; inset: 0; width: 100%; background: #fff; overflow: hidden; z-index: 40; transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.5s, box-shadow 0.45s ease; }
+            #sidebar:not(.pinned):hover .sidebar-panel { width: 288px; box-shadow: 0 12px 40px rgba(55,55,55,0.12); transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.15s, box-shadow 0.45s ease; }
+            .sidebar-logo-area { padding: 14px 0 12px !important; height: 118px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+            #sidebar:hover .sidebar-logo-area, #sidebar.pinned .sidebar-logo-area { padding: 16px 32px 12px !important; }
+            .sidebar-logo-icon { width: 32px !important; height: 32px !important; object-fit: contain; margin-bottom: 0 !important; transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1), height 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+            #sidebar:hover .sidebar-logo-icon, #sidebar.pinned .sidebar-logo-icon { width: 34px !important; height: 34px !important; margin-bottom: 6px !important; }
+            .sidebar-logo-text { opacity: 0; max-height: 0; overflow: hidden; transition: opacity 0.35s ease, max-height 0.45s cubic-bezier(0.22, 1, 0.36, 1); }
+            #sidebar:hover .sidebar-logo-text, #sidebar.pinned .sidebar-logo-text { opacity: 1; max-height: 60px; }
+            .nav-label { max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; display: inline-block; vertical-align: middle; transition: max-width 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease; }
+            #sidebar:hover .nav-label, #sidebar.pinned .nav-label { max-width: 200px; opacity: 1; transition: max-width 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.1s, opacity 0.35s ease 0.12s; }
+            .nav-link { padding: 12px !important; gap: 0 !important; transition: background-color 0.2s, color 0.2s, padding 0.45s cubic-bezier(0.22, 1, 0.36, 1), gap 0.45s cubic-bezier(0.22, 1, 0.36, 1) !important; }
+            #sidebar:hover .nav-link, #sidebar.pinned .nav-link { padding: 12px 16px !important; gap: 12px !important; }
+            .nav-section-title { height: 24px !important; box-sizing: border-box; padding: 10px 16px 0 !important; font-size: 10px !important; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #9ca3af; overflow: hidden !important; opacity: 0; white-space: nowrap; transition: opacity 0.3s ease; }
+            #sidebar:hover .nav-section-title, #sidebar.pinned .nav-section-title { opacity: 1; }
+            #sidebar:not(:hover):not(.pinned) .nav-badge { display: none !important; }
+            #sidebar.pinned .sidebar-pin-btn { color: #687451 !important; background: rgba(104,116,81,0.06) !important; }
+        }
+        /* HB-Stamp Kalender */
+        .stamp-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+        .stamp-cell { border-radius: 10px; border: 1px solid rgba(104,116,81,0.12); min-height: 68px; padding: 6px 8px; font-size: 12px; position: relative; background: #fff; }
+        .stamp-cell.other { background: #fafafa; color: #cbd5e1; border-style: dashed; }
+        .stamp-cell .d { font-weight: 700; color: #9ca3af; }
+        .stamp-work    { background: #eef0eb; border-color: #c4ccb8; }
+        .stamp-urlaub  { background: #e6f0f6; border-color: #b9d4e4; }
+        .stamp-krank   { background: #fdecec; border-color: #f3c2c2; }
+        .stamp-feiertag{ background: #f3f0e6; border-color: #ddd0a8; }
+        .stamp-pending { background-image: repeating-linear-gradient(45deg, rgba(104,116,81,0.06) 0 6px, transparent 6px 12px); }
+    </style>
+</head>
+<body class="font-sans flex flex-col md:flex-row text-left relative overflow-hidden" style="height:100vh;height:100dvh" onclick="closeDropdowns(event)">
+
+    <div id="toast-container" class="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-[60] flex flex-col gap-3 pointer-events-none text-left"></div>
+
+    <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-40 w-72 bg-white border-r border-gray-100 flex-shrink-0 h-screen flex flex-col shadow-soft text-left">
+      <div class="sidebar-panel">
+        <a href="dashboard.html"
+            class="sidebar-logo-area hidden md:block text-center border-b border-gray-50 mb-4 cursor-pointer hover:bg-gray-50/50 transition-colors">
+            <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="sidebar-logo-icon mx-auto">
+            <div class="sidebar-logo-text">
+                <div class="font-extrabold text-xl tracking-tighter text-hb-olive">HB Cockpit</div>
+                <p class="text-[10px] uppercase tracking-widest font-bold text-gray-400">HB Verwaltung</p>
+            </div>
+        </a>
+        <div class="flex-grow p-4 overflow-y-auto chat-scroll">
+            <ul class="space-y-1" id="nav-links"></ul>
+        </div>
+        <button onclick="toggleSidebarPin()" id="sidebar-pin-btn" title="Menü fixieren" aria-pressed="false"
+            class="sidebar-pin-btn nav-link hidden md:flex items-center mx-2 mb-3 flex-shrink-0 text-gray-400 hover:text-hb-olive hover:bg-hb-olive/5">
+            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l-1 6 3.5 3v2H6.5v-2L10 10 9 4z"></path><line x1="12" y1="15" x2="12" y2="21"></line></svg>
+            <span class="nav-label text-[13px] font-semibold">Menü fixieren</span>
+        </button>
+      </div>
+    </nav>
+    <div id="overlay" onclick="toggleMenu()" class="fixed inset-0 bg-hb-offblack/20 backdrop-blur-sm z-30 hidden text-left"></div>
+
+    <main class="flex-1 min-h-0 overflow-hidden relative flex flex-col text-left">
+        <header class="px-4 py-2 md:py-4 md:px-6 flex justify-between items-center flex-shrink-0 bg-white md:bg-hb-ultralight/80 border-b border-gray-100 md:border-b-0 md:backdrop-blur-md z-30 text-left">
+            <a href="dashboard.html" class="md:hidden font-bold text-lg tracking-tight text-hb-olive flex items-center gap-2 cursor-pointer">
+                <img src="HB_icon_olive_RGB.svg" alt="HB Logo" class="h-7 w-auto">
+                HB Cockpit
+            </a>
+            <div class="hidden md:block text-left">
+                <p id="role-label" class="text-xs uppercase tracking-widest font-bold text-hb-orange"></p>
+            </div>
+            <div class="relative dropdown-container text-left">
+                <button onclick="toggleUserDropdown(event)" class="flex items-center gap-2 bg-white p-1 pr-2 md:p-1.5 md:pr-3 rounded-full border border-gray-200 shadow-sm hover:border-hb-olive transition-colors">
+                    <div id="user-avatar" class="w-8 h-8 md:w-9 md:h-9 bg-hb-olive text-white rounded-full flex items-center justify-center font-bold text-xs md:text-sm uppercase">?</div>
+                    <svg class="w-3.5 h-3.5 md:w-4 md:h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div id="user-dropdown" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-100 z-50 overflow-hidden text-left">
+                    <div class="p-4 border-b border-gray-50 text-left">
+                        <p class="text-sm font-bold truncate text-left" id="dropdown-name">Name</p>
+                        <p class="text-xs text-gray-400 truncate text-left" id="dropdown-email">email</p>
+                    </div>
+                    <a href="dashboard.html?m=loadProfile" class="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-3 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                        Profil bearbeiten
+                    </a>
+                    <button onclick="logout()" class="w-full text-left px-4 py-3 text-sm font-bold text-hb-error hover:bg-hb-error/5 flex items-center gap-3 border-t border-gray-50 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                        Abmelden
+                    </button>
+                </div>
+            </div>
+        </header>
+        <div id="content-area" class="flex-1 min-h-0 px-4 md:px-10 pb-6 md:pb-10 overflow-y-auto text-left"></div>
+        <nav id="bottom-nav" class="md:hidden flex-shrink-0 bg-white border-t border-gray-100 flex justify-around items-center" style="min-height:56px"></nav>
+    </main>
+
+    <script src="js/config.js?v=20260728a"></script>
+    <script src="js/utils.js?v=20260728a"></script>
+    <script src="js/modules/mod-stamp.js?v=20260729g"></script>
+    <script src="js/nav.js?v=20260728a"></script>
+
+</body>
+</html>
