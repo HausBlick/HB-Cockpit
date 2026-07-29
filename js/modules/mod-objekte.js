@@ -1143,7 +1143,7 @@ function renderAssignmentsList({ tenancies, ownerships }) {
     ];
     return `<div class="space-y-2">${rows.map(r => {
         const name   = personDisplayName(r.person);
-        const badge  = r.role === 'Eigentümer' ? 'bg-hb-olive/12 text-hb-olive' : 'bg-hb-gold-soft/30 text-hb-gold-bold';
+        const badge  = r.role === 'Eigentümer' ? 'bg-hb-olive/20 text-hb-olive' : 'bg-hb-gold-soft/40 text-hb-gold-bold';
         const period = r.from ? `${r.from}${r.to ? ' – ' + r.to : ''}` : '';
         return `<div class="grid grid-cols-[5.5rem_minmax(0,1fr)_auto] items-center gap-3 py-2.5 px-3 bg-hb-ultralight rounded-xl border border-gray-100">
             <span class="${badge} text-[10px] font-extrabold uppercase tracking-wider text-center px-2 py-0.5 rounded-full">${r.role}</span>
