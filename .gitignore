@@ -51,3 +51,5 @@ scripts/
 supabase/config.toml
 supabase/functions/
 supabase/email-templates/
+# PWA-Icon-Generator (Hilfswerkzeug, nicht ausliefern)
+pwa-icon-generator.html
