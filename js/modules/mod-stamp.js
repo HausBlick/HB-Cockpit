@@ -765,18 +765,18 @@ async function _stampRenderStaff() {
     const year = new Date().getFullYear();
     const [esRes, vlRes, ewRes, atRes] = await Promise.all([
         _supabase.from('employment_settings').select('*').in('user_id', ids).is('valid_to', null),
-        _supabase.from('vacation_ledger').select('*').in('user_id', ids).eq('year', year),
+        _supabase.from('vacation_ledger').select('*').in('user_id', ids),   // alle Jahre (Dialog waehlt Jahr)
         _supabase.from('employment_wages').select('*').in('user_id', ids).is('valid_to', null),
         _supabase.from('absence_types').select('*').order('sort_order', { ascending:true }),
     ]);
     const esMap = {}; (esRes.data||[]).forEach(r=>{ esMap[r.user_id] = r; });
-    const vlMap = {}; (vlRes.data||[]).forEach(r=>{ vlMap[r.user_id] = r; });
+    const vlMap = {}; (vlRes.data||[]).forEach(r=>{ (vlMap[r.user_id] ||= {})[r.year] = r; });   // vlMap[uid][year]
     const ewMap = {}; (ewRes.data||[]).forEach(r=>{ ewMap[r.user_id] = r; });
     _stmp._esMap = esMap; _stmp._vlMap = vlMap; _stmp._ewMap = ewMap; _stmp._staffYear = year;
     _stmp.absTypes = atRes.data || [];
 
     const rows = _stmp.users.map(u => {
-        const es = esMap[u.id], vl = vlMap[u.id], ew = ewMap[u.id];
+        const es = esMap[u.id], vl = vlMap[u.id]?.[year], ew = ewMap[u.id];
         let soll = '—';
         if (es) soll = es.soll_mode==='ohne' ? 'Ohne Soll'
             : es.soll_mode==='monat' ? `${es.soll_hours_month ?? '—'} h/Monat`
@@ -879,9 +879,10 @@ window._stampTypeSave = async (isNew) => {
 window._stampStaffEdit = (uid) => {
     const u = _stmp.users.find(x=>x.id===uid);
     const es = _stmp._esMap[uid] || {};
-    const vl = _stmp._vlMap[uid] || {};
+    const vlByYear = _stmp._vlMap[uid] || {};
     const ew = _stmp._ewMap[uid] || {};
     const y = _stmp._staffYear;
+    const vl = vlByYear[y] || {};
     const mode = es.soll_mode || 'monat';
     const today = new Date().toISOString().slice(0,10);
     const derivedWat = ['mon','tue','wed','thu','fri','sat','sun'].filter(k=>Number(es['soll_'+k])>0).length;
@@ -930,7 +931,13 @@ window._stampStaffEdit = (uid) => {
           </div>
         </div>
         <div class="border-t pt-4">
-          <p class="text-xs font-black uppercase tracking-wide text-hb-olive mb-2">Urlaubskonto ${y}</p>
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-xs font-black uppercase tracking-wide text-hb-olive">Urlaubskonto</p>
+            <select id="vl-year" onchange="_stampStaffYearChange('${uid}')" class="text-sm" style="width:auto;">
+              ${[y-1,y,y+1,y+2].map(yy=>`<option value="${yy}" ${yy===y?'selected':''}>${yy}</option>`).join('')}
+            </select>
+          </div>
+          <p class="text-[10px] text-gray-400 mb-2">Urlaubsanspruch gilt pro Kalenderjahr — hier das Jahr wählen (z. B. 2026 anteilig, 2027 volles Jahr).</p>
           <div class="grid grid-cols-3 gap-3">
             <div><label class="block text-[11px] font-bold text-gray-500 mb-1">Anspruch</label><input type="number" step="0.5" id="vl-anspruch" value="${vl.anspruch_tage ?? ''}"></div>
             <div><label class="block text-[11px] font-bold text-gray-500 mb-1">Übertrag</label><input type="number" step="0.5" id="vl-uebertrag" value="${vl.uebertrag_vorjahr ?? ''}"></div>
@@ -1001,6 +1008,15 @@ window._stampVacApply = () => {
     document.getElementById('vl-note').value = _vcLast.note;
     showToast('Vorschlag übernommen — bitte prüfen und speichern.', 'success');
 };
+// Jahr im Urlaubskonto wechseln -> Felder aus vacation_ledger des Jahres neu füllen
+window._stampStaffYearChange = (uid) => {
+    const yy = Number(document.getElementById('vl-year').value);
+    const r = (_stmp._vlMap[uid] || {})[yy] || {};
+    document.getElementById('vl-anspruch').value  = r.anspruch_tage ?? '';
+    document.getElementById('vl-uebertrag').value = r.uebertrag_vorjahr ?? '';
+    document.getElementById('vl-korrektur').value = r.korrektur_tage ?? '';
+    document.getElementById('vl-note').value      = r.note || '';
+};
 
 window._stampStaffSave = async (uid) => {
     const mode = document.getElementById('es-mode').value;
@@ -1023,7 +1039,8 @@ window._stampStaffSave = async (uid) => {
         p_can_approve: document.getElementById('es-approve').checked,
     });
     if (e1) { showToast('Fehler: '+e1.message, 'error'); return; }   // sprechende RPC-Meldungen (Stichtag/Ueberlappung)
-    const vl = { user_id: uid, year: _stmp._staffYear,
+    const vlYear = Number(document.getElementById('vl-year').value) || _stmp._staffYear;
+    const vl = { user_id: uid, year: vlYear,
         anspruch_tage: num('vl-anspruch') ?? 0, uebertrag_vorjahr: num('vl-uebertrag') ?? 0,
         korrektur_tage: num('vl-korrektur') ?? 0, note: document.getElementById('vl-note').value || null };
     const { error: e2 } = await _supabase.from('vacation_ledger').upsert(vl, { onConflict: 'user_id,year' });
